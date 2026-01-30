@@ -614,6 +614,8 @@ function AgentRequestModal({ request, onRespond }) {
     const title = tool_call?.title || 'Agent Request';
     const kind = tool_call?.kind || 'other';
     
+    console.log('AgentRequestModal:', { request_id, tool_call, options });
+    
     const handleResponse = async (outcome) => {
         try {
             await respondToAgentRequest(request_id, outcome);
@@ -635,6 +637,9 @@ function AgentRequestModal({ request, onRespond }) {
         }
     };
     
+    // ACP options format: { optionId, name, kind }
+    const hasOptions = options && options.length > 0;
+    
     return html`
         <div class="agent-request-modal">
             <div class="agent-request-content">
@@ -652,14 +657,14 @@ function AgentRequestModal({ request, onRespond }) {
                     </div>
                 `}
                 <div class="agent-request-actions">
-                    ${options && options.length > 0 ? (
+                    ${hasOptions ? (
                         options.map(opt => html`
                             <button 
-                                key=${opt.id || opt}
-                                class="agent-request-btn ${opt.recommended ? 'primary' : ''}"
-                                onClick=${() => handleResponse(opt.id || opt)}
+                                key=${opt.optionId || opt.id || String(opt)}
+                                class="agent-request-btn ${opt.kind === 'allow_once' || opt.kind === 'allow_always' ? 'primary' : ''}"
+                                onClick=${() => handleResponse(opt.optionId || opt.id || opt)}
                             >
-                                ${opt.label || opt.id || opt}
+                                ${opt.name || opt.label || opt.optionId || opt.id || String(opt)}
                             </button>
                         `)
                     ) : html`
