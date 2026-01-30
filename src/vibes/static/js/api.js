@@ -1,0 +1,176 @@
+/**
+ * API client for Vibes backend
+ */
+
+const API_BASE = '';
+
+/**
+ * Fetch wrapper with error handling
+ */
+async function request(url, options = {}) {
+    const response = await fetch(API_BASE + url, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...options.headers,
+        },
+    });
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+}
+
+/**
+ * Get timeline posts
+ */
+export async function getTimeline(limit = 50, offset = 0) {
+    return request(`/timeline?limit=${limit}&offset=${offset}`);
+}
+
+/**
+ * Get a thread by ID
+ */
+export async function getThread(threadId) {
+    return request(`/thread/${threadId}`);
+}
+
+/**
+ * Create a new post
+ */
+export async function createPost(content, mediaIds = []) {
+    return request('/post', {
+        method: 'POST',
+        body: JSON.stringify({ content, media_ids: mediaIds }),
+    });
+}
+
+/**
+ * Reply to a thread
+ */
+export async function createReply(threadId, content, mediaIds = []) {
+    return request('/reply', {
+        method: 'POST',
+        body: JSON.stringify({ thread_id: threadId, content, media_ids: mediaIds }),
+    });
+}
+
+/**
+ * Send message to agent
+ */
+export async function sendAgentMessage(agentId, content, threadId = null) {
+    return request(`/agent/${agentId}/message`, {
+        method: 'POST',
+        body: JSON.stringify({ content, thread_id: threadId }),
+    });
+}
+
+/**
+ * Upload media file
+ */
+export async function uploadMedia(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(API_BASE + '/media/upload', {
+        method: 'POST',
+        body: formData,
+    });
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+}
+
+/**
+ * Get media URL
+ */
+export function getMediaUrl(mediaId) {
+    return `${API_BASE}/media/${mediaId}`;
+}
+
+/**
+ * Get media thumbnail URL
+ */
+export function getThumbnailUrl(mediaId) {
+    return `${API_BASE}/media/${mediaId}/thumbnail`;
+}
+
+/**
+ * SSE client for live updates
+ */
+export class SSEClient {
+    constructor(onEvent, onStatusChange) {
+        this.onEvent = onEvent;
+        this.onStatusChange = onStatusChange;
+        this.eventSource = null;
+        this.reconnectTimeout = null;
+        this.reconnectDelay = 1000;
+    }
+    
+    connect() {
+        if (this.eventSource) {
+            this.eventSource.close();
+        }
+        
+        this.eventSource = new EventSource(API_BASE + '/sse/stream');
+        
+        this.eventSource.onopen = () => {
+            this.reconnectDelay = 1000;
+            this.onStatusChange('connected');
+        };
+        
+        this.eventSource.onerror = () => {
+            this.onStatusChange('disconnected');
+            this.scheduleReconnect();
+        };
+        
+        // Event handlers
+        this.eventSource.addEventListener('connected', () => {
+            console.log('SSE connected');
+        });
+        
+        this.eventSource.addEventListener('new_post', (e) => {
+            this.onEvent('new_post', JSON.parse(e.data));
+        });
+        
+        this.eventSource.addEventListener('new_reply', (e) => {
+            this.onEvent('new_reply', JSON.parse(e.data));
+        });
+        
+        this.eventSource.addEventListener('agent_response', (e) => {
+            this.onEvent('agent_response', JSON.parse(e.data));
+        });
+    }
+    
+    scheduleReconnect() {
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+        }
+        
+        this.reconnectTimeout = setTimeout(() => {
+            console.log('Reconnecting SSE...');
+            this.connect();
+        }, this.reconnectDelay);
+        
+        // Exponential backoff, max 30 seconds
+        this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+    }
+    
+    disconnect() {
+        if (this.eventSource) {
+            this.eventSource.close();
+            this.eventSource = null;
+        }
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+    }
+}

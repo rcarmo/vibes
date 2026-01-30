@@ -1,0 +1,9 @@
+{
+  "endpoints": {
+    "summarize": {
+      "agent_id": "default",
+      "description": "Summarize a web page",
+      "params": ["url"]
+    }
+  }
+}
