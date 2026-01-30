@@ -159,16 +159,45 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     try:
                         outcome = await asyncio.wait_for(future, timeout=300)
                     except asyncio.TimeoutError:
-                        outcome = "denied"
-                        logger.warning("Permission request timed out, denying")
+                        outcome = "rejected"
+                        logger.warning("Permission request timed out, rejecting")
                     finally:
                         _pending_requests.pop(req_id, None)
+                
+                # Build ACP-compliant response
+                # Format: {"outcome": "cancelled"} or {"outcome": "selected", "optionId": "..."}
+                if outcome == "cancelled":
+                    outcome_obj = {"outcome": "cancelled"}
+                elif outcome in ("approved", "denied", "rejected"):
+                    # Map our simple responses to ACP format
+                    # "approved" -> select first allow option, or use "allow-once"
+                    # "denied"/"rejected" -> select first reject option, or use "reject-once"
+                    if outcome == "approved":
+                        # Find an allow option, or default to allow-once
+                        option_id = "allow-once"
+                        for opt in options:
+                            if opt.get("kind") in ("allow_once", "allow_always"):
+                                option_id = opt.get("optionId", option_id)
+                                break
+                    else:
+                        # Find a reject option, or default to reject-once
+                        option_id = "reject-once"
+                        for opt in options:
+                            if opt.get("kind") in ("reject_once", "reject_always"):
+                                option_id = opt.get("optionId", option_id)
+                                break
+                    outcome_obj = {"outcome": "selected", "optionId": option_id}
+                else:
+                    # User selected a specific optionId
+                    outcome_obj = {"outcome": "selected", "optionId": outcome}
+                
+                logger.info(f"Sending permission response: {outcome_obj}")
                 
                 # Send response to agent
                 permission_response = {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "result": {"outcome": outcome}
+                    "result": {"outcome": outcome_obj}
                 }
                 data = json.dumps(permission_response) + "\n"
                 _agent_writer.write(data.encode())
