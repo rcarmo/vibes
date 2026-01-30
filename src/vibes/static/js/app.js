@@ -301,6 +301,7 @@ function ComposeBox({ onPost, onFocus }) {
                     onInput=${handleInput}
                     onKeyDown=${handleKeyDown}
                     onFocus=${onFocus}
+                    onClick=${onFocus}
                     disabled=${loading}
                     rows="1"
                 />
