@@ -14,9 +14,9 @@ from .tasks import enqueue
 
 logger = logging.getLogger(__name__)
 
-# Regex to find URLs in text
+# Regex to find URLs in text - excludes markdown link syntax chars and trailing punctuation
 URL_PATTERN = re.compile(
-    r'https?://[^\s<>"{}|\\^`\[\]]+'
+    r'https?://[^\s<>"{}|\\^`\[\]()]+(?:\([^\s()]*\))?[^\s<>"{}|\\^`\[\]().,;:!?\'"]*'
 )
 
 # Timeout for fetching URLs
