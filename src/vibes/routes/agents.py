@@ -1,13 +1,14 @@
 """ACP agent route handlers."""
 
 import asyncio
+import base64
 import json
 import logging
 from aiohttp import web
 from ..db import get_db
 from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
-from ..acp_client import send_message_simple, is_agent_running, start_agent
+from ..acp_client import send_message_multimodal, is_agent_running, start_agent
 from ..tasks import enqueue
 from .sse import broadcast_event
 
@@ -49,8 +50,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "title": "Thinking..."
         })
         
-        # Get response from ACP agent
-        response_content = await send_message_simple(content, thread_id, status_callback)
+        # Get multimodal response from ACP agent
+        response = await send_message_multimodal(content, thread_id, status_callback)
         
         # Broadcast that agent is done
         await broadcast_event("agent_status", {
@@ -59,25 +60,47 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "type": "done"
         })
         
-        # Store agent response
+        # Process content blocks - store images/files in media table
         db = await get_db()
+        media_ids = []
+        text_content = response.get("text", "")
+        
+        for block in response.get("content", []):
+            block_type = block.get("type")
+            
+            if block_type == "image":
+                # Store image in media table
+                media_id = await _store_media_block(db, block)
+                if media_id:
+                    media_ids.append(media_id)
+                    
+            elif block_type == "file":
+                # Store file in media table
+                media_id = await _store_media_block(db, block)
+                if media_id:
+                    media_ids.append(media_id)
+        
+        # Store agent response
         agent_response = {
             "type": "agent_response",
-            "content": response_content,
+            "content": text_content,
+            "content_blocks": response.get("content", []),
             "agent_id": agent_id,
             "thread_id": thread_id,
+            "media_ids": media_ids,
         }
         
         response_id = await db.create_interaction(agent_response)
         response_interaction = await db.get_interaction(response_id)
         
         # Queue link preview fetch for agent response too
-        queue_link_preview_fetch(response_id, response_content)
+        if text_content:
+            queue_link_preview_fetch(response_id, text_content)
         
         # Broadcast agent response
         await broadcast_event("agent_response", response_interaction)
         
-        logger.info(f"Agent response posted for thread {thread_id}")
+        logger.info(f"Agent response posted for thread {thread_id} with {len(media_ids)} media items")
         
     except Exception as e:
         logger.error(f"Error processing agent response: {e}", exc_info=True)
@@ -101,6 +124,54 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         response_id = await db.create_interaction(error_response)
         response_interaction = await db.get_interaction(response_id)
         await broadcast_event("agent_response", response_interaction)
+
+
+async def _store_media_block(db, block: dict) -> int | None:
+    """Store an image or file block in the media table, return media_id."""
+    try:
+        block_type = block.get("type")
+        mime_type = block.get("mime_type", "application/octet-stream")
+        name = block.get("name", f"agent_{block_type}")
+        
+        # Get the data
+        data = None
+        if "data" in block:
+            encoding = block.get("encoding", "base64")
+            if encoding == "base64":
+                data = base64.b64decode(block["data"])
+            else:
+                data = block["data"].encode() if isinstance(block["data"], str) else block["data"]
+        elif "url" in block:
+            # For URL-based content, we could fetch it or just store the URL
+            # For now, store a reference
+            logger.info(f"Media block has URL: {block['url']}")
+            # TODO: Optionally fetch and cache the content
+            return None
+        
+        if not data:
+            return None
+        
+        # Generate thumbnail for images
+        thumbnail = None
+        if mime_type.startswith("image/"):
+            from .media import generate_thumbnail
+            thumbnail = generate_thumbnail(data, mime_type)
+        
+        # Store in database
+        media_id = await db.create_media(
+            filename=name,
+            content_type=mime_type,
+            data=data,
+            thumbnail=thumbnail,
+            metadata={"source": "agent", "original_type": block_type}
+        )
+        
+        logger.info(f"Stored agent media: {name} ({mime_type}) as media_id={media_id}")
+        return media_id
+        
+    except Exception as e:
+        logger.error(f"Failed to store media block: {e}", exc_info=True)
+        return None
 
 
 async def send_message(request: web.Request) -> web.Response:

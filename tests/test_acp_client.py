@@ -309,3 +309,117 @@ class TestAcpClient:
             assert "busy" in result.lower()
         finally:
             acp_client._request_lock.release()
+
+
+class TestContentParsing:
+    """Test content block parsing functions."""
+
+    def test_parse_text_block(self):
+        """Test parsing text content block."""
+        block = {"type": "text", "text": "Hello world"}
+        result = acp_client._parse_content_block(block)
+        assert result == {"type": "text", "text": "Hello world"}
+
+    def test_parse_image_block_base64(self):
+        """Test parsing image block with base64 data."""
+        block = {
+            "type": "image",
+            "content": "iVBORw0KGgo=",
+            "content_encoding": "base64",
+            "content_type": "image/png"
+        }
+        result = acp_client._parse_content_block(block)
+        assert result["type"] == "image"
+        assert result["data"] == "iVBORw0KGgo="
+        assert result["encoding"] == "base64"
+        assert result["mime_type"] == "image/png"
+
+    def test_parse_image_block_url(self):
+        """Test parsing image block with URL."""
+        block = {
+            "type": "image",
+            "content_url": "https://example.com/image.png",
+            "content_type": "image/png"
+        }
+        result = acp_client._parse_content_block(block)
+        assert result["type"] == "image"
+        assert result["url"] == "https://example.com/image.png"
+        assert result["mime_type"] == "image/png"
+
+    def test_parse_file_block(self):
+        """Test parsing file/artifact block."""
+        block = {
+            "type": "file",
+            "name": "data.json",
+            "content": "eyJrZXkiOiAidmFsdWUifQ==",
+            "content_encoding": "base64",
+            "content_type": "application/json"
+        }
+        result = acp_client._parse_content_block(block)
+        assert result["type"] == "file"
+        assert result["name"] == "data.json"
+        assert result["mime_type"] == "application/json"
+
+    def test_parse_unknown_block(self):
+        """Test parsing unknown block type preserves it."""
+        block = {"type": "custom", "data": "something"}
+        result = acp_client._parse_content_block(block)
+        assert result == block
+
+    def test_parse_empty_block(self):
+        """Test parsing block without type returns None."""
+        block = {"data": "no type"}
+        result = acp_client._parse_content_block(block)
+        assert result is None
+
+    def test_collect_content_blocks_dict(self):
+        """Test collecting content from dict."""
+        content = {"type": "text", "text": "Hello"}
+        collected = []
+        acp_client._collect_content_blocks(content, collected)
+        assert len(collected) == 1
+        assert collected[0]["type"] == "text"
+
+    def test_collect_content_blocks_list(self):
+        """Test collecting content from list."""
+        content = [
+            {"type": "text", "text": "Hello"},
+            {"type": "image", "content_url": "https://example.com/img.png"}
+        ]
+        collected = []
+        acp_client._collect_content_blocks(content, collected)
+        assert len(collected) == 2
+        assert collected[0]["type"] == "text"
+        assert collected[1]["type"] == "image"
+
+    @pytest.mark.asyncio
+    async def test_send_message_multimodal_success(self):
+        """Test send_message_multimodal returns structured response."""
+        with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
+            with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
+                mock_send.return_value = {
+                    "_collected_text": "Here is an image",
+                    "_collected_content": [
+                        {"type": "text", "text": "Here is an image"},
+                        {"type": "image", "url": "https://example.com/img.png", "mime_type": "image/png"}
+                    ]
+                }
+                acp_client._session_id = "test-session"
+                
+                result = await acp_client.send_message_multimodal("Generate an image")
+                
+                assert result["text"] == "Here is an image"
+                assert len(result["content"]) == 2
+                assert result["content"][1]["type"] == "image"
+
+    @pytest.mark.asyncio
+    async def test_send_message_multimodal_busy(self):
+        """Test send_message_multimodal when agent is busy."""
+        await acp_client._request_lock.acquire()
+        
+        try:
+            result = await acp_client.send_message_multimodal("Hello")
+            assert "busy" in result["text"].lower()
+            assert len(result["content"]) == 1
+        finally:
+            acp_client._request_lock.release()

@@ -59,7 +59,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     await _agent_writer.drain()
     
     # Collect session updates if requested
-    collected_text = []
+    collected_content = []  # List of content blocks (text, images, files, etc.)
     
     # Read responses until we get the one matching our request ID
     while True:
@@ -82,14 +82,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         # Tool is still running, could show progress
                         pass
                 
-                # Extract text from session updates
+                # Extract all content types from session updates
                 content = update.get("content")
-                if isinstance(content, dict) and content.get("type") == "text":
-                    collected_text.append(content.get("text", ""))
-                elif isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            collected_text.append(block.get("text", ""))
+                if content:
+                    _collect_content_blocks(content, collected_content)
             continue
         
         if response.get("id") == request["id"]:
@@ -97,8 +93,73 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 raise RuntimeError(f"Agent error: {response['error']}")
             result = response.get("result", {})
             if collect_updates:
-                result["_collected_text"] = "".join(collected_text)
+                # Combine text blocks for backward compatibility
+                text_parts = [c.get("text", "") for c in collected_content if c.get("type") == "text"]
+                result["_collected_text"] = "".join(text_parts)
+                # Also include all content blocks for multimodal support
+                result["_collected_content"] = collected_content
             return result
+
+
+def _collect_content_blocks(content, collected: list):
+    """Extract content blocks from ACP content (handles dict or list)."""
+    if isinstance(content, dict):
+        block = _parse_content_block(content)
+        if block:
+            collected.append(block)
+    elif isinstance(content, list):
+        for item in content:
+            if isinstance(item, dict):
+                block = _parse_content_block(item)
+                if block:
+                    collected.append(block)
+
+
+def _parse_content_block(block: dict) -> dict | None:
+    """Parse a single ACP content block into our internal format."""
+    content_type = block.get("type")
+    
+    if content_type == "text":
+        return {
+            "type": "text",
+            "text": block.get("text", "")
+        }
+    
+    elif content_type == "image":
+        # Image can be inline (base64) or by URL
+        result = {"type": "image"}
+        if "content" in block:
+            result["data"] = block["content"]
+            result["encoding"] = block.get("content_encoding", "base64")
+        if "content_url" in block:
+            result["url"] = block["content_url"]
+        if "content_type" in block:
+            result["mime_type"] = block["content_type"]
+        else:
+            result["mime_type"] = "image/png"  # Default
+        if "name" in block:
+            result["name"] = block["name"]
+        return result
+    
+    elif content_type == "file" or content_type == "artifact":
+        # File/artifact with content or URL
+        result = {
+            "type": "file",
+            "name": block.get("name", "unnamed"),
+            "mime_type": block.get("content_type", "application/octet-stream")
+        }
+        if "content" in block:
+            result["data"] = block["content"]
+            result["encoding"] = block.get("content_encoding", "base64")
+        if "content_url" in block:
+            result["url"] = block["content_url"]
+        return result
+    
+    # Unknown type - preserve as-is
+    elif content_type:
+        return block
+    
+    return None
 
 
 async def _ensure_agent():
@@ -208,6 +269,92 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
         except Exception as e:
             logger.error(f"Error communicating with agent: {e}", exc_info=True)
             return f"[Error: {e}]"
+
+
+async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None) -> dict:
+    """Send a message to the agent and return multimodal response.
+    
+    Returns a dict with:
+        - text: Combined text content (str)
+        - content: List of content blocks (text, image, file, etc.)
+    """
+    global _session_id
+    
+    # Check if lock is already held (agent busy)
+    if _request_lock.locked():
+        logger.warning("Agent is busy processing another request")
+        return {
+            "text": "[Agent is busy, please wait...]",
+            "content": [{"type": "text", "text": "[Agent is busy, please wait...]"}]
+        }
+    
+    # Only one request at a time to avoid read conflicts
+    async with _request_lock:
+        try:
+            await _ensure_agent()
+            
+            if not _session_id:
+                return {
+                    "text": "[Error: No active session]",
+                    "content": [{"type": "text", "text": "[Error: No active session]"}]
+                }
+            
+            logger.info(f"Sending message to agent: {content[:100]}...")
+            
+            # Send prompt and collect session updates
+            result = await _send_request("session/prompt", {
+                "sessionId": _session_id,
+                "prompt": [{"type": "text", "text": content}]
+            }, collect_updates=True, status_callback=status_callback)
+            
+            # Delay to let agent fully complete its loop
+            await asyncio.sleep(0.5)
+            
+            # Get collected content
+            text = result.get("_collected_text", "")
+            content_blocks = result.get("_collected_content", [])
+            
+            logger.info(f"Agent response: {len(content_blocks)} blocks, text: {text[:100]}...")
+            
+            if not text and not content_blocks:
+                return {
+                    "text": "[No response from agent]",
+                    "content": [{"type": "text", "text": "[No response from agent]"}]
+                }
+            
+            return {
+                "text": text,
+                "content": content_blocks
+            }
+            
+        except asyncio.TimeoutError:
+            logger.error("Timeout waiting for agent response")
+            return {
+                "text": "[Error: Agent timed out]",
+                "content": [{"type": "text", "text": "[Error: Agent timed out]"}]
+            }
+        except RuntimeError as e:
+            error_str = str(e)
+            # If agent reports concurrent prompt error, restart it
+            if "Concurrent prompts" in error_str:
+                logger.warning("Agent stuck in concurrent state, restarting...")
+                await stop_agent()
+                await asyncio.sleep(1)
+                return {
+                    "text": "[Agent was busy, please try again]",
+                    "content": [{"type": "text", "text": "[Agent was busy, please try again]"}]
+                }
+            logger.error(f"Error communicating with agent: {e}", exc_info=True)
+            return {
+                "text": f"[Error: {e}]",
+                "content": [{"type": "text", "text": f"[Error: {e}]"}]
+            }
+        except Exception as e:
+            logger.error(f"Error communicating with agent: {e}", exc_info=True)
+            return {
+                "text": f"[Error: {e}]",
+                "content": [{"type": "text", "text": f"[Error: {e}]"}]
+            }
 
 
 async def send_message(content: str, thread_id: Optional[int] = None) -> AsyncIterator[str]:
