@@ -238,9 +238,9 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 raise RuntimeError(f"Agent error: {response['error']}")
             result = response.get("result", {})
             if collect_updates:
-                # Combine text blocks for backward compatibility
+                # Combine text blocks with newlines for readability
                 text_parts = [c.get("text", "") for c in collected_content if c.get("type") == "text"]
-                result["_collected_text"] = "".join(text_parts)
+                result["_collected_text"] = "\n\n".join(text_parts)
                 # Also include all content blocks for multimodal support
                 result["_collected_content"] = collected_content
             return result
