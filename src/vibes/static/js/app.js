@@ -596,12 +596,13 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 function AgentStatus({ status }) {
     if (!status) return null;
     
-    // Show different content based on status type
-    let content = status.title || 'Working...';
-    if (status.type === 'message_chunk') {
-        content = status.text;
-    } else if (status.type === 'plan') {
-        content = status.text;
+    // Only show tool calls and plans, not message chunks
+    let content = status.title || status.status || 'Working...';
+    if (status.type === 'plan') {
+        content = 'Planning...';
+    } else if (status.type === 'message_chunk') {
+        // Don't show raw message chunks as status
+        return null;
     }
     
     return html`
