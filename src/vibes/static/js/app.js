@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -313,6 +313,50 @@ function ImageModal({ src, onClose }) {
 }
 
 /**
+ * File attachment component - displays downloadable file with icon
+ */
+function FileAttachment({ mediaId }) {
+    const [info, setInfo] = useState(null);
+    
+    useEffect(() => {
+        getMediaInfo(mediaId).then(setInfo).catch(() => {});
+    }, [mediaId]);
+    
+    if (!info) return null;
+    
+    const filename = info.filename || 'file';
+    const size = info.metadata?.size;
+    const sizeStr = size ? formatFileSize(size) : '';
+    
+    return html`
+        <a href=${getMediaUrl(mediaId)} download=${filename} class="file-attachment" onClick=${(e) => e.stopPropagation()}>
+            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                <polyline points="14 2 14 8 20 8"/>
+                <line x1="16" y1="13" x2="8" y2="13"/>
+                <line x1="16" y1="17" x2="8" y2="17"/>
+                <polyline points="10 9 9 9 8 9"/>
+            </svg>
+            <div class="file-info">
+                <span class="file-name">${filename}</span>
+                ${sizeStr && html`<span class="file-size">${sizeStr}</span>`}
+            </div>
+            <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/>
+                <line x1="12" y1="15" x2="12" y2="3"/>
+            </svg>
+        </a>
+    `;
+}
+
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+/**
  * Link preview component - card with image background
  */
 function LinkPreview({ preview }) {
@@ -365,6 +409,22 @@ function Post({ post, onClick, onHashtagClick }) {
         setZoomedImage(getMediaUrl(mediaId));
     };
     
+    // Separate images from files using content_blocks info
+    const imageIds = [];
+    const fileIds = [];
+    if (data.media_ids?.length > 0) {
+        const blocks = data.content_blocks || [];
+        data.media_ids.forEach((id, idx) => {
+            const block = blocks[idx];
+            if (block?.type === 'file') {
+                fileIds.push(id);
+            } else {
+                // Default to image (for user uploads and image blocks)
+                imageIds.push(id);
+            }
+        });
+    }
+    
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
             <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
@@ -389,9 +449,9 @@ function Post({ post, onClick, onHashtagClick }) {
                         }}
                     />
                 `}
-                ${data.media_ids?.length > 0 && html`
+                ${imageIds.length > 0 && html`
                     <div class="media-preview">
-                        ${data.media_ids.map(id => html`
+                        ${imageIds.map(id => html`
                             <img 
                                 key=${id} 
                                 src=${getThumbnailUrl(id)} 
@@ -399,6 +459,13 @@ function Post({ post, onClick, onHashtagClick }) {
                                 loading="lazy"
                                 onClick=${(e) => handleImageClick(e, id)}
                             />
+                        `)}
+                    </div>
+                `}
+                ${fileIds.length > 0 && html`
+                    <div class="file-attachments">
+                        ${fileIds.map(id => html`
+                            <${FileAttachment} key=${id} mediaId=${id} />
                         `)}
                     </div>
                 `}

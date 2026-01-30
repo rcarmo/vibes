@@ -114,6 +114,15 @@ export function getThumbnailUrl(mediaId) {
 }
 
 /**
+ * Get media info (metadata without data)
+ */
+export async function getMediaInfo(mediaId) {
+    const response = await fetch(`${API_BASE}/media/${mediaId}/info`);
+    if (!response.ok) throw new Error('Failed to get media info');
+    return response.json();
+}
+
+/**
  * SSE client for live updates
  */
 export class SSEClient {
