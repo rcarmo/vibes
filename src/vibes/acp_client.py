@@ -66,7 +66,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     while True:
         response = await asyncio.wait_for(_read_response(_agent_reader), timeout=300)
         
-        # Handle notifications (no id)
+        # Handle notifications (no id) - these are one-way updates
         if "id" not in response:
             method_name = response.get("method", "")
             if collect_updates and method_name == "session/update":
@@ -89,6 +89,52 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     _collect_content_blocks(content, collected_content)
             continue
         
+        # Handle requests from agent (has id, has method) - agent asking client for something
+        if "method" in response:
+            method_name = response.get("method", "")
+            req_id = response.get("id")
+            
+            if method_name == "session/request_permission":
+                # Agent is asking for permission - auto-approve for now
+                logger.info(f"Agent requesting permission: {response.get('params', {}).get('toolCall', {})}")
+                permission_response = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "result": {"outcome": "approved"}
+                }
+                data = json.dumps(permission_response) + "\n"
+                _agent_writer.write(data.encode())
+                await _agent_writer.drain()
+                continue
+            elif method_name in ("fs/read_text_file", "fs/write_text_file"):
+                # File system requests - we don't support these yet
+                logger.warning(f"Agent requested unsupported fs operation: {method_name}")
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32601, "message": "Method not supported"}
+                }
+                data = json.dumps(error_response) + "\n"
+                _agent_writer.write(data.encode())
+                await _agent_writer.drain()
+                continue
+            elif method_name.startswith("terminal/"):
+                # Terminal requests - we don't support these yet
+                logger.warning(f"Agent requested unsupported terminal operation: {method_name}")
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "id": req_id,
+                    "error": {"code": -32601, "message": "Method not supported"}
+                }
+                data = json.dumps(error_response) + "\n"
+                _agent_writer.write(data.encode())
+                await _agent_writer.drain()
+                continue
+            else:
+                logger.warning(f"Unknown agent request: {method_name}")
+                continue
+        
+        # Handle response to our request (has id, matches our request)
         if response.get("id") == request["id"]:
             if "error" in response:
                 raise RuntimeError(f"Agent error: {response['error']}")
