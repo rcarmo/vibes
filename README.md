@@ -1,5 +1,7 @@
 # Vibes
 
+![Vibes](docs/icon-256.png)
+
 A single-user, mobile-friendly SPA for Twitter-like interactions with coding agents via the ACP protocol.
 
 ## Features
