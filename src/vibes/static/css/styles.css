@@ -805,7 +805,7 @@ body {
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    padding: var(--spacing-md);
+    padding: 16px;
 }
 
 .agent-request-content {
@@ -815,6 +815,7 @@ body {
     padding: 24px;
     max-width: 340px;
     width: 100%;
+    box-sizing: border-box;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
 }
 
@@ -829,7 +830,7 @@ body {
     width: 40px;
     height: 40px;
     border-radius: 8px;
-    background-color: var(--accent-color);
+    background-color: #1d9bf0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -837,7 +838,8 @@ body {
 }
 
 .agent-request-icon svg {
-    color: white;
+    color: #ffffff;
+    stroke: #ffffff;
 }
 
 .agent-request-title {
@@ -845,6 +847,7 @@ body {
     font-size: 16px;
     color: #ffffff;
     word-break: break-word;
+    flex: 1;
 }
 
 .agent-request-body {
@@ -873,10 +876,15 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: background-color 0.15s ease;
+    outline: none;
 }
 
 .agent-request-btn:hover {
     background-color: #3a3a3a;
+}
+
+.agent-request-btn:focus {
+    box-shadow: 0 0 0 2px #1d9bf0;
 }
 
 .agent-request-btn:active {
@@ -884,13 +892,13 @@ body {
 }
 
 .agent-request-btn.primary {
-    background-color: var(--accent-color);
-    border-color: var(--accent-color);
+    background-color: #1d9bf0;
+    border-color: #1d9bf0;
     color: #ffffff;
 }
 
 .agent-request-btn.primary:hover {
-    filter: brightness(1.1);
+    background-color: #1a8cd8;
 }
 
 .agent-request-btn.always-allow {
@@ -910,6 +918,7 @@ body {
     .agent-request-content {
         background-color: #ffffff;
         border-color: #e0e0e0;
+        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.2);
     }
     
     .agent-request-title {
@@ -931,7 +940,13 @@ body {
     }
     
     .agent-request-btn.primary {
+        background-color: #1d9bf0;
+        border-color: #1d9bf0;
         color: #ffffff;
+    }
+    
+    .agent-request-btn.primary:hover {
+        background-color: #1a8cd8;
     }
     
     .agent-request-btn.always-allow {
