@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -37,6 +37,14 @@ CREATE TABLE IF NOT EXISTS media (
     data BLOB NOT NULL,
     thumbnail BLOB,
     metadata JSON,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Permission whitelist for auto-approving agent requests
+CREATE TABLE IF NOT EXISTS permission_whitelist (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern TEXT NOT NULL UNIQUE,
+    description TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -336,6 +344,64 @@ class Database:
             if row and row["thumbnail"]:
                 return ("image/jpeg", row["thumbnail"])
             return None
+
+    # Permission whitelist methods
+    
+    async def add_to_whitelist(self, pattern: str, description: str = None) -> int:
+        """Add a pattern to the permission whitelist."""
+        async with self.transaction():
+            cursor = await self._connection.execute(
+                """INSERT OR REPLACE INTO permission_whitelist (pattern, description) 
+                   VALUES (?, ?)""",
+                (pattern, description)
+            )
+            return cursor.lastrowid
+    
+    async def remove_from_whitelist(self, pattern: str) -> bool:
+        """Remove a pattern from the whitelist."""
+        async with self.transaction():
+            cursor = await self._connection.execute(
+                "DELETE FROM permission_whitelist WHERE pattern = ?",
+                (pattern,)
+            )
+            return cursor.rowcount > 0
+    
+    async def get_whitelist(self) -> list[dict]:
+        """Get all whitelist entries."""
+        async with self._connection.execute(
+            "SELECT id, pattern, description, created_at FROM permission_whitelist ORDER BY created_at DESC"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "pattern": row["pattern"],
+                    "description": row["description"],
+                    "created_at": row["created_at"]
+                }
+                for row in rows
+            ]
+    
+    async def is_whitelisted(self, title: str) -> bool:
+        """Check if a tool call title matches any whitelist pattern."""
+        async with self._connection.execute(
+            "SELECT pattern FROM permission_whitelist"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            for row in rows:
+                pattern = row["pattern"]
+                # Simple glob-style matching: * matches anything
+                if pattern == "*":
+                    return True
+                if pattern.endswith("*"):
+                    if title.startswith(pattern[:-1]):
+                        return True
+                elif pattern.startswith("*"):
+                    if title.endswith(pattern[1:]):
+                        return True
+                elif pattern == title:
+                    return True
+            return False
 
 
 # Global database instance

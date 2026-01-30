@@ -118,6 +118,24 @@ export async function respondToAgentRequest(requestId, outcome) {
 }
 
 /**
+ * Add pattern to permission whitelist
+ */
+export async function addToWhitelist(pattern, description) {
+    const response = await fetch(API_BASE + '/agent/whitelist', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pattern, description }),
+    });
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to add to whitelist' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+}
+
+/**
  * Get media URL
  */
 export function getMediaUrl(mediaId) {

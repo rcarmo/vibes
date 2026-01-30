@@ -873,6 +873,18 @@ body {
     filter: brightness(1.1);
 }
 
+.agent-request-btn.always-allow {
+    background-color: transparent;
+    border-color: var(--text-secondary);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+}
+
+.agent-request-btn.always-allow:hover {
+    background-color: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
 /* Loading spinner */
 .loading {
     display: flex;

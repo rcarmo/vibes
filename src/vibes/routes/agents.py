@@ -10,7 +10,7 @@ from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
 from ..acp_client import (
     send_message_multimodal, is_agent_running, start_agent,
-    set_request_callback, respond_to_request
+    set_request_callback, set_whitelist_checker, respond_to_request
 )
 from ..tasks import enqueue
 from .sse import broadcast_event
@@ -24,6 +24,15 @@ async def _handle_agent_request(request_data):
     await broadcast_event("agent_request", request_data)
 
 set_request_callback(_handle_agent_request)
+
+
+# Set up whitelist checker
+async def _check_whitelist(title: str) -> bool:
+    """Check if a tool call title is whitelisted."""
+    db = await get_db()
+    return await db.is_whitelisted(title)
+
+set_whitelist_checker(_check_whitelist)
 
 
 async def list_agents(request: web.Request) -> web.Response:
@@ -273,9 +282,66 @@ async def respond_to_agent_request(request: web.Request) -> web.Response:
         return web.json_response({"error": "Request not found or already responded"}, status=404)
 
 
+async def get_whitelist(request: web.Request) -> web.Response:
+    """Get the permission whitelist."""
+    db = await get_db()
+    whitelist = await db.get_whitelist()
+    return web.json_response({"whitelist": whitelist})
+
+
+async def add_to_whitelist(request: web.Request) -> web.Response:
+    """Add a pattern to the permission whitelist."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    
+    pattern = data.get("pattern")
+    description = data.get("description")
+    
+    if not pattern:
+        return web.json_response({"error": "Missing pattern"}, status=400)
+    
+    db = await get_db()
+    entry_id = await db.add_to_whitelist(pattern, description)
+    logger.info(f"Added to whitelist: {pattern}")
+    
+    return web.json_response({
+        "status": "ok",
+        "id": entry_id,
+        "pattern": pattern,
+        "description": description
+    }, status=201)
+
+
+async def remove_from_whitelist(request: web.Request) -> web.Response:
+    """Remove a pattern from the permission whitelist."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    
+    pattern = data.get("pattern")
+    
+    if not pattern:
+        return web.json_response({"error": "Missing pattern"}, status=400)
+    
+    db = await get_db()
+    success = await db.remove_from_whitelist(pattern)
+    
+    if success:
+        logger.info(f"Removed from whitelist: {pattern}")
+        return web.json_response({"status": "ok", "pattern": pattern})
+    else:
+        return web.json_response({"error": "Pattern not found"}, status=404)
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/respond", respond_to_agent_request)
+    app.router.add_get("/agent/whitelist", get_whitelist)
+    app.router.add_post("/agent/whitelist", add_to_whitelist)
+    app.router.add_delete("/agent/whitelist", remove_from_whitelist)

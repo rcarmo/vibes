@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -623,6 +623,18 @@ function AgentRequestModal({ request, onRespond }) {
         }
     };
     
+    const handleAlwaysAllow = async () => {
+        try {
+            // Add to whitelist with the exact title
+            await addToWhitelist(title, `Auto-approved: ${title}`);
+            // Then approve this request
+            await respondToAgentRequest(request_id, 'approved');
+            onRespond();
+        } catch (e) {
+            console.error('Failed to add to whitelist:', e);
+        }
+    };
+    
     return html`
         <div class="agent-request-modal">
             <div class="agent-request-content">
@@ -654,6 +666,9 @@ function AgentRequestModal({ request, onRespond }) {
                         </button>
                         <button class="agent-request-btn" onClick=${() => handleResponse('denied')}>
                             Deny
+                        </button>
+                        <button class="agent-request-btn always-allow" onClick=${handleAlwaysAllow}>
+                            Always Allow
                         </button>
                     `}
                 </div>

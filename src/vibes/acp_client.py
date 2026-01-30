@@ -25,12 +25,19 @@ _request_id = 0
 # Pending agent requests waiting for user response
 _pending_requests = {}  # request_id -> asyncio.Future
 _request_callback = None  # Callback to notify UI of pending requests
+_whitelist_checker = None  # Callback to check if request is whitelisted
 
 
 def set_request_callback(callback):
     """Set callback for agent requests that need user response."""
     global _request_callback
     _request_callback = callback
+
+
+def set_whitelist_checker(checker):
+    """Set callback to check if a request is whitelisted (auto-approve)."""
+    global _whitelist_checker
+    _whitelist_checker = checker
 
 
 def respond_to_request(request_id, outcome: str):
@@ -114,34 +121,46 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
             req_id = response.get("id")
             
             if method_name == "session/request_permission":
-                # Agent is asking for permission - wait for user response
+                # Agent is asking for permission
                 params = response.get("params", {})
                 tool_call = params.get("toolCall", {})
                 options = params.get("options", [])
+                title = tool_call.get("title", "Unknown")
                 
-                logger.info(f"Agent requesting permission: {tool_call.get('title', 'Unknown')}")
+                logger.info(f"Agent requesting permission: {title}")
                 
-                # Create a future to wait for user response
-                future = asyncio.get_event_loop().create_future()
-                _pending_requests[req_id] = future
+                # Check whitelist first
+                outcome = None
+                if _whitelist_checker:
+                    try:
+                        if await _whitelist_checker(title):
+                            logger.info(f"Permission auto-approved (whitelisted): {title}")
+                            outcome = "approved"
+                    except Exception as e:
+                        logger.error(f"Whitelist check failed: {e}")
                 
-                # Notify UI via callback
-                if _request_callback:
-                    await _request_callback({
-                        "type": "permission_request",
-                        "request_id": req_id,
-                        "tool_call": tool_call,
-                        "options": options
-                    })
-                
-                # Wait for user response (with timeout)
-                try:
-                    outcome = await asyncio.wait_for(future, timeout=300)
-                except asyncio.TimeoutError:
-                    outcome = "denied"
-                    logger.warning("Permission request timed out, denying")
-                finally:
-                    _pending_requests.pop(req_id, None)
+                if outcome is None:
+                    # Not whitelisted - wait for user response
+                    future = asyncio.get_event_loop().create_future()
+                    _pending_requests[req_id] = future
+                    
+                    # Notify UI via callback
+                    if _request_callback:
+                        await _request_callback({
+                            "type": "permission_request",
+                            "request_id": req_id,
+                            "tool_call": tool_call,
+                            "options": options
+                        })
+                    
+                    # Wait for user response (with timeout)
+                    try:
+                        outcome = await asyncio.wait_for(future, timeout=300)
+                    except asyncio.TimeoutError:
+                        outcome = "denied"
+                        logger.warning("Permission request timed out, denying")
+                    finally:
+                        _pending_requests.pop(req_id, None)
                 
                 # Send response to agent
                 permission_response = {
