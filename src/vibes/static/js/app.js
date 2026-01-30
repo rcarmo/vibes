@@ -471,8 +471,11 @@ function Post({ post, onClick, onHashtagClick }) {
     
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
-            <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
-                ${getAvatarLetter(data.type)}
+            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}">
+                ${isAgent 
+                    ? html`<img src="/static/icon-192.png" alt="Agent" />`
+                    : getAvatarLetter(data.type)
+                }
             </div>
             <div class="post-body">
                 <div class="post-meta">
