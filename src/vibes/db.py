@@ -129,33 +129,44 @@ class Database:
                 }
             return None
 
-    async def get_timeline(self, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Get timeline of interactions (newest first, root posts only)."""
-        async with self._connection.execute(
-            """SELECT id, timestamp, data FROM interactions 
-               WHERE thread_id IS NULL 
-               ORDER BY timestamp DESC 
-               LIMIT ? OFFSET ?""",
-            (limit, offset)
-        ) as cursor:
+    async def get_timeline(self, limit: int = 50, before_id: int = None) -> list[dict]:
+        """Get timeline of all interactions (oldest first for chat view)."""
+        if before_id:
+            query = """SELECT id, timestamp, data
+                       FROM interactions
+                       WHERE id < ?
+                       ORDER BY id DESC 
+                       LIMIT ?"""
+            params = (before_id, limit)
+        else:
+            query = """SELECT id, timestamp, data
+                       FROM interactions
+                       ORDER BY id DESC 
+                       LIMIT ?"""
+            params = (limit,)
+        
+        async with self._connection.execute(query, params) as cursor:
             rows = await cursor.fetchall()
+            # Reverse to get oldest-first order (chat style)
             return [
                 {
                     "id": row["id"],
                     "timestamp": row["timestamp"],
                     "data": json.loads(row["data"])
                 }
-                for row in rows
+                for row in reversed(rows)
             ]
 
     async def get_posts_by_hashtag(self, hashtag: str, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Get posts containing a specific hashtag."""
+        """Get posts containing a specific hashtag with reply counts."""
         # Search for hashtag in content (case-insensitive)
         pattern = f'%#{hashtag}%'
         async with self._connection.execute(
-            """SELECT id, timestamp, data FROM interactions 
-               WHERE json_extract(data, '$.content') LIKE ? COLLATE NOCASE
-               ORDER BY timestamp DESC 
+            """SELECT i.id, i.timestamp, i.data,
+                      (SELECT COUNT(*) FROM interactions r WHERE r.thread_id = i.id) as reply_count
+               FROM interactions i
+               WHERE json_extract(i.data, '$.content') LIKE ? COLLATE NOCASE
+               ORDER BY i.timestamp DESC 
                LIMIT ? OFFSET ?""",
             (pattern, limit, offset)
         ) as cursor:
@@ -164,7 +175,8 @@ class Database:
                 {
                     "id": row["id"],
                     "timestamp": row["timestamp"],
-                    "data": json.loads(row["data"])
+                    "data": json.loads(row["data"]),
+                    "reply_count": row["reply_count"]
                 }
                 for row in rows
             ]

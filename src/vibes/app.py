@@ -9,6 +9,7 @@ from .config import get_config
 from .db import init_db, close_db
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
+from .acp_client import start_agent, stop_agent
 from .routes import posts, media, sse, agents
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,21 @@ async def on_startup(app: web.Application) -> None:
     await start_task_queue(num_workers=3)
     logger.info("Background task queue started")
     
+    # Start ACP agent
+    if await start_agent():
+        logger.info(f"ACP agent started: {config.acp_agent}")
+    else:
+        logger.warning(f"ACP agent not available: {config.acp_agent}")
+    
     # Reconcile missing link previews in background
     asyncio.create_task(reconcile_missing_previews())
 
 
 async def on_cleanup(app: web.Application) -> None:
     """Application cleanup handler."""
+    await stop_agent()
+    logger.info("ACP agent stopped")
+    
     await stop_task_queue()
     logger.info("Background task queue stopped")
     

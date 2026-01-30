@@ -23,6 +23,9 @@ class Config:
         self.debug: bool = os.environ.get("VIBES_DEBUG", "").lower() in ("1", "true", "yes")
         self.custom_endpoints: dict = {}
         
+        # ACP agent configuration
+        self.acp_agent: str = os.environ.get("VIBES_ACP_AGENT", "vibe-acp")
+        
         # Load custom endpoints from config file
         config_path = os.environ.get("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)
         if Path(config_path).exists():

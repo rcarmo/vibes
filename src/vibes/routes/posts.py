@@ -90,20 +90,26 @@ async def get_thread(request: web.Request) -> web.Response:
 
 
 async def get_timeline(request: web.Request) -> web.Response:
-    """Get paginated timeline of posts."""
-    limit = int(request.query.get("limit", 50))
-    offset = int(request.query.get("offset", 0))
+    """Get paginated timeline of posts (chat style - oldest first, load older with before_id)."""
+    limit = int(request.query.get("limit", 10))
+    before_id = request.query.get("before")
     
     # Clamp limit
     limit = max(1, min(100, limit))
     
+    if before_id:
+        before_id = int(before_id)
+    
     db = await get_db()
-    posts = await db.get_timeline(limit=limit, offset=offset)
+    posts = await db.get_timeline(limit=limit, before_id=before_id)
+    
+    # Check if there are older posts
+    has_more = len(posts) == limit and posts[0]["id"] > 1
     
     return web.json_response({
         "posts": posts,
         "limit": limit,
-        "offset": offset
+        "has_more": has_more
     })
 
 

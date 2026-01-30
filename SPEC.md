@@ -2,7 +2,7 @@
 
 ## Overview
 
-A single-user, mobile-friendly single-page application (SPA) that enables Twitter-like interactions with coding agents via the ACP protocol. The app supports text, links, images/files, threaded conversations, and rich media previews. It uses an asyncio-based Python backend (aiohttp) and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
+A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol. The app supports text, links, images/files, threaded conversations, and rich media previews. It uses an asyncio-based Python backend (aiohttp) and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
 
 ---
 
@@ -11,7 +11,7 @@ A single-user, mobile-friendly single-page application (SPA) that enables Twitte
 | Layer | Technology |
 |-------|------------|
 | Frontend | Preact + HTM (vendored) |
-| Backend | Python with aiohttp + python-sdk for ACP |
+| Backend | Python with aiohttp + ACP protocol |
 | Database | SQLite with JSON columns and virtual columns for indexing |
 | Live Updates | Server-Sent Events (SSE) |
 | Authentication | Deferred to upstream proxy/IDP |
@@ -25,9 +25,10 @@ A single-user, mobile-friendly single-page application (SPA) that enables Twitte
 - Threaded conversations with ACP agents
 - Rich media previews (downscaled and stored in database)
 - Live updates via SSE
-- Configurable custom endpoints for predefined agent tasks
 - Responsive design for mobile, tablet, and desktop
 - Dark/light mode toggle
+- Markdown rendering
+- Hashtag support
 
 ---
 
@@ -41,10 +42,11 @@ A single-user, mobile-friendly single-page application (SPA) that enables Twitte
 - Dark/light mode using CSS variables
 
 ### UI Layout
-- Timeline view similar to old Twitter
-- Compose box for new posts
-- Threaded replies
+- Linear message timeline (Slack-style)
+- Compose box for new messages
+- Inline thread expansion
 - Media preview components
+- Agent status indicator
 
 ---
 

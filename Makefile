@@ -1,7 +1,7 @@
 .PHONY: help install install-dev lint format test coverage check clean bump-patch push serve
 
 PYTHON ?= python3
-PIP ?= $(PYTHON) -m pip
+PIP ?= pip3
 
 # Server configuration
 VIBES_HOST ?= 0.0.0.0

@@ -1,13 +1,53 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
 // Hashtag regex
 const HASHTAG_REGEX = /#(\w+)/g;
 
+// Configure marked for safe rendering
+if (window.marked) {
+    marked.setOptions({
+        breaks: true,  // Convert \n to <br>
+        gfm: true,     // GitHub Flavored Markdown
+    });
+}
+
 /**
- * Linkify text - convert URLs and hashtags to clickable elements
+ * Decode HTML entities
+ */
+function decodeEntities(text) {
+    if (!text) return text;
+    // Use a more robust decoding that handles all entity types
+    const doc = new DOMParser().parseFromString(text, 'text/html');
+    return doc.documentElement.textContent;
+}
+
+/**
+ * Render markdown and then linkify hashtags
+ */
+function renderMarkdown(text, onHashtagClick) {
+    if (!text) return '';
+    
+    // Decode HTML entities first (in case content has encoded entities)
+    const decoded = decodeEntities(text);
+    
+    // Render markdown to HTML
+    let html_content = window.marked ? marked.parse(decoded) : decoded.replace(/\n/g, '<br>');
+    
+    // Decode any entities that marked might have introduced
+    html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
+    html_content = html_content.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+    
+    // Process hashtags - wrap them in clickable spans (will be handled by event delegation)
+    html_content = html_content.replace(HASHTAG_REGEX, '<a href="#" class="hashtag" data-hashtag="$1">#$1</a>');
+    
+    return html_content;
+}
+
+/**
+ * Linkify text - convert URLs and hashtags to clickable elements (for non-markdown contexts)
  */
 function linkifyContent(text, onHashtagClick) {
     if (!text) return text;
@@ -122,6 +162,17 @@ function getAvatarLetter(type) {
 }
 
 /**
+ * Update browser theme color (affects mobile chrome and PWA title bar)
+ */
+function updateThemeColor(dark) {
+    const color = dark ? '#000000' : '#ffffff';
+    let meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) {
+        meta.setAttribute('content', color);
+    }
+}
+
+/**
  * Theme toggle component
  */
 function ThemeToggle() {
@@ -135,11 +186,17 @@ function ThemeToggle() {
         document.body.classList.toggle('dark', dark);
         document.body.classList.toggle('light', !dark);
         localStorage.setItem('theme', dark ? 'dark' : 'light');
+        updateThemeColor(dark);
     }, [dark]);
     
+    // Set initial theme color
+    useEffect(() => {
+        updateThemeColor(dark);
+    }, []);
+    
     return html`
-        <button class="theme-toggle" onClick=${() => setDark(!dark)} title="Toggle theme">
-            ${dark ? html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>` : html`<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}
+        <button class="theme-toggle floating-btn" onClick=${() => setDark(!dark)} title="Toggle theme">
+            ${dark ? html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>` : html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}
         </button>
     `;
 }
@@ -151,6 +208,7 @@ function ComposeBox({ onPost }) {
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
+    const textareaRef = useRef(null);
     
     const handleSubmit = async () => {
         if (!content.trim() && mediaFiles.length === 0) return;
@@ -188,41 +246,73 @@ function ComposeBox({ onPost }) {
         setMediaFiles([...e.target.files]);
     };
     
+    // Auto-resize textarea
+    const handleInput = (e) => {
+        setContent(e.target.value);
+        const textarea = textareaRef.current;
+        if (textarea) {
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+    };
+    
     return html`
         <div class="compose-box">
-            <textarea
-                placeholder="What's happening?"
-                value=${content}
-                onInput=${(e) => setContent(e.target.value)}
-                onKeyDown=${handleKeyDown}
-                disabled=${loading}
-            />
-            ${mediaFiles.length > 0 && html`
-                <div class="media-preview">
-                    ${mediaFiles.map(f => html`<span key=${f.name}>${f.name} </span>`)}
-                </div>
-            `}
-            <div class="compose-actions">
-                <div class="compose-actions-left">
+            <div class="compose-input-wrapper">
+                <textarea
+                    ref=${textareaRef}
+                    placeholder="Message..."
+                    value=${content}
+                    onInput=${handleInput}
+                    onKeyDown=${handleKeyDown}
+                    disabled=${loading}
+                    rows="1"
+                />
+                <div class="compose-actions">
                     <label class="icon-btn" title="Attach image">
                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                         <input type="file" accept="image/*" multiple hidden onChange=${handleFileChange} />
                     </label>
+                    <button 
+                        class="icon-btn send-btn" 
+                        onClick=${handleSubmit}
+                        disabled=${loading || (!content.trim() && mediaFiles.length === 0)}
+                        title="Send (Ctrl+Enter)"
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                    </button>
                 </div>
-                <button 
-                    class="post-btn" 
-                    onClick=${handleSubmit}
-                    disabled=${loading || (!content.trim() && mediaFiles.length === 0)}
-                >
-                    ${loading ? '...' : 'Post'}
-                </button>
             </div>
+            ${mediaFiles.length > 0 && html`
+                <div class="media-files-preview">
+                    ${mediaFiles.map(f => html`<span key=${f.name} class="media-file-tag">${f.name}</span>`)}
+                </div>
+            `}
         </div>
     `;
 }
 
 /**
- * Link preview component - Twitter-style card with image background
+ * Image modal for zooming
+ */
+function ImageModal({ src, onClose }) {
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') onClose();
+        };
+        document.addEventListener('keydown', handleEsc);
+        return () => document.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+    
+    return html`
+        <div class="image-modal" onClick=${onClose}>
+            <img src=${src} alt="Full size" />
+        </div>
+    `;
+}
+
+/**
+ * Link preview component - card with image background
  */
 function LinkPreview({ preview }) {
     const bgStyle = preview.image 
@@ -243,15 +333,16 @@ function LinkPreview({ preview }) {
 }
 
 /**
- * Remove URLs from text that have previews
+ * Remove URLs from text that have previews, but only if at the end
  */
 function removePreviewedUrls(text, linkPreviews) {
     if (!linkPreviews?.length) return text;
     
     let result = text;
     for (const preview of linkPreviews) {
-        // Remove the URL (and any trailing whitespace/newline)
-        result = result.replace(new RegExp(preview.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'g'), '');
+        const escapedUrl = preview.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        // Only remove URL if it's at the end of the text (with optional trailing whitespace)
+        result = result.replace(new RegExp(escapedUrl + '\\s*$', ''), '');
     }
     return result.trim();
 }
@@ -260,67 +351,123 @@ function removePreviewedUrls(text, linkPreviews) {
  * Single post component
  */
 function Post({ post, onClick, onHashtagClick }) {
+    const [zoomedImage, setZoomedImage] = useState(null);
+    
     const data = post.data;
     const isAgent = data.type === 'agent_response';
+    const staggerClass = post._stagger !== undefined ? `staggered-${post._stagger}` : '';
     
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
     
+    const handleImageClick = (e, mediaId) => {
+        e.stopPropagation();
+        setZoomedImage(getMediaUrl(mediaId));
+    };
+    
     return html`
-        <div class="post" onClick=${onClick}>
-            <div class="post-header">
-                <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
-                    ${getAvatarLetter(data.type)}
-                </div>
+        <div class="post ${isAgent ? 'agent-post' : ''} ${staggerClass}" onClick=${onClick}>
+            <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
+                ${getAvatarLetter(data.type)}
+            </div>
+            <div class="post-body">
                 <div class="post-meta">
                     <span class="post-author">${isAgent ? 'Agent' : 'You'}</span>
                     <span class="post-time">${formatTime(post.timestamp)}</span>
                 </div>
+                ${displayContent && html`
+                    <div 
+                        class="post-content"
+                        dangerouslySetInnerHTML=${{ __html: renderMarkdown(displayContent, onHashtagClick) }}
+                        onClick=${(e) => {
+                            if (e.target.classList.contains('hashtag')) {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                const tag = e.target.dataset.hashtag;
+                                if (tag) onHashtagClick?.(tag);
+                            }
+                        }}
+                    />
+                `}
+                ${data.media_ids?.length > 0 && html`
+                    <div class="media-preview">
+                        ${data.media_ids.map(id => html`
+                            <img 
+                                key=${id} 
+                                src=${getThumbnailUrl(id)} 
+                                alt="Media" 
+                                loading="lazy"
+                                onClick=${(e) => handleImageClick(e, id)}
+                            />
+                        `)}
+                    </div>
+                `}
+                ${data.link_previews?.length > 0 && html`
+                    <div class="link-previews">
+                        ${data.link_previews.map((preview, i) => html`
+                            <${LinkPreview} key=${i} preview=${preview} />
+                        `)}
+                    </div>
+                `}
             </div>
-            ${displayContent && html`
-                <div class="post-content ${isAgent ? 'agent' : ''}">
-                    ${linkifyContent(displayContent, onHashtagClick)}
-                </div>
-            `}
-            ${data.media_ids?.length > 0 && html`
-                <div class="media-preview">
-                    ${data.media_ids.map(id => html`
-                        <img key=${id} src=${getThumbnailUrl(id)} alt="Media" loading="lazy" />
-                    `)}
-                </div>
-            `}
-            ${data.link_previews?.length > 0 && html`
-                <div class="link-previews">
-                    ${data.link_previews.map((preview, i) => html`
-                        <${LinkPreview} key=${i} preview=${preview} />
-                    `)}
-                </div>
-            `}
         </div>
+        ${zoomedImage && html`<${ImageModal} src=${zoomedImage} onClose=${() => setZoomedImage(null)} />`}
     `;
 }
 
 /**
- * Timeline component
+ * Timeline component (chat style - scrolls to bottom, loads older on scroll up)
  */
-function Timeline({ posts, onPostClick, onHashtagClick, emptyMessage }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef }) {
+    const [loadingMore, setLoadingMore] = useState(false);
+    
+    const handleScroll = useCallback(async (e) => {
+        const { scrollTop } = e.target;
+        // Load more when scrolled near the top
+        if (scrollTop < 100 && hasMore && !loadingMore && onLoadMore) {
+            setLoadingMore(true);
+            await onLoadMore();
+            setLoadingMore(false);
+        }
+    }, [hasMore, loadingMore, onLoadMore]);
+    
     if (!posts) {
         return html`<div class="loading"><div class="spinner"></div></div>`;
     }
     
     if (posts.length === 0) {
         return html`
-            <div style="padding: var(--spacing-xl); text-align: center; color: var(--text-secondary)">
-                ${emptyMessage || 'No posts yet. Start a conversation!'}
+            <div class="timeline" ref=${timelineRef}>
+                <div style="padding: var(--spacing-xl); text-align: center; color: var(--text-secondary)">
+                    ${emptyMessage || 'No messages yet. Start a conversation!'}
+                </div>
             </div>
         `;
     }
     
     return html`
-        <div class="timeline">
-            ${posts.map(post => html`
+        <div class="timeline" ref=${timelineRef} onScroll=${handleScroll}>
+            ${loadingMore && html`<div class="loading"><div class="spinner"></div></div>`}
+            ${hasMore && !loadingMore && html`
+                <button class="load-more-btn" onClick=${onLoadMore}>Load older messages</button>
+            `}
+            ${posts.slice().sort((a, b) => a.id - b.id).map(post => html`
                 <${Post} key=${post.id} post=${post} onClick=${() => onPostClick?.(post)} onHashtagClick=${onHashtagClick} />
             `)}
+        </div>
+    `;
+}
+
+/**
+ * Agent status indicator
+ */
+function AgentStatus({ status }) {
+    if (!status) return null;
+    
+    return html`
+        <div class="agent-status">
+            <div class="agent-status-spinner"></div>
+            <span class="agent-status-text">${status.title || 'Working...'}</span>
         </div>
     `;
 }
@@ -343,12 +490,22 @@ function ConnectionStatus({ status }) {
  */
 function App() {
     const [posts, setPosts] = useState(null);
+    const [hasMore, setHasMore] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
     const [currentHashtag, setCurrentHashtag] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
+    const [agentStatus, setAgentStatus] = useState(null);
+    const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
+    
+    // Scroll to bottom of timeline
+    const scrollToBottom = useCallback(() => {
+        if (timelineRef.current) {
+            timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+        }
+    }, []);
     
     // Request notification permission on first interaction
     const enableNotifications = useCallback(async () => {
@@ -362,28 +519,87 @@ function App() {
             if (hashtag) {
                 const result = await getPostsByHashtag(hashtag);
                 setPosts(result.posts);
+                setHasMore(false);
             } else {
-                const result = await getTimeline();
+                const result = await getTimeline(10);
                 setPosts(result.posts);
+                setHasMore(result.has_more);
+                // Scroll to bottom after initial load
+                setTimeout(scrollToBottom, 100);
             }
         } catch (error) {
             console.error('Failed to load posts:', error);
         }
-    }, []);
+    }, [scrollToBottom]);
+    
+    // Load older messages
+    const loadMore = useCallback(async () => {
+        if (!posts || posts.length === 0) return;
+        
+        const oldestId = posts[0].id;
+        console.log('Loading more before id:', oldestId);
+        try {
+            const result = await getTimeline(5, oldestId);
+            console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
+            if (result.posts.length > 0) {
+                // Remember scroll position relative to first visible element
+                const timeline = timelineRef.current;
+                const prevScrollHeight = timeline?.scrollHeight || 0;
+                const prevScrollTop = timeline?.scrollTop || 0;
+                
+                // Mark posts with stagger index for animation (reverse order since they appear top-down)
+                const staggeredPosts = result.posts.map((post, i) => ({
+                    ...post,
+                    _stagger: result.posts.length - 1 - i
+                }));
+                
+                setPosts(prev => [...staggeredPosts, ...prev]);
+                setHasMore(result.has_more);
+                
+                // Use double rAF to ensure DOM has updated
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        if (timeline) {
+                            const newScrollHeight = timeline.scrollHeight;
+                            const addedHeight = newScrollHeight - prevScrollHeight;
+                            timeline.scrollTop = prevScrollTop + addedHeight;
+                        }
+                    });
+                });
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error('Failed to load more posts:', error);
+        }
+    }, [posts, timelineRef]);
     
     // Handle hashtag click
-    const handleHashtagClick = useCallback((hashtag) => {
+    const handleHashtagClick = useCallback(async (hashtag) => {
         setCurrentHashtag(hashtag);
         setPosts(null); // Show loading
-        loadPosts(hashtag);
-    }, [loadPosts]);
+        try {
+            const result = await getPostsByHashtag(hashtag);
+            setPosts(result.posts);
+            setHasMore(false);
+        } catch (error) {
+            console.error('Failed to load hashtag posts:', error);
+        }
+    }, []);
     
     // Go back to timeline
-    const handleBackToTimeline = useCallback(() => {
+    const handleBackToTimeline = useCallback(async () => {
         setCurrentHashtag(null);
         setPosts(null);
-        loadPosts();
-    }, [loadPosts]);
+        try {
+            const result = await getTimeline(10);
+            setPosts(result.posts);
+            setHasMore(result.has_more);
+            setTimeout(scrollToBottom, 100);
+        } catch (error) {
+            console.error('Failed to load timeline:', error);
+        }
+    }, [scrollToBottom]);
     
     // Set up SSE connection
     useEffect(() => {
@@ -391,9 +607,22 @@ function App() {
         
         const sse = new SSEClient(
             (eventType, data) => {
-                // Add new posts/replies to timeline (only when on main timeline)
+                // Handle agent status updates
+                if (eventType === 'agent_status') {
+                    console.log('Agent status:', data);
+                    if (data.type === 'done' || data.type === 'error') {
+                        setAgentStatus(null);
+                    } else {
+                        setAgentStatus(data);
+                    }
+                    return;
+                }
+                
+                // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
                 if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
-                    setPosts(prev => prev ? [data, ...prev] : [data]);
+                    setPosts(prev => prev ? [...prev, data] : [data]);
+                    // Scroll to bottom for new messages
+                    setTimeout(scrollToBottom, 100);
                 }
                 // Update existing post (e.g., when link previews are fetched)
                 if (eventType === 'interaction_updated') {
@@ -421,40 +650,42 @@ function App() {
         sse.connect();
         
         return () => sse.disconnect();
-    }, [loadPosts, currentHashtag, notificationsEnabled]);
+    }, [loadPosts, notificationsEnabled]);
     
     return html`
         <div class="container">
-            <header class="header">
-                ${currentHashtag ? html`
+            <div class="floating-controls">
+                <button 
+                    class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
+                    onClick=${enableNotifications}
+                    title=${notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                        ${!notificationsEnabled && html`<line x1="1" y1="1" x2="23" y2="23"/>`}
+                    </svg>
+                </button>
+                <${ThemeToggle} />
+            </div>
+            ${currentHashtag && html`
+                <div class="hashtag-header">
                     <button class="back-btn" onClick=${handleBackToTimeline}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                     </button>
-                    <h1>#${currentHashtag}</h1>
-                ` : html`
-                    <h1>Vibes</h1>
-                `}
-                <div class="header-actions">
-                    <button 
-                        class="notification-toggle ${notificationsEnabled ? 'enabled' : ''}" 
-                        onClick=${enableNotifications}
-                        title=${notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
-                    >
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                            ${!notificationsEnabled && html`<line x1="1" y1="1" x2="23" y2="23"/>`}
-                        </svg>
-                    </button>
-                    <${ThemeToggle} />
+                    <span>#${currentHashtag}</span>
                 </div>
-            </header>
-            ${!currentHashtag && html`<${ComposeBox} onPost=${() => loadPosts()} />`}
+            `}
             <${Timeline} 
-                posts=${posts} 
+                posts=${posts}
+                hasMore=${hasMore}
+                onLoadMore=${loadMore}
+                timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
             />
+            <${AgentStatus} status=${agentStatus} />
+            ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} />`}
             <${ConnectionStatus} status=${connectionStatus} />
         </div>
     `;

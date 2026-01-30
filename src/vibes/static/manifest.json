@@ -1,21 +1,25 @@
 {
   "name": "Vibes",
   "short_name": "Vibes",
-  "description": "Twitter-like interface for coding agents",
+  "description": "Slack-like interface for coding agents",
   "start_url": "/",
   "display": "standalone",
+  "display_override": ["window-controls-overlay"],
   "background_color": "#000000",
   "theme_color": "#1d9bf0",
+  "color_scheme": "dark light",
   "icons": [
     {
       "src": "/static/icon-192.png",
       "sizes": "192x192",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     },
     {
       "src": "/static/icon-512.png",
       "sizes": "512x512",
-      "type": "image/png"
+      "type": "image/png",
+      "purpose": "any maskable"
     }
   ]
 }

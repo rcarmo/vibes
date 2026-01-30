@@ -1,0 +1,238 @@
+"""ACP client for communicating with agents via stdio using the ACP protocol."""
+
+import asyncio
+import json
+import logging
+import os
+import shutil
+from typing import Optional, AsyncIterator
+from pathlib import Path
+
+from .config import get_config
+
+logger = logging.getLogger(__name__)
+
+# Global agent state
+_agent_proc = None
+_agent_reader = None
+_agent_writer = None
+_agent_lock = asyncio.Lock()
+_request_lock = asyncio.Lock()  # Ensures only one request at a time
+_session_id = None
+_request_id = 0
+
+
+def _next_request_id():
+    global _request_id
+    _request_id += 1
+    return _request_id
+
+
+async def _read_response(reader) -> dict:
+    """Read a JSON-RPC response from the agent."""
+    line = await reader.readline()
+    if not line:
+        raise RuntimeError("Agent connection closed")
+    try:
+        return json.loads(line.decode())
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse agent response: {line}")
+        raise RuntimeError(f"Invalid JSON from agent: {e}")
+
+
+async def _send_request(method: str, params: dict, collect_updates: bool = False, status_callback=None) -> dict:
+    """Send a JSON-RPC request and wait for response."""
+    global _agent_writer, _agent_reader
+    
+    if _agent_writer is None or _agent_reader is None:
+        raise RuntimeError("Agent not connected")
+    
+    request = {
+        "jsonrpc": "2.0",
+        "id": _next_request_id(),
+        "method": method,
+        "params": params
+    }
+    
+    data = json.dumps(request) + "\n"
+    _agent_writer.write(data.encode())
+    await _agent_writer.drain()
+    
+    # Collect session updates if requested
+    collected_text = []
+    
+    # Read responses until we get the one matching our request ID
+    while True:
+        response = await asyncio.wait_for(_read_response(_agent_reader), timeout=300)
+        
+        # Handle notifications (no id)
+        if "id" not in response:
+            method_name = response.get("method", "")
+            if collect_updates and method_name == "session/update":
+                update = response.get("params", {}).get("update", {})
+                session_update_type = update.get("sessionUpdate", "")
+                
+                # Broadcast status updates via callback
+                if status_callback:
+                    if session_update_type == "tool_call":
+                        title = update.get("title", "Working...")
+                        logger.info(f"Agent tool call: {title}")
+                        await status_callback({"type": "tool_call", "title": title})
+                    elif session_update_type == "tool_call_update":
+                        # Tool is still running, could show progress
+                        pass
+                
+                # Extract text from session updates
+                content = update.get("content")
+                if isinstance(content, dict) and content.get("type") == "text":
+                    collected_text.append(content.get("text", ""))
+                elif isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            collected_text.append(block.get("text", ""))
+            continue
+        
+        if response.get("id") == request["id"]:
+            if "error" in response:
+                raise RuntimeError(f"Agent error: {response['error']}")
+            result = response.get("result", {})
+            if collect_updates:
+                result["_collected_text"] = "".join(collected_text)
+            return result
+
+
+async def _ensure_agent():
+    """Ensure the agent is running and initialized."""
+    global _agent_proc, _agent_reader, _agent_writer, _session_id
+    
+    async with _agent_lock:
+        # Check if existing connection is still valid
+        if _agent_proc is not None and _agent_proc.returncode is None:
+            return
+        
+        # Clean up old state
+        _agent_proc = None
+        _agent_reader = None
+        _agent_writer = None
+        _session_id = None
+        
+        config = get_config()
+        agent_cmd = config.acp_agent
+        
+        if not shutil.which(agent_cmd):
+            raise RuntimeError(f"Agent command '{agent_cmd}' not found")
+        
+        logger.info(f"Starting ACP agent: {agent_cmd}")
+        
+        # Start the agent process
+        _agent_proc = await asyncio.create_subprocess_exec(
+            agent_cmd,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        
+        _agent_reader = _agent_proc.stdout
+        _agent_writer = _agent_proc.stdin
+        
+        logger.info(f"ACP agent started (PID: {_agent_proc.pid})")
+        
+        # Initialize the connection
+        result = await _send_request("initialize", {
+            "protocolVersion": 1,
+            "clientCapabilities": {},
+            "clientInfo": {
+                "name": "vibes",
+                "version": "0.1.0"
+            }
+        })
+        logger.info(f"Agent initialized: {result}")
+        
+        # Create a new session
+        cwd = str(Path.cwd())
+        result = await _send_request("session/new", {
+            "cwd": cwd,
+            "mcpServers": []
+        })
+        _session_id = result.get("sessionId")
+        logger.info(f"Session created: {_session_id}")
+
+
+async def send_message_simple(content: str, thread_id: Optional[int] = None, status_callback=None) -> str:
+    """Send a message to the agent and return the response."""
+    global _session_id
+    
+    # Only one request at a time to avoid read conflicts
+    async with _request_lock:
+        try:
+            await _ensure_agent()
+            
+            if not _session_id:
+                return "[Error: No active session]"
+            
+            logger.info(f"Sending message to agent: {content[:100]}...")
+            
+            # Send prompt and collect session updates
+            result = await _send_request("session/prompt", {
+                "sessionId": _session_id,
+                "prompt": [{"type": "text", "text": content}]
+            }, collect_updates=True, status_callback=status_callback)
+            
+            # Small delay to let agent fully complete its loop
+            await asyncio.sleep(0.1)
+            
+            # Get collected text from session updates
+            response = result.get("_collected_text", "")
+            
+            logger.info(f"Agent response: {response[:100]}...")
+            return response or "[No response from agent]"
+            
+        except asyncio.TimeoutError:
+            logger.error("Timeout waiting for agent response")
+            return "[Error: Agent timed out]"
+        except Exception as e:
+            logger.error(f"Error communicating with agent: {e}", exc_info=True)
+            return f"[Error: {e}]"
+
+
+async def send_message(content: str, thread_id: Optional[int] = None) -> AsyncIterator[str]:
+    """Send a message and yield the response (for streaming compatibility)."""
+    response = await send_message_simple(content, thread_id)
+    yield response
+
+
+def is_agent_running() -> bool:
+    """Check if the agent is currently running."""
+    return _agent_proc is not None and _agent_proc.returncode is None
+
+
+async def start_agent() -> bool:
+    """Start the agent if not already running."""
+    try:
+        await _ensure_agent()
+        return True
+    except Exception as e:
+        logger.error(f"Failed to start agent: {e}")
+        return False
+
+
+async def stop_agent():
+    """Stop the agent process."""
+    global _agent_proc, _agent_reader, _agent_writer, _session_id
+    
+    async with _agent_lock:
+        if _agent_proc is not None:
+            try:
+                _agent_proc.terminate()
+                await asyncio.wait_for(_agent_proc.wait(), timeout=5.0)
+            except asyncio.TimeoutError:
+                _agent_proc.kill()
+            except Exception:
+                pass
+            
+            logger.info("ACP agent stopped")
+        
+        _agent_proc = None
+        _agent_reader = None
+        _agent_writer = None
+        _session_id = None

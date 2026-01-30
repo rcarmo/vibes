@@ -2,7 +2,7 @@
 
 ![Vibes](docs/icon-256.png)
 
-A single-user, mobile-friendly SPA for Twitter-like interactions with coding agents via the ACP protocol.
+A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol.
 
 ![Screenshot](docs/screenshot.png)
 
@@ -49,7 +49,7 @@ Environment variables:
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `data/app.db` | SQLite database path |
 | `VIBES_DEBUG` | `false` | Enable debug mode |
-| `VIBES_CONFIG_PATH` | `config/endpoints.json` | Custom endpoints config |
+| `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command |
 
 ## API Endpoints
 
@@ -78,7 +78,6 @@ Environment variables:
 |--------|----------|-------------|
 | GET | `/agents` | List agents |
 | POST | `/agent/{id}/message` | Send message to agent |
-| POST | `/agent/{id}/action/{action}` | Trigger agent action |
 
 ## Development
 
@@ -89,8 +88,8 @@ pip install -e ".[dev]"
 # Run tests
 pytest
 
-# Run in debug mode
-VIBES_DEBUG=true vibes
+# Run with make
+make serve
 ```
 
 ## License

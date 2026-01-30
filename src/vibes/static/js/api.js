@@ -25,10 +25,14 @@ async function request(url, options = {}) {
 }
 
 /**
- * Get timeline posts
+ * Get timeline posts (chat style - returns oldest first)
  */
-export async function getTimeline(limit = 50, offset = 0) {
-    return request(`/timeline?limit=${limit}&offset=${offset}`);
+export async function getTimeline(limit = 10, beforeId = null) {
+    let url = `/timeline?limit=${limit}`;
+    if (beforeId) {
+        url += `&before=${beforeId}`;
+    }
+    return request(url);
 }
 
 /**
@@ -157,6 +161,10 @@ export class SSEClient {
         
         this.eventSource.addEventListener('interaction_updated', (e) => {
             this.onEvent('interaction_updated', JSON.parse(e.data));
+        });
+        
+        this.eventSource.addEventListener('agent_status', (e) => {
+            this.onEvent('agent_status', JSON.parse(e.data));
         });
     }
     
