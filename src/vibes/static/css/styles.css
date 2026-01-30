@@ -303,11 +303,16 @@ body {
     color: var(--text-secondary);
 }
 
-/* Timeline */
+/* Timeline - uses column-reverse for natural scroll anchoring when prepending */
 .timeline {
     flex: 1;
     overflow-y: auto;
-    overflow-anchor: none; /* Disable browser scroll anchoring - we handle it manually */
+    display: flex;
+    flex-direction: column-reverse;
+}
+
+/* Wrapper to hold posts in correct order inside column-reverse container */
+.timeline-content {
     display: flex;
     flex-direction: column;
 }
@@ -333,23 +338,7 @@ body {
     display: flex;
     gap: var(--spacing-sm);
     align-items: flex-start;
-}
-
-/* Only animate new posts at bottom, not scrollback */
-.post:not(.staggered-0):not(.staggered-1):not(.staggered-2) {
-    animation: fadeSlideIn 0.4s ease-out backwards;
-}
-
-/* Posts being inserted are invisible until scroll is adjusted */
-.post.inserting {
-    visibility: hidden !important;
-}
-
-/* Scrollback items appear instantly (no animation) */
-.post.staggered-0,
-.post.staggered-1,
-.post.staggered-2 {
-    animation: none;
+    animation: fadeSlideIn 0.3s ease-out backwards;
 }
 
 .post:hover {
@@ -360,17 +349,6 @@ body {
     from {
         opacity: 0;
         transform: translateY(8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
-}
-
-@keyframes fadeSlideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
     }
     to {
         opacity: 1;

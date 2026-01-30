@@ -356,8 +356,6 @@ function Post({ post, onClick, onHashtagClick }) {
     
     const data = post.data;
     const isAgent = data.type === 'agent_response';
-    const staggerClass = post._stagger !== undefined ? `staggered-${post._stagger}` : '';
-    const insertingClass = post._inserting ? 'inserting' : '';
     
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
@@ -368,7 +366,7 @@ function Post({ post, onClick, onHashtagClick }) {
     };
     
     return html`
-        <div class="post ${isAgent ? 'agent-post' : ''} ${staggerClass} ${insertingClass}" onClick=${onClick}>
+        <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
             <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
                 ${getAvatarLetter(data.type)}
             </div>
@@ -418,16 +416,20 @@ function Post({ post, onClick, onHashtagClick }) {
 }
 
 /**
- * Timeline component (chat style - scrolls to bottom, loads older on scroll up)
+ * Timeline component (chat style - uses column-reverse for smooth prepending)
  */
 function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
-        const { scrollTop, clientHeight } = e.target;
-        // Prefetch when within 1 viewport height of the top
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        // In column-reverse, scrollTop is negative or we check distance from "top" (which is visual bottom)
+        // scrollTop of 0 means we're at the bottom, negative means scrolled up
+        // We want to load more when near the visual top (which is scrollHeight - clientHeight - |scrollTop|)
+        const distanceFromTop = scrollHeight - clientHeight + scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
-        if (scrollTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
+        
+        if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
             setLoadingMore(true);
             await onLoadMore();
             setLoadingMore(false);
@@ -441,22 +443,30 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     if (posts.length === 0) {
         return html`
             <div class="timeline" ref=${timelineRef}>
-                <div style="padding: var(--spacing-xl); text-align: center; color: var(--text-secondary)">
-                    ${emptyMessage || 'No messages yet. Start a conversation!'}
+                <div class="timeline-content">
+                    <div style="padding: var(--spacing-xl); text-align: center; color: var(--text-secondary)">
+                        ${emptyMessage || 'No messages yet. Start a conversation!'}
+                    </div>
                 </div>
             </div>
         `;
     }
     
+    // Sort posts by id (oldest first)
+    const sortedPosts = posts.slice().sort((a, b) => a.id - b.id);
+    
     return html`
         <div class="timeline" ref=${timelineRef} onScroll=${handleScroll}>
-            ${loadingMore && html`<div class="loading"><div class="spinner"></div></div>`}
-            ${hasMore && !loadingMore && html`
-                <button class="load-more-btn" onClick=${onLoadMore}>Load older messages</button>
-            `}
-            ${posts.slice().sort((a, b) => a.id - b.id).map(post => html`
-                <${Post} key=${post.id} post=${post} onClick=${() => onPostClick?.(post)} onHashtagClick=${onHashtagClick} />
-            `)}
+            <div class="timeline-content">
+                ${hasMore && html`
+                    <button class="load-more-btn" onClick=${onLoadMore} disabled=${loadingMore}>
+                        ${loadingMore ? 'Loading...' : 'Load older messages'}
+                    </button>
+                `}
+                ${sortedPosts.map(post => html`
+                    <${Post} key=${post.id} post=${post} onClick=${() => onPostClick?.(post)} onHashtagClick=${onHashtagClick} />
+                `)}
+            </div>
         </div>
     `;
 }
@@ -505,10 +515,10 @@ function App() {
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
     
-    // Scroll to bottom of timeline
+    // Scroll to bottom of timeline (with column-reverse, scrollTop=0 is bottom)
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
-            timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+            timelineRef.current.scrollTop = 0;
         }
     }, []);
     
@@ -529,63 +539,28 @@ function App() {
                 const result = await getTimeline(10);
                 setPosts(result.posts);
                 setHasMore(result.has_more);
-                // Scroll to bottom after initial load
-                setTimeout(scrollToBottom, 100);
             }
         } catch (error) {
             console.error('Failed to load posts:', error);
         }
-    }, [scrollToBottom]);
+    }, []);
     
-    // Load older messages
+    // Load older messages - with column-reverse, browser handles scroll anchoring automatically
     const loadMore = useCallback(async () => {
         if (!posts || posts.length === 0) return;
         
-        const oldestId = posts[0].id;
+        // Find oldest post id
+        const sortedPosts = posts.slice().sort((a, b) => a.id - b.id);
+        const oldestId = sortedPosts[0].id;
+        
         console.log('Loading more before id:', oldestId);
         try {
-            const result = await getTimeline(3, oldestId);
+            const result = await getTimeline(5, oldestId);
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
-                const timeline = timelineRef.current;
-                
-                // Save scroll metrics before DOM changes
-                const scrollHeightBefore = timeline?.scrollHeight || 0;
-                const scrollTopBefore = timeline?.scrollTop || 0;
-                
-                // Add posts with stagger index and inserting flag
-                const staggeredPosts = result.posts.map((post, i) => ({
-                    ...post,
-                    _stagger: result.posts.length - 1 - i,
-                    _inserting: true
-                }));
-                
-                const newIds = new Set(result.posts.map(p => p.id));
-                setPosts(prev => [...staggeredPosts, ...prev]);
+                // Simply prepend - column-reverse handles scroll position
+                setPosts(prev => [...result.posts, ...prev]);
                 setHasMore(result.has_more);
-                
-                // Use setTimeout to ensure React has flushed DOM updates
-                setTimeout(() => {
-                    if (timeline) {
-                        // Calculate how much content was added
-                        const scrollHeightAfter = timeline.scrollHeight;
-                        const addedHeight = scrollHeightAfter - scrollHeightBefore;
-                        
-                        // Adjust scroll to maintain visual position
-                        timeline.scrollTop = scrollTopBefore + addedHeight;
-                        
-                        // Reveal items after scroll is committed
-                        requestAnimationFrame(() => {
-                            setPosts(prev => prev.map(p => {
-                                if (newIds.has(p.id)) {
-                                    const { _inserting, ...rest } = p;
-                                    return rest;
-                                }
-                                return p;
-                            }));
-                        });
-                    }
-                }, 0);
             } else {
                 setHasMore(false);
             }
@@ -615,11 +590,10 @@ function App() {
             const result = await getTimeline(10);
             setPosts(result.posts);
             setHasMore(result.has_more);
-            setTimeout(scrollToBottom, 100);
         } catch (error) {
             console.error('Failed to load timeline:', error);
         }
-    }, [scrollToBottom]);
+    }, []);
     
     // Set up SSE connection
     useEffect(() => {
@@ -641,8 +615,7 @@ function App() {
                 // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
                 if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
                     setPosts(prev => prev ? [...prev, data] : [data]);
-                    // Scroll to bottom for new messages
-                    setTimeout(scrollToBottom, 100);
+                    // With column-reverse, new items at end appear at visual bottom automatically
                 }
                 // Update existing post (e.g., when link previews are fetched)
                 if (eventType === 'interaction_updated') {
