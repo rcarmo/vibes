@@ -43,7 +43,42 @@ function renderMarkdown(text, onHashtagClick) {
     // Process hashtags - wrap them in clickable spans (will be handled by event delegation)
     html_content = html_content.replace(HASHTAG_REGEX, '<a href="#" class="hashtag" data-hashtag="$1">#$1</a>');
     
+    // Mark mermaid code blocks for async rendering
+    // They appear as <pre><code class="language-mermaid">...</code></pre>
+    html_content = html_content.replace(
+        /<pre><code class="language-mermaid">([\s\S]*?)<\/code><\/pre>/g,
+        (match, code) => {
+            const decoded = decodeEntities(code.trim());
+            const encoded = btoa(unescape(encodeURIComponent(decoded)));
+            return `<div class="mermaid-container" data-mermaid="${encoded}"><div class="mermaid-loading">Loading diagram...</div></div>`;
+        }
+    );
+    
     return html_content;
+}
+
+// Render pending mermaid diagrams in the DOM
+async function renderMermaidDiagrams(container) {
+    if (!window.beautifulMermaid) return;
+    
+    const { renderMermaid, THEMES } = window.beautifulMermaid;
+    const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    const theme = isDark ? THEMES['tokyo-night'] : THEMES['github-light'];
+    
+    const pending = container.querySelectorAll('.mermaid-container[data-mermaid]');
+    for (const el of pending) {
+        try {
+            const encoded = el.dataset.mermaid;
+            const code = decodeURIComponent(escape(atob(encoded)));
+            const svg = await renderMermaid(code, { ...theme, transparent: true });
+            el.innerHTML = svg;
+            el.removeAttribute('data-mermaid');
+        } catch (e) {
+            console.error('Mermaid render error:', e);
+            el.innerHTML = `<pre class="mermaid-error">Diagram error: ${e.message}</pre>`;
+            el.removeAttribute('data-mermaid');
+        }
+    }
 }
 
 /**
@@ -397,12 +432,20 @@ function removePreviewedUrls(text, linkPreviews) {
  */
 function Post({ post, onClick, onHashtagClick }) {
     const [zoomedImage, setZoomedImage] = useState(null);
+    const contentRef = useRef(null);
     
     const data = post.data;
     const isAgent = data.type === 'agent_response';
     
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
+    
+    // Render mermaid diagrams after content is mounted
+    useEffect(() => {
+        if (contentRef.current) {
+            renderMermaidDiagrams(contentRef.current);
+        }
+    }, [displayContent]);
     
     const handleImageClick = (e, mediaId) => {
         e.stopPropagation();
@@ -437,6 +480,7 @@ function Post({ post, onClick, onHashtagClick }) {
                 </div>
                 ${displayContent && html`
                     <div 
+                        ref=${contentRef}
                         class="post-content"
                         dangerouslySetInnerHTML=${{ __html: renderMarkdown(displayContent, onHashtagClick) }}
                         onClick=${(e) => {
