@@ -596,10 +596,18 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 function AgentStatus({ status }) {
     if (!status) return null;
     
+    // Show different content based on status type
+    let content = status.title || 'Working...';
+    if (status.type === 'message_chunk') {
+        content = status.text;
+    } else if (status.type === 'plan') {
+        content = status.text;
+    }
+    
     return html`
         <div class="agent-status">
             <div class="agent-status-spinner"></div>
-            <span class="agent-status-text">${status.title || 'Working...'}</span>
+            <span class="agent-status-text">${content}</span>
         </div>
     `;
 }

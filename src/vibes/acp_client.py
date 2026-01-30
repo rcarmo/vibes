@@ -106,8 +106,22 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         logger.info(f"Agent tool call: {title}")
                         await status_callback({"type": "tool_call", "title": title})
                     elif session_update_type == "tool_call_update":
-                        # Tool is still running, could show progress
-                        pass
+                        status = update.get("status", "")
+                        if status:
+                            await status_callback({"type": "tool_status", "status": status})
+                    elif session_update_type == "agent_message_chunk":
+                        # Stream agent message chunks to UI
+                        content = update.get("content", {})
+                        if content.get("type") == "text":
+                            text = content.get("text", "")
+                            if text:
+                                await status_callback({"type": "message_chunk", "text": text})
+                    elif session_update_type == "plan":
+                        # Agent is sharing its plan
+                        entries = update.get("entries", [])
+                        if entries:
+                            plan_text = "\n".join([e.get("content", "") for e in entries])
+                            await status_callback({"type": "plan", "text": plan_text})
                 
                 # Extract all content types from session updates
                 content = update.get("content")
