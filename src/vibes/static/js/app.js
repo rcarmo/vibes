@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -605,6 +605,64 @@ function AgentStatus({ status }) {
 }
 
 /**
+ * Agent request modal - shows permission/choice requests from agent
+ */
+function AgentRequestModal({ request, onRespond }) {
+    if (!request) return null;
+    
+    const { request_id, tool_call, options } = request;
+    const title = tool_call?.title || 'Agent Request';
+    const kind = tool_call?.kind || 'other';
+    
+    const handleResponse = async (outcome) => {
+        try {
+            await respondToAgentRequest(request_id, outcome);
+            onRespond();
+        } catch (e) {
+            console.error('Failed to respond to agent request:', e);
+        }
+    };
+    
+    return html`
+        <div class="agent-request-modal">
+            <div class="agent-request-content">
+                <div class="agent-request-title">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <line x1="12" y1="8" x2="12" y2="12"/>
+                        <line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    ${title}
+                </div>
+                ${tool_call?.description && html`
+                    <div class="agent-request-description">${tool_call.description}</div>
+                `}
+                <div class="agent-request-actions">
+                    ${options && options.length > 0 ? (
+                        options.map(opt => html`
+                            <button 
+                                key=${opt.id || opt}
+                                class="agent-request-btn ${opt.recommended ? 'primary' : ''}"
+                                onClick=${() => handleResponse(opt.id || opt)}
+                            >
+                                ${opt.label || opt.id || opt}
+                            </button>
+                        `)
+                    ) : html`
+                        <button class="agent-request-btn primary" onClick=${() => handleResponse('approved')}>
+                            Allow
+                        </button>
+                        <button class="agent-request-btn" onClick=${() => handleResponse('denied')}>
+                            Deny
+                        </button>
+                    `}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
  * Connection status indicator
  */
 function ConnectionStatus({ status }) {
@@ -629,6 +687,7 @@ function App() {
         typeof Notification !== 'undefined' && Notification.permission === 'granted'
     );
     const [agentStatus, setAgentStatus] = useState(null);
+    const [pendingRequest, setPendingRequest] = useState(null);
     const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
@@ -731,6 +790,13 @@ function App() {
                     return;
                 }
                 
+                // Handle agent requests (permission, choices)
+                if (eventType === 'agent_request') {
+                    console.log('Agent request:', data);
+                    setPendingRequest(data);
+                    return;
+                }
+                
                 // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
                 if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
                     setPosts(prev => prev ? [...prev, data] : [data]);
@@ -799,6 +865,7 @@ function App() {
             <${AgentStatus} status=${agentStatus} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
+            <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
         </div>
     `;
 }

@@ -8,11 +8,22 @@ from aiohttp import web
 from ..db import get_db
 from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
-from ..acp_client import send_message_multimodal, is_agent_running, start_agent
+from ..acp_client import (
+    send_message_multimodal, is_agent_running, start_agent,
+    set_request_callback, respond_to_request
+)
 from ..tasks import enqueue
 from .sse import broadcast_event
 
 logger = logging.getLogger(__name__)
+
+
+# Set up callback for agent requests
+async def _handle_agent_request(request_data):
+    """Broadcast agent requests to UI."""
+    await broadcast_event("agent_request", request_data)
+
+set_request_callback(_handle_agent_request)
 
 
 async def list_agents(request: web.Request) -> web.Response:
@@ -240,8 +251,31 @@ async def trigger_action(request: web.Request) -> web.Response:
     })
 
 
+async def respond_to_agent_request(request: web.Request) -> web.Response:
+    """Respond to a pending agent request (permission, choice, etc.)."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    
+    request_id = data.get("request_id")
+    outcome = data.get("outcome", "denied")
+    
+    if request_id is None:
+        return web.json_response({"error": "Missing request_id"}, status=400)
+    
+    success = respond_to_request(request_id, outcome)
+    
+    if success:
+        logger.info(f"Responded to agent request {request_id}: {outcome}")
+        return web.json_response({"status": "ok", "request_id": request_id, "outcome": outcome})
+    else:
+        return web.json_response({"error": "Request not found or already responded"}, status=404)
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
+    app.router.add_post("/agent/respond", respond_to_agent_request)

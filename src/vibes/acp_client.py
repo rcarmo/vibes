@@ -22,6 +22,25 @@ _request_lock = asyncio.Lock()  # Ensures only one request at a time
 _session_id = None
 _request_id = 0
 
+# Pending agent requests waiting for user response
+_pending_requests = {}  # request_id -> asyncio.Future
+_request_callback = None  # Callback to notify UI of pending requests
+
+
+def set_request_callback(callback):
+    """Set callback for agent requests that need user response."""
+    global _request_callback
+    _request_callback = callback
+
+
+def respond_to_request(request_id, outcome: str):
+    """Respond to a pending agent request."""
+    future = _pending_requests.get(request_id)
+    if future and not future.done():
+        future.set_result(outcome)
+        return True
+    return False
+
 
 def _next_request_id():
     global _request_id
@@ -95,17 +114,46 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
             req_id = response.get("id")
             
             if method_name == "session/request_permission":
-                # Agent is asking for permission - auto-approve for now
-                logger.info(f"Agent requesting permission: {response.get('params', {}).get('toolCall', {})}")
+                # Agent is asking for permission - wait for user response
+                params = response.get("params", {})
+                tool_call = params.get("toolCall", {})
+                options = params.get("options", [])
+                
+                logger.info(f"Agent requesting permission: {tool_call.get('title', 'Unknown')}")
+                
+                # Create a future to wait for user response
+                future = asyncio.get_event_loop().create_future()
+                _pending_requests[req_id] = future
+                
+                # Notify UI via callback
+                if _request_callback:
+                    await _request_callback({
+                        "type": "permission_request",
+                        "request_id": req_id,
+                        "tool_call": tool_call,
+                        "options": options
+                    })
+                
+                # Wait for user response (with timeout)
+                try:
+                    outcome = await asyncio.wait_for(future, timeout=300)
+                except asyncio.TimeoutError:
+                    outcome = "denied"
+                    logger.warning("Permission request timed out, denying")
+                finally:
+                    _pending_requests.pop(req_id, None)
+                
+                # Send response to agent
                 permission_response = {
                     "jsonrpc": "2.0",
                     "id": req_id,
-                    "result": {"outcome": "approved"}
+                    "result": {"outcome": outcome}
                 }
                 data = json.dumps(permission_response) + "\n"
                 _agent_writer.write(data.encode())
                 await _agent_writer.drain()
                 continue
+                
             elif method_name in ("fs/read_text_file", "fs/write_text_file"):
                 # File system requests - we don't support these yet
                 logger.warning(f"Agent requested unsupported fs operation: {method_name}")

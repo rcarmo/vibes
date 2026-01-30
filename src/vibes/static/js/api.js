@@ -100,6 +100,24 @@ export async function uploadMedia(file) {
 }
 
 /**
+ * Respond to an agent request (permission, choice)
+ */
+export async function respondToAgentRequest(requestId, outcome) {
+    const response = await fetch(API_BASE + '/agent/respond', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ request_id: requestId, outcome }),
+    });
+    
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to respond' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    
+    return response.json();
+}
+
+/**
  * Get media URL
  */
 export function getMediaUrl(mediaId) {
