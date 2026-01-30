@@ -490,6 +490,10 @@ function Post({ post, onClick, onHashtagClick }) {
                                 e.stopPropagation();
                                 const tag = e.target.dataset.hashtag;
                                 if (tag) onHashtagClick?.(tag);
+                            } else if (e.target.tagName === 'IMG') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setZoomedImage(e.target.src);
                             }
                         }}
                     />
