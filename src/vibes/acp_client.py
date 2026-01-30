@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+import shlex
 import shutil
 from typing import Optional, AsyncIterator
 from pathlib import Path
@@ -180,14 +181,20 @@ async def _ensure_agent():
         config = get_config()
         agent_cmd = config.acp_agent
         
-        if not shutil.which(agent_cmd):
-            raise RuntimeError(f"Agent command '{agent_cmd}' not found")
+        # Parse command with arguments (e.g., "copilot --acp")
+        cmd_parts = shlex.split(agent_cmd)
+        if not cmd_parts:
+            raise RuntimeError("Agent command is empty")
+        
+        executable = cmd_parts[0]
+        if not shutil.which(executable):
+            raise RuntimeError(f"Agent executable '{executable}' not found in PATH")
         
         logger.info(f"Starting ACP agent: {agent_cmd}")
         
         # Start the agent process
         _agent_proc = await asyncio.create_subprocess_exec(
-            agent_cmd,
+            *cmd_parts,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

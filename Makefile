@@ -4,8 +4,9 @@ PYTHON ?= python3
 PIP ?= pip3
 
 # Server configuration
-VIBES_HOST ?= 0.0.0.0
-VIBES_PORT ?= 8080
+export VIBES_HOST ?= 0.0.0.0
+export VIBES_PORT ?= 8080
+export VIBES_ACP_AGENT ?= copilot --acp
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
