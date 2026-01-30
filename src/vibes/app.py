@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import signal
 from pathlib import Path
 from aiohttp import web
 
@@ -66,6 +67,8 @@ async def on_startup(app: web.Application) -> None:
 
 async def on_cleanup(app: web.Application) -> None:
     """Application cleanup handler."""
+    logger.info("Shutting down...")
+    
     await stop_agent()
     logger.info("ACP agent stopped")
     
@@ -111,7 +114,20 @@ def main() -> None:
     app = create_app()
     
     logger.info(f"Starting Vibes on {config.host}:{config.port}")
-    web.run_app(app, host=config.host, port=config.port)
+    logger.info("Press Ctrl+C to stop")
+    
+    try:
+        web.run_app(
+            app, 
+            host=config.host, 
+            port=config.port,
+            handle_signals=True,
+            print=None  # Suppress default "Running on" message
+        )
+    except KeyboardInterrupt:
+        pass  # Graceful shutdown already handled by aiohttp
+    
+    logger.info("Server stopped")
 
 
 if __name__ == "__main__":
