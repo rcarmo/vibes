@@ -436,7 +436,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             text = result.get("_collected_text", "")
             content_blocks = result.get("_collected_content", [])
             
-            logger.info(f"Agent response: {len(content_blocks)} blocks, text: {text[:100]}...")
+            # Log the content blocks for debugging
+            block_types = {}
+            for b in content_blocks:
+                t = b.get("type", "unknown")
+                block_types[t] = block_types.get(t, 0) + 1
+            logger.info(f"Agent response: {len(content_blocks)} blocks ({block_types}), text: {text[:100]}...")
             
             if not text and not content_blocks:
                 return {
