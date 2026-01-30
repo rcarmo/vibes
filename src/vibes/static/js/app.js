@@ -622,6 +622,11 @@ function AgentRequestModal({ request, onRespond }) {
     const title = tool_call?.title || 'Agent Request';
     const kind = tool_call?.kind || 'other';
     
+    // Extract description from various possible fields
+    const rawInput = tool_call?.rawInput || {};
+    const command = rawInput.command || (rawInput.commands && rawInput.commands[0]);
+    const description = tool_call?.description || command || null;
+    
     console.log('AgentRequestModal:', { request_id, tool_call, options });
     
     const handleResponse = async (outcome) => {
@@ -659,9 +664,9 @@ function AgentRequestModal({ request, onRespond }) {
                     </div>
                     <div class="agent-request-title">${title}</div>
                 </div>
-                ${tool_call?.description && html`
+                ${description && html`
                     <div class="agent-request-body">
-                        <div class="agent-request-description">${tool_call.description}</div>
+                        <pre class="agent-request-command">${description}</pre>
                     </div>
                 `}
                 <div class="agent-request-actions">

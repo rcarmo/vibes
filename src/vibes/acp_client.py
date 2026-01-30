@@ -142,8 +142,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 title = tool_call.get("title", "Unknown")
                 
                 logger.info(f"Agent requesting permission: {title}")
-                logger.info(f"Tool call data: {tool_call}")
-                logger.info(f"Options data: {options}")
+                logger.info(f"Full params: {json.dumps(params, indent=2)}")
                 
                 # Check whitelist first
                 outcome = None
