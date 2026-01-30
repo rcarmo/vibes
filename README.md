@@ -4,6 +4,8 @@
 
 A single-user, mobile-friendly SPA for Twitter-like interactions with coding agents via the ACP protocol.
 
+![Screenshot](docs/screenshot.png)
+
 ## Features
 
 - Post text, links, images, and files

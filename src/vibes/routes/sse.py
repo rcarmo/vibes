@@ -4,6 +4,7 @@ import asyncio
 import json
 from typing import Any
 from aiohttp import web
+from aiohttp.client_exceptions import ClientConnectionResetError
 
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
@@ -57,6 +58,9 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
                 await response.write(b": heartbeat\n\n")
             except asyncio.CancelledError:
                 break
+    except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, ClientConnectionResetError):
+        # Client disconnected, this is normal for SSE
+        pass
     finally:
         _clients.discard(queue)
     

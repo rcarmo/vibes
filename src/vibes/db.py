@@ -148,6 +148,27 @@ class Database:
                 for row in rows
             ]
 
+    async def get_posts_by_hashtag(self, hashtag: str, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Get posts containing a specific hashtag."""
+        # Search for hashtag in content (case-insensitive)
+        pattern = f'%#{hashtag}%'
+        async with self._connection.execute(
+            """SELECT id, timestamp, data FROM interactions 
+               WHERE json_extract(data, '$.content') LIKE ? COLLATE NOCASE
+               ORDER BY timestamp DESC 
+               LIMIT ? OFFSET ?""",
+            (pattern, limit, offset)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "data": json.loads(row["data"])
+                }
+                for row in rows
+            ]
+
     async def get_thread(self, thread_id: int) -> list[dict]:
         """Get all interactions in a thread."""
         async with self._connection.execute(
@@ -165,6 +186,74 @@ class Database:
                 }
                 for row in rows
             ]
+
+    async def get_interactions_missing_previews(self) -> list[dict]:
+        """Get interactions that have URLs in content but no link_previews."""
+        async with self._connection.execute(
+            """SELECT id, timestamp, data FROM interactions 
+               WHERE data LIKE '%http%'
+               AND (json_extract(data, '$.link_previews') IS NULL 
+                    OR json_extract(data, '$.link_previews') = '[]')
+               ORDER BY timestamp DESC"""
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "data": json.loads(row["data"])
+                }
+                for row in rows
+            ]
+
+    async def get_cached_preview(self, url: str) -> Optional[dict]:
+        """Get cached OpenGraph preview by URL."""
+        async with self._connection.execute(
+            """SELECT id, timestamp, data FROM interactions 
+               WHERE json_extract(data, '$.link_previews') IS NOT NULL
+               ORDER BY timestamp DESC"""
+        ) as cursor:
+            async for row in cursor:
+                data = json.loads(row["data"])
+                for preview in data.get("link_previews", []):
+                    if preview.get("url") == url:
+                        return preview
+        return None
+
+    async def get_all_cached_previews(self) -> dict[str, dict]:
+        """Get all cached OpenGraph previews as a URL -> preview mapping."""
+        cache = {}
+        async with self._connection.execute(
+            """SELECT data FROM interactions 
+               WHERE json_extract(data, '$.link_previews') IS NOT NULL"""
+        ) as cursor:
+            async for row in cursor:
+                data = json.loads(row["data"])
+                for preview in data.get("link_previews", []):
+                    url = preview.get("url")
+                    if url and url not in cache:
+                        cache[url] = preview
+        return cache
+
+    async def update_interaction_previews(self, interaction_id: int, link_previews: list[dict]) -> bool:
+        """Update an interaction's link_previews field."""
+        async with self._connection.execute(
+            "SELECT data FROM interactions WHERE id = ?",
+            (interaction_id,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            if not row:
+                return False
+        
+        data = json.loads(row["data"])
+        data["link_previews"] = link_previews
+        
+        async with self.transaction():
+            await self._connection.execute(
+                "UPDATE interactions SET data = ? WHERE id = ?",
+                (json.dumps(data), interaction_id)
+            )
+        return True
 
     # Media methods
     async def create_media(
@@ -202,6 +291,17 @@ class Database:
                     "created_at": row["created_at"]
                 }
             return None
+
+    async def get_media_by_original_url(self, original_url: str) -> Optional[int]:
+        """Get media ID by original URL (for OpenGraph image caching)."""
+        async with self._connection.execute(
+            """SELECT id FROM media 
+               WHERE json_extract(metadata, '$.original_url') = ?
+               LIMIT 1""",
+            (original_url,)
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["id"] if row else None
 
     async def get_media_data(self, media_id: int) -> Optional[tuple[str, bytes]]:
         """Get media content type and data blob."""

@@ -32,6 +32,13 @@ export async function getTimeline(limit = 50, offset = 0) {
 }
 
 /**
+ * Get posts by hashtag
+ */
+export async function getPostsByHashtag(hashtag, limit = 50, offset = 0) {
+    return request(`/hashtag/${encodeURIComponent(hashtag)}?limit=${limit}&offset=${offset}`);
+}
+
+/**
  * Get a thread by ID
  */
 export async function getThread(threadId) {
@@ -61,10 +68,10 @@ export async function createReply(threadId, content, mediaIds = []) {
 /**
  * Send message to agent
  */
-export async function sendAgentMessage(agentId, content, threadId = null) {
+export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = []) {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
-        body: JSON.stringify({ content, thread_id: threadId }),
+        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds }),
     });
 }
 
@@ -146,6 +153,10 @@ export class SSEClient {
         
         this.eventSource.addEventListener('agent_response', (e) => {
             this.onEvent('agent_response', JSON.parse(e.data));
+        });
+        
+        this.eventSource.addEventListener('interaction_updated', (e) => {
+            this.onEvent('interaction_updated', JSON.parse(e.data));
         });
     }
     

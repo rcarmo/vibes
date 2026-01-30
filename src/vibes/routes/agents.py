@@ -3,6 +3,7 @@
 import json
 from aiohttp import web
 from ..db import get_db
+from ..opengraph import queue_link_preview_fetch
 from .sse import broadcast_event
 
 
@@ -45,12 +46,16 @@ async def send_message(request: web.Request) -> web.Response:
         "type": "user_message",
         "content": data["content"],
         "agent_id": agent_id,
+        "media_ids": data.get("media_ids", []),
     }
     if thread_id:
         user_msg["thread_id"] = thread_id
     
     msg_id = await db.create_interaction(user_msg)
     user_interaction = await db.get_interaction(msg_id)
+    
+    # Queue background task to fetch link previews
+    queue_link_preview_fetch(msg_id, data["content"])
     
     # Use the message ID as thread_id if this is a new thread
     if not thread_id:

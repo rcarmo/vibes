@@ -3,6 +3,7 @@
 import json
 from aiohttp import web
 from ..db import get_db
+from ..opengraph import queue_link_preview_fetch
 from .sse import broadcast_event
 
 
@@ -27,6 +28,9 @@ async def create_post(request: web.Request) -> web.Response:
     
     # Fetch the created post to return
     post = await db.get_interaction(post_id)
+    
+    # Queue background task to fetch link previews
+    queue_link_preview_fetch(post_id, data["content"])
     
     # Broadcast to SSE clients
     await broadcast_event("new_post", post)
@@ -62,6 +66,9 @@ async def create_reply(request: web.Request) -> web.Response:
 
     reply_id = await db.create_interaction(reply_data)
     reply = await db.get_interaction(reply_id)
+    
+    # Queue background task to fetch link previews
+    queue_link_preview_fetch(reply_id, data["content"])
     
     # Broadcast to SSE clients
     await broadcast_event("new_reply", reply)
@@ -100,9 +107,30 @@ async def get_timeline(request: web.Request) -> web.Response:
     })
 
 
+async def get_hashtag(request: web.Request) -> web.Response:
+    """Get posts containing a specific hashtag."""
+    hashtag = request.match_info["hashtag"]
+    limit = int(request.query.get("limit", 50))
+    offset = int(request.query.get("offset", 0))
+    
+    # Clamp limit
+    limit = max(1, min(100, limit))
+    
+    db = await get_db()
+    posts = await db.get_posts_by_hashtag(hashtag, limit=limit, offset=offset)
+    
+    return web.json_response({
+        "hashtag": hashtag,
+        "posts": posts,
+        "limit": limit,
+        "offset": offset
+    })
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up post routes."""
     app.router.add_post("/post", create_post)
     app.router.add_post("/reply", create_reply)
     app.router.add_get("/thread/{thread_id}", get_thread)
     app.router.add_get("/timeline", get_timeline)
+    app.router.add_get("/hashtag/{hashtag}", get_hashtag)

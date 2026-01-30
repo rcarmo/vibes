@@ -5,6 +5,11 @@ import os
 from pathlib import Path
 from typing import Any, Optional
 
+from dotenv import load_dotenv
+
+# Load .env file if present
+load_dotenv()
+
 DEFAULT_CONFIG_PATH = "config/endpoints.json"
 
 
