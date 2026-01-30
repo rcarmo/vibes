@@ -211,6 +211,10 @@ export class SSEClient {
         this.eventSource.addEventListener('agent_status', (e) => {
             this.onEvent('agent_status', JSON.parse(e.data));
         });
+        
+        this.eventSource.addEventListener('agent_request', (e) => {
+            this.onEvent('agent_request', JSON.parse(e.data));
+        });
     }
     
     scheduleReconnect() {
