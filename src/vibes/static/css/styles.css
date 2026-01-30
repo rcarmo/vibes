@@ -519,6 +519,12 @@ body {
     white-space: pre-wrap;
 }
 
+.post-content img {
+    max-width: 100%;
+    height: auto;
+    border-radius: var(--radius-md);
+}
+
 /* Hashtags */
 .hashtag {
     color: var(--accent-color);
