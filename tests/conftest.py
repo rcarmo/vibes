@@ -1,6 +1,7 @@
 """Pytest configuration and fixtures."""
 
 import pytest
+import pytest_asyncio
 import tempfile
 import os
 from pathlib import Path
@@ -45,3 +46,11 @@ def sample_media_data():
         "thumbnail": b'\xff\xd8\xff' + b'\x00' * 50,  # Minimal JPEG-like data
         "metadata": {"width": 100, "height": 100}
     }
+
+
+# Configure pytest-asyncio
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "asyncio: mark test as an asyncio test."
+    )
+

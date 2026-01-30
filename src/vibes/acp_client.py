@@ -162,6 +162,11 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
     """Send a message to the agent and return the response."""
     global _session_id
     
+    # Check if lock is already held (agent busy)
+    if _request_lock.locked():
+        logger.warning("Agent is busy processing another request")
+        return "[Agent is busy, please wait...]"
+    
     # Only one request at a time to avoid read conflicts
     async with _request_lock:
         try:
@@ -178,8 +183,8 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
                 "prompt": [{"type": "text", "text": content}]
             }, collect_updates=True, status_callback=status_callback)
             
-            # Small delay to let agent fully complete its loop
-            await asyncio.sleep(0.1)
+            # Delay to let agent fully complete its loop
+            await asyncio.sleep(0.5)
             
             # Get collected text from session updates
             response = result.get("_collected_text", "")
@@ -190,6 +195,16 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
         except asyncio.TimeoutError:
             logger.error("Timeout waiting for agent response")
             return "[Error: Agent timed out]"
+        except RuntimeError as e:
+            error_str = str(e)
+            # If agent reports concurrent prompt error, restart it
+            if "Concurrent prompts" in error_str:
+                logger.warning("Agent stuck in concurrent state, restarting...")
+                await stop_agent()
+                await asyncio.sleep(1)
+                return "[Agent was busy, please try again]"
+            logger.error(f"Error communicating with agent: {e}", exc_info=True)
+            return f"[Error: {e}]"
         except Exception as e:
             logger.error(f"Error communicating with agent: {e}", exc_info=True)
             return f"[Error: {e}]"

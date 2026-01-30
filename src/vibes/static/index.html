@@ -7,14 +7,36 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Vibes</title>
-    <link rel="stylesheet" href="/static/css/styles.css?v=29">
+    <link rel="stylesheet" href="/static/css/styles.css?v=34">
     <link rel="manifest" href="/static/manifest.json">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
     <link rel="apple-touch-icon" href="/static/icon-192.png">
 </head>
 <body>
-    <div id="app"></div>
-    <script src="/static/js/marked.min.js"></script>
-    <script type="module" src="/static/js/app.js?v=27"></script>
+    <div id="app">
+        <div style="padding: 20px; text-align: center;">Loading...</div>
+    </div>
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            document.getElementById('app').innerHTML = '<pre style="padding:20px;color:red;">Error: ' + msg + '\nLine: ' + line + '</pre>';
+            return false;
+        };
+    </script>
+    <script>
+        // Load marked.js but don't block if it fails
+        try {
+            var s = document.createElement('script');
+            s.src = '/static/js/marked.min.js';
+            s.onerror = function() { console.warn('marked.js failed to load'); };
+            document.head.appendChild(s);
+        } catch(e) { console.warn('marked.js error:', e); }
+    </script>
+    <script type="module" src="/static/js/app.js?v=37"></script>
+    <script type="module">
+        // Fallback error display for module errors
+        import('./static/js/app.js?v=37').catch(function(e) {
+            document.getElementById('app').innerHTML = '<pre style="padding:20px;color:red;">Module Error: ' + e.message + '</pre>';
+        });
+    </script>
 </body>
 </html>

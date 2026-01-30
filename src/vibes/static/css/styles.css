@@ -97,6 +97,7 @@ body {
 
 #app {
     min-height: 100%;
+    height: 100%;
     display: flex;
     flex-direction: column;
     overflow-x: hidden;
@@ -107,7 +108,8 @@ body {
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
-    height: 100vh;
+    height: 100%;
+    height: 100dvh; /* Dynamic viewport height for iOS */
     background-color: var(--bg-primary);
     display: flex;
     flex-direction: column;
@@ -305,6 +307,7 @@ body {
 .timeline {
     flex: 1;
     overflow-y: auto;
+    overflow-anchor: none; /* Disable browser scroll anchoring - we handle it manually */
     display: flex;
     flex-direction: column;
 }
@@ -330,26 +333,48 @@ body {
     display: flex;
     gap: var(--spacing-sm);
     align-items: flex-start;
-    animation: fadeIn 0.3s ease-out backwards;
 }
 
-/* Staggered animation for posts loaded via scrollback */
-.post.staggered-0 { animation-delay: 0ms; }
-.post.staggered-1 { animation-delay: 50ms; }
-.post.staggered-2 { animation-delay: 100ms; }
-.post.staggered-3 { animation-delay: 150ms; }
-.post.staggered-4 { animation-delay: 200ms; }
+/* Only animate new posts at bottom, not scrollback */
+.post:not(.staggered-0):not(.staggered-1):not(.staggered-2) {
+    animation: fadeSlideIn 0.4s ease-out backwards;
+}
+
+/* Posts being inserted are invisible until scroll is adjusted */
+.post.inserting {
+    visibility: hidden !important;
+}
+
+/* Scrollback items appear instantly (no animation) */
+.post.staggered-0,
+.post.staggered-1,
+.post.staggered-2 {
+    animation: none;
+}
 
 .post:hover {
     background-color: var(--bg-hover);
 }
 
-@keyframes fadeIn {
+@keyframes fadeSlideIn {
     from {
         opacity: 0;
+        transform: translateY(8px);
     }
     to {
         opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeSlideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-8px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 

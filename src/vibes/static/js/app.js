@@ -128,7 +128,7 @@ async function requestNotificationPermission() {
  * Show desktop notification
  */
 function showNotification(title, body, onClick) {
-    if (Notification.permission !== 'granted') return;
+    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     
     const notification = new Notification(title, {
         body: body,
@@ -204,7 +204,7 @@ function ThemeToggle() {
 /**
  * Compose box component
  */
-function ComposeBox({ onPost }) {
+function ComposeBox({ onPost, onFocus }) {
     const [content, setContent] = useState('');
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
@@ -265,6 +265,7 @@ function ComposeBox({ onPost }) {
                     value=${content}
                     onInput=${handleInput}
                     onKeyDown=${handleKeyDown}
+                    onFocus=${onFocus}
                     disabled=${loading}
                     rows="1"
                 />
@@ -356,6 +357,7 @@ function Post({ post, onClick, onHashtagClick }) {
     const data = post.data;
     const isAgent = data.type === 'agent_response';
     const staggerClass = post._stagger !== undefined ? `staggered-${post._stagger}` : '';
+    const insertingClass = post._inserting ? 'inserting' : '';
     
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
@@ -366,7 +368,7 @@ function Post({ post, onClick, onHashtagClick }) {
     };
     
     return html`
-        <div class="post ${isAgent ? 'agent-post' : ''} ${staggerClass}" onClick=${onClick}>
+        <div class="post ${isAgent ? 'agent-post' : ''} ${staggerClass} ${insertingClass}" onClick=${onClick}>
             <div class="post-avatar" style=${isAgent ? 'background-color: #00ba7c' : ''}>
                 ${getAvatarLetter(data.type)}
             </div>
@@ -422,9 +424,10 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
-        const { scrollTop } = e.target;
-        // Load more when scrolled near the top
-        if (scrollTop < 100 && hasMore && !loadingMore && onLoadMore) {
+        const { scrollTop, clientHeight } = e.target;
+        // Prefetch when within 1 viewport height of the top
+        const prefetchThreshold = Math.max(300, clientHeight);
+        if (scrollTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
             setLoadingMore(true);
             await onLoadMore();
             setLoadingMore(false);
@@ -493,7 +496,9 @@ function App() {
     const [hasMore, setHasMore] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
     const [currentHashtag, setCurrentHashtag] = useState(null);
-    const [notificationsEnabled, setNotificationsEnabled] = useState(Notification.permission === 'granted');
+    const [notificationsEnabled, setNotificationsEnabled] = useState(
+        typeof Notification !== 'undefined' && Notification.permission === 'granted'
+    );
     const [agentStatus, setAgentStatus] = useState(null);
     const timelineRef = useRef(null);
     
@@ -539,33 +544,48 @@ function App() {
         const oldestId = posts[0].id;
         console.log('Loading more before id:', oldestId);
         try {
-            const result = await getTimeline(5, oldestId);
+            const result = await getTimeline(3, oldestId);
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
-                // Remember scroll position relative to first visible element
                 const timeline = timelineRef.current;
-                const prevScrollHeight = timeline?.scrollHeight || 0;
-                const prevScrollTop = timeline?.scrollTop || 0;
                 
-                // Mark posts with stagger index for animation (reverse order since they appear top-down)
+                // Save scroll metrics before DOM changes
+                const scrollHeightBefore = timeline?.scrollHeight || 0;
+                const scrollTopBefore = timeline?.scrollTop || 0;
+                
+                // Add posts with stagger index and inserting flag
                 const staggeredPosts = result.posts.map((post, i) => ({
                     ...post,
-                    _stagger: result.posts.length - 1 - i
+                    _stagger: result.posts.length - 1 - i,
+                    _inserting: true
                 }));
                 
+                const newIds = new Set(result.posts.map(p => p.id));
                 setPosts(prev => [...staggeredPosts, ...prev]);
                 setHasMore(result.has_more);
                 
-                // Use double rAF to ensure DOM has updated
-                requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                        if (timeline) {
-                            const newScrollHeight = timeline.scrollHeight;
-                            const addedHeight = newScrollHeight - prevScrollHeight;
-                            timeline.scrollTop = prevScrollTop + addedHeight;
-                        }
-                    });
-                });
+                // Use setTimeout to ensure React has flushed DOM updates
+                setTimeout(() => {
+                    if (timeline) {
+                        // Calculate how much content was added
+                        const scrollHeightAfter = timeline.scrollHeight;
+                        const addedHeight = scrollHeightAfter - scrollHeightBefore;
+                        
+                        // Adjust scroll to maintain visual position
+                        timeline.scrollTop = scrollTopBefore + addedHeight;
+                        
+                        // Reveal items after scroll is committed
+                        requestAnimationFrame(() => {
+                            setPosts(prev => prev.map(p => {
+                                if (newIds.has(p.id)) {
+                                    const { _inserting, ...rest } = p;
+                                    return rest;
+                                }
+                                return p;
+                            }));
+                        });
+                    }
+                }, 0);
             } else {
                 setHasMore(false);
             }
@@ -685,7 +705,7 @@ function App() {
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
             />
             <${AgentStatus} status=${agentStatus} />
-            ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} />`}
+            ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
         </div>
     `;
