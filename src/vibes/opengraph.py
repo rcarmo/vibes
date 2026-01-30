@@ -14,10 +14,8 @@ from .tasks import enqueue
 
 logger = logging.getLogger(__name__)
 
-# Regex to find URLs in text - excludes markdown link syntax chars and trailing punctuation
-URL_PATTERN = re.compile(
-    r'https?://[^\s<>"{}|\\^`\[\]()]+(?:\([^\s()]*\))?[^\s<>"{}|\\^`\[\]().,;:!?\'"]*'
-)
+# Simple pattern to find URL candidates - validation done by urlparse
+URL_CANDIDATE_PATTERN = re.compile(r'https?://[^\s<>\[\]"\']+')
 
 # Timeout for fetching URLs
 FETCH_TIMEOUT = ClientTimeout(total=10)
@@ -84,8 +82,28 @@ class OpenGraphParser(HTMLParser):
 
 
 def extract_urls(text: str) -> list[str]:
-    """Extract URLs from text content."""
-    return URL_PATTERN.findall(text)
+    """Extract URLs from text content using urlparse for validation."""
+    candidates = URL_CANDIDATE_PATTERN.findall(text)
+    urls = []
+    for candidate in candidates:
+        # Strip trailing punctuation that's likely not part of the URL
+        clean = candidate.rstrip('.,;:!?\'"')
+        
+        # Handle unbalanced trailing parentheses (markdown links)
+        # Count parens - if more closing than opening, strip the excess
+        while clean.endswith(')'):
+            open_count = clean.count('(')
+            close_count = clean.count(')')
+            if close_count > open_count:
+                clean = clean[:-1]
+            else:
+                break
+        
+        # Validate with urlparse
+        parsed = urlparse(clean)
+        if parsed.scheme and parsed.netloc:
+            urls.append(clean)
+    return urls
 
 
 async def fetch_opengraph(url: str, session: Optional[ClientSession] = None) -> Optional[dict]:
