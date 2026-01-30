@@ -638,17 +638,20 @@ function AgentRequestModal({ request, onRespond }) {
     return html`
         <div class="agent-request-modal">
             <div class="agent-request-content">
-                <div class="agent-request-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="12" cy="12" r="10"/>
-                        <line x1="12" y1="8" x2="12" y2="12"/>
-                        <line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    ${title}
+                <div class="agent-request-header">
+                    <div class="agent-request-icon">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                        </svg>
+                    </div>
+                    <div class="agent-request-title">Permission Required</div>
                 </div>
-                ${tool_call?.description && html`
-                    <div class="agent-request-description">${tool_call.description}</div>
-                `}
+                <div class="agent-request-body">
+                    <div class="agent-request-action-name">${title}</div>
+                    ${tool_call?.description && html`
+                        <div class="agent-request-description">${tool_call.description}</div>
+                    `}
+                </div>
                 <div class="agent-request-actions">
                     ${options && options.length > 0 ? (
                         options.map(opt => html`
@@ -668,7 +671,7 @@ function AgentRequestModal({ request, onRespond }) {
                             Deny
                         </button>
                         <button class="agent-request-btn always-allow" onClick=${handleAlwaysAllow}>
-                            Always Allow
+                            Always Allow This
                         </button>
                     `}
                 </div>
