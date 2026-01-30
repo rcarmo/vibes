@@ -894,14 +894,6 @@ body {
         padding: var(--spacing-sm);
     }
     
-    .media-preview {
-        margin-left: 0;
-    }
-    
-    .link-previews {
-        margin-left: 0;
-    }
-    
     .link-preview {
         min-height: 100px;
     }
@@ -935,18 +927,6 @@ body {
         width: 44px;
         height: 44px;
     }
-    
-    .post-content {
-        margin-left: 52px;
-    }
-    
-    .media-preview {
-        margin-left: 52px;
-    }
-    
-    .link-previews {
-        margin-left: 52px;
-    }
 }
 
 /* Desktop: >= 1024px */
@@ -958,18 +938,6 @@ body {
     .post-avatar {
         width: 48px;
         height: 48px;
-    }
-    
-    .post-content {
-        margin-left: 56px;
-    }
-    
-    .media-preview {
-        margin-left: 56px;
-    }
-    
-    .link-previews {
-        margin-left: 56px;
     }
     
     .compose-box textarea {
