@@ -5,8 +5,8 @@ from aiohttp import web
 from PIL import Image
 from ..db import get_db
 
-MAX_THUMBNAIL_SIZE = 800
-THUMBNAIL_QUALITY = 80
+MAX_THUMBNAIL_SIZE = 400  # Smaller thumbnails for chat display
+THUMBNAIL_QUALITY = 75
 MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10MB
 
 

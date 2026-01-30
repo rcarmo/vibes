@@ -525,13 +525,30 @@ body {
 /* Media preview */
 .media-preview {
     margin-top: var(--spacing-sm);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-sm);
 }
 
 .media-preview img {
-    max-width: 100%;
+    max-width: min(200px, 50%);
+    max-height: 200px;
+    object-fit: cover;
     border-radius: var(--radius-lg);
     border: 1px solid var(--border-color);
     cursor: zoom-in;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.media-preview img:active {
+    transform: scale(0.95);
+}
+
+@media (hover: hover) {
+    .media-preview img:hover {
+        transform: scale(1.02);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
 }
 
 /* Link previews */
