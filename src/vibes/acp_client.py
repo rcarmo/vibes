@@ -348,15 +348,39 @@ def _collect_content_blocks(content, collected: list):
 
 
 def _join_text_chunks(chunks: list[str]) -> str:
-    """Join text chunks while preserving word boundaries."""
-    combined = ""
+    """Join text chunks and normalize whitespace.
+    
+    Agent sends chunks with newlines for line wrapping during streaming.
+    We need to strip these line-wrap newlines but preserve intentional formatting.
+    """
+    import re
+    if not chunks:
+        return ""
+    
+    # First pass: strip trailing/leading newlines from each chunk
+    # These are line-wrap artifacts that should not create spaces
+    cleaned_chunks = []
     for chunk in chunks:
         if not chunk:
             continue
-        if combined and not combined[-1].isspace() and not chunk[0].isspace():
-            combined += " "
-        combined += chunk
-    return combined
+        # Strip single trailing/leading newlines (line wrapping)
+        # but preserve double newlines within chunks (paragraphs)
+        cleaned = chunk
+        if cleaned.endswith('\n') and not cleaned.endswith('\n\n'):
+            cleaned = cleaned.rstrip('\n')
+        if cleaned.startswith('\n') and not cleaned.startswith('\n\n'):
+            cleaned = cleaned.lstrip('\n')
+        cleaned_chunks.append(cleaned)
+    
+    # Join chunks
+    combined = "".join(cleaned_chunks)
+    
+    # Normalize whitespace: collapse multiple spaces
+    combined = re.sub(r' +', ' ', combined)
+    # Clean up spaces around punctuation
+    combined = re.sub(r' ([.,!?;:])', r'\1', combined)
+    
+    return combined.strip()
 
 
 def _parse_content_block(block: dict) -> dict | None:
