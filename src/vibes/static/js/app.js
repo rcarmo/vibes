@@ -973,13 +973,7 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
     };
     
     return html`
-        <div class="search-row">
-            <button type="button" class="floating-btn search-toggle" onClick=${onOpen} title="Search">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="M21 21l-4.35-4.35"/>
-                </svg>
-            </button>
+        <div class="search-row ${isOpen ? 'open' : ''}">
             ${isOpen && html`
                 <form class="search-bar" onSubmit=${handleSubmit}>
                     <input
@@ -993,6 +987,17 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
                     />
                 </form>
             `}
+            <button
+                type="button"
+                class="floating-btn search-toggle"
+                onClick=${isOpen ? onClose : onOpen}
+                title=${isOpen ? 'Close search' : 'Search'}
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+            </button>
         </div>
     `;
 }

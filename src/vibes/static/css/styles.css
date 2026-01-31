@@ -166,6 +166,10 @@ body {
     min-width: 0;
 }
 
+.search-row:not(.open) .search-bar {
+    display: none;
+}
+
 .search-input {
     flex: 1 1 auto;
     width: 100%;
