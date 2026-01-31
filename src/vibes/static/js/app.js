@@ -618,31 +618,35 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     };
     
     // Separate images from files using content_blocks info
-    const imageIds = [];
+    const imageItems = [];
     const fileIds = [];
     const resourceLinks = [];
     const resources = [];
-    if (data.media_ids?.length > 0) {
-        const blocks = data.content_blocks || [];
-        data.media_ids.forEach((id, idx) => {
-            const block = blocks[idx];
-            if (block?.type === 'file') {
-                fileIds.push(id);
-            } else {
-                // Default to image (for user uploads and image blocks)
-                imageIds.push(id);
+    const textAnnotations = [];
+    const blocks = data.content_blocks || [];
+    const mediaIds = data.media_ids || [];
+    let mediaIndex = 0;
+    
+    if (blocks.length > 0) {
+        blocks.forEach((block) => {
+            if (block?.type === 'text' && block.annotations) {
+                textAnnotations.push(block.annotations);
+            }
+            if (block?.type === 'resource_link') {
+                resourceLinks.push(block);
+            } else if (block?.type === 'resource') {
+                resources.push(block);
+            } else if (block?.type === 'file') {
+                const id = mediaIds[mediaIndex++];
+                if (id) fileIds.push(id);
+            } else if (block?.type === 'image' || !block?.type) {
+                const id = mediaIds[mediaIndex++];
+                if (id) imageItems.push({ id, annotations: block?.annotations });
             }
         });
+    } else if (mediaIds.length > 0) {
+        mediaIds.forEach((id) => imageItems.push({ id, annotations: null }));
     }
-    
-    // Collect non-media blocks (resource links and embedded resources)
-    (data.content_blocks || []).forEach((block) => {
-        if (block?.type === 'resource_link') {
-            resourceLinks.push(block);
-        } else if (block?.type === 'resource') {
-            resources.push(block);
-        }
-    });
     
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
@@ -673,9 +677,14 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
                         }}
                     />
                 `}
-                ${imageIds.length > 0 && html`
+                ${textAnnotations.length > 0 && html`
+                    ${textAnnotations.map((annotations, idx) => html`
+                        <${AnnotationsBadge} key=${idx} annotations=${annotations} />
+                    `)}
+                `}
+                ${imageItems.length > 0 && html`
                     <div class="media-preview">
-                        ${imageIds.map(id => html`
+                        ${imageItems.map(({ id }) => html`
                             <img 
                                 key=${id} 
                                 src=${getThumbnailUrl(id)} 
@@ -685,6 +694,11 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
                             />
                         `)}
                     </div>
+                `}
+                ${imageItems.length > 0 && html`
+                    ${imageItems.map(({ annotations }, idx) => html`
+                        ${annotations && html`<${AnnotationsBadge} key=${idx} annotations=${annotations} />`}
+                    `)}
                 `}
                 ${fileIds.length > 0 && html`
                     <div class="file-attachments">
