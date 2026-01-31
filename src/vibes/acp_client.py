@@ -9,45 +9,17 @@ from typing import Optional, AsyncIterator
 from pathlib import Path
 
 from .config import get_config
+from .acp_protocol import (
+    parse_frame,
+    classify_frame,
+    is_thinking_content,
+    get_update_segment_kind,
+    TurnState,
+    THINKING_KINDS,
+)
 
 logger = logging.getLogger(__name__)
 
-
-def _segment_kind_from_annotations(annotations) -> str | None:
-    """Best-effort extraction of a segment/thinking kind from ACP annotations.
-
-    This is metadata-based only (no text heuristics).
-    """
-    if not annotations:
-        return None
-
-    candidates: list[dict] = []
-    if isinstance(annotations, dict):
-        candidates = [annotations]
-    elif isinstance(annotations, list):
-        candidates = [a for a in annotations if isinstance(a, dict)]
-    else:
-        return None
-
-    for a in candidates:
-        a_type = (a.get("type") or a.get("annotation") or "").lower()
-        kind = (
-            a.get("kind")
-            or a.get("segment")
-            or a.get("role")
-            or a.get("channel")
-            or a.get("name")
-            or a.get("value")
-        )
-        kind = kind.lower() if isinstance(kind, str) else None
-
-        if a_type in ("segment", "thinking", "intent"):
-            return kind or a_type
-
-        if kind in ("think", "thought", "thinking", "segment", "intent", "plan"):
-            return kind
-
-    return None
 
 class _ACPState:
     """Encapsulated ACP client state."""
@@ -124,16 +96,29 @@ def _next_request_id():
     return _state.request_id
 
 
-async def _read_response(reader) -> dict:
-    """Read a JSON-RPC response from the agent."""
+async def _read_frame(reader) -> list[dict]:
+    """Read a JSON-RPC frame from the agent, returning a list of messages.
+
+    - Returns empty list for blank lines
+    - Returns [msg] for single JSON objects
+    - Returns list of dicts for JSON-RPC batches
+    - Raises RuntimeError if connection closed
+    """
     line = await reader.readline()
     if not line:
         raise RuntimeError("Agent connection closed")
-    try:
-        return json.loads(line.decode())
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse agent response: {line}")
-        raise RuntimeError(f"Invalid JSON from agent: {e}")
+    messages = parse_frame(line)
+    # If line was non-empty but parse_frame returned [], it was invalid JSON
+    # which is already logged by parse_frame; we continue reading
+    return messages
+
+
+async def _read_single_response(reader) -> dict:
+    """Read frames until we get at least one message, return the first."""
+    while True:
+        messages = await _read_frame(reader)
+        if messages:
+            return messages[0]
 
 
 async def _send_request(method: str, params: dict, collect_updates: bool = False, status_callback=None) -> dict:
@@ -152,312 +137,293 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     _state.agent_writer.write(data.encode())
     await _state.agent_writer.drain()
     
-    # Collect session updates if requested
-    pre_tool_content = []  # Content blocks before any tool call in this request
-    post_tool_content = []  # Content blocks after a tool call begins
+    # Per-turn state for aggregation (no cross-request bleed)
+    turn = TurnState(turn_id=request["id"])
     current_tool_title = None
-    saw_tool_call = False
-
-    # Some agents stream snapshots (cumulative text), others stream deltas.
-    # Track the currently displayed draft text so we can pick replace vs append.
-    last_draft_text: str | None = None
-    
     permission_cancelled = False
 
     # Read responses until we get the one matching our request ID
     while True:
-        response = await asyncio.wait_for(_read_response(_state.agent_reader), timeout=300)
+        # Read frame(s) - may return multiple messages for batches
+        messages = await asyncio.wait_for(_read_frame(_state.agent_reader), timeout=300)
+        if not messages:
+            continue  # blank line or invalid JSON, already logged
         
-        # Handle notifications (no id) - these are one-way updates
-        if "id" not in response:
-            method_name = response.get("method", "")
-            if collect_updates and method_name == "session/update":
-                update = response.get("params", {}).get("update", {})
-                session_update_type = update.get("sessionUpdate", "")
-                
-                if session_update_type in ("tool_call", "tool_call_update"):
-                    saw_tool_call = True
-                    pre_tool_content.clear()
-
-                # Broadcast status updates via callback
-                if status_callback:
+        for response in messages:
+            frame_kind = classify_frame(response)
+            
+            # Handle notifications (no id) - these are one-way updates
+            if frame_kind == "notification":
+                method_name = response.get("method", "")
+                if collect_updates and method_name == "session/update":
+                    update = response.get("params", {}).get("update", {})
+                    session_update_type = update.get("sessionUpdate", "")
+                    
+                    # Track tool calls by toolCallId
                     if session_update_type == "tool_call":
-                        title = update.get("title", "Working...")
-                        logger.info(f"Agent tool call: {title}")
-                        current_tool_title = title
-                        await status_callback({"type": "tool_call", "title": title})
+                        tc = turn.record_tool_call(update)
+                        if status_callback:
+                            logger.info(f"Agent tool call: {tc.title}")
+                            current_tool_title = tc.title
+                            await status_callback({"type": "tool_call", "title": tc.title})
                     elif session_update_type == "tool_call_update":
-                        status = update.get("status", "")
-                        if status:
-                            title = update.get("title") or current_tool_title
-                            await status_callback({"type": "tool_status", "status": status, "title": title})
-                    elif session_update_type == "agent_message_chunk":
-                        # Stream agent message chunks to UI
-                        content = update.get("content", {})
-                        chunk_content = content.get("content", content)
-                        if chunk_content.get("type") == "text":
-                            text = chunk_content.get("text", "")
+                        tc = turn.record_tool_call_update(update)
+                        if status_callback:
+                            status = tc.status or ""
+                            if status:
+                                title = tc.title or current_tool_title
+                                await status_callback({"type": "tool_status", "status": status, "title": title})
 
-                            # Prefer explicit metadata, then annotations.
-                            hint = (
-                                update.get("segment")
-                                or update.get("kind")
-                                or update.get("channel")
-                                or update.get("role")
-                                or chunk_content.get("segment")
-                                or chunk_content.get("channel")
-                                or chunk_content.get("role")
-                            )
-                            hint = hint.lower() if isinstance(hint, str) else None
-                            segment_kind = hint or _segment_kind_from_annotations(chunk_content.get("annotations"))
+                    # Broadcast status updates via callback
+                    if status_callback:
+                        if session_update_type == "agent_message_chunk":
+                            # Stream agent message chunks to UI
+                            content = update.get("content", {})
+                            chunk_content = content.get("content", content)
+                            if chunk_content.get("type") == "text":
+                                text = chunk_content.get("text", "")
 
-                            if text and status_callback:
-                                # If the agent is streaming a "thinking/segment" channel, keep it out of
-                                # Draft and send it to the thoughts pane.
-                                if segment_kind in ("think", "thought", "intent", "segment", "thinking"):
-                                    await status_callback({"type": "thought_chunk", "text": text})
-                                else:
-                                    mode = "replace"
-                                    if last_draft_text is not None and text and not text.startswith(last_draft_text):
-                                        mode = "append"
+                                # Use protocol module for segment classification
+                                segment_kind = get_update_segment_kind(update, chunk_content)
 
-                                    await status_callback({
-                                        "type": "message_chunk",
-                                        "text": text,
-                                        "kind": "draft",
-                                        "mode": mode,
-                                    })
-
-                                    if mode == "replace":
-                                        last_draft_text = text
+                                if text:
+                                    # If the agent is streaming a "thinking/segment" channel, keep it out of
+                                    # Draft and send it to the thoughts pane.
+                                    if segment_kind in THINKING_KINDS:
+                                        await status_callback({"type": "thought_chunk", "text": text})
                                     else:
-                                        last_draft_text = (last_draft_text or "") + text
-                    elif session_update_type == "agent_thought_chunk":
-                        # Stream agent thought chunks to UI
-                        content = update.get("content", {})
-                        chunk_content = content.get("content", content)
-                        if chunk_content.get("type") == "text":
-                            text = chunk_content.get("text", "")
-                            if text:
-                                if status_callback:
+                                        mode = "replace"
+                                        if turn.last_draft_text is not None and text and not text.startswith(turn.last_draft_text):
+                                            mode = "append"
+
+                                        await status_callback({
+                                            "type": "message_chunk",
+                                            "text": text,
+                                            "kind": "draft",
+                                            "mode": mode,
+                                        })
+
+                                        if mode == "replace":
+                                            turn.last_draft_text = text
+                                        else:
+                                            turn.last_draft_text = (turn.last_draft_text or "") + text
+                        elif session_update_type == "agent_thought_chunk":
+                            # Stream agent thought chunks to UI
+                            content = update.get("content", {})
+                            chunk_content = content.get("content", content)
+                            if chunk_content.get("type") == "text":
+                                text = chunk_content.get("text", "")
+                                if text:
                                     await status_callback({"type": "thought_chunk", "text": text})
-                    elif session_update_type == "plan":
-                        # Agent is sharing its plan
-                        entries = update.get("entries", [])
-                        if entries:
-                            plan_text = "\n".join([e.get("content", "") for e in entries])
-                            await status_callback({"type": "plan", "text": plan_text})
-                            await status_callback({"type": "message_chunk", "text": plan_text, "kind": "plan"})
-                
-                content = update.get("content")
-                if content:
-                    content_blocks = []
-                    _collect_content_blocks(content, content_blocks)
-                    update_hint = update.get("segment") or update.get("kind") or update.get("channel") or update.get("role")
-                    update_hint = update_hint.lower() if isinstance(update_hint, str) else None
+                        elif session_update_type == "plan":
+                            # Agent is sharing its plan
+                            entries = update.get("entries", [])
+                            if entries:
+                                plan_text = "\n".join([e.get("content", "") for e in entries])
+                                await status_callback({"type": "plan", "text": plan_text})
+                                await status_callback({"type": "message_chunk", "text": plan_text, "kind": "plan"})
+                    
+                    # Collect content blocks for final response
+                    content = update.get("content")
+                    if content:
+                        content_blocks = []
+                        _collect_content_blocks(content, content_blocks)
 
-                    for block in content_blocks:
-                        # Only collect assistant final content; skip thoughts/plans/user echoes/tool-related content
-                        if block.get("type") == "text":
-                            if session_update_type in ("agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"):
+                        for block in content_blocks:
+                            # Only collect assistant final content; skip thoughts/plans/user echoes/tool-related content
+                            if block.get("type") == "text":
+                                if session_update_type in ("agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"):
+                                    continue
+
+                                if is_thinking_content(update, block):
+                                    continue
+
+                            # Skip non-text blocks from tool calls and plans as well
+                            if session_update_type in ("tool_call", "tool_call_update", "plan"):
                                 continue
 
-                            segment_kind = update_hint or _segment_kind_from_annotations(block.get("annotations"))
-                            if segment_kind in ("think", "thought", "plan", "intent", "segment", "thinking"):
-                                continue
-
-                        # Skip non-text blocks from tool calls and plans as well
-                        if session_update_type in ("tool_call", "tool_call_update", "plan"):
-                            continue
-
-                        target_list = post_tool_content if saw_tool_call else pre_tool_content
-                        if saw_tool_call:
-                            pre_tool_content.clear()
-
-                        # Avoid accumulating repeated snapshot chunks, but still support delta streams.
-                        if session_update_type == "agent_message_chunk" and block.get("type") == "text":
-                            if target_list and target_list[-1].get("type") == "text":
-                                prev = target_list[-1].get("text") or ""
-                                curr = block.get("text") or ""
-                                if curr and curr.startswith(prev):
-                                    target_list[-1] = block
+                            # Avoid accumulating repeated snapshot chunks, but still support delta streams.
+                            target_list = turn.post_tool_blocks if turn.saw_any_tool_call else turn.pre_tool_blocks
+                            if session_update_type == "agent_message_chunk" and block.get("type") == "text":
+                                if target_list and target_list[-1].get("type") == "text":
+                                    prev = target_list[-1].get("text") or ""
+                                    curr = block.get("text") or ""
+                                    if curr and curr.startswith(prev):
+                                        target_list[-1] = block
+                                    else:
+                                        target_list.append(block)
                                 else:
                                     target_list.append(block)
                             else:
                                 target_list.append(block)
-                        else:
-                            target_list.append(block)
-            continue
-        
-        # Handle requests from agent (has id, has method) - agent asking client for something
-        if "method" in response:
-            method_name = response.get("method", "")
-            req_id = response.get("id")
+                continue
             
-            if method_name == "session/request_permission":
-                # Agent is asking for permission
-                params = response.get("params", {})
-                tool_call = params.get("toolCall", {})
-                options = params.get("options", [])
-                title = tool_call.get("title", "Unknown")
+            # Handle requests from agent (has id, has method) - agent asking client for something
+            if frame_kind == "request":
+                method_name = response.get("method", "")
+                req_id = response.get("id")
                 
-                logger.info(f"Agent requesting permission: {title}")
-                logger.info(f"Full params: {json.dumps(params, indent=2)}")
-                
-                # Check whitelist first
-                outcome = None
-                if _state.whitelist_checker:
-                    try:
-                        if await _state.whitelist_checker(title):
-                            logger.info(f"Permission auto-approved (whitelisted): {title}")
-                            outcome = "approved"
-                    except Exception as e:
-                        logger.error(f"Whitelist check failed: {e}")
-                
-                if outcome is None:
-                    # Not whitelisted - wait for user response
-                    future = asyncio.get_event_loop().create_future()
-                    _state.pending_requests[req_id] = future
+                if method_name == "session/request_permission":
+                    # Agent is asking for permission
+                    params = response.get("params", {})
+                    tool_call = params.get("toolCall", {})
+                    options = params.get("options", [])
+                    title = tool_call.get("title", "Unknown")
                     
-                    # Notify UI via callback
-                    if _state.request_callback:
-                        await _state.request_callback({
-                            "type": "permission_request",
-                            "request_id": req_id,
-                            "tool_call": tool_call,
-                            "options": options
-                        })
+                    logger.info(f"Agent requesting permission: {title}")
+                    logger.info(f"Full params: {json.dumps(params, indent=2)}")
                     
-                    # Wait for user response (with timeout)
-                    try:
-                        timeout_s = get_config().permission_request_timeout_s
-                        outcome = await asyncio.wait_for(future, timeout=timeout_s)
-                    except asyncio.TimeoutError:
-                        outcome = "cancelled"
-                        permission_cancelled = True
-                        logger.warning("Permission request timed out, cancelling")
-                    finally:
-                        _state.pending_requests.pop(req_id, None)
-                
-                # Build ACP-compliant response
-                # Format: {"outcome": "cancelled"} or {"outcome": "selected", "optionId": "..."}
-                if outcome == "cancelled":
-                    outcome_obj = {"outcome": "cancelled"}
-                elif outcome in ("approved", "denied", "rejected"):
-                    # Map our simple responses to ACP format
-                    # "approved" -> select first allow option, or use "allow-once"
-                    # "denied"/"rejected" -> select first reject option, or use "reject-once"
-                    if outcome == "approved":
-                        # Find an allow option, or default to allow-once
-                        option_id = "allow-once"
-                        for opt in options:
-                            if opt.get("kind") in ("allow_once", "allow_always"):
-                                option_id = opt.get("optionId", option_id)
-                                break
+                    # Check whitelist first
+                    outcome = None
+                    if _state.whitelist_checker:
+                        try:
+                            if await _state.whitelist_checker(title):
+                                logger.info(f"Permission auto-approved (whitelisted): {title}")
+                                outcome = "approved"
+                        except Exception as e:
+                            logger.error(f"Whitelist check failed: {e}")
+                    
+                    if outcome is None:
+                        # Not whitelisted - wait for user response
+                        future = asyncio.get_event_loop().create_future()
+                        _state.pending_requests[req_id] = future
+                        
+                        # Notify UI via callback
+                        if _state.request_callback:
+                            await _state.request_callback({
+                                "type": "permission_request",
+                                "request_id": req_id,
+                                "tool_call": tool_call,
+                                "options": options
+                            })
+                        
+                        # Wait for user response (with timeout)
+                        try:
+                            timeout_s = get_config().permission_request_timeout_s
+                            outcome = await asyncio.wait_for(future, timeout=timeout_s)
+                        except asyncio.TimeoutError:
+                            outcome = "cancelled"
+                            permission_cancelled = True
+                            logger.warning("Permission request timed out, cancelling")
+                        finally:
+                            _state.pending_requests.pop(req_id, None)
+                    
+                    # Build ACP-compliant response
+                    # Format: {"outcome": "cancelled"} or {"outcome": "selected", "optionId": "..."}
+                    if outcome == "cancelled":
+                        outcome_obj = {"outcome": "cancelled"}
+                    elif outcome in ("approved", "denied", "rejected"):
+                        # Map our simple responses to ACP format
+                        # "approved" -> select first allow option, or use "allow-once"
+                        # "denied"/"rejected" -> select first reject option, or use "reject-once"
+                        if outcome == "approved":
+                            # Find an allow option, or default to allow-once
+                            option_id = "allow-once"
+                            for opt in options:
+                                if opt.get("kind") in ("allow_once", "allow_always"):
+                                    option_id = opt.get("optionId", option_id)
+                                    break
+                        else:
+                            # Find a reject option, or default to reject-once
+                            option_id = "reject-once"
+                            for opt in options:
+                                if opt.get("kind") in ("reject_once", "reject_always"):
+                                    option_id = opt.get("optionId", option_id)
+                                    break
+                        outcome_obj = {"outcome": "selected", "optionId": option_id}
                     else:
-                        # Find a reject option, or default to reject-once
-                        option_id = "reject-once"
-                        for opt in options:
-                            if opt.get("kind") in ("reject_once", "reject_always"):
-                                option_id = opt.get("optionId", option_id)
-                                break
-                    outcome_obj = {"outcome": "selected", "optionId": option_id}
+                        # User selected a specific optionId
+                        outcome_obj = {"outcome": "selected", "optionId": outcome}
+                    
+                    logger.info(f"Sending permission response: {outcome_obj}")
+                    
+                    # Send response to agent
+                    permission_response = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "result": {"outcome": outcome_obj}
+                    }
+                    data = json.dumps(permission_response) + "\n"
+                    _state.agent_writer.write(data.encode())
+                    await _state.agent_writer.drain()
+
+                    if permission_cancelled:
+                        await stop_agent()
+                        return {"_cancelled": True}
+
+                    continue
+                    
+                elif method_name in ("fs/read_text_file", "fs/write_text_file"):
+                    # File system requests - we don't support these yet
+                    logger.warning(f"Agent requested unsupported fs operation: {method_name}")
+                    error_response = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32601, "message": "Method not supported"}
+                    }
+                    data = json.dumps(error_response) + "\n"
+                    _state.agent_writer.write(data.encode())
+                    await _state.agent_writer.drain()
+                    continue
+                elif method_name.startswith("terminal/"):
+                    # Terminal requests - we don't support these yet
+                    logger.warning(f"Agent requested unsupported terminal operation: {method_name}")
+                    error_response = {
+                        "jsonrpc": "2.0",
+                        "id": req_id,
+                        "error": {"code": -32601, "message": "Method not supported"}
+                    }
+                    data = json.dumps(error_response) + "\n"
+                    _state.agent_writer.write(data.encode())
+                    await _state.agent_writer.drain()
+                    continue
                 else:
-                    # User selected a specific optionId
-                    outcome_obj = {"outcome": "selected", "optionId": outcome}
-                
-                logger.info(f"Sending permission response: {outcome_obj}")
-                
-                # Send response to agent
-                permission_response = {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "result": {"outcome": outcome_obj}
-                }
-                data = json.dumps(permission_response) + "\n"
-                _state.agent_writer.write(data.encode())
-                await _state.agent_writer.drain()
-
+                    logger.warning(f"Unknown agent request: {method_name}")
+                    continue
+            
+            # Handle response to our request (has id, matches our request)
+            if frame_kind == "response" and response.get("id") == request["id"]:
+                if "error" in response:
+                    raise RuntimeError(f"Agent error: {response['error']}")
+                result = response.get("result", {})
                 if permission_cancelled:
-                    await stop_agent()
-                    return {"_cancelled": True}
-
-                continue
-                
-            elif method_name in ("fs/read_text_file", "fs/write_text_file"):
-                # File system requests - we don't support these yet
-                logger.warning(f"Agent requested unsupported fs operation: {method_name}")
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "error": {"code": -32601, "message": "Method not supported"}
-                }
-                data = json.dumps(error_response) + "\n"
-                _state.agent_writer.write(data.encode())
-                await _state.agent_writer.drain()
-                continue
-            elif method_name.startswith("terminal/"):
-                # Terminal requests - we don't support these yet
-                logger.warning(f"Agent requested unsupported terminal operation: {method_name}")
-                error_response = {
-                    "jsonrpc": "2.0",
-                    "id": req_id,
-                    "error": {"code": -32601, "message": "Method not supported"}
-                }
-                data = json.dumps(error_response) + "\n"
-                _state.agent_writer.write(data.encode())
-                await _state.agent_writer.drain()
-                continue
-            else:
-                logger.warning(f"Unknown agent request: {method_name}")
-                continue
-        
-        # Handle response to our request (has id, matches our request)
-        if response.get("id") == request["id"]:
-            if "error" in response:
-                raise RuntimeError(f"Agent error: {response['error']}")
-            result = response.get("result", {})
-            if permission_cancelled:
-                result["_cancelled"] = True
-            if collect_updates:
-                # Log the raw result for debugging
-                logger.debug(f"Final result keys: {list(result.keys())}")
-                logger.debug(f"Final result: {json.dumps(result, indent=2)[:500]}")
-                
-                result_blocks = []
-                
-                # Check for message field (ACP final response)
-                if "message" in result:
-                    message = result["message"]
-                    if isinstance(message, dict):
-                        if "content" in message:
-                            _collect_content_blocks(message["content"], result_blocks)
-                        elif "text" in message:
-                            result_blocks.append({"type": "text", "text": message["text"]})
-                
-                # Check for content field directly
-                if "content" in result:
-                    _collect_content_blocks(result.get("content"), result_blocks)
-                
-                # Check for text field directly
-                if result.get("text"):
-                    has_text_block = any(block.get("type") == "text" for block in result_blocks)
-                    if not has_text_block:
-                        result_blocks.append({"type": "text", "text": result["text"]})
-                
-                # Fall back to collected content from session updates
-                if not result_blocks:
-                    if saw_tool_call:
-                        result_blocks = post_tool_content
-                    else:
-                        result_blocks = pre_tool_content
-                
-                text_parts = [c.get("text", "") for c in result_blocks if c.get("type") == "text"]
-                result["_collected_text"] = _join_text_chunks(text_parts)
-                result["_collected_content"] = result_blocks
-                
-                logger.debug(f"Extracted {len(result_blocks)} content blocks, text length: {len(result['_collected_text'])}")
-            return result
+                    result["_cancelled"] = True
+                if collect_updates:
+                    # Log the raw result for debugging
+                    logger.debug(f"Final result keys: {list(result.keys())}")
+                    logger.debug(f"Final result: {json.dumps(result, indent=2)[:500]}")
+                    
+                    result_blocks = []
+                    
+                    # Check for message field (ACP final response)
+                    if "message" in result:
+                        message = result["message"]
+                        if isinstance(message, dict):
+                            if "content" in message:
+                                _collect_content_blocks(message["content"], result_blocks)
+                            elif "text" in message:
+                                result_blocks.append({"type": "text", "text": message["text"]})
+                    
+                    # Check for content field directly
+                    if "content" in result:
+                        _collect_content_blocks(result.get("content"), result_blocks)
+                    
+                    # Check for text field directly
+                    if result.get("text"):
+                        has_text_block = any(block.get("type") == "text" for block in result_blocks)
+                        if not has_text_block:
+                            result_blocks.append({"type": "text", "text": result["text"]})
+                    
+                    # Fall back to collected content from session updates
+                    if not result_blocks:
+                        result_blocks = turn.get_final_blocks()
+                    
+                    text_parts = [c.get("text", "") for c in result_blocks if c.get("type") == "text"]
+                    result["_collected_text"] = _join_text_chunks(text_parts)
+                    result["_collected_content"] = result_blocks
+                    
+                    logger.debug(f"Extracted {len(result_blocks)} content blocks, text length: {len(result['_collected_text'])}")
+                return result
 
 
 def _collect_content_blocks(content, collected: list):

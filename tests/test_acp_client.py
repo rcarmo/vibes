@@ -45,32 +45,33 @@ class TestAcpClient:
         assert acp_client.is_agent_running() is True
 
     @pytest.mark.asyncio
-    async def test_read_response_success(self):
-        """Test reading a valid JSON response."""
+    async def test_read_frame_success(self):
+        """Test reading a valid JSON frame."""
         mock_reader = AsyncMock()
         response_data = {"jsonrpc": "2.0", "id": 1, "result": {"ok": True}}
         mock_reader.readline = AsyncMock(return_value=json.dumps(response_data).encode() + b'\n')
         
-        result = await acp_client._read_response(mock_reader)
-        assert result == response_data
+        result = await acp_client._read_frame(mock_reader)
+        assert len(result) == 1
+        assert result[0] == response_data
 
     @pytest.mark.asyncio
-    async def test_read_response_empty_closes(self):
+    async def test_read_frame_empty_closes(self):
         """Test that empty response raises error."""
         mock_reader = AsyncMock()
         mock_reader.readline = AsyncMock(return_value=b'')
         
         with pytest.raises(RuntimeError, match="connection closed"):
-            await acp_client._read_response(mock_reader)
+            await acp_client._read_frame(mock_reader)
 
     @pytest.mark.asyncio
-    async def test_read_response_invalid_json(self):
-        """Test that invalid JSON raises error."""
+    async def test_read_frame_invalid_json_returns_empty(self):
+        """Test that invalid JSON returns empty list (logged, not raised)."""
         mock_reader = AsyncMock()
         mock_reader.readline = AsyncMock(return_value=b'not json\n')
         
-        with pytest.raises(RuntimeError, match="Invalid JSON"):
-            await acp_client._read_response(mock_reader)
+        result = await acp_client._read_frame(mock_reader)
+        assert result == []
 
     @pytest.mark.asyncio
     async def test_send_request_not_connected(self):
