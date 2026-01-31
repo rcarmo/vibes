@@ -19,10 +19,16 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 
 ```bash
 # Install directly from GitHub
-pip install git+https://github.com/rcarmo/vibes.git
+pip install -U git+https://github.com/rcarmo/vibes.git
 
 # Install a specific tag
-pip install "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
+pip install -U "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
+
+# Or with uv (faster alternative)
+uv pip install git+https://github.com/rcarmo/vibes.git
+
+# Install a specific tag with uv
+uv pip install "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
 ```
 
 Or for development:
