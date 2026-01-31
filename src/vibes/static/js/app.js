@@ -198,7 +198,8 @@ function getAvatarLetter(type) {
 
 function getAgentName(agentId, agents) {
     if (!agentId) return 'Agent';
-    return agents[agentId]?.name || agentId;
+    const name = agents[agentId]?.name || agentId;
+    return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Agent';
 }
 
 /**
