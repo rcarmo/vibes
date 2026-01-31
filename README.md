@@ -41,44 +41,11 @@ VIBES_HOST=127.0.0.1 VIBES_PORT=3000 vibes
 
 ## Configuration
 
-Environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `VIBES_HOST` | `0.0.0.0` | Server bind address |
-| `VIBES_PORT` | `8080` | Server port |
-| `VIBES_DB_PATH` | `data/app.db` | SQLite database path |
-| `VIBES_DEBUG` | `false` | Enable debug mode |
-| `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command |
-| `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## API Endpoints
 
-### Public
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/sse/stream` | SSE endpoint for live updates |
-| GET | `/media/{id}` | Serve media files |
-| GET | `/media/{id}/thumbnail` | Serve thumbnails |
-| GET | `/timeline` | Get timeline posts |
-| GET | `/thread/{thread_id}` | Get thread |
-
-### Posts
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/post` | Create new post |
-| POST | `/reply` | Reply to thread |
-| POST | `/media/upload` | Upload media |
-
-### Agents
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/agents` | List agents |
-| POST | `/agent/{id}/message` | Send message to agent |
+See [docs/API.md](docs/API.md).
 
 ## Development
 
