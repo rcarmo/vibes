@@ -24,11 +24,11 @@ pip install -U git+https://github.com/rcarmo/vibes.git
 # Install a specific tag
 pip install -U "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
 
-# Or with uv (faster alternative)
-uv pip install git+https://github.com/rcarmo/vibes.git
+# Or with uv (faster alternative, installs as isolated tool)
+uv tool install git+https://github.com/rcarmo/vibes.git
 
 # Install a specific tag with uv
-uv pip install "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
+uv tool install "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
 ```
 
 Or for development:
