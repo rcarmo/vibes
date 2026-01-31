@@ -422,7 +422,12 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     result["_collected_text"] = _join_text_chunks(text_parts)
                     result["_collected_content"] = result_blocks
                     
-                    logger.debug(f"Extracted {len(result_blocks)} content blocks, text length: {len(result['_collected_text'])}")
+                    # Log turn summary for observability
+                    summary = turn.get_summary()
+                    logger.info(f"Turn {summary['turn_id']} complete: {summary['final_blocks']} blocks, "
+                                f"{summary['block_types']}, {summary['total_text_len']} chars, "
+                                f"{summary['tool_calls']} tool calls")
+                    logger.debug(f"Turn preview: {summary['text_preview']!r}...")
                 return result
 
 
@@ -611,10 +616,17 @@ async def _ensure_agent():
         
         logger.info(f"ACP agent started (PID: {_state.agent_proc.pid})")
         
-        # Initialize the connection
+        # Initialize the connection with accurate capabilities
+        # We don't support fs or terminal operations currently
         result = await _send_request("initialize", {
             "protocolVersion": 1,
-            "clientCapabilities": {},
+            "clientCapabilities": {
+                "fs": {
+                    "readTextFile": False,
+                    "writeTextFile": False,
+                },
+                "terminal": False,
+            },
             "clientInfo": {
                 "name": "vibes",
                 "version": "0.1.0"
@@ -800,6 +812,21 @@ async def start_agent() -> bool:
 async def stop_agent():
     """Stop the agent process."""
     async with _state.agent_lock:
+        # Send session/cancel notification if we have an active session
+        if _state.session_id and _state.agent_writer:
+            try:
+                cancel_notification = {
+                    "jsonrpc": "2.0",
+                    "method": "session/cancel",
+                    "params": {"sessionId": _state.session_id, "_meta": {}}
+                }
+                data = json.dumps(cancel_notification) + "\n"
+                _state.agent_writer.write(data.encode())
+                await _state.agent_writer.drain()
+                logger.info(f"Sent session/cancel for session {_state.session_id}")
+            except Exception as e:
+                logger.warning(f"Failed to send session/cancel: {e}")
+
         if _state.agent_proc is not None:
             try:
                 _state.agent_proc.terminate()
@@ -815,3 +842,24 @@ async def stop_agent():
         _state.agent_reader = None
         _state.agent_writer = None
         _state.session_id = None
+
+
+async def cancel_session():
+    """Send a session/cancel notification without stopping the agent."""
+    if _state.session_id and _state.agent_writer:
+        try:
+            cancel_notification = {
+                "jsonrpc": "2.0",
+                "method": "session/cancel",
+                "params": {"sessionId": _state.session_id, "_meta": {}}
+            }
+            data = json.dumps(cancel_notification) + "\n"
+            _state.agent_writer.write(data.encode())
+            await _state.agent_writer.drain()
+            logger.info(f"Sent session/cancel for session {_state.session_id}")
+            return True
+        except Exception as e:
+            logger.warning(f"Failed to send session/cancel: {e}")
+            return False
+    return False
+

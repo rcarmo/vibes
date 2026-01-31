@@ -181,6 +181,30 @@ class TestTurnState:
         assert len(final) == 1
         assert final[0]["text"] == "pre"
 
+    def test_get_summary_returns_structured_data(self):
+        turn = acp_protocol.TurnState(turn_id=42)
+        turn.pre_tool_blocks.append({"type": "text", "text": "Hello world"})
+        turn.pre_tool_blocks.append({"type": "image", "url": "http://example.com/img.png"})
+        turn.record_tool_call({"toolCallId": "tc-1", "title": "Test tool"})
+
+        summary = turn.get_summary()
+
+        assert summary["turn_id"] == 42
+        assert summary["tool_calls"] == 1
+        assert summary["final_blocks"] == 0  # post_tool_blocks is empty
+        assert summary["total_text_len"] == 0
+
+    def test_get_summary_with_final_text(self):
+        turn = acp_protocol.TurnState(turn_id=1)
+        turn.pre_tool_blocks.append({"type": "text", "text": "Final answer here"})
+
+        summary = turn.get_summary()
+
+        assert summary["final_blocks"] == 1
+        assert summary["block_types"] == {"text": 1}
+        assert summary["total_text_len"] == 17
+        assert "Final answer" in summary["text_preview"]
+
 
 class TestSegmentKindClassification:
     """Test metadata-based content classification."""

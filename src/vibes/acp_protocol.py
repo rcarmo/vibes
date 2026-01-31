@@ -216,6 +216,26 @@ class TurnState:
             return self.post_tool_blocks
         return self.pre_tool_blocks
 
+    def get_summary(self) -> dict:
+        """Return a summary of this turn for logging."""
+        final_blocks = self.get_final_blocks()
+        block_types: dict[str, int] = {}
+        total_text_len = 0
+        for b in final_blocks:
+            t = b.get("type", "unknown")
+            block_types[t] = block_types.get(t, 0) + 1
+            if t == "text":
+                total_text_len += len(b.get("text", ""))
+
+        return {
+            "turn_id": self.turn_id,
+            "tool_calls": len(self.tool_calls),
+            "final_blocks": len(final_blocks),
+            "block_types": block_types,
+            "total_text_len": total_text_len,
+            "text_preview": (final_blocks[0].get("text", "")[:80] if final_blocks and final_blocks[0].get("type") == "text" else ""),
+        }
+
 
 # ---------------------------------------------------------------------------
 # Segment/Content Kind Classification (Metadata-Only)

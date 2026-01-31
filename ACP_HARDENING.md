@@ -158,17 +158,17 @@ Toad’s ACP implementation suggests several improvements:
 **Objective:** Improve correctness and reduce deadlock risk.
 
 #### Implementation
-- [ ] Keep current timeout behavior, but add:
-  - [ ] per-request cancellation token so a user disconnect (or prompt cancel) can cancel an in-flight permission wait
-  - [ ] guarantee `_state.pending_requests.pop(req_id)` is always executed
-  - [ ] ensure the response is ACP-correct: `{"result": {"outcome": {"outcome":"cancelled"}}}` etc.
-- [ ] Consider implementing ACP `session/cancel` (client -> agent) if the agent supports it:
-  - [ ] send notification `session/cancel` when user cancels a prompt or disconnect triggers cleanup
+- [x] Keep current timeout behavior, but add:
+  - [x] per-request cancellation token so a user disconnect (or prompt cancel) can cancel an in-flight permission wait
+  - [x] guarantee `_state.pending_requests.pop(req_id)` is always executed
+  - [x] ensure the response is ACP-correct: `{"result": {"outcome": {"outcome":"cancelled"}}}` etc.
+- [x] Consider implementing ACP `session/cancel` (client -> agent) if the agent supports it:
+  - [x] send notification `session/cancel` when user cancels a prompt or disconnect triggers cleanup
 
 #### Testing checklist
-- [ ] Permission timeout returns `_cancelled` and agent is stopped.
-- [ ] Permission approve/reject maps to the correct `optionId` from options.
-- [ ] Cancelling a prompt while a permission dialog is open cancels cleanly (no stuck futures).
+- [x] Permission timeout returns `_cancelled` and agent is stopped.
+- [x] Permission approve/reject maps to the correct `optionId` from options.
+- [x] Cancelling a prompt while a permission dialog is open cancels cleanly (no stuck futures).
 
 ---
 
@@ -177,15 +177,15 @@ Toad’s ACP implementation suggests several improvements:
 **Objective:** Behave like a well-formed ACP client.
 
 #### Implementation
-- [ ] Implement a typed `clientCapabilities` model like toad’s `protocol.ClientCapabilities`.
-- [ ] Ensure we pass accurate capabilities to `initialize`:
-  - [ ] if we don’t support terminal/fs, declare them false/absent
+- [x] Implement a typed `clientCapabilities` model like toad's `protocol.ClientCapabilities`.
+- [x] Ensure we pass accurate capabilities to `initialize`:
+  - [x] if we don't support terminal/fs, declare them false/absent
 - [ ] If we want to support these later:
   - [ ] implement `fs/read_text_file` and `fs/write_text_file` behind an allowlist rooted at cwd/project
   - [ ] implement minimal `terminal/*` only if needed
 
 #### Testing checklist
-- [ ] Initialize includes capabilities that match implemented handlers.
+- [x] Initialize includes capabilities that match implemented handlers.
 - [ ] If fs support is enabled, path traversal is prevented.
 
 ---
@@ -195,15 +195,15 @@ Toad’s ACP implementation suggests several improvements:
 **Objective:** Make diagnosing stream issues easy.
 
 #### Implementation
-- [ ] Add structured log events for:
-  - [ ] each JSON-RPC frame type (notification/request/response)
-  - [ ] `sessionUpdate` type counts per prompt
-  - [ ] toolCall lifecycle transitions per toolCallId
-  - [ ] final aggregation summary: block types + text prefix
+- [x] Add structured log events for:
+  - [x] each JSON-RPC frame type (notification/request/response)
+  - [x] `sessionUpdate` type counts per prompt
+  - [x] toolCall lifecycle transitions per toolCallId
+  - [x] final aggregation summary: block types + text prefix
 - [ ] Add an option to write raw ACP logs to a rotating file.
 
 #### Testing checklist
-- [ ] Unit tests validate summary fields exist (at least smoke tests).
+- [x] Unit tests validate summary fields exist (at least smoke tests).
 
 ---
 

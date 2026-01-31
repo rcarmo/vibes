@@ -280,18 +280,49 @@ class TestAcpClient:
         mock_proc.wait = AsyncMock()
         mock_proc.returncode = None
         
+        mock_writer = MagicMock()
+        mock_writer.write = MagicMock()
+        mock_writer.drain = AsyncMock()
+        
         state = acp_client.get_state()
         state.agent_proc = mock_proc
         state.agent_reader = MagicMock()
-        state.agent_writer = MagicMock()
+        state.agent_writer = mock_writer
         state.session_id = "test-session"
         
         await acp_client.stop_agent()
+        
+        # Should have sent session/cancel notification
+        mock_writer.write.assert_called()
+        written = mock_writer.write.call_args[0][0].decode()
+        assert "session/cancel" in written
+        assert "test-session" in written
         
         mock_proc.terminate.assert_called_once()
         state = acp_client.get_state()
         assert state.agent_proc is None
         assert state.session_id is None
+
+    @pytest.mark.asyncio
+    async def test_cancel_session(self):
+        """Test cancel_session sends notification without stopping agent."""
+        mock_writer = MagicMock()
+        mock_writer.write = MagicMock()
+        mock_writer.drain = AsyncMock()
+        
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.session_id = "test-session"
+        state.agent_proc = MagicMock()  # Keep process "alive"
+        
+        result = await acp_client.cancel_session()
+        
+        assert result is True
+        mock_writer.write.assert_called()
+        written = mock_writer.write.call_args[0][0].decode()
+        assert "session/cancel" in written
+        # Agent proc should still be set
+        assert state.agent_proc is not None
 
     @pytest.mark.asyncio
     async def test_send_message_simple_no_session(self):
