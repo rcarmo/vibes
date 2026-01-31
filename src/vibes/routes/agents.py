@@ -114,9 +114,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         response_id = await db.create_interaction(agent_response)
         response_interaction = await db.get_interaction(response_id)
         
-        # Queue link preview fetch for agent response too
-        if text_content:
-            queue_link_preview_fetch(response_id, text_content)
+        # Don't fetch link previews for agent responses - they often contain
+        # code snippets, documentation URLs, etc. that don't need previews
         
         # Broadcast agent response
         await broadcast_event("agent_response", response_interaction)

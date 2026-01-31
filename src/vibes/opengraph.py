@@ -82,8 +82,30 @@ class OpenGraphParser(HTMLParser):
 
 
 def extract_urls(text: str) -> list[str]:
-    """Extract URLs from text content using urlparse for validation."""
-    candidates = URL_CANDIDATE_PATTERN.findall(text)
+    """Extract URLs from text content, excluding those in code blocks.
+    
+    Skips URLs inside:
+    - Markdown code blocks (```...```)
+    - Inline code (`...`)
+    - HTML <pre> and <code> tags
+    """
+    import re
+    
+    # Remove code blocks from consideration
+    # 1. Remove fenced code blocks (```...```)
+    text_clean = re.sub(r'```[^`]*```', '', text, flags=re.DOTALL)
+    
+    # 2. Remove inline code (`...`)
+    text_clean = re.sub(r'`[^`]+`', '', text_clean)
+    
+    # 3. Remove <pre>...</pre> blocks
+    text_clean = re.sub(r'<pre[^>]*>.*?</pre>', '', text_clean, flags=re.DOTALL | re.IGNORECASE)
+    
+    # 4. Remove <code>...</code> blocks
+    text_clean = re.sub(r'<code[^>]*>.*?</code>', '', text_clean, flags=re.DOTALL | re.IGNORECASE)
+    
+    # Now extract URLs from the cleaned text
+    candidates = URL_CANDIDATE_PATTERN.findall(text_clean)
     urls = []
     for candidate in candidates:
         # Strip trailing punctuation that's likely not part of the URL
