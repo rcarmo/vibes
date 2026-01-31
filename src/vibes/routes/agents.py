@@ -42,7 +42,7 @@ async def list_agents(request: web.Request) -> web.Response:
         "agents": [
             {
                 "id": "default",
-                "name": config.acp_agent,
+                "name": config.agent_name,
                 "description": f"ACP agent ({config.acp_agent})",
                 "status": "running" if is_agent_running() else "stopped",
                 "actions": []

@@ -2,6 +2,7 @@
 
 import json
 import os
+import socket
 from pathlib import Path
 from typing import Optional
 
@@ -25,6 +26,7 @@ class Config:
         
         # ACP agent configuration
         self.acp_agent: str = os.environ.get("VIBES_ACP_AGENT", "vibe-acp")
+        self.agent_name: str = os.environ.get("VIBES_AGENT_NAME", socket.gethostname())
         
         # Load custom endpoints from config file
         config_path = os.environ.get("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)

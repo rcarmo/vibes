@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -194,6 +194,11 @@ function hasMention(content) {
 function getAvatarLetter(type) {
     if (type === 'agent_response') return 'A';
     return 'U';
+}
+
+function getAgentName(agentId, agents) {
+    if (!agentId) return 'Agent';
+    return agents[agentId]?.name || agentId;
 }
 
 /**
@@ -432,12 +437,13 @@ function removePreviewedUrls(text, linkPreviews) {
 /**
  * Single post component
  */
-function Post({ post, onClick, onHashtagClick }) {
+function Post({ post, onClick, onHashtagClick, agentName }) {
     const [zoomedImage, setZoomedImage] = useState(null);
     const contentRef = useRef(null);
     
     const data = post.data;
     const isAgent = data.type === 'agent_response';
+    const displayName = isAgent ? (agentName || 'Agent') : 'You';
     
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
@@ -473,14 +479,11 @@ function Post({ post, onClick, onHashtagClick }) {
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
             <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}">
-                ${isAgent 
-                    ? html`<img src="/static/icon-192.png" alt="Agent" />`
-                    : getAvatarLetter(data.type)
-                }
+                ${isAgent ? getAvatarLetter('agent_response') : getAvatarLetter(data.type)}
             </div>
             <div class="post-body">
                 <div class="post-meta">
-                    <span class="post-author">${isAgent ? 'Agent' : 'You'}</span>
+                    <span class="post-author">${displayName}</span>
                     <span class="post-time">${formatTime(post.timestamp)}</span>
                 </div>
                 ${displayContent && html`
@@ -538,7 +541,7 @@ function Post({ post, onClick, onHashtagClick }) {
 /**
  * Timeline component (chat style - uses column-reverse for smooth prepending)
  */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
@@ -584,7 +587,13 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
                     </button>
                 `}
                 ${sortedPosts.map(post => html`
-                    <${Post} key=${post.id} post=${post} onClick=${() => onPostClick?.(post)} onHashtagClick=${onHashtagClick} />
+                    <${Post}
+                        key=${post.id}
+                        post=${post}
+                        agentName=${getAgentName(post.data?.agent_id, agents)}
+                        onClick=${() => onPostClick?.(post)}
+                        onHashtagClick=${onHashtagClick}
+                    />
                 `)}
             </div>
         </div>
@@ -725,6 +734,8 @@ function App() {
     );
     const [agentStatus, setAgentStatus] = useState(null);
     const [pendingRequest, setPendingRequest] = useState(null);
+    const [agents, setAgents] = useState({});
+    const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
@@ -809,7 +820,31 @@ function App() {
             console.error('Failed to load timeline:', error);
         }
     }, []);
+
+    useEffect(() => {
+        getAgents()
+            .then((data) => {
+                const map = {};
+                (data.agents || []).forEach((agent) => {
+                    map[agent.id] = agent;
+                });
+                setAgents(map);
+            })
+            .catch((e) => console.warn('Failed to load agents:', e));
+    }, []);
     
+    useEffect(() => {
+        getAgents()
+            .then((data) => {
+                const map = {};
+                (data.agents || []).forEach((agent) => {
+                    map[agent.id] = agent;
+                });
+                setAgents(map);
+            })
+            .catch((e) => console.warn('Failed to load agents:', e));
+    }, []);
+
     // Set up SSE connection
     useEffect(() => {
         loadPosts();
@@ -898,6 +933,7 @@ function App() {
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
+                agents=${agents}
             />
             <${AgentStatus} status=${agentStatus} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}

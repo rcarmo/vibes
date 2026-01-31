@@ -80,6 +80,13 @@ export async function sendAgentMessage(agentId, content, threadId = null, mediaI
 }
 
 /**
+ * Get available agents
+ */
+export async function getAgents() {
+    return request('/agents');
+}
+
+/**
  * Upload media file
  */
 export async function uploadMedia(file) {
