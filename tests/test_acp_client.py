@@ -148,10 +148,32 @@ class TestAcpClient:
                 }
             }
         }
+        tool_call = {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "tool_call",
+                    "title": "Reading file"
+                }
+            }
+        }
+        post_tool_notification = {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "agent_message_chunk",
+                    "content": {"type": "text", "text": "World"}
+                }
+            }
+        }
         response = {"jsonrpc": "2.0", "id": 1, "result": {}}
         
         responses = [
             json.dumps(notification).encode() + b'\n',
+            json.dumps(tool_call).encode() + b'\n',
+            json.dumps(post_tool_notification).encode() + b'\n',
             json.dumps(response).encode() + b'\n'
         ]
         mock_reader.readline = AsyncMock(side_effect=responses)
@@ -163,8 +185,8 @@ class TestAcpClient:
         
         result = await acp_client._send_request("test", {}, collect_updates=True)
         
-        # Text is collected as-is from chunks
-        assert result["_collected_text"] == "Hello "
+        # Only post-tool content is kept in the final response
+        assert result["_collected_text"] == "World"
 
     @pytest.mark.asyncio
     async def test_send_request_with_status_callback(self):

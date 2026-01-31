@@ -116,8 +116,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     await _state.agent_writer.drain()
     
     # Collect session updates if requested
-    collected_content = []  # List of content blocks (text, images, files, etc.)
+    pre_tool_content = []  # Content blocks before any tool call in this request
+    post_tool_content = []  # Content blocks after a tool call begins
     current_tool_title = None
+    saw_tool_call = False
     
     # Read responses until we get the one matching our request ID
     while True:
@@ -130,6 +132,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 update = response.get("params", {}).get("update", {})
                 session_update_type = update.get("sessionUpdate", "")
                 
+                if session_update_type in ("tool_call", "tool_call_update"):
+                    saw_tool_call = True
+                    pre_tool_content.clear()
+
                 # Broadcast status updates via callback
                 if status_callback:
                     if session_update_type == "tool_call":
@@ -180,7 +186,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         # Skip non-text blocks from tool calls and plans as well
                         if session_update_type in ("tool_call", "tool_call_update", "plan"):
                             continue
-                        collected_content.append(block)
+                        target_list = post_tool_content if saw_tool_call else pre_tool_content
+                        if saw_tool_call:
+                            pre_tool_content.clear()
+                        target_list.append(block)
             continue
         
         # Handle requests from agent (has id, has method) - agent asking client for something
@@ -332,7 +341,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 
                 # Fall back to collected content from session updates
                 if not result_blocks:
-                    result_blocks = collected_content
+                    if saw_tool_call:
+                        result_blocks = post_tool_content
+                    else:
+                        result_blocks = pre_tool_content
                 
                 text_parts = [c.get("text", "") for c in result_blocks if c.get("type") == "text"]
                 result["_collected_text"] = _join_text_chunks(text_parts)
@@ -345,6 +357,9 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
 def _collect_content_blocks(content, collected: list):
     """Extract content blocks from ACP content (handles dict or list)."""
     if isinstance(content, dict):
+        if content.get("type") == "content" and "content" in content:
+            _collect_content_blocks(content.get("content"), collected)
+            return
         if "type" in content:
             block = _parse_content_block(content)
             if block:
@@ -361,6 +376,9 @@ def _collect_content_blocks(content, collected: list):
     elif isinstance(content, list):
         for item in content:
             if isinstance(item, dict):
+                if item.get("type") == "content" and "content" in item:
+                    _collect_content_blocks(item.get("content"), collected)
+                    continue
                 if "type" in item:
                     block = _parse_content_block(item)
                     if block:

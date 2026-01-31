@@ -1028,6 +1028,30 @@ body {
     margin-bottom: 10px;
 }
 
+.agent-request-files {
+    margin-bottom: 12px;
+    color: #aaaaaa;
+    font-size: 13px;
+}
+
+.agent-request-files ul {
+    margin: 6px 0 0 16px;
+    padding: 0;
+}
+
+.agent-request-files li {
+    margin-bottom: 4px;
+    word-break: break-all;
+}
+
+.agent-request-subtitle {
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
 .agent-request-command {
     color: #aaaaaa;
     font-size: 12px;
@@ -1040,6 +1064,29 @@ body {
     overflow-x: auto;
     white-space: pre-wrap;
     word-break: break-all;
+}
+
+.agent-request-diff {
+    margin-top: 12px;
+    color: #aaaaaa;
+    font-size: 12px;
+}
+
+.agent-request-diff summary {
+    cursor: pointer;
+    color: #ffffff;
+    font-weight: 600;
+    margin-bottom: 6px;
+}
+
+.agent-request-diff pre {
+    margin: 0;
+    background: #1a1a1a;
+    border-radius: 6px;
+    padding: 10px 12px;
+    white-space: pre-wrap;
+    word-break: break-all;
+    overflow-x: auto;
 }
 
 .agent-request-actions {

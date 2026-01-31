@@ -864,7 +864,14 @@ function AgentRequestModal({ request, onRespond }) {
     // Extract command and explanation from tool call metadata
     const rawInput = tool_call?.rawInput || {};
     const command = rawInput.command || (rawInput.commands && rawInput.commands[0]) || null;
+    const diff = rawInput.diff || null;
+    const fileName = rawInput.fileName || rawInput.path || null;
     const explanation = tool_call?.description || rawInput.description || rawInput.explanation || null;
+    const locations = Array.isArray(tool_call?.locations) ? tool_call.locations : [];
+    const locationPaths = locations
+        .map((loc) => loc?.path)
+        .filter((path) => Boolean(path));
+    const uniquePaths = Array.from(new Set([fileName, ...locationPaths].filter(Boolean)));
     
     console.log('AgentRequestModal:', { request_id, tool_call, options });
     
@@ -903,13 +910,27 @@ function AgentRequestModal({ request, onRespond }) {
                     </div>
                     <div class="agent-request-title">${title}</div>
                 </div>
-                ${(explanation || command) && html`
+                ${(explanation || command || diff || uniquePaths.length > 0) && html`
                     <div class="agent-request-body">
                         ${explanation && html`
                             <div class="agent-request-description">${explanation}</div>
                         `}
+                        ${uniquePaths.length > 0 && html`
+                            <div class="agent-request-files">
+                                <div class="agent-request-subtitle">Files</div>
+                                <ul>
+                                    ${uniquePaths.map((path, idx) => html`<li key=${idx}>${path}</li>`)}
+                                </ul>
+                            </div>
+                        `}
                         ${command && html`
                             <pre class="agent-request-command">${command}</pre>
+                        `}
+                        ${diff && html`
+                            <details class="agent-request-diff">
+                                <summary>Proposed diff</summary>
+                                <pre>${diff}</pre>
+                            </details>
                         `}
                     </div>
                 `}
@@ -1108,7 +1129,6 @@ function App() {
                 }
                 
                 if (eventType === 'agent_thought') {
-                    setAgentDraft((prev) => (prev || '') + (data.text || ''));
                     return;
                 }
                 
