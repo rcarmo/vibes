@@ -969,10 +969,12 @@ body {
     bottom: 0;
     background-color: rgba(0, 0, 0, 0.8);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
     z-index: 1000;
     padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .agent-request-content {
@@ -984,6 +986,9 @@ body {
     width: 100%;
     box-sizing: border-box;
     box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    max-height: calc(100dvh - 32px);
+    display: flex;
+    flex-direction: column;
 }
 
 .agent-request-header {
@@ -1019,6 +1024,9 @@ body {
 
 .agent-request-body {
     margin-bottom: 20px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
 }
 
 .agent-request-description {
@@ -1061,9 +1069,10 @@ body {
     padding: 10px 12px;
     border-radius: 6px;
     margin: 0;
-    overflow-x: auto;
-    white-space: pre-wrap;
-    word-break: break-all;
+    max-height: 30vh;
+    overflow: auto;
+    white-space: pre;
+    word-break: normal;
 }
 
 .agent-request-diff {
