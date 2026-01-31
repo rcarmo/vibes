@@ -805,8 +805,8 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 /**
  * Agent status indicator
  */
-function AgentStatus({ status, draft, plan }) {
-    if (!status && !draft && !plan) return null;
+function AgentStatus({ status, draft, plan, thought }) {
+    if (!status && !draft && !plan && !thought) return null;
     
     let content = '';
     const title = status?.title;
@@ -829,6 +829,15 @@ function AgentStatus({ status, draft, plan }) {
                     <div
                         class="agent-thinking-body"
                         dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(plan) }}
+                    />
+                </div>
+            `}
+            ${thought && html`
+                <div class="agent-thinking">
+                    <div class="agent-thinking-title thought">Thoughts</div>
+                    <div
+                        class="agent-thinking-body"
+                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(thought) }}
                     />
                 </div>
             `}
@@ -989,6 +998,7 @@ function App() {
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState('');
     const [agentPlan, setAgentPlan] = useState('');
+    const [agentThought, setAgentThought] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
@@ -1113,6 +1123,7 @@ function App() {
                         setAgentStatus(null);
                         setAgentDraft('');
                         setAgentPlan('');
+                        setAgentThought('');
                     } else {
                         setAgentStatus(data);
                     }
@@ -1120,15 +1131,22 @@ function App() {
                 }
 
                 if (eventType === 'agent_draft') {
+                    const text = data.text || '';
+                    const mode = data.mode || (data.kind === 'plan' ? 'replace' : 'append');
+
                     if (data.kind === 'plan') {
-                        setAgentPlan((prev) => (prev || '') + (data.text || ''));
+                        if (mode === 'replace') setAgentPlan(text);
+                        else setAgentPlan((prev) => (prev || '') + text);
                     } else {
-                        setAgentDraft((prev) => (prev || '') + (data.text || ''));
+                        if (mode === 'replace') setAgentDraft(text);
+                        else setAgentDraft((prev) => (prev || '') + text);
                     }
                     return;
                 }
                 
                 if (eventType === 'agent_thought') {
+                    // Thoughts tend to be sent as snapshots.
+                    setAgentThought(data.text || '');
                     return;
                 }
                 
@@ -1205,7 +1223,7 @@ function App() {
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
                 agents=${agents}
             />
-            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} />
+            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />

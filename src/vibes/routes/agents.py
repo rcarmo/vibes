@@ -61,7 +61,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                     "thread_id": thread_id,
                     "agent_id": agent_id,
                     "text": status.get("text", ""),
-                    "kind": status.get("kind", "draft")
+                    "kind": status.get("kind", "draft"),
+                    "mode": status.get("mode", "append"),
                 })
                 return
             if status.get("type") == "thought_chunk":

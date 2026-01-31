@@ -12,6 +12,43 @@ from .config import get_config
 
 logger = logging.getLogger(__name__)
 
+
+def _segment_kind_from_annotations(annotations) -> str | None:
+    """Best-effort extraction of a segment/thinking kind from ACP annotations.
+
+    This is metadata-based only (no text heuristics).
+    """
+    if not annotations:
+        return None
+
+    candidates: list[dict] = []
+    if isinstance(annotations, dict):
+        candidates = [annotations]
+    elif isinstance(annotations, list):
+        candidates = [a for a in annotations if isinstance(a, dict)]
+    else:
+        return None
+
+    for a in candidates:
+        a_type = (a.get("type") or a.get("annotation") or "").lower()
+        kind = (
+            a.get("kind")
+            or a.get("segment")
+            or a.get("role")
+            or a.get("channel")
+            or a.get("name")
+            or a.get("value")
+        )
+        kind = kind.lower() if isinstance(kind, str) else None
+
+        if a_type in ("segment", "thinking", "intent"):
+            return kind or a_type
+
+        if kind in ("think", "thought", "thinking", "segment", "intent", "plan"):
+            return kind
+
+    return None
+
 class _ACPState:
     """Encapsulated ACP client state."""
 
@@ -154,9 +191,28 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         chunk_content = content.get("content", content)
                         if chunk_content.get("type") == "text":
                             text = chunk_content.get("text", "")
-                            if text:
-                                if status_callback:
-                                    await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
+
+                            # Prefer explicit metadata, then annotations.
+                            hint = (
+                                update.get("segment")
+                                or update.get("kind")
+                                or update.get("channel")
+                                or update.get("role")
+                                or chunk_content.get("segment")
+                                or chunk_content.get("channel")
+                                or chunk_content.get("role")
+                            )
+                            hint = hint.lower() if isinstance(hint, str) else None
+                            segment_kind = hint or _segment_kind_from_annotations(chunk_content.get("annotations"))
+
+                            if text and status_callback:
+                                # If the agent is streaming a "thinking/segment" channel, keep it out of
+                                # Draft and send it to the thoughts pane.
+                                if segment_kind in ("think", "thought", "intent", "segment", "thinking"):
+                                    await status_callback({"type": "thought_chunk", "text": text})
+                                else:
+                                    # Many agents send snapshots (cumulative text); replace avoids duplication.
+                                    await status_callback({"type": "message_chunk", "text": text, "kind": "draft", "mode": "replace"})
                     elif session_update_type == "agent_thought_chunk":
                         # Stream agent thought chunks to UI
                         content = update.get("content", {})
@@ -178,18 +234,35 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 if content:
                     content_blocks = []
                     _collect_content_blocks(content, content_blocks)
+                    update_hint = update.get("segment") or update.get("kind") or update.get("channel") or update.get("role")
+                    update_hint = update_hint.lower() if isinstance(update_hint, str) else None
+
                     for block in content_blocks:
-                        # Only collect agent_message_chunk content for the final response
-                        # Skip thoughts, plans, user echoes, and tool-related content
-                        if block.get("type") == "text" and session_update_type in ("agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"):
-                            continue
+                        # Only collect assistant final content; skip thoughts/plans/user echoes/tool-related content
+                        if block.get("type") == "text":
+                            if session_update_type in ("agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"):
+                                continue
+
+                            segment_kind = update_hint or _segment_kind_from_annotations(block.get("annotations"))
+                            if segment_kind in ("think", "thought", "plan", "intent", "segment", "thinking"):
+                                continue
+
                         # Skip non-text blocks from tool calls and plans as well
                         if session_update_type in ("tool_call", "tool_call_update", "plan"):
                             continue
+
                         target_list = post_tool_content if saw_tool_call else pre_tool_content
                         if saw_tool_call:
                             pre_tool_content.clear()
-                        target_list.append(block)
+
+                        # Avoid accumulating repeated snapshot chunks.
+                        if session_update_type == "agent_message_chunk" and block.get("type") == "text":
+                            if target_list and target_list[-1].get("type") == "text":
+                                target_list[-1] = block
+                            else:
+                                target_list.append(block)
+                        else:
+                            target_list.append(block)
             continue
         
         # Handle requests from agent (has id, has method) - agent asking client for something
