@@ -345,11 +345,35 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
 def _collect_content_blocks(content, collected: list):
     """Extract content blocks from ACP content (handles dict or list)."""
     if isinstance(content, dict):
-        _collect_content_blocks(content.get("content", content), collected)
+        if "type" in content:
+            block = _parse_content_block(content)
+            if block:
+                collected.append(block)
+            return
+        if "content" in content:
+            nested = content.get("content")
+            if nested is not content:
+                _collect_content_blocks(nested, collected)
+        else:
+            block = _parse_content_block(content)
+            if block:
+                collected.append(block)
     elif isinstance(content, list):
         for item in content:
             if isinstance(item, dict):
-                _collect_content_blocks(item.get("content", item), collected)
+                if "type" in item:
+                    block = _parse_content_block(item)
+                    if block:
+                        collected.append(block)
+                    continue
+                if "content" in item:
+                    nested = item.get("content")
+                    if nested is not item:
+                        _collect_content_blocks(nested, collected)
+                else:
+                    block = _parse_content_block(item)
+                    if block:
+                        collected.append(block)
     else:
         block = _parse_content_block(content)
         if block:
@@ -383,10 +407,17 @@ def _parse_content_block(block: dict) -> dict | None:
         if "data" in block:
             result["data"] = block["data"]
             result["encoding"] = "base64"
+        if "content" in block:
+            result["data"] = block["content"]
+            result["encoding"] = block.get("content_encoding", "base64")
         if "uri" in block:
             result["url"] = block["uri"]
+        if "content_url" in block:
+            result["url"] = block["content_url"]
         if "mimeType" in block:
             result["mime_type"] = block["mimeType"]
+        elif "content_type" in block:
+            result["mime_type"] = block["content_type"]
         else:
             result["mime_type"] = "image/png"  # Default
         if "name" in block:

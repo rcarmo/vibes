@@ -163,8 +163,8 @@ class TestAcpClient:
         
         result = await acp_client._send_request("test", {}, collect_updates=True)
         
-        # Text is normalized: trailing space stripped
-        assert result["_collected_text"] == "Hello"
+        # Text is collected as-is from chunks
+        assert result["_collected_text"] == "Hello "
 
     @pytest.mark.asyncio
     async def test_send_request_with_status_callback(self):
