@@ -972,30 +972,43 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
         }
     };
     
-    return html`
-        <div class="search-row ${isOpen ? 'open' : 'closed'}">
-            ${isOpen && html`
-                <form class="search-bar" onSubmit=${handleSubmit}>
-                    <input
-                        ref=${inputRef}
-                        type="search"
-                        class="search-input"
-                        placeholder="Search posts..."
-                        value=${query}
-                        onInput=${(e) => setQuery(e.target.value)}
-                        onKeyDown=${handleKeyDown}
-                    />
-                </form>
-            `}
+    if (!isOpen) {
+        return html`
             <button
                 type="button"
-                class="floating-btn search-toggle"
-                onClick=${isOpen ? onClose : onOpen}
-                title=${isOpen ? 'Close search' : 'Search'}
+                class="floating-btn search-toggle search-float"
+                onClick=${onOpen}
+                title="Search"
             >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="M21 21l-4.35-4.35"/>
+                </svg>
+            </button>
+        `;
+    }
+
+    return html`
+        <div class="search-row open">
+            <form class="search-bar" onSubmit=${handleSubmit}>
+                <input
+                    ref=${inputRef}
+                    type="search"
+                    class="search-input"
+                    placeholder="Search posts..."
+                    value=${query}
+                    onInput=${(e) => setQuery(e.target.value)}
+                    onKeyDown=${handleKeyDown}
+                />
+            </form>
+            <button
+                type="button"
+                class="floating-btn search-toggle"
+                onClick=${onClose}
+                title="Close search"
+            >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
             </button>
         </div>

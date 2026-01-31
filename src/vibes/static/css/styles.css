@@ -156,10 +156,6 @@ body {
     z-index: 10;
 }
 
-.search-row.closed {
-    justify-content: flex-end;
-}
-
 .search-toggle {
     flex: 0 0 auto;
 }
@@ -170,8 +166,11 @@ body {
     min-width: 0;
 }
 
-.search-row.closed .search-bar {
-    display: none;
+.search-float {
+    position: fixed;
+    top: var(--spacing-sm);
+    right: var(--spacing-sm);
+    z-index: 20;
 }
 
 .search-input {
