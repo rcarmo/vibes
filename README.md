@@ -18,7 +18,11 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 ## Installation
 
 ```bash
+# Install directly from GitHub
 pip install git+https://github.com/rcarmo/vibes.git
+
+# Install a specific tag
+pip install "vibes @ git+https://github.com/rcarmo/vibes.git@v0.1.0"
 ```
 
 Or for development:
@@ -55,6 +59,9 @@ pip install -e ".[dev]"
 
 # Run tests
 pytest
+
+# Run frontend linting (requires bun)
+make lint-frontend
 
 # Run with make
 make serve

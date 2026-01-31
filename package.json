@@ -1,0 +1,12 @@
+{
+  "name": "vibes-frontend",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "eslint": "^9.39.2",
+    "globals": "^16.3.0"
+  },
+  "scripts": {
+    "lint:frontend": "eslint \"src/vibes/static/js/**/*.js\""
+  }
+}

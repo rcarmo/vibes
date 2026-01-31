@@ -41,6 +41,10 @@ data/
 .DS_Store
 Thumbs.db
 
+# Node/Bun
+node_modules/
+bun.lock
+
 # Testing
 .pytest_cache/
 .coverage

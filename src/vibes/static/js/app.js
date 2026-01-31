@@ -736,7 +736,6 @@ function App() {
     const [agentStatus, setAgentStatus] = useState(null);
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
-    const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds

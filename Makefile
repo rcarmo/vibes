@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test coverage check clean bump-patch push serve
+.PHONY: help install install-dev lint format test coverage check clean bump-patch push serve lint-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -24,6 +24,9 @@ install-dev: install ## Install with dev dependencies
 
 lint: ## Run ruff linter
 	ruff check src tests
+
+lint-frontend: ## Run frontend lint with bun
+	bun run lint:frontend
 
 format: ## Format code with ruff
 	ruff format src tests
