@@ -57,6 +57,18 @@ function renderMarkdown(text, onHashtagClick) {
     return html_content;
 }
 
+/**
+ * Render markdown for thinking panels (no hashtag linkifying).
+ */
+function renderThinkingMarkdown(text) {
+    if (!text) return '';
+    const decoded = decodeEntities(text);
+    let html_content = window.marked ? marked.parse(decoded) : decoded.replace(/\n/g, '<br>');
+    html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
+    html_content = html_content.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+    return html_content;
+}
+
 // Render pending mermaid diagrams in the DOM
 async function renderMermaidDiagrams(container) {
     if (!window.beautifulMermaid) return;
@@ -604,30 +616,48 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 /**
  * Agent status indicator
  */
-function AgentStatus({ status, draft }) {
-    if (!status && !draft) return null;
+function AgentStatus({ status, draft, plan }) {
+    if (!status && !draft && !plan) return null;
     
     let content = '';
-    if (draft) {
-        content = draft;
+    const title = status?.title;
+    const statusText = status?.status;
+    if (status?.type === 'plan') {
+        content = title ? `Planning: ${title}` : 'Planning...';
+    } else if (status?.type === 'tool_call') {
+        content = title ? `Running: ${title}` : 'Running tool...';
+    } else if (status?.type === 'tool_status') {
+        content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
     } else {
-        const title = status?.title;
-        const statusText = status?.status;
-        if (status?.type === 'plan') {
-            content = title ? `Planning: ${title}` : 'Planning...';
-        } else if (status?.type === 'tool_call') {
-            content = title ? `Running: ${title}` : 'Running tool...';
-        } else if (status?.type === 'tool_status') {
-            content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
-        } else {
-            content = title || statusText || 'Working...';
-        }
+        content = title || statusText || 'Working...';
     }
     
     return html`
-        <div class="agent-status">
-            <div class="agent-status-spinner"></div>
-            <span class="agent-status-text" data-draft=${draft ? 'true' : 'false'}>${content}</span>
+        <div class="agent-status-panel">
+            ${plan && html`
+                <div class="agent-thinking">
+                    <div class="agent-thinking-title">Planning</div>
+                    <div
+                        class="agent-thinking-body"
+                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(plan) }}
+                    />
+                </div>
+            `}
+            ${draft && html`
+                <div class="agent-thinking">
+                    <div class="agent-thinking-title">Thinking</div>
+                    <div
+                        class="agent-thinking-body"
+                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(draft) }}
+                    />
+                </div>
+            `}
+            ${status && html`
+                <div class="agent-status">
+                    <div class="agent-status-spinner"></div>
+                    <span class="agent-status-text">${content}</span>
+                </div>
+            `}
         </div>
     `;
 }
@@ -743,6 +773,7 @@ function App() {
     );
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState('');
+    const [agentPlan, setAgentPlan] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
@@ -866,6 +897,7 @@ function App() {
                     if (data.type === 'done' || data.type === 'error') {
                         setAgentStatus(null);
                         setAgentDraft('');
+                        setAgentPlan('');
                     } else {
                         setAgentStatus(data);
                     }
@@ -873,7 +905,11 @@ function App() {
                 }
 
                 if (eventType === 'agent_draft') {
-                    setAgentDraft((prev) => (prev || '') + (data.text || ''));
+                    if (data.kind === 'plan') {
+                        setAgentPlan((prev) => (prev || '') + (data.text || ''));
+                    } else {
+                        setAgentDraft((prev) => (prev || '') + (data.text || ''));
+                    }
                     return;
                 }
                 
@@ -941,6 +977,7 @@ function App() {
                     <span>#${currentHashtag}</span>
                 </div>
             `}
+            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} />
             <${Timeline} 
                 posts=${posts}
                 hasMore=${hasMore}
@@ -950,7 +987,6 @@ function App() {
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
                 agents=${agents}
             />
-            <${AgentStatus} status=${agentStatus} draft=${agentDraft} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />

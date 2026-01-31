@@ -60,7 +60,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
-                    "text": status.get("text", "")
+                    "text": status.get("text", ""),
+                    "kind": status.get("kind", "draft")
                 })
                 return
             await broadcast_event("agent_status", {

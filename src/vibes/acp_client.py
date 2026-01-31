@@ -148,18 +148,16 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         if content.get("type") == "text":
                             text = content.get("text", "")
                             if text:
-                                await status_callback({"type": "message_chunk", "text": text})
+                                await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
                     elif session_update_type == "plan":
                         # Agent is sharing its plan
                         entries = update.get("entries", [])
                         if entries:
                             plan_text = "\n".join([e.get("content", "") for e in entries])
                             await status_callback({"type": "plan", "text": plan_text})
+                            await status_callback({"type": "message_chunk", "text": plan_text, "kind": "plan"})
                 
-                # Extract all content types from session updates
-                content = update.get("content")
-                if content:
-                    _collect_content_blocks(content, collected_content)
+                # Do not include streamed updates in final response content
             continue
         
         # Handle requests from agent (has id, has method) - agent asking client for something
@@ -284,11 +282,18 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 raise RuntimeError(f"Agent error: {response['error']}")
             result = response.get("result", {})
             if collect_updates:
-                # Combine text blocks - they may be chunked arbitrarily, so just join directly
-                text_parts = [c.get("text", "") for c in collected_content if c.get("type") == "text"]
+                result_blocks = []
+                if "content" in result:
+                    _collect_content_blocks(result.get("content"), result_blocks)
+                if result.get("text"):
+                    has_text_block = any(block.get("type") == "text" for block in result_blocks)
+                    if not has_text_block:
+                        result_blocks.append({"type": "text", "text": result["text"]})
+                if not result_blocks:
+                    result_blocks = collected_content
+                text_parts = [c.get("text", "") for c in result_blocks if c.get("type") == "text"]
                 result["_collected_text"] = _join_text_chunks(text_parts)
-                # Also include all content blocks for multimodal support
-                result["_collected_content"] = collected_content
+                result["_collected_content"] = result_blocks
             return result
 
 

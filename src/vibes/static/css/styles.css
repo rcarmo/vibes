@@ -785,8 +785,41 @@ body {
     white-space: nowrap;
 }
 
-.agent-status-text[data-draft="true"] {
-    font-style: italic;
+.agent-status-panel {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    flex-shrink: 0;
+}
+
+.agent-thinking {
+    padding: var(--spacing-md);
+    background-color: var(--bg-secondary);
+    border-bottom: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    animation: fadeIn 0.2s ease-out;
+}
+
+.agent-thinking-title {
+    font-weight: 600;
+    margin-bottom: var(--spacing-xs);
+}
+
+.agent-thinking-body {
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: inherit;
+}
+
+.agent-thinking-body p {
+    margin: 0 0 var(--spacing-xs);
+}
+
+.agent-thinking-body pre {
+    margin: var(--spacing-xs) 0;
+    white-space: pre-wrap;
 }
 
 /* Agent request modal */
