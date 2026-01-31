@@ -702,7 +702,7 @@ body {
     left: 0;
     right: 0;
     padding: var(--spacing-md);
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.85) 0%, rgba(0, 0, 0, 0.7) 60%, rgba(0, 0, 0, 0) 100%);
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.5) 0%, rgba(0, 0, 0, 0) 50%);
     color: #fff;
 }
 
