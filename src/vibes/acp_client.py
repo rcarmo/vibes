@@ -151,6 +151,15 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                             if text:
                                 if status_callback:
                                     await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
+                    elif session_update_type == "agent_thought_chunk":
+                        # Stream agent thought chunks to UI
+                        content = update.get("content", {})
+                        chunk_content = content.get("content", content)
+                        if chunk_content.get("type") == "text":
+                            text = chunk_content.get("text", "")
+                            if text:
+                                if status_callback:
+                                    await status_callback({"type": "thought_chunk", "text": text})
                     elif session_update_type == "plan":
                         # Agent is sharing its plan
                         entries = update.get("entries", [])

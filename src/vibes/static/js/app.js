@@ -685,7 +685,7 @@ function AgentStatus({ status, draft, plan }) {
             `}
             ${draft && html`
                 <div class="agent-thinking">
-                    <div class="agent-thinking-title">Thinking</div>
+                    <div class="agent-thinking-title thought">Draft</div>
                     <div
                         class="agent-thinking-body"
                         dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(draft) }}
@@ -955,6 +955,11 @@ function App() {
                     } else {
                         setAgentDraft((prev) => (prev || '') + (data.text || ''));
                     }
+                    return;
+                }
+                
+                if (eventType === 'agent_thought') {
+                    setAgentDraft((prev) => (prev || '') + (data.text || ''));
                     return;
                 }
                 

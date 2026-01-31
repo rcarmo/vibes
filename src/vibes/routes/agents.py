@@ -64,6 +64,13 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                     "kind": status.get("kind", "draft")
                 })
                 return
+            if status.get("type") == "thought_chunk":
+                await broadcast_event("agent_thought", {
+                    "thread_id": thread_id,
+                    "agent_id": agent_id,
+                    "text": status.get("text", "")
+                })
+                return
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,

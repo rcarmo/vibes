@@ -806,6 +806,10 @@ body {
     margin-bottom: var(--spacing-xs);
 }
 
+.agent-thinking-title.thought {
+    color: #ff9f7f;
+}
+
 .agent-thinking-body {
     margin: 0;
     white-space: pre-wrap;
