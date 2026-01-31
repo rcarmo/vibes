@@ -366,12 +366,16 @@ def _parse_content_block(block: dict) -> dict | None:
     if not isinstance(block, dict):
         return None
     content_type = block.get("type")
+    annotations = block.get("annotations")
     
     if content_type == "text":
-        return {
+        result = {
             "type": "text",
             "text": block.get("text", "")
         }
+        if annotations:
+            result["annotations"] = annotations
+        return result
     
     elif content_type == "image":
         # Image can be inline (base64) or by URL
@@ -387,6 +391,8 @@ def _parse_content_block(block: dict) -> dict | None:
             result["mime_type"] = "image/png"  # Default
         if "name" in block:
             result["name"] = block["name"]
+        if annotations:
+            result["annotations"] = annotations
         return result
     
     elif content_type == "resource_link":
@@ -400,6 +406,8 @@ def _parse_content_block(block: dict) -> dict | None:
             "title": block.get("title"),
             "size": block.get("size"),
         }
+        if annotations:
+            result["annotations"] = annotations
         return result
     
     elif content_type == "resource":
@@ -415,6 +423,8 @@ def _parse_content_block(block: dict) -> dict | None:
         if "blob" in resource:
             result["data"] = resource["blob"]
             result["encoding"] = "base64"
+        if annotations:
+            result["annotations"] = annotations
         return result
     
     elif content_type == "file" or content_type == "artifact":
@@ -429,6 +439,8 @@ def _parse_content_block(block: dict) -> dict | None:
             result["encoding"] = block.get("content_encoding", "base64")
         if "content_url" in block:
             result["url"] = block["content_url"]
+        if annotations:
+            result["annotations"] = annotations
         return result
     
     # Unknown type - preserve as-is

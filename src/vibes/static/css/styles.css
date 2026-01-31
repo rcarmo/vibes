@@ -493,6 +493,98 @@ body {
     background-color: var(--bg-secondary);
 }
 
+/* Resource link blocks */
+.resource-links {
+    margin-top: var(--spacing-sm);
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.resource-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+    text-decoration: none;
+    color: var(--text-primary);
+}
+
+.resource-link:hover {
+    background-color: var(--bg-hover);
+}
+
+.resource-link-title {
+    font-weight: 600;
+    margin-bottom: 2px;
+}
+
+.resource-link-description {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    margin-bottom: 4px;
+}
+
+.resource-link-meta {
+    color: var(--text-secondary);
+    font-size: var(--font-size-sm);
+    display: flex;
+    gap: var(--spacing-sm);
+}
+
+.resource-link-icon {
+    color: var(--text-secondary);
+    margin-left: var(--spacing-sm);
+}
+
+/* Embedded resources */
+.resource-embeds {
+    margin-top: var(--spacing-sm);
+}
+
+.resource-embed {
+    background-color: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-sm) var(--spacing-md);
+}
+
+.resource-embed-toggle {
+    background: none;
+    border: none;
+    color: var(--text-primary);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 0;
+}
+
+.resource-embed-content {
+    margin-top: var(--spacing-sm);
+    white-space: pre-wrap;
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+/* Content annotations */
+.content-annotations {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--spacing-xs);
+    margin-top: var(--spacing-xs);
+}
+
+.content-annotation {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    background-color: var(--bg-tertiary);
+    border-radius: var(--radius-sm);
+    padding: 2px 6px;
+}
+
 /* Mermaid diagrams */
 .mermaid-container {
     margin: var(--spacing-md) 0;

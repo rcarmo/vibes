@@ -449,6 +449,69 @@ function formatFileSize(bytes) {
 }
 
 /**
+ * Render annotations (audience/priority/lastModified)
+ */
+function AnnotationsBadge({ annotations }) {
+    if (!annotations) return null;
+    const { audience, priority, lastModified } = annotations;
+    return html`
+        <div class="content-annotations">
+            ${audience && audience.length > 0 && html`
+                <span class="content-annotation">Audience: ${audience.join(', ')}</span>
+            `}
+            ${typeof priority === 'number' && html`
+                <span class="content-annotation">Priority: ${priority}</span>
+            `}
+            ${lastModified && html`
+                <span class="content-annotation">Updated: ${lastModified}</span>
+            `}
+        </div>
+    `;
+}
+
+/**
+ * Resource link block (MCP/ACP)
+ */
+function ResourceLinkBlock({ block }) {
+    const name = block.title || block.name || block.uri;
+    const description = block.description;
+    const sizeStr = block.size ? formatFileSize(block.size) : '';
+    const mimeType = block.mime_type || '';
+    return html`
+        <a href=${block.uri} class="resource-link" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()}>
+            <div class="resource-link-main">
+                <div class="resource-link-title">${name}</div>
+                ${description && html`<div class="resource-link-description">${description}</div>`}
+                <div class="resource-link-meta">
+                    ${mimeType && html`<span>${mimeType}</span>`}
+                    ${sizeStr && html`<span>${sizeStr}</span>`}
+                </div>
+            </div>
+            <div class="resource-link-icon">↗</div>
+        </a>
+    `;
+}
+
+/**
+ * Embedded resource block (MCP/ACP)
+ */
+function ResourceBlock({ block }) {
+    const [open, setOpen] = useState(false);
+    const title = block.uri || 'Embedded resource';
+    const contentText = block.text || '';
+    return html`
+        <div class="resource-embed">
+            <button class="resource-embed-toggle" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>
+                ${open ? '▼' : '▶'} ${title}
+            </button>
+            ${open && html`
+                <pre class="resource-embed-content">${contentText}</pre>
+            `}
+        </div>
+    `;
+}
+
+/**
  * Link preview component - card with image background
  */
 function LinkPreview({ preview }) {
@@ -516,6 +579,8 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     // Separate images from files using content_blocks info
     const imageIds = [];
     const fileIds = [];
+    const resourceLinks = [];
+    const resources = [];
     if (data.media_ids?.length > 0) {
         const blocks = data.content_blocks || [];
         data.media_ids.forEach((id, idx) => {
@@ -528,6 +593,15 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
             }
         });
     }
+    
+    // Collect non-media blocks (resource links and embedded resources)
+    (data.content_blocks || []).forEach((block) => {
+        if (block?.type === 'resource_link') {
+            resourceLinks.push(block);
+        } else if (block?.type === 'resource') {
+            resources.push(block);
+        }
+    });
     
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
@@ -575,6 +649,26 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
                     <div class="file-attachments">
                         ${fileIds.map(id => html`
                             <${FileAttachment} key=${id} mediaId=${id} />
+                        `)}
+                    </div>
+                `}
+                ${resourceLinks.length > 0 && html`
+                    <div class="resource-links">
+                        ${resourceLinks.map((block, idx) => html`
+                            <div key=${idx}>
+                                <${ResourceLinkBlock} block=${block} />
+                                <${AnnotationsBadge} annotations=${block.annotations} />
+                            </div>
+                        `)}
+                    </div>
+                `}
+                ${resources.length > 0 && html`
+                    <div class="resource-embeds">
+                        ${resources.map((block, idx) => html`
+                            <div key=${idx}>
+                                <${ResourceBlock} block=${block} />
+                                <${AnnotationsBadge} annotations=${block.annotations} />
+                            </div>
                         `)}
                     </div>
                 `}
