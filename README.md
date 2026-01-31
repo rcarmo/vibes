@@ -8,12 +8,14 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 
 ## Features
 
-- Infinite scrolling conversations with ACP agents
+- Persistent, infinite scrolling conversations with ACP agents
+- Accept/Deny tool usage by agents, with command previews
+- Live reasoning/intent updates via Server-Sent Events (SSE)
 - Post text, links, images, and files
 - Rich media previews (downscaled and stored in database)
-- KaTeX maths and SVG images
+- KaTeX maths and SVG image support
+- API endpoints for predefined custom actions/prompts
 - Full-text search using `sqlite` FTS
-- Live updates via Server-Sent Events (SSE)
 - Responsive design for mobile, tablet, and desktop
 - Dark/light mode
 
@@ -22,6 +24,12 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 - Authentication (use `authelia` or an authenticating reverse proxy)
 - Security (use `traefik` or Tailscale)
 - Multiple users (should be trivial to add)
+
+## Roadmap
+
+- [ ] Better integration with multimodal models (ACP punts on that right now)
+- [ ] Slash commands
+- [ ] Switching agents/models
 
 ## Installation
 
