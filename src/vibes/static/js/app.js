@@ -604,22 +604,30 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 /**
  * Agent status indicator
  */
-function AgentStatus({ status }) {
-    if (!status) return null;
+function AgentStatus({ status, draft }) {
+    if (!status && !draft) return null;
     
-    // Only show tool calls and plans, not message chunks
-    let content = status.title || status.status || 'Working...';
-    if (status.type === 'plan') {
-        content = 'Planning...';
-    } else if (status.type === 'message_chunk') {
-        // Don't show raw message chunks as status
-        return null;
+    let content = '';
+    if (draft) {
+        content = draft;
+    } else {
+        const title = status?.title;
+        const statusText = status?.status;
+        if (status?.type === 'plan') {
+            content = title ? `Planning: ${title}` : 'Planning...';
+        } else if (status?.type === 'tool_call') {
+            content = title ? `Running: ${title}` : 'Running tool...';
+        } else if (status?.type === 'tool_status') {
+            content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
+        } else {
+            content = title || statusText || 'Working...';
+        }
     }
     
     return html`
         <div class="agent-status">
             <div class="agent-status-spinner"></div>
-            <span class="agent-status-text">${content}</span>
+            <span class="agent-status-text" data-draft=${draft ? 'true' : 'false'}>${content}</span>
         </div>
     `;
 }
@@ -734,6 +742,7 @@ function App() {
         typeof Notification !== 'undefined' && Notification.permission === 'granted'
     );
     const [agentStatus, setAgentStatus] = useState(null);
+    const [agentDraft, setAgentDraft] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
@@ -856,9 +865,15 @@ function App() {
                     console.log('Agent status:', data);
                     if (data.type === 'done' || data.type === 'error') {
                         setAgentStatus(null);
+                        setAgentDraft('');
                     } else {
                         setAgentStatus(data);
                     }
+                    return;
+                }
+
+                if (eventType === 'agent_draft') {
+                    setAgentDraft((prev) => (prev || '') + (data.text || ''));
                     return;
                 }
                 
@@ -935,7 +950,7 @@ function App() {
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
                 agents=${agents}
             />
-            <${AgentStatus} status=${agentStatus} />
+            <${AgentStatus} status=${agentStatus} draft=${agentDraft} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />

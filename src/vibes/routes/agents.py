@@ -56,6 +56,13 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
+            if status.get("type") == "message_chunk":
+                await broadcast_event("agent_draft", {
+                    "thread_id": thread_id,
+                    "agent_id": agent_id,
+                    "text": status.get("text", "")
+                })
+                return
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
@@ -72,13 +79,6 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         
         # Get multimodal response from ACP agent
         response = await send_message_multimodal(content, thread_id, status_callback)
-        
-        # Broadcast that agent is done
-        await broadcast_event("agent_status", {
-            "thread_id": thread_id,
-            "agent_id": agent_id,
-            "type": "done"
-        })
         
         # Process content blocks - store images/files in media table
         db = await get_db()
@@ -119,6 +119,13 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         
         # Broadcast agent response
         await broadcast_event("agent_response", response_interaction)
+
+        # Broadcast that agent is done (after response is available)
+        await broadcast_event("agent_status", {
+            "thread_id": thread_id,
+            "agent_id": agent_id,
+            "type": "done"
+        })
         
         logger.info(f"Agent response posted for thread {thread_id} with {len(media_ids)} media items")
         

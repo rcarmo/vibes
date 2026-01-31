@@ -58,7 +58,7 @@ See [docs/API.md](docs/API.md).
 pip install -e ".[dev]"
 
 # Run tests
-pytest
+python -m pytest
 
 # Run frontend linting (requires bun)
 make lint-frontend

@@ -117,6 +117,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     
     # Collect session updates if requested
     collected_content = []  # List of content blocks (text, images, files, etc.)
+    current_tool_title = None
     
     # Read responses until we get the one matching our request ID
     while True:
@@ -134,11 +135,13 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     if session_update_type == "tool_call":
                         title = update.get("title", "Working...")
                         logger.info(f"Agent tool call: {title}")
+                        current_tool_title = title
                         await status_callback({"type": "tool_call", "title": title})
                     elif session_update_type == "tool_call_update":
                         status = update.get("status", "")
                         if status:
-                            await status_callback({"type": "tool_status", "status": status})
+                            title = update.get("title") or current_tool_title
+                            await status_callback({"type": "tool_status", "status": status, "title": title})
                     elif session_update_type == "agent_message_chunk":
                         # Stream agent message chunks to UI
                         content = update.get("content", {})
@@ -283,7 +286,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
             if collect_updates:
                 # Combine text blocks - they may be chunked arbitrarily, so just join directly
                 text_parts = [c.get("text", "") for c in collected_content if c.get("type") == "text"]
-                result["_collected_text"] = "".join(text_parts)
+                result["_collected_text"] = _join_text_chunks(text_parts)
                 # Also include all content blocks for multimodal support
                 result["_collected_content"] = collected_content
             return result
@@ -301,6 +304,18 @@ def _collect_content_blocks(content, collected: list):
                 block = _parse_content_block(item)
                 if block:
                     collected.append(block)
+
+
+def _join_text_chunks(chunks: list[str]) -> str:
+    """Join text chunks while preserving word boundaries."""
+    combined = ""
+    for chunk in chunks:
+        if not chunk:
+            continue
+        if combined and not combined[-1].isspace() and not chunk[0].isspace():
+            combined += " "
+        combined += chunk
+    return combined
 
 
 def _parse_content_block(block: dict) -> dict | None:

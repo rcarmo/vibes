@@ -785,6 +785,10 @@ body {
     white-space: nowrap;
 }
 
+.agent-status-text[data-draft="true"] {
+    font-style: italic;
+}
+
 /* Agent request modal */
 .agent-request-modal {
     position: fixed;

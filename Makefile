@@ -32,10 +32,10 @@ format: ## Format code with ruff
 	ruff format src tests
 
 test: ## Run pytest
-	pytest
+	$(PYTHON) -m pytest
 
 coverage: ## Run pytest with coverage
-	pytest --cov=src/vibes --cov-report=term-missing
+	$(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
 
 check: lint test ## Run lint + tests
 
