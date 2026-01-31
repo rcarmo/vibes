@@ -1071,31 +1071,54 @@ function AgentRequestModal({ request, onRespond }) {
 }
 
 /**
- * Search bar component
+ * Search bar component (toggleable)
  */
-function SearchBar({ onSearch }) {
+function SearchBar({ onSearch, isOpen, onClose }) {
     const [query, setQuery] = useState('');
+    const inputRef = useRef(null);
+    
+    useEffect(() => {
+        if (isOpen && inputRef.current) {
+            inputRef.current.focus();
+        }
+    }, [isOpen]);
     
     const handleSubmit = (e) => {
         e.preventDefault();
         if (query.trim()) {
             onSearch(query.trim());
+            onClose();
         }
     };
+    
+    const handleKeyDown = (e) => {
+        if (e.key === 'Escape') {
+            onClose();
+        }
+    };
+    
+    if (!isOpen) return null;
     
     return html`
         <form class="search-bar" onSubmit=${handleSubmit}>
             <input
+                ref=${inputRef}
                 type="search"
                 class="search-input"
                 placeholder="Search posts..."
                 value=${query}
                 onInput=${(e) => setQuery(e.target.value)}
+                onKeyDown=${handleKeyDown}
             />
             <button type="submit" class="search-btn" disabled=${!query.trim()}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="M21 21l-4.35-4.35"/>
+                </svg>
+            </button>
+            <button type="button" class="search-close-btn" onClick=${onClose}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M18 6L6 18M6 6l12 12"/>
                 </svg>
             </button>
         </form>
@@ -1124,6 +1147,7 @@ function App() {
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
     const [currentHashtag, setCurrentHashtag] = useState(null);
     const [searchQuery, setSearchQuery] = useState(null);
+    const [searchOpen, setSearchOpen] = useState(false);
     const [notificationsEnabled, setNotificationsEnabled] = useState(
         notificationsSupported() && Notification.permission === 'granted'
     );
@@ -1148,7 +1172,9 @@ function App() {
     
     // Request notification permission on first interaction
     const enableNotifications = useCallback(async () => {
+        console.log('enableNotifications clicked!');
         const granted = await requestNotificationPermission();
+        console.log('Permission granted:', granted);
         setNotificationsEnabled(granted);
     }, []);
     
@@ -1350,6 +1376,16 @@ function App() {
     return html`
         <div class="container">
             <div class="floating-controls">
+                <button 
+                    class="floating-btn" 
+                    onClick=${() => setSearchOpen(true)}
+                    title="Search"
+                >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="M21 21l-4.35-4.35"/>
+                    </svg>
+                </button>
                 ${showNotificationButton && html`
                     <button 
                         class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
@@ -1365,7 +1401,11 @@ function App() {
                 `}
                 <${ThemeToggle} />
             </div>
-            <${SearchBar} onSearch=${handleSearch} />
+            <${SearchBar} 
+                onSearch=${handleSearch} 
+                isOpen=${searchOpen} 
+                onClose=${() => setSearchOpen(false)} 
+            />
             ${(currentHashtag || searchQuery) && html`
                 <div class="hashtag-header">
                     <button class="back-btn" onClick=${handleBackToTimeline}>
