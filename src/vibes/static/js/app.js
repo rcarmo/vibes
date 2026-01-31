@@ -698,10 +698,11 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
 /**
  * Timeline component (chat style - uses column-reverse for smooth prepending)
  */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, reverse = true }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
+        if (!reverse || !onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
         // In column-reverse, scrollTop is negative or we check distance from "top" (which is visual bottom)
         // scrollTop of 0 means we're at the bottom, negative means scrolled up
@@ -714,7 +715,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
             await onLoadMore();
             setLoadingMore(false);
         }
-    }, [hasMore, loadingMore, onLoadMore]);
+    }, [hasMore, loadingMore, onLoadMore, reverse]);
     
     if (!posts) {
         return html`<div class="loading"><div class="spinner"></div></div>`;
@@ -732,18 +733,18 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
         `;
     }
     
-    // Sort posts by id (oldest first)
-    const sortedPosts = posts.slice().sort((a, b) => a.id - b.id);
+    // Sort posts by id (oldest first) for reverse (chat-style) view
+    const displayPosts = reverse ? posts.slice().sort((a, b) => a.id - b.id) : posts;
     
     return html`
-        <div class="timeline" ref=${timelineRef} onScroll=${handleScroll}>
+        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${handleScroll}>
             <div class="timeline-content">
                 ${hasMore && html`
                     <button class="load-more-btn" onClick=${onLoadMore} disabled=${loadingMore}>
                         ${loadingMore ? 'Loading...' : 'Load older messages'}
                     </button>
                 `}
-                ${sortedPosts.map(post => html`
+                ${displayPosts.map(post => html`
                     <${Post}
                         key=${post.id}
                         post=${post}
@@ -1261,6 +1262,7 @@ function App() {
                 onHashtagClick=${handleHashtagClick}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
+                reverse=${!(searchQuery && !currentHashtag)}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
             ${!currentHashtag && !searchQuery && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}

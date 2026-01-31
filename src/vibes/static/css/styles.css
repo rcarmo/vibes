@@ -331,6 +331,10 @@ body {
     flex-direction: column-reverse;
 }
 
+.timeline.normal {
+    flex-direction: column;
+}
+
 /* Wrapper to hold posts in correct order inside column-reverse container */
 .timeline-content {
     display: flex;
