@@ -163,7 +163,7 @@ class TestAcpClient:
         
         result = await acp_client._send_request("test", {}, collect_updates=True)
         
-        assert result["_collected_text"] == "Hello "
+        assert result["_collected_text"] == ""
 
     @pytest.mark.asyncio
     async def test_send_request_with_status_callback(self):

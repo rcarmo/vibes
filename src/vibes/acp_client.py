@@ -157,7 +157,14 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                             await status_callback({"type": "plan", "text": plan_text})
                             await status_callback({"type": "message_chunk", "text": plan_text, "kind": "plan"})
                 
-                # Do not include streamed updates in final response content
+                content = update.get("content")
+                if content:
+                    content_blocks = []
+                    _collect_content_blocks(content, content_blocks)
+                    for block in content_blocks:
+                        if block.get("type") == "text" and session_update_type in ("agent_message_chunk", "agent_thought_chunk", "plan", "user_message_chunk"):
+                            continue
+                        collected_content.append(block)
             continue
         
         # Handle requests from agent (has id, has method) - agent asking client for something

@@ -977,7 +977,6 @@ function App() {
                     <span>#${currentHashtag}</span>
                 </div>
             `}
-            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} />
             <${Timeline} 
                 posts=${posts}
                 hasMore=${hasMore}
@@ -987,6 +986,7 @@ function App() {
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
                 agents=${agents}
             />
+            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} />
             ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
