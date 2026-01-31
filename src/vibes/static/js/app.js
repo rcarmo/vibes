@@ -1073,7 +1073,7 @@ function AgentRequestModal({ request, onRespond }) {
 /**
  * Search bar component (toggleable)
  */
-function SearchBar({ onSearch, isOpen, onClose }) {
+function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
     const [query, setQuery] = useState('');
     const inputRef = useRef(null);
     
@@ -1097,31 +1097,28 @@ function SearchBar({ onSearch, isOpen, onClose }) {
         }
     };
     
-    if (!isOpen) return null;
-    
     return html`
-        <form class="search-bar" onSubmit=${handleSubmit}>
-            <input
-                ref=${inputRef}
-                type="search"
-                class="search-input"
-                placeholder="Search posts..."
-                value=${query}
-                onInput=${(e) => setQuery(e.target.value)}
-                onKeyDown=${handleKeyDown}
-            />
-            <button type="submit" class="search-btn" disabled=${!query.trim()}>
+        <div class="search-row">
+            <button type="button" class="floating-btn search-toggle" onClick=${onOpen} title="Search">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <circle cx="11" cy="11" r="8"/>
                     <path d="M21 21l-4.35-4.35"/>
                 </svg>
             </button>
-            <button type="button" class="search-close-btn" onClick=${onClose}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-            </button>
-        </form>
+            ${isOpen && html`
+                <form class="search-bar" onSubmit=${handleSubmit}>
+                    <input
+                        ref=${inputRef}
+                        type="search"
+                        class="search-input"
+                        placeholder="Search posts..."
+                        value=${query}
+                        onInput=${(e) => setQuery(e.target.value)}
+                        onKeyDown=${handleKeyDown}
+                    />
+                </form>
+            `}
+        </div>
     `;
 }
 
@@ -1380,16 +1377,6 @@ function App() {
     return html`
         <div class="container">
             <div class="floating-controls">
-                <button 
-                    class="floating-btn" 
-                    onClick=${() => setSearchOpen(true)}
-                    title="Search"
-                >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="M21 21l-4.35-4.35"/>
-                    </svg>
-                </button>
                 ${showNotificationButton && html`
                     <button 
                         class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
@@ -1409,6 +1396,7 @@ function App() {
                 onSearch=${handleSearch} 
                 isOpen=${searchOpen} 
                 onClose=${() => setSearchOpen(false)} 
+                onOpen=${() => setSearchOpen(true)}
             />
             ${(currentHashtag || searchQuery) && html`
                 <div class="hashtag-header">
