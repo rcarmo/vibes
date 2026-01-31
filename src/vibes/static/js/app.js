@@ -712,10 +712,10 @@ function AgentRequestModal({ request, onRespond }) {
     const title = tool_call?.title || 'Agent Request';
     const kind = tool_call?.kind || 'other';
     
-    // Extract description from various possible fields
+    // Extract command and explanation from tool call metadata
     const rawInput = tool_call?.rawInput || {};
-    const command = rawInput.command || (rawInput.commands && rawInput.commands[0]);
-    const description = tool_call?.description || command || null;
+    const command = rawInput.command || (rawInput.commands && rawInput.commands[0]) || null;
+    const explanation = tool_call?.description || rawInput.description || rawInput.explanation || null;
     
     console.log('AgentRequestModal:', { request_id, tool_call, options });
     
@@ -754,9 +754,14 @@ function AgentRequestModal({ request, onRespond }) {
                     </div>
                     <div class="agent-request-title">${title}</div>
                 </div>
-                ${description && html`
+                ${(explanation || command) && html`
                     <div class="agent-request-body">
-                        <pre class="agent-request-command">${description}</pre>
+                        ${explanation && html`
+                            <div class="agent-request-description">${explanation}</div>
+                        `}
+                        ${command && html`
+                            <pre class="agent-request-command">${command}</pre>
+                        `}
                     </div>
                 `}
                 <div class="agent-request-actions">
