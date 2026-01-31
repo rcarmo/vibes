@@ -2,18 +2,26 @@
 
 ![Vibes](docs/icon-256.png)
 
-A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol.
+A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol. Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
 
 ![Screenshot](docs/screenshot.png)
 
 ## Features
 
+- Infinite scrolling conversations with ACP agents
 - Post text, links, images, and files
-- Threaded conversations with ACP agents
 - Rich media previews (downscaled and stored in database)
+- KaTeX maths and SVG images
+- Full-text search using `sqlite` FTS
 - Live updates via Server-Sent Events (SSE)
 - Responsive design for mobile, tablet, and desktop
-- Dark/light mode toggle
+- Dark/light mode
+
+## Non-Features
+
+- Authentication (use `authelia` or an authenticating reverse proxy)
+- Security (use `traefik` or Tailscale)
+- Multiple users (should be trivial to add)
 
 ## Installation
 
