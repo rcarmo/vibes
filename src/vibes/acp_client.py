@@ -336,15 +336,15 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
 def _collect_content_blocks(content, collected: list):
     """Extract content blocks from ACP content (handles dict or list)."""
     if isinstance(content, dict):
-        block = _parse_content_block(content.get("content", content))
-        if block:
-            collected.append(block)
+        _collect_content_blocks(content.get("content", content), collected)
     elif isinstance(content, list):
         for item in content:
             if isinstance(item, dict):
-                block = _parse_content_block(item.get("content", item))
-                if block:
-                    collected.append(block)
+                _collect_content_blocks(item.get("content", item), collected)
+    else:
+        block = _parse_content_block(content)
+        if block:
+            collected.append(block)
 
 
 def _join_text_chunks(chunks: list[str]) -> str:
@@ -354,6 +354,8 @@ def _join_text_chunks(chunks: list[str]) -> str:
 
 def _parse_content_block(block: dict) -> dict | None:
     """Parse a single ACP content block into our internal format."""
+    if not isinstance(block, dict):
+        return None
     content_type = block.get("type")
     
     if content_type == "text":
@@ -365,17 +367,45 @@ def _parse_content_block(block: dict) -> dict | None:
     elif content_type == "image":
         # Image can be inline (base64) or by URL
         result = {"type": "image"}
-        if "content" in block:
-            result["data"] = block["content"]
-            result["encoding"] = block.get("content_encoding", "base64")
-        if "content_url" in block:
-            result["url"] = block["content_url"]
-        if "content_type" in block:
-            result["mime_type"] = block["content_type"]
+        if "data" in block:
+            result["data"] = block["data"]
+            result["encoding"] = "base64"
+        if "uri" in block:
+            result["url"] = block["uri"]
+        if "mimeType" in block:
+            result["mime_type"] = block["mimeType"]
         else:
             result["mime_type"] = "image/png"  # Default
         if "name" in block:
             result["name"] = block["name"]
+        return result
+    
+    elif content_type == "resource_link":
+        # Resource link (MCP-compatible)
+        result = {
+            "type": "resource_link",
+            "name": block.get("name", "resource"),
+            "uri": block.get("uri"),
+            "mime_type": block.get("mimeType", "application/octet-stream"),
+            "description": block.get("description"),
+            "title": block.get("title"),
+            "size": block.get("size"),
+        }
+        return result
+    
+    elif content_type == "resource":
+        # Embedded resource (text or blob)
+        resource = block.get("resource", {})
+        result = {
+            "type": "resource",
+            "uri": resource.get("uri"),
+            "mime_type": resource.get("mimeType", "text/plain"),
+        }
+        if "text" in resource:
+            result["text"] = resource["text"]
+        if "blob" in resource:
+            result["data"] = resource["blob"]
+            result["encoding"] = "base64"
         return result
     
     elif content_type == "file" or content_type == "artifact":
