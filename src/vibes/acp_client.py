@@ -357,8 +357,29 @@ def _join_text_chunks(chunks: list[str]) -> str:
     if not chunks:
         return ""
     
-    # Join chunks first, then intelligently handle newlines
-    combined = "".join(chunk for chunk in chunks if chunk)
+    # First pass: intelligently join chunks, adding newlines where needed
+    parts = []
+    for i, chunk in enumerate(chunks):
+        if not chunk:
+            continue
+        parts.append(chunk)
+        
+        # Check if we should add a newline between this chunk and the next
+        if i < len(chunks) - 1:
+            next_chunk = chunks[i + 1] if i + 1 < len(chunks) else ""
+            if chunk and next_chunk:
+                # Check if current chunk ends with colon (including trailing space after colon)
+                # "label: value" pattern has space after colon
+                # "action:result" pattern has no space after colon
+                chunk_stripped = chunk.rstrip()
+                
+                # Add newline if chunk ends with colon AND:
+                # - The original chunk doesn't have trailing space (not "label: " pattern)
+                # - Next chunk doesn't start with space/newline
+                if chunk_stripped.endswith(':') and not chunk.endswith((' ', '\t', '\n')) and not next_chunk.startswith((' ', '\t', '\n')):
+                    parts.append('\n')
+    
+    combined = "".join(parts)
     
     # Preserve double newlines (paragraph breaks)
     combined = combined.replace('\n\n', '\x00\x00')
