@@ -50,6 +50,7 @@ Environment variables:
 | `VIBES_DB_PATH` | `data/app.db` | SQLite database path |
 | `VIBES_DEBUG` | `false` | Enable debug mode |
 | `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command |
+| `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
 
 ## API Endpoints
 

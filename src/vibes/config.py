@@ -12,24 +12,46 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_CONFIG_PATH = "config/endpoints.json"
+ENV_BOOL_TRUE = {"1", "true", "yes"}
+
+
+def _get_env(key: str, default: str) -> str:
+    return os.environ.get(key, default)
+
+
+def _get_env_int(key: str, default: int) -> int:
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    try:
+        return int(value)
+    except ValueError:
+        return default
+
+
+def _get_env_bool(key: str, default: bool) -> bool:
+    value = os.environ.get(key)
+    if value is None:
+        return default
+    return value.lower() in ENV_BOOL_TRUE
 
 
 class Config:
     """Application configuration."""
 
     def __init__(self):
-        self.host: str = os.environ.get("VIBES_HOST", "0.0.0.0")
-        self.port: int = int(os.environ.get("VIBES_PORT", "8080"))
-        self.db_path: str = os.environ.get("VIBES_DB_PATH", "data/app.db")
-        self.debug: bool = os.environ.get("VIBES_DEBUG", "").lower() in ("1", "true", "yes")
+        self.host: str = _get_env("VIBES_HOST", "0.0.0.0")
+        self.port: int = _get_env_int("VIBES_PORT", 8080)
+        self.db_path: str = _get_env("VIBES_DB_PATH", "data/app.db")
+        self.debug: bool = _get_env_bool("VIBES_DEBUG", False)
         self.custom_endpoints: dict = {}
         
         # ACP agent configuration
-        self.acp_agent: str = os.environ.get("VIBES_ACP_AGENT", "vibe-acp")
-        self.agent_name: str = os.environ.get("VIBES_AGENT_NAME", socket.gethostname())
+        self.acp_agent: str = _get_env("VIBES_ACP_AGENT", "vibe-acp")
+        self.agent_name: str = _get_env("VIBES_AGENT_NAME", socket.gethostname())
         
         # Load custom endpoints from config file
-        config_path = os.environ.get("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)
+        config_path = _get_env("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)
         if Path(config_path).exists():
             self._load_custom_endpoints(config_path)
 
