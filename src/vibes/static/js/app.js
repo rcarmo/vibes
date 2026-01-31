@@ -201,11 +201,48 @@ function hasMention(content) {
 }
 
 /**
- * Get avatar letter from type
+ * Get avatar letter and color from name
+ * Returns object with { letter, color }
  */
-function getAvatarLetter(type) {
-    if (type === 'agent_response') return 'A';
-    return 'U';
+function getAvatarInfo(name) {
+    if (!name) name = 'Agent';
+    const letter = name.charAt(0).toUpperCase();
+    
+    // Generate a consistent color based on the letter
+    const colors = [
+        '#FF6B6B', // red
+        '#4ECDC4', // teal
+        '#45B7D1', // blue
+        '#FFA07A', // light salmon
+        '#98D8C8', // mint
+        '#F7DC6F', // yellow
+        '#BB8FCE', // purple
+        '#85C1E2', // sky blue
+        '#F8B195', // peach
+        '#6C5CE7', // indigo
+        '#00B894', // green
+        '#FDCB6E', // gold
+        '#E17055', // terracotta
+        '#74B9FF', // light blue
+        '#A29BFE', // lavender
+        '#FD79A8', // pink
+        '#00CEC9', // cyan
+        '#FFEAA7', // light yellow
+        '#DFE6E9', // light grey
+        '#FF7675', // coral
+        '#55EFC4', // aqua
+        '#81ECEC', // light cyan
+        '#FAB1A0', // salmon
+        '#74B9FF', // periwinkle
+        '#A29BFE', // soft purple
+        '#FD79A8'  // rose
+    ];
+    
+    // Use char code to pick a color consistently
+    const index = letter.charCodeAt(0) % colors.length;
+    const color = colors[index];
+    
+    return { letter, color };
 }
 
 function getAgentName(agentId, agents) {
@@ -458,6 +495,9 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     const isAgent = data.type === 'agent_response';
     const displayName = isAgent ? (agentName || 'Agent') : 'You';
     
+    // Get avatar info based on the name
+    const avatarInfo = isAgent ? getAvatarInfo(agentName) : getAvatarInfo('You');
+    
     // Remove URLs that have previews from the displayed content
     const displayContent = removePreviewedUrls(data.content, data.link_previews);
     
@@ -491,8 +531,8 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     
     return html`
         <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
-            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}">
-                ${isAgent ? getAvatarLetter('agent_response') : getAvatarLetter(data.type)}
+            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}" style="background-color: ${avatarInfo.color}">
+                ${avatarInfo.letter}
             </div>
             <div class="post-body">
                 <div class="post-meta">

@@ -149,7 +149,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         if chunk_content.get("type") == "text":
                             text = chunk_content.get("text", "")
                             if text:
-                                await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
+                                if status_callback:
+                                    await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
                     elif session_update_type == "plan":
                         # Agent is sharing its plan
                         entries = update.get("entries", [])
@@ -163,7 +164,12 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     content_blocks = []
                     _collect_content_blocks(content, content_blocks)
                     for block in content_blocks:
-                        if block.get("type") == "text" and session_update_type in ("agent_message_chunk", "agent_thought_chunk", "plan", "user_message_chunk"):
+                        # Only collect agent_message_chunk content for the final response
+                        # Skip thoughts, plans, user echoes, and tool-related content
+                        if block.get("type") == "text" and session_update_type in ("agent_thought_chunk", "user_message_chunk", "plan", "tool_call", "tool_call_update"):
+                            continue
+                        # Skip non-text blocks from tool calls and plans as well
+                        if session_update_type in ("tool_call", "tool_call_update", "plan"):
                             continue
                         collected_content.append(block)
             continue
@@ -290,18 +296,40 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 raise RuntimeError(f"Agent error: {response['error']}")
             result = response.get("result", {})
             if collect_updates:
+                # Log the raw result for debugging
+                logger.debug(f"Final result keys: {list(result.keys())}")
+                logger.debug(f"Final result: {json.dumps(result, indent=2)[:500]}")
+                
                 result_blocks = []
+                
+                # Check for message field (ACP final response)
+                if "message" in result:
+                    message = result["message"]
+                    if isinstance(message, dict):
+                        if "content" in message:
+                            _collect_content_blocks(message["content"], result_blocks)
+                        elif "text" in message:
+                            result_blocks.append({"type": "text", "text": message["text"]})
+                
+                # Check for content field directly
                 if "content" in result:
                     _collect_content_blocks(result.get("content"), result_blocks)
+                
+                # Check for text field directly
                 if result.get("text"):
                     has_text_block = any(block.get("type") == "text" for block in result_blocks)
                     if not has_text_block:
                         result_blocks.append({"type": "text", "text": result["text"]})
+                
+                # Fall back to collected content from session updates
                 if not result_blocks:
                     result_blocks = collected_content
+                
                 text_parts = [c.get("text", "") for c in result_blocks if c.get("type") == "text"]
                 result["_collected_text"] = _join_text_chunks(text_parts)
                 result["_collected_content"] = result_blocks
+                
+                logger.debug(f"Extracted {len(result_blocks)} content blocks, text length: {len(result['_collected_text'])}")
             return result
 
 
