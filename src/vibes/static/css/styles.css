@@ -156,6 +156,10 @@ body {
     z-index: 10;
 }
 
+.search-row.closed {
+    justify-content: flex-end;
+}
+
 .search-toggle {
     flex: 0 0 auto;
 }
@@ -166,7 +170,7 @@ body {
     min-width: 0;
 }
 
-.search-row:not(.open) .search-bar {
+.search-row.closed .search-bar {
     display: none;
 }
 

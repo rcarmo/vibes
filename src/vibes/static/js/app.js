@@ -973,7 +973,7 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
     };
     
     return html`
-        <div class="search-row ${isOpen ? 'open' : ''}">
+        <div class="search-row ${isOpen ? 'open' : 'closed'}">
             ${isOpen && html`
                 <form class="search-bar" onSubmit=${handleSubmit}>
                     <input
