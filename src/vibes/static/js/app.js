@@ -1172,11 +1172,15 @@ function App() {
     
     // Request notification permission on first interaction
     const enableNotifications = useCallback(async () => {
+        if (notificationsEnabled) {
+            setNotificationsEnabled(false);
+            return;
+        }
         console.log('enableNotifications clicked!');
         const granted = await requestNotificationPermission();
         console.log('Permission granted:', granted);
         setNotificationsEnabled(granted);
-    }, []);
+    }, [notificationsEnabled]);
     
     // Load timeline or hashtag posts
     const loadPosts = useCallback(async (hashtag = null) => {
