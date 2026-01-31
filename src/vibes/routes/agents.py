@@ -3,6 +3,7 @@
 import base64
 import json
 import logging
+import re
 from aiohttp import web
 from ..db import get_db
 from ..config import get_config
@@ -14,6 +15,51 @@ from ..acp_client import (
 )
 from ..tasks import enqueue
 from .sse import broadcast_event
+
+_DATA_URI_MARKDOWN_IMAGE_RE = re.compile(
+    r"!\[(?P<alt>[^\]]*)\]\((?P<uri>data:(?P<mime>image/[^;\)]+);base64,(?P<b64>[A-Za-z0-9+/=\s]+))\)"
+)
+
+
+async def _extract_and_store_data_uri_images(db, text: str) -> str:
+    """Replace markdown data: image URIs with /media/<id> URLs.
+
+    Some browsers/DOM paths can become unhappy with very large data URIs.
+    Converting them to first-class media keeps final rendering stable.
+    """
+    if not text or "data:image/" not in text:
+        return text
+
+    async def _replace(match: re.Match) -> str:
+        alt = match.group("alt")
+        mime = match.group("mime")
+        b64 = (match.group("b64") or "").strip()
+        # data URIs sometimes include newlines; remove whitespace for decode.
+        b64 = "".join(b64.split())
+        try:
+            data = base64.b64decode(b64)
+        except Exception:
+            return match.group(0)
+
+        ext = mime.split("/", 1)[-1] if mime else "png"
+        media_id = await db.create_media(
+            filename=f"inline.{ext}",
+            content_type=mime or "image/png",
+            data=data,
+            thumbnail=None,
+            metadata={"source": "agent", "inline": True},
+        )
+        return f"![{alt}](/media/{media_id})"
+
+    # Python's re.sub doesn't support async replacement; do a manual scan.
+    out = []
+    last = 0
+    for m in _DATA_URI_MARKDOWN_IMAGE_RE.finditer(text):
+        out.append(text[last:m.start()])
+        out.append(await _replace(m))
+        last = m.end()
+    out.append(text[last:])
+    return "".join(out)
 
 logger = logging.getLogger(__name__)
 
@@ -104,6 +150,10 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         db = await get_db()
         media_ids = []
         text_content = response.get("text", "")
+
+        # If the agent injected data-uri base64 images into markdown, convert them
+        # to stored media and rewrite the markdown to /media/<id>.
+        text_content = await _extract_and_store_data_uri_images(db, text_content)
         
         for block in response.get("content", []):
             block_type = block.get("type")
