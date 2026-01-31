@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -25,6 +25,36 @@ function decodeEntities(text) {
 }
 
 /**
+ * Render LaTeX math expressions using KaTeX
+ * Handles $$...$$ for display math and $...$ for inline math
+ */
+function renderMath(html_content) {
+    if (!window.katex) return html_content;
+    
+    // Process display math first ($$...$$) - must not be inside code blocks
+    html_content = html_content.replace(/\$\$([\s\S]+?)\$\$/g, (match, tex) => {
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
+        } catch (e) {
+            return `<span class="math-error" title="${e.message}">${match}</span>`;
+        }
+    });
+    
+    // Process inline math ($...$) - avoid matching $$ or currency like $100
+    html_content = html_content.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (match, tex) => {
+        // Skip if it looks like currency ($ followed by number)
+        if (/^\d/.test(tex.trim())) return match;
+        try {
+            return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false });
+        } catch (e) {
+            return `<span class="math-error" title="${e.message}">${match}</span>`;
+        }
+    });
+    
+    return html_content;
+}
+
+/**
  * Render markdown and then linkify hashtags
  */
 function renderMarkdown(text, onHashtagClick) {
@@ -39,6 +69,9 @@ function renderMarkdown(text, onHashtagClick) {
     // Decode any entities that marked might have introduced
     html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
     html_content = html_content.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+    
+    // Render math expressions
+    html_content = renderMath(html_content);
     
     // Process hashtags - wrap them in clickable spans (will be handled by event delegation)
     html_content = html_content.replace(HASHTAG_REGEX, '<a href="#" class="hashtag" data-hashtag="$1">#$1</a>');
@@ -66,6 +99,7 @@ function renderThinkingMarkdown(text) {
     let html_content = window.marked ? marked.parse(decoded) : decoded.replace(/\n/g, '<br>');
     html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
     html_content = html_content.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
+    html_content = renderMath(html_content);
     return html_content;
 }
 
@@ -151,23 +185,61 @@ function useTimestampRefresh(intervalMs = 30000) {
 }
 
 /**
+ * Detect iOS (iPhone, iPad, iPod)
+ * Note: iPad on iOS 13+ reports as 'MacIntel' with touch support
+ */
+function isIOS() {
+    // Check for iOS devices by userAgent
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+        return true;
+    }
+    // iPad on iOS 13+ with desktop Safari: 'MacIntel' platform + touch + no mouse pointer
+    // But Mac laptops with trackpad also have touch points, so also check for standalone mode
+    // which is only available on actual iOS devices
+    if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
+        // Additional check: actual Macs don't have standalone mode
+        return 'standalone' in navigator;
+    }
+    return false;
+}
+
+/**
+ * Check if notifications are supported (excludes iOS which has poor PWA notification support)
+ */
+function notificationsSupported() {
+    if (isIOS()) {
+        console.log('Notifications disabled: iOS detected');
+        return false;
+    }
+    const supported = 'Notification' in window;
+    console.log('Notifications API supported:', supported);
+    return supported;
+}
+
+/**
  * Request notification permission
  */
 async function requestNotificationPermission() {
-    if (!('Notification' in window)) {
-        console.log('Notifications not supported');
+    if (!notificationsSupported()) {
+        console.log('Notifications not supported on this platform');
         return false;
     }
     
+    console.log('Current notification permission:', Notification.permission);
+    
     if (Notification.permission === 'granted') {
+        console.log('Notifications already granted');
         return true;
     }
     
     if (Notification.permission !== 'denied') {
+        console.log('Requesting notification permission...');
         const permission = await Notification.requestPermission();
+        console.log('Permission result:', permission);
         return permission === 'granted';
     }
     
+    console.log('Notifications were previously denied');
     return false;
 }
 
@@ -175,8 +247,16 @@ async function requestNotificationPermission() {
  * Show desktop notification
  */
 function showNotification(title, body, onClick) {
-    if (typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    if (!notificationsSupported()) {
+        console.log('Notifications not supported');
+        return;
+    }
+    if (Notification.permission !== 'granted') {
+        console.log('Notification permission not granted:', Notification.permission);
+        return;
+    }
     
+    console.log('Showing notification:', title, body);
     const notification = new Notification(title, {
         body: body,
         icon: '/static/icon-192.png',
@@ -991,6 +1071,38 @@ function AgentRequestModal({ request, onRespond }) {
 }
 
 /**
+ * Search bar component
+ */
+function SearchBar({ onSearch }) {
+    const [query, setQuery] = useState('');
+    
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (query.trim()) {
+            onSearch(query.trim());
+        }
+    };
+    
+    return html`
+        <form class="search-bar" onSubmit=${handleSubmit}>
+            <input
+                type="search"
+                class="search-input"
+                placeholder="Search posts..."
+                value=${query}
+                onInput=${(e) => setQuery(e.target.value)}
+            />
+            <button type="submit" class="search-btn" disabled=${!query.trim()}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="M21 21l-4.35-4.35"/>
+                </svg>
+            </button>
+        </form>
+    `;
+}
+
+/**
  * Connection status indicator
  */
 function ConnectionStatus({ status }) {
@@ -1011,8 +1123,9 @@ function App() {
     const [hasMore, setHasMore] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
     const [currentHashtag, setCurrentHashtag] = useState(null);
+    const [searchQuery, setSearchQuery] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(
-        typeof Notification !== 'undefined' && Notification.permission === 'granted'
+        notificationsSupported() && Notification.permission === 'granted'
     );
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState('');
@@ -1021,6 +1134,7 @@ function App() {
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
+    const showNotificationButton = notificationsSupported();
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
@@ -1095,6 +1209,7 @@ function App() {
     // Go back to timeline
     const handleBackToTimeline = useCallback(async () => {
         setCurrentHashtag(null);
+        setSearchQuery(null);
         setPosts(null);
         try {
             const result = await getTimeline(10);
@@ -1102,6 +1217,22 @@ function App() {
             setHasMore(result.has_more);
         } catch (error) {
             console.error('Failed to load timeline:', error);
+        }
+    }, []);
+
+    // Handle search
+    const handleSearch = useCallback(async (query) => {
+        if (!query || !query.trim()) return;
+        setSearchQuery(query.trim());
+        setCurrentHashtag(null);
+        setPosts(null);
+        try {
+            const result = await searchPosts(query.trim());
+            setPosts(result.results);
+            setHasMore(false);
+        } catch (error) {
+            console.error('Failed to search:', error);
+            setPosts([]);
         }
     }, []);
 
@@ -1219,25 +1350,28 @@ function App() {
     return html`
         <div class="container">
             <div class="floating-controls">
-                <button 
-                    class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
-                    onClick=${enableNotifications}
-                    title=${notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
-                >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                        ${!notificationsEnabled && html`<line x1="1" y1="1" x2="23" y2="23"/>`}
-                    </svg>
-                </button>
+                ${showNotificationButton && html`
+                    <button 
+                        class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
+                        onClick=${enableNotifications}
+                        title=${notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
+                    >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                            ${!notificationsEnabled && html`<line x1="1" y1="1" x2="23" y2="23"/>`}
+                        </svg>
+                    </button>
+                `}
                 <${ThemeToggle} />
             </div>
-            ${currentHashtag && html`
+            <${SearchBar} onSearch=${handleSearch} />
+            ${(currentHashtag || searchQuery) && html`
                 <div class="hashtag-header">
                     <button class="back-btn" onClick=${handleBackToTimeline}>
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
                     </button>
-                    <span>#${currentHashtag}</span>
+                    <span>${currentHashtag ? `#${currentHashtag}` : `Search: ${searchQuery}`}</span>
                 </div>
             `}
             <${Timeline} 
@@ -1246,11 +1380,11 @@ function App() {
                 onLoadMore=${loadMore}
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
-                emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : undefined}
+                emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
-            ${!currentHashtag && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
+            ${!currentHashtag && !searchQuery && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
         </div>

@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -27,6 +27,28 @@ CREATE INDEX IF NOT EXISTS idx_interactions_type ON interactions(type);
 CREATE INDEX IF NOT EXISTS idx_interactions_thread_id ON interactions(thread_id);
 CREATE INDEX IF NOT EXISTS idx_interactions_agent_id ON interactions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_interactions_timestamp ON interactions(timestamp DESC);
+
+-- Full-text search index for content (stores its own copy)
+CREATE VIRTUAL TABLE IF NOT EXISTS interactions_fts USING fts5(
+    content,
+    tokenize='porter unicode61'
+);
+
+-- Triggers to keep FTS in sync
+CREATE TRIGGER IF NOT EXISTS interactions_ai AFTER INSERT ON interactions BEGIN
+    INSERT INTO interactions_fts(rowid, content)
+    VALUES (new.id, json_extract(new.data, '$.content'));
+END;
+
+CREATE TRIGGER IF NOT EXISTS interactions_ad AFTER DELETE ON interactions BEGIN
+    DELETE FROM interactions_fts WHERE rowid = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS interactions_au AFTER UPDATE ON interactions BEGIN
+    DELETE FROM interactions_fts WHERE rowid = old.id;
+    INSERT INTO interactions_fts(rowid, content)
+    VALUES (new.id, json_extract(new.data, '$.content'));
+END;
 
 -- Media table with BLOB storage for easy migration
 CREATE TABLE IF NOT EXISTS media (
@@ -51,6 +73,35 @@ CREATE TABLE IF NOT EXISTS permission_whitelist (
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY
 );
+"""
+
+# Migration to add FTS to existing databases
+MIGRATION_V3 = """
+-- Add FTS5 table (stores its own copy of content)
+CREATE VIRTUAL TABLE IF NOT EXISTS interactions_fts USING fts5(
+    content,
+    tokenize='porter unicode61'
+);
+
+-- Populate FTS from existing data
+INSERT OR IGNORE INTO interactions_fts(rowid, content)
+SELECT id, json_extract(data, '$.content') FROM interactions;
+
+-- Add triggers
+CREATE TRIGGER IF NOT EXISTS interactions_ai AFTER INSERT ON interactions BEGIN
+    INSERT INTO interactions_fts(rowid, content)
+    VALUES (new.id, json_extract(new.data, '$.content'));
+END;
+
+CREATE TRIGGER IF NOT EXISTS interactions_ad AFTER DELETE ON interactions BEGIN
+    DELETE FROM interactions_fts WHERE rowid = old.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS interactions_au AFTER UPDATE ON interactions BEGIN
+    DELETE FROM interactions_fts WHERE rowid = old.id;
+    INSERT INTO interactions_fts(rowid, content)
+    VALUES (new.id, json_extract(new.data, '$.content'));
+END;
 """
 
 
@@ -94,7 +145,13 @@ class Database:
             current_version = 0
 
         if current_version < SCHEMA_VERSION:
-            await self._connection.executescript(SCHEMA)
+            # Fresh install or base schema
+            if current_version < 2:
+                await self._connection.executescript(SCHEMA)
+            # Migration to v3: add FTS
+            if current_version < 3:
+                await self._connection.executescript(MIGRATION_V3)
+            
             await self._connection.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
                 (SCHEMA_VERSION,)
@@ -184,6 +241,31 @@ class Database:
                     "timestamp": row["timestamp"],
                     "data": json.loads(row["data"]),
                     "reply_count": row["reply_count"]
+                }
+                for row in rows
+            ]
+
+    async def search(self, query: str, limit: int = 50, offset: int = 0) -> list[dict]:
+        """Full-text search across interaction content."""
+        async with self._connection.execute(
+            """SELECT i.id, i.timestamp, i.data,
+                      (SELECT COUNT(*) FROM interactions r WHERE r.thread_id = i.id) as reply_count,
+                      snippet(interactions_fts, 0, '<mark>', '</mark>', '...', 32) as snippet
+               FROM interactions_fts fts
+               JOIN interactions i ON fts.rowid = i.id
+               WHERE interactions_fts MATCH ?
+               ORDER BY rank
+               LIMIT ? OFFSET ?""",
+            (query, limit, offset)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                {
+                    "id": row["id"],
+                    "timestamp": row["timestamp"],
+                    "data": json.loads(row["data"]),
+                    "reply_count": row["reply_count"],
+                    "snippet": row["snippet"]
                 }
                 for row in rows
             ]

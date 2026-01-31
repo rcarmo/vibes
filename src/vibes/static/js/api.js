@@ -43,6 +43,13 @@ export async function getPostsByHashtag(hashtag, limit = 50, offset = 0) {
 }
 
 /**
+ * Search posts
+ */
+export async function searchPosts(query, limit = 50, offset = 0) {
+    return request(`/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
+}
+
+/**
  * Get a thread by ID
  */
 export async function getThread(threadId) {

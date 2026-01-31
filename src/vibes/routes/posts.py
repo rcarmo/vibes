@@ -133,6 +133,29 @@ async def get_hashtag(request: web.Request) -> web.Response:
     })
 
 
+async def search(request: web.Request) -> web.Response:
+    """Full-text search across posts and replies."""
+    query = request.query.get("q", "").strip()
+    if not query:
+        return web.json_response({"error": "Missing 'q' parameter"}, status=400)
+    
+    limit = int(request.query.get("limit", 50))
+    offset = int(request.query.get("offset", 0))
+    
+    # Clamp limit
+    limit = max(1, min(100, limit))
+    
+    db = await get_db()
+    results = await db.search(query, limit=limit, offset=offset)
+    
+    return web.json_response({
+        "query": query,
+        "results": results,
+        "limit": limit,
+        "offset": offset
+    })
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up post routes."""
     app.router.add_post("/post", create_post)
@@ -140,3 +163,4 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/thread/{thread_id}", get_thread)
     app.router.add_get("/timeline", get_timeline)
     app.router.add_get("/hashtag/{hashtag}", get_hashtag)
+    app.router.add_get("/search", search)

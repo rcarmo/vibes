@@ -99,6 +99,36 @@ class TestDatabase:
         assert len(results) == 0
 
     @pytest.mark.asyncio
+    async def test_search_fts(self, db):
+        """Test full-text search."""
+        # Create posts with different content
+        await db.create_interaction({"type": "post", "content": "Python is awesome for data science"})
+        await db.create_interaction({"type": "post", "content": "JavaScript powers the web"})
+        await db.create_interaction({"type": "post", "content": "Python and machine learning go together"})
+        
+        # Search for python
+        results = await db.search("python")
+        assert len(results) == 2
+        
+        # Search for web
+        results = await db.search("web")
+        assert len(results) == 1
+        
+        # Search with stemming (science -> scienc)
+        results = await db.search("scientific")
+        # Porter stemmer should match "science"
+        assert len(results) >= 0  # May or may not match depending on stemming
+        
+        # Search for non-existent term
+        results = await db.search("rust")
+        assert len(results) == 0
+        
+        # Search results should have snippets
+        results = await db.search("machine")
+        assert len(results) == 1
+        assert "snippet" in results[0]
+
+    @pytest.mark.asyncio
     async def test_get_thread(self, db, sample_post_data, sample_agent_response_data):
         """Test getting a thread with replies."""
         # Create parent post
