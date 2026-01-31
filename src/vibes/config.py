@@ -42,15 +42,15 @@ class Config:
     def __init__(self):
         self.host: str = _get_env("VIBES_HOST", "0.0.0.0")
         self.port: int = _get_env_int("VIBES_PORT", 8080)
-        self.db_path: str = _get_env("VIBES_DB_PATH", "data/app.db")
+        self.db_path: str = _get_env("VIBES_DB_PATH", "database/vibes.db")
         self.debug: bool = _get_env_bool("VIBES_DEBUG", False)
         self.custom_endpoints: dict = {}
         
         # ACP agent configuration
         self.acp_agent: str = _get_env("VIBES_ACP_AGENT", "vibe-acp")
         self.agent_name: str = _get_env("VIBES_AGENT_NAME", socket.gethostname())
-        self.permission_request_timeout_s: int = _get_env_int("VIBES_PERMISSION_TIMEOUT_S", 30)
-        self.agent_restart_on_disconnect_s: int = _get_env_int("VIBES_AGENT_RESTART_ON_DISCONNECT_S", 300)
+        self.permission_timeout: int = _get_env_int("VIBES_PERMISSION_TIMEOUT", 30)
+        self.disconnect_timeout: int = _get_env_int("VIBES_DISCONNECT_TIMEOUT", 300)
         self.acp_debug: bool = _get_env_bool("VIBES_ACP_DEBUG", False)
         
         # Load custom endpoints from config file

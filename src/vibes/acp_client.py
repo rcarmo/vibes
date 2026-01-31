@@ -299,7 +299,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         
                         # Wait for user response (with timeout)
                         try:
-                            timeout_s = get_config().permission_request_timeout_s
+                            timeout_s = get_config().permission_timeout
                             outcome = await asyncio.wait_for(future, timeout=timeout_s)
                         except asyncio.TimeoutError:
                             outcome = "cancelled"

@@ -51,7 +51,7 @@ def _schedule_restart_if_needed() -> None:
     if _restart_task and not _restart_task.done():
         return
 
-    delay_s = get_config().agent_restart_on_disconnect_s
+    delay_s = get_config().disconnect_timeout
     if delay_s <= 0:
         return
 

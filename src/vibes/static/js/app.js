@@ -808,8 +808,8 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 function AgentStatus({ status, draft, plan, thought }) {
     if (!status && !draft && !plan && !thought) return null;
 
-    const DRAFT_MAX_CHARS = 4000;
-    const DRAFT_TAIL_CHARS = 400;
+    const DRAFT_MAX_CHARS = 2048;
+    const DRAFT_TAIL_CHARS = 256;
 
     const truncateDraft = (text) => {
         const value = text || '';

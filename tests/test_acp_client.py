@@ -561,7 +561,7 @@ class TestContentParsing:
         monkeypatch.setattr(
             acp_client,
             "get_config",
-            lambda: SimpleNamespace(permission_request_timeout_s=0.001),
+            lambda: SimpleNamespace(permission_timeout=0.001),
         )
 
         stop_mock = AsyncMock()
