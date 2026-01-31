@@ -807,6 +807,19 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
  */
 function AgentStatus({ status, draft, plan, thought }) {
     if (!status && !draft && !plan && !thought) return null;
+
+    const DRAFT_MAX_CHARS = 4000;
+    const DRAFT_TAIL_CHARS = 400;
+
+    const truncateDraft = (text) => {
+        const value = text || '';
+        if (value.length <= DRAFT_MAX_CHARS) return { text: value, omitted: 0 };
+        const headLen = Math.max(0, DRAFT_MAX_CHARS - DRAFT_TAIL_CHARS);
+        const head = value.slice(0, headLen);
+        const tail = value.slice(-DRAFT_TAIL_CHARS);
+        const omitted = value.length - head.length - tail.length;
+        return { text: `${head}\n…\n${tail}`, omitted };
+    };
     
     let content = '';
     const title = status?.title;
@@ -841,15 +854,21 @@ function AgentStatus({ status, draft, plan, thought }) {
                     />
                 </div>
             `}
-            ${draft && html`
-                <div class="agent-thinking">
-                    <div class="agent-thinking-title thought">Draft</div>
-                    <div
-                        class="agent-thinking-body"
-                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(draft) }}
-                    />
-                </div>
-            `}
+            ${draft && (() => {
+                const truncated = truncateDraft(draft);
+                return html`
+                    <div class="agent-thinking">
+                        <div class="agent-thinking-title thought">Draft</div>
+                        <div
+                            class="agent-thinking-body"
+                            dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(truncated.text) }}
+                        />
+                        ${truncated.omitted > 0 && html`
+                            <div class="agent-thinking-truncation">(${truncated.omitted} more characters)</div>
+                        `}
+                    </div>
+                `;
+            })()}
             ${status && html`
                 <div class="agent-status">
                     <div class="agent-status-spinner"></div>
@@ -1154,6 +1173,13 @@ function App() {
                 if (eventType === 'agent_request') {
                     console.log('Agent request:', data);
                     setPendingRequest(data);
+                    return;
+                }
+
+                if (eventType === 'agent_request_timeout') {
+                    console.log('Agent request timeout:', data);
+                    setPendingRequest(null);
+                    setAgentStatus({ type: 'error', title: 'Permission request timed out' });
                     return;
                 }
                 

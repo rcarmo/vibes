@@ -162,6 +162,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     # Track the currently displayed draft text so we can pick replace vs append.
     last_draft_text: str | None = None
     
+    permission_cancelled = False
+
     # Read responses until we get the one matching our request ID
     while True:
         response = await asyncio.wait_for(_read_response(_state.agent_reader), timeout=300)
@@ -328,10 +330,12 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     
                     # Wait for user response (with timeout)
                     try:
-                        outcome = await asyncio.wait_for(future, timeout=300)
+                        timeout_s = get_config().permission_request_timeout_s
+                        outcome = await asyncio.wait_for(future, timeout=timeout_s)
                     except asyncio.TimeoutError:
-                        outcome = "rejected"
-                        logger.warning("Permission request timed out, rejecting")
+                        outcome = "cancelled"
+                        permission_cancelled = True
+                        logger.warning("Permission request timed out, cancelling")
                     finally:
                         _state.pending_requests.pop(req_id, None)
                 
@@ -373,6 +377,11 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 data = json.dumps(permission_response) + "\n"
                 _state.agent_writer.write(data.encode())
                 await _state.agent_writer.drain()
+
+                if permission_cancelled:
+                    await stop_agent()
+                    return {"_cancelled": True}
+
                 continue
                 
             elif method_name in ("fs/read_text_file", "fs/write_text_file"):
@@ -408,6 +417,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
             if "error" in response:
                 raise RuntimeError(f"Agent error: {response['error']}")
             result = response.get("result", {})
+            if permission_cancelled:
+                result["_cancelled"] = True
             if collect_updates:
                 # Log the raw result for debugging
                 logger.debug(f"Final result keys: {list(result.keys())}")
@@ -717,7 +728,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
         logger.warning("Agent is busy processing another request")
         return {
             "text": "[Agent is busy, please wait...]",
-            "content": [{"type": "text", "text": "[Agent is busy, please wait...]"}]
+            "content": [{"type": "text", "text": "[Agent is busy, please wait...]"}],
+            "cancelled": False
         }
     
     # Only one request at a time to avoid read conflicts
@@ -728,7 +740,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             if not _state.session_id:
                 return {
                     "text": "[Error: No active session]",
-                    "content": [{"type": "text", "text": "[Error: No active session]"}]
+                    "content": [{"type": "text", "text": "[Error: No active session]"}],
+                    "cancelled": False
                 }
             
             logger.info(f"Sending message to agent: {content[:100]}...")
@@ -756,19 +769,22 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             if not text and not content_blocks:
                 return {
                     "text": "[No response from agent]",
-                    "content": [{"type": "text", "text": "[No response from agent]"}]
+                    "content": [{"type": "text", "text": "[No response from agent]"}],
+                    "cancelled": bool(result.get("_cancelled"))
                 }
             
             return {
                 "text": text,
-                "content": content_blocks
+                "content": content_blocks,
+                "cancelled": bool(result.get("_cancelled"))
             }
             
         except asyncio.TimeoutError:
             logger.error("Timeout waiting for agent response")
             return {
                 "text": "[Error: Agent timed out]",
-                "content": [{"type": "text", "text": "[Error: Agent timed out]"}]
+                "content": [{"type": "text", "text": "[Error: Agent timed out]"}],
+                "cancelled": False
             }
         except RuntimeError as e:
             error_str = str(e)

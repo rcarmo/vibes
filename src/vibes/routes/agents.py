@@ -88,6 +88,17 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         
         # Get multimodal response from ACP agent
         response = await send_message_multimodal(content, thread_id, status_callback)
+
+        # If a permission request timed out, stop and explain what happened.
+        if response.get("cancelled"):
+            await broadcast_event("agent_request_timeout", {
+                "thread_id": thread_id,
+                "agent_id": agent_id,
+            })
+            response = {
+                "text": "[Cancelled: permission request timed out]",
+                "content": [{"type": "text", "text": "[Cancelled: permission request timed out]"}],
+            }
         
         # Process content blocks - store images/files in media table
         db = await get_db()

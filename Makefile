@@ -32,15 +32,15 @@ format: ## Format code with ruff
 	ruff format src tests
 
 test: ## Run pytest
-	$(PYTHON) -m pytest
+	PYTHONPATH=src $(PYTHON) -m pytest
 
 coverage: ## Run pytest with coverage
-	$(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
+	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
 
 check: lint test ## Run lint + tests
 
 serve: ## Run the web server
-	VIBES_HOST=$(VIBES_HOST) VIBES_PORT=$(VIBES_PORT) $(PYTHON) -m vibes.app
+	PYTHONPATH=src VIBES_HOST=$(VIBES_HOST) VIBES_PORT=$(VIBES_PORT) $(PYTHON) -m vibes.app
 
 # =============================================================================
 # Clean targets

@@ -49,6 +49,7 @@ class Config:
         # ACP agent configuration
         self.acp_agent: str = _get_env("VIBES_ACP_AGENT", "vibe-acp")
         self.agent_name: str = _get_env("VIBES_AGENT_NAME", socket.gethostname())
+        self.permission_request_timeout_s: int = _get_env_int("VIBES_PERMISSION_TIMEOUT_S", 30)
         
         # Load custom endpoints from config file
         config_path = _get_env("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)

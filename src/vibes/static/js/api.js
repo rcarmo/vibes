@@ -223,6 +223,10 @@ export class SSEClient {
             this.onEvent('agent_request', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('agent_request_timeout', (e) => {
+            this.onEvent('agent_request_timeout', JSON.parse(e.data));
+        });
+
         this.eventSource.addEventListener('agent_draft', (e) => {
             this.onEvent('agent_draft', JSON.parse(e.data));
         });

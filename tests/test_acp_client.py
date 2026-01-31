@@ -494,3 +494,53 @@ class TestContentParsing:
             assert len(result["content"]) == 1
         finally:
             acp_client.get_state().request_lock.release()
+
+    @pytest.mark.asyncio
+    async def test_permission_request_timeout_cancels_and_stops_agent(self, monkeypatch):
+        """If user doesn't respond to permission, we cancel and stop the agent (fast timeout in tests)."""
+        from types import SimpleNamespace
+
+        mock_writer = AsyncMock()
+        mock_reader = AsyncMock()
+
+        mock_writer.write = MagicMock()
+        mock_writer.drain = AsyncMock()
+
+        permission_request = {
+            "jsonrpc": "2.0",
+            "id": 999,
+            "method": "session/request_permission",
+            "params": {
+                "toolCall": {"title": "Run command", "rawInput": {"command": "echo hi"}},
+                "options": [
+                    {"kind": "allow_once", "optionId": "allow-once"},
+                    {"kind": "reject_once", "optionId": "reject-once"},
+                ],
+            },
+        }
+        final_response = {"jsonrpc": "2.0", "id": 1, "result": {}}
+
+        responses = [
+            json.dumps(permission_request).encode() + b"\n",
+            json.dumps(final_response).encode() + b"\n",
+        ]
+        mock_reader.readline = AsyncMock(side_effect=responses)
+
+        monkeypatch.setattr(
+            acp_client,
+            "get_config",
+            lambda: SimpleNamespace(permission_request_timeout_s=0.001),
+        )
+
+        stop_mock = AsyncMock()
+        monkeypatch.setattr(acp_client, "stop_agent", stop_mock)
+
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
+
+        result = await asyncio.wait_for(acp_client._send_request("test", {}, collect_updates=False), timeout=0.2)
+        assert result.get("_cancelled") is True
+        stop_mock.assert_awaited_once()
+
