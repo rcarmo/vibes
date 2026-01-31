@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "vibes"
-version = "0.1.9"
+version = "0.1.10"
 description = "Twitter-like SPA for interacting with coding agents via ACP protocol"
 readme = "README.md"
 license = {text = "MIT"}
