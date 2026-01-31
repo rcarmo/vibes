@@ -522,6 +522,16 @@ body {
     margin-bottom: 2px;
 }
 
+.resource-link-header {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+}
+
+.resource-link-icon-inline {
+    font-size: 14px;
+}
+
 .resource-link-description {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
@@ -567,6 +577,38 @@ body {
     font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
     font-size: var(--font-size-sm);
     color: var(--text-secondary);
+}
+
+.resource-embed-blob {
+    margin-top: var(--spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+
+.resource-embed-blob-label {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.resource-embed-blob-meta {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+}
+
+.resource-embed-blob-btn {
+    border: 1px solid var(--border-color);
+    background-color: var(--bg-secondary);
+    color: var(--text-primary);
+    border-radius: var(--radius-sm);
+    padding: 4px 8px;
+    cursor: pointer;
+    font-size: var(--font-size-sm);
+}
+
+.resource-embed-blob-btn:hover {
+    background-color: var(--bg-hover);
 }
 
 /* Content annotations */

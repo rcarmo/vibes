@@ -448,12 +448,19 @@ function formatFileSize(bytes) {
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
 }
 
+function formatTimestamp(value) {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+}
+
 /**
  * Render annotations (audience/priority/lastModified)
  */
 function AnnotationsBadge({ annotations }) {
     if (!annotations) return null;
     const { audience, priority, lastModified } = annotations;
+    const formattedLastModified = lastModified ? formatTimestamp(lastModified) : null;
     return html`
         <div class="content-annotations">
             ${audience && audience.length > 0 && html`
@@ -462,8 +469,8 @@ function AnnotationsBadge({ annotations }) {
             ${typeof priority === 'number' && html`
                 <span class="content-annotation">Priority: ${priority}</span>
             `}
-            ${lastModified && html`
-                <span class="content-annotation">Updated: ${lastModified}</span>
+            ${formattedLastModified && html`
+                <span class="content-annotation">Updated: ${formattedLastModified}</span>
             `}
         </div>
     `;
@@ -477,10 +484,14 @@ function ResourceLinkBlock({ block }) {
     const description = block.description;
     const sizeStr = block.size ? formatFileSize(block.size) : '';
     const mimeType = block.mime_type || '';
+    const icon = getMimeIcon(mimeType);
     return html`
         <a href=${block.uri} class="resource-link" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()}>
             <div class="resource-link-main">
-                <div class="resource-link-title">${name}</div>
+                <div class="resource-link-header">
+                    <span class="resource-link-icon-inline">${icon}</span>
+                    <div class="resource-link-title">${name}</div>
+                </div>
                 ${description && html`<div class="resource-link-description">${description}</div>`}
                 <div class="resource-link-meta">
                     ${mimeType && html`<span>${mimeType}</span>`}
@@ -499,16 +510,46 @@ function ResourceBlock({ block }) {
     const [open, setOpen] = useState(false);
     const title = block.uri || 'Embedded resource';
     const contentText = block.text || '';
+    const hasBlob = Boolean(block.data);
+    const mimeType = block.mime_type || '';
     return html`
         <div class="resource-embed">
             <button class="resource-embed-toggle" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>
                 ${open ? '▼' : '▶'} ${title}
             </button>
             ${open && html`
-                <pre class="resource-embed-content">${contentText}</pre>
+                ${contentText && html`<pre class="resource-embed-content">${contentText}</pre>`}
+                ${hasBlob && html`
+                    <div class="resource-embed-blob">
+                        <span class="resource-embed-blob-label">Embedded blob</span>
+                        ${mimeType && html`<span class="resource-embed-blob-meta">${mimeType}</span>`}
+                        <button class="resource-embed-blob-btn" onClick=${(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const blob = new Blob([Uint8Array.from(atob(block.data), c => c.charCodeAt(0))], { type: mimeType || 'application/octet-stream' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = title.split('/').pop() || 'resource';
+                            a.click();
+                            URL.revokeObjectURL(url);
+                        }}>Download</button>
+                    </div>
+                `}
             `}
         </div>
     `;
+}
+
+function getMimeIcon(mimeType) {
+    if (!mimeType) return '📎';
+    if (mimeType.startsWith('image/')) return '🖼️';
+    if (mimeType.startsWith('audio/')) return '🎵';
+    if (mimeType.startsWith('video/')) return '🎬';
+    if (mimeType.includes('pdf')) return '📄';
+    if (mimeType.includes('zip') || mimeType.includes('gzip')) return '🗜️';
+    if (mimeType.startsWith('text/')) return '📄';
+    return '📎';
 }
 
 /**
