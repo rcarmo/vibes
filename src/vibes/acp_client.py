@@ -351,29 +351,71 @@ def _join_text_chunks(chunks: list[str]) -> str:
     """Join text chunks and normalize whitespace.
     
     Agent sends chunks with newlines for line wrapping during streaming.
-    We need to strip these line-wrap newlines but preserve intentional formatting.
+    We need to intelligently strip line-wrap newlines but preserve intentional formatting.
     """
     import re
     if not chunks:
         return ""
     
-    # First pass: strip trailing/leading newlines from each chunk
-    # These are line-wrap artifacts that should not create spaces
-    cleaned_chunks = []
-    for chunk in chunks:
-        if not chunk:
-            continue
-        # Strip single trailing/leading newlines (line wrapping)
-        # but preserve double newlines within chunks (paragraphs)
-        cleaned = chunk
-        if cleaned.endswith('\n') and not cleaned.endswith('\n\n'):
-            cleaned = cleaned.rstrip('\n')
-        if cleaned.startswith('\n') and not cleaned.startswith('\n\n'):
-            cleaned = cleaned.lstrip('\n')
-        cleaned_chunks.append(cleaned)
+    # Join chunks first, then intelligently handle newlines
+    combined = "".join(chunk for chunk in chunks if chunk)
     
-    # Join chunks
-    combined = "".join(cleaned_chunks)
+    # Preserve double newlines (paragraph breaks)
+    combined = combined.replace('\n\n', '\x00\x00')
+    
+    # Pattern: newline between two lowercase letters = word wrap, remove it
+    # But preserve newlines before list markers (-, *), uppercase letters, or after punctuation
+    def should_preserve_newline(text, pos):
+        """Check if newline at position should be preserved."""
+        if pos <= 0 or pos >= len(text) - 1:
+            return True
+        
+        prev_char = text[pos - 1]
+        # Look ahead past any whitespace to find the real next char
+        next_pos = pos + 1
+        while next_pos < len(text) and text[next_pos] in (' ', '\t'):
+            next_pos += 1
+        if next_pos >= len(text):
+            return True
+        next_char = text[next_pos]
+        
+        # Preserve if next line starts with list marker
+        if next_char in ('-', '*', '•'):
+            return True
+        
+        # Preserve if next char is uppercase (likely new sentence/item)
+        if next_char.isupper():
+            # But not if previous char is also uppercase (mid-acronym break)
+            if not prev_char.isupper():
+                return True
+        
+        # Preserve if previous char is punctuation
+        if prev_char in ('.', '!', '?', ':', ';'):
+            return True
+        
+        # Strip if both sides are lowercase (mid-word wrap)
+        if prev_char.islower() and next_char.islower():
+            return False
+        
+        # Default: preserve
+        return True
+    
+    # Process each newline
+    result = []
+    i = 0
+    while i < len(combined):
+        if combined[i] == '\n':
+            if should_preserve_newline(combined, i):
+                result.append('\n')
+            # else: skip the newline (word wrap)
+        else:
+            result.append(combined[i])
+        i += 1
+    
+    combined = ''.join(result)
+    
+    # Restore double newlines
+    combined = combined.replace('\x00\x00', '\n\n')
     
     # Normalize whitespace: collapse multiple spaces
     combined = re.sub(r' +', ' ', combined)
