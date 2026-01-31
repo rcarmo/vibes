@@ -1,19 +1,15 @@
 """Tests for the database layer."""
 
 import pytest
-import json
-from vibes.db import Database, init_db, close_db, get_db
+from vibes.db import init_db, close_db, get_db
 
 
 class TestDatabase:
     """Test Database class."""
 
     @pytest.mark.asyncio
-    async def test_connect_creates_tables(self, temp_db_path):
+    async def test_connect_creates_tables(self, db):
         """Test that connecting creates the schema."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Check that tables exist
         async with db._connection.execute(
             "SELECT name FROM sqlite_master WHERE type='table'"
@@ -23,15 +19,10 @@ class TestDatabase:
         assert "interactions" in tables
         assert "media" in tables
         assert "schema_version" in tables
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_create_and_get_interaction(self, temp_db_path, sample_post_data):
+    async def test_create_and_get_interaction(self, db, sample_post_data):
         """Test creating and retrieving an interaction."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create interaction
         interaction_id = await db.create_interaction(sample_post_data)
         assert interaction_id > 0
@@ -42,26 +33,16 @@ class TestDatabase:
         assert result["id"] == interaction_id
         assert result["data"]["content"] == sample_post_data["content"]
         assert result["data"]["type"] == "post"
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_interaction(self, temp_db_path):
+    async def test_get_nonexistent_interaction(self, db):
         """Test getting a non-existent interaction returns None."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         result = await db.get_interaction(99999)
         assert result is None
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_timeline(self, temp_db_path, sample_post_data):
+    async def test_get_timeline(self, db, sample_post_data):
         """Test getting timeline of interactions."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create multiple interactions
         ids = []
         for i in range(5):
@@ -73,15 +54,10 @@ class TestDatabase:
         assert len(timeline) == 5
         assert timeline[0]["data"]["content"] == "Post 0"
         assert timeline[4]["data"]["content"] == "Post 4"
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_timeline_with_before_id(self, temp_db_path, sample_post_data):
+    async def test_get_timeline_with_before_id(self, db, sample_post_data):
         """Test timeline pagination with before_id cursor."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create 10 interactions
         ids = []
         for i in range(10):
@@ -101,15 +77,10 @@ class TestDatabase:
         page1_ids = {p["id"] for p in page1}
         page2_ids = {p["id"] for p in page2}
         assert page1_ids.isdisjoint(page2_ids)
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_posts_by_hashtag(self, temp_db_path):
+    async def test_get_posts_by_hashtag(self, db):
         """Test searching posts by hashtag."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create posts with different hashtags
         await db.create_interaction({"type": "post", "content": "Hello #python"})
         await db.create_interaction({"type": "post", "content": "Hello #javascript"})
@@ -126,15 +97,10 @@ class TestDatabase:
         # Search for non-existent hashtag
         results = await db.get_posts_by_hashtag("rust")
         assert len(results) == 0
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_thread(self, temp_db_path, sample_post_data, sample_agent_response_data):
+    async def test_get_thread(self, db, sample_post_data, sample_agent_response_data):
         """Test getting a thread with replies."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create parent post
         parent_id = await db.create_interaction(sample_post_data)
         
@@ -147,15 +113,10 @@ class TestDatabase:
         assert len(thread) == 2
         assert thread[0]["id"] == parent_id
         assert thread[1]["data"]["thread_id"] == parent_id
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_update_interaction_previews(self, temp_db_path, sample_post_data):
+    async def test_update_interaction_previews(self, db, sample_post_data):
         """Test updating link previews on an interaction."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create interaction with URL
         data = {**sample_post_data, "content": "Check out https://example.com"}
         interaction_id = await db.create_interaction(data)
@@ -168,30 +129,20 @@ class TestDatabase:
         # Verify update
         result = await db.get_interaction(interaction_id)
         assert result["data"]["link_previews"] == previews
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_update_nonexistent_interaction_previews(self, temp_db_path):
+    async def test_update_nonexistent_interaction_previews(self, db):
         """Test updating previews on non-existent interaction."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         success = await db.update_interaction_previews(99999, [])
         assert success is False
-        
-        await db.close()
 
 
 class TestMedia:
     """Test media storage methods."""
 
     @pytest.mark.asyncio
-    async def test_create_and_get_media(self, temp_db_path, sample_media_data):
+    async def test_create_and_get_media(self, db, sample_media_data):
         """Test creating and retrieving media."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create media
         media_id = await db.create_media(
             filename=sample_media_data["filename"],
@@ -208,15 +159,10 @@ class TestMedia:
         assert result["filename"] == "test.png"
         assert result["content_type"] == "image/png"
         assert result["metadata"]["width"] == 100
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_media_data(self, temp_db_path, sample_media_data):
+    async def test_get_media_data(self, db, sample_media_data):
         """Test retrieving media blob data."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         media_id = await db.create_media(
             filename=sample_media_data["filename"],
             content_type=sample_media_data["content_type"],
@@ -228,15 +174,10 @@ class TestMedia:
         content_type, data = result
         assert content_type == "image/png"
         assert data == sample_media_data["data"]
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_media_thumbnail(self, temp_db_path, sample_media_data):
+    async def test_get_media_thumbnail(self, db, sample_media_data):
         """Test retrieving media thumbnail."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         media_id = await db.create_media(
             filename=sample_media_data["filename"],
             content_type=sample_media_data["content_type"],
@@ -249,15 +190,10 @@ class TestMedia:
         content_type, data = result
         assert content_type == "image/jpeg"
         assert data == sample_media_data["thumbnail"]
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_media_by_original_url(self, temp_db_path, sample_media_data):
+    async def test_get_media_by_original_url(self, db, sample_media_data):
         """Test finding media by original URL."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         # Create media with original_url in metadata
         metadata = {"original_url": "https://example.com/image.png"}
         media_id = await db.create_media(
@@ -274,20 +210,13 @@ class TestMedia:
         # Not found
         not_found = await db.get_media_by_original_url("https://other.com/image.png")
         assert not_found is None
-        
-        await db.close()
 
     @pytest.mark.asyncio
-    async def test_get_nonexistent_media(self, temp_db_path):
+    async def test_get_nonexistent_media(self, db):
         """Test getting non-existent media."""
-        db = Database(temp_db_path)
-        await db.connect()
-        
         assert await db.get_media(99999) is None
         assert await db.get_media_data(99999) is None
         assert await db.get_media_thumbnail(99999) is None
-        
-        await db.close()
 
 
 class TestGlobalDatabase:

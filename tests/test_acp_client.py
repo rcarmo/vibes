@@ -12,11 +12,7 @@ class TestAcpClient:
 
     def setup_method(self):
         """Reset global state before each test."""
-        acp_client._agent_proc = None
-        acp_client._agent_reader = None
-        acp_client._agent_writer = None
-        acp_client._session_id = None
-        acp_client._request_id = 0
+        acp_client.reset_state()
 
     def test_next_request_id(self):
         """Test request ID generation."""
@@ -36,7 +32,7 @@ class TestAcpClient:
         """Test is_agent_running with terminated process."""
         mock_proc = MagicMock()
         mock_proc.returncode = 0  # Terminated
-        acp_client._agent_proc = mock_proc
+        acp_client.get_state().agent_proc = mock_proc
         
         assert acp_client.is_agent_running() is False
 
@@ -44,7 +40,7 @@ class TestAcpClient:
         """Test is_agent_running with active process."""
         mock_proc = MagicMock()
         mock_proc.returncode = None  # Still running
-        acp_client._agent_proc = mock_proc
+        acp_client.get_state().agent_proc = mock_proc
         
         assert acp_client.is_agent_running() is True
 
@@ -96,9 +92,10 @@ class TestAcpClient:
         response = {"jsonrpc": "2.0", "id": 1, "result": {"message": "ok"}}
         mock_reader.readline = AsyncMock(return_value=json.dumps(response).encode() + b'\n')
         
-        acp_client._agent_writer = mock_writer
-        acp_client._agent_reader = mock_reader
-        acp_client._request_id = 0
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
         
         result = await acp_client._send_request("test/method", {"arg": "value"})
         
@@ -123,9 +120,10 @@ class TestAcpClient:
         response = {"jsonrpc": "2.0", "id": 1, "error": {"code": -1, "message": "Failed"}}
         mock_reader.readline = AsyncMock(return_value=json.dumps(response).encode() + b'\n')
         
-        acp_client._agent_writer = mock_writer
-        acp_client._agent_reader = mock_reader
-        acp_client._request_id = 0
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
         
         with pytest.raises(RuntimeError, match="Agent error"):
             await acp_client._send_request("test", {})
@@ -158,9 +156,10 @@ class TestAcpClient:
         ]
         mock_reader.readline = AsyncMock(side_effect=responses)
         
-        acp_client._agent_writer = mock_writer
-        acp_client._agent_reader = mock_reader
-        acp_client._request_id = 0
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
         
         result = await acp_client._send_request("test", {}, collect_updates=True)
         
@@ -194,9 +193,10 @@ class TestAcpClient:
         ]
         mock_reader.readline = AsyncMock(side_effect=responses)
         
-        acp_client._agent_writer = mock_writer
-        acp_client._agent_reader = mock_reader
-        acp_client._request_id = 0
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
         
         await acp_client._send_request("test", {}, collect_updates=True, status_callback=mock_callback)
         
@@ -210,23 +210,25 @@ class TestAcpClient:
         mock_proc.wait = AsyncMock()
         mock_proc.returncode = None
         
-        acp_client._agent_proc = mock_proc
-        acp_client._agent_reader = MagicMock()
-        acp_client._agent_writer = MagicMock()
-        acp_client._session_id = "test-session"
+        state = acp_client.get_state()
+        state.agent_proc = mock_proc
+        state.agent_reader = MagicMock()
+        state.agent_writer = MagicMock()
+        state.session_id = "test-session"
         
         await acp_client.stop_agent()
         
         mock_proc.terminate.assert_called_once()
-        assert acp_client._agent_proc is None
-        assert acp_client._session_id is None
+        state = acp_client.get_state()
+        assert state.agent_proc is None
+        assert state.session_id is None
 
     @pytest.mark.asyncio
     async def test_send_message_simple_no_session(self):
         """Test send_message_simple when session fails."""
         with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock) as mock_ensure:
             mock_ensure.return_value = None
-            acp_client._session_id = None
+            acp_client.get_state().session_id = None
             
             result = await acp_client.send_message_simple("Hello")
             
@@ -238,7 +240,7 @@ class TestAcpClient:
         with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
             with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
                 mock_send.side_effect = asyncio.TimeoutError()
-                acp_client._session_id = "test-session"
+                acp_client.get_state().session_id = "test-session"
                 
                 result = await acp_client.send_message_simple("Hello")
                 
@@ -250,7 +252,7 @@ class TestAcpClient:
         with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
             with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
                 mock_send.return_value = {"_collected_text": "Hello from agent!"}
-                acp_client._session_id = "test-session"
+                acp_client.get_state().session_id = "test-session"
                 
                 result = await acp_client.send_message_simple("Hello")
                 
@@ -291,7 +293,7 @@ class TestAcpClient:
             with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
                 with patch.object(acp_client, 'stop_agent', new_callable=AsyncMock) as mock_stop:
                     mock_send.side_effect = RuntimeError("Concurrent prompts are not supported")
-                    acp_client._session_id = "test-session"
+                    acp_client.get_state().session_id = "test-session"
                     
                     result = await acp_client.send_message_simple("Hello")
                     
@@ -302,13 +304,13 @@ class TestAcpClient:
     async def test_send_message_simple_lock_check(self):
         """Test that busy check works when lock is held."""
         # Acquire the lock
-        await acp_client._request_lock.acquire()
+        await acp_client.get_state().request_lock.acquire()
         
         try:
             result = await acp_client.send_message_simple("Hello")
             assert "busy" in result.lower()
         finally:
-            acp_client._request_lock.release()
+            acp_client.get_state().request_lock.release()
 
 
 class TestContentParsing:
@@ -404,7 +406,7 @@ class TestContentParsing:
                         {"type": "image", "url": "https://example.com/img.png", "mime_type": "image/png"}
                     ]
                 }
-                acp_client._session_id = "test-session"
+                acp_client.get_state().session_id = "test-session"
                 
                 result = await acp_client.send_message_multimodal("Generate an image")
                 
@@ -415,11 +417,11 @@ class TestContentParsing:
     @pytest.mark.asyncio
     async def test_send_message_multimodal_busy(self):
         """Test send_message_multimodal when agent is busy."""
-        await acp_client._request_lock.acquire()
+        await acp_client.get_state().request_lock.acquire()
         
         try:
             result = await acp_client.send_message_multimodal("Hello")
             assert "busy" in result["text"].lower()
             assert len(result["content"]) == 1
         finally:
-            acp_client._request_lock.release()
+            acp_client.get_state().request_lock.release()

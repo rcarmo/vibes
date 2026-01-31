@@ -2,9 +2,8 @@
 
 import aiosqlite
 import json
-import os
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"

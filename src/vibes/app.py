@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import signal
 from pathlib import Path
 from aiohttp import web
 

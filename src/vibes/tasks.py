@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from typing import Callable, Any
+from typing import Callable
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +91,6 @@ def enqueue(task_func: Callable, *args, **kwargs):
     try:
         _task_queue.put_nowait((task_func, args, kwargs))
         logger.info(f"Task enqueued: {task_func.__name__}")
-        return True
-    except asyncio.QueueFull:
-        logger.warning("Task queue full, task dropped")
-        return False
         return True
     except asyncio.QueueFull:
         logger.warning("Task queue full, task dropped")

@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 import shlex
 import shutil
 from typing import Optional, AsyncIterator
@@ -13,36 +12,70 @@ from .config import get_config
 
 logger = logging.getLogger(__name__)
 
-# Global agent state
-_agent_proc = None
-_agent_reader = None
-_agent_writer = None
-_agent_lock = asyncio.Lock()
-_request_lock = asyncio.Lock()  # Ensures only one request at a time
-_session_id = None
-_request_id = 0
+class _ACPState:
+    """Encapsulated ACP client state."""
 
-# Pending agent requests waiting for user response
-_pending_requests = {}  # request_id -> asyncio.Future
-_request_callback = None  # Callback to notify UI of pending requests
-_whitelist_checker = None  # Callback to check if request is whitelisted
+    def __init__(self) -> None:
+        self.agent_proc = None
+        self.agent_reader = None
+        self.agent_writer = None
+        self.agent_lock = asyncio.Lock()
+        self.request_lock = asyncio.Lock()  # Ensures only one request at a time
+        self.session_id = None
+        self.request_id = 0
+        self.pending_requests = {}  # request_id -> asyncio.Future
+        self.request_callback = None  # Callback to notify UI of pending requests
+        self.whitelist_checker = None  # Callback to check if request is whitelisted
+
+
+_state = _ACPState()
+
+
+def reset_state() -> None:
+    """Reset ACP client state (primarily for tests)."""
+    _state.agent_proc = None
+    _state.agent_reader = None
+    _state.agent_writer = None
+    _state.agent_lock = asyncio.Lock()
+    _state.request_lock = asyncio.Lock()
+    _state.session_id = None
+    _state.request_id = 0
+    _state.pending_requests = {}
+    _state.request_callback = None
+    _state.whitelist_checker = None
+
+
+def get_state() -> _ACPState:
+    """Return the ACP state instance."""
+    return _state
+
+
+def prompt_from_action(action_id: str, params: dict | None) -> Optional[str]:
+    """Build a prompt for a configured custom action."""
+    config = get_config()
+    action = config.custom_endpoints.get(action_id)
+    if not action:
+        return None
+    description = action.get("description", action_id)
+    prompt = action.get("prompt") or f"{description}"
+    if params:
+        prompt += f"\n\nParams: {json.dumps(params)}"
+    return prompt
 
 
 def set_request_callback(callback):
     """Set callback for agent requests that need user response."""
-    global _request_callback
-    _request_callback = callback
+    _state.request_callback = callback
 
 
 def set_whitelist_checker(checker):
     """Set callback to check if a request is whitelisted (auto-approve)."""
-    global _whitelist_checker
-    _whitelist_checker = checker
+    _state.whitelist_checker = checker
 
 
 def respond_to_request(request_id, outcome: str):
     """Respond to a pending agent request."""
-    future = _pending_requests.get(request_id)
+    future = _state.pending_requests.get(request_id)
     if future and not future.done():
         future.set_result(outcome)
         return True
@@ -50,9 +83,8 @@ def respond_to_request(request_id, outcome: str):
 
 
 def _next_request_id():
-    global _request_id
-    _request_id += 1
-    return _request_id
+    _state.request_id += 1
+    return _state.request_id
 
 
 async def _read_response(reader) -> dict:
@@ -69,9 +101,7 @@ async def _read_response(reader) -> dict:
 
 async def _send_request(method: str, params: dict, collect_updates: bool = False, status_callback=None) -> dict:
     """Send a JSON-RPC request and wait for response."""
-    global _agent_writer, _agent_reader
-    
-    if _agent_writer is None or _agent_reader is None:
+    if _state.agent_writer is None or _state.agent_reader is None:
         raise RuntimeError("Agent not connected")
     
     request = {
@@ -82,15 +112,15 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     }
     
     data = json.dumps(request) + "\n"
-    _agent_writer.write(data.encode())
-    await _agent_writer.drain()
+    _state.agent_writer.write(data.encode())
+    await _state.agent_writer.drain()
     
     # Collect session updates if requested
     collected_content = []  # List of content blocks (text, images, files, etc.)
     
     # Read responses until we get the one matching our request ID
     while True:
-        response = await asyncio.wait_for(_read_response(_agent_reader), timeout=300)
+        response = await asyncio.wait_for(_read_response(_state.agent_reader), timeout=300)
         
         # Handle notifications (no id) - these are one-way updates
         if "id" not in response:
@@ -146,9 +176,9 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 
                 # Check whitelist first
                 outcome = None
-                if _whitelist_checker:
+                if _state.whitelist_checker:
                     try:
-                        if await _whitelist_checker(title):
+                        if await _state.whitelist_checker(title):
                             logger.info(f"Permission auto-approved (whitelisted): {title}")
                             outcome = "approved"
                     except Exception as e:
@@ -157,11 +187,11 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 if outcome is None:
                     # Not whitelisted - wait for user response
                     future = asyncio.get_event_loop().create_future()
-                    _pending_requests[req_id] = future
+                    _state.pending_requests[req_id] = future
                     
                     # Notify UI via callback
-                    if _request_callback:
-                        await _request_callback({
+                    if _state.request_callback:
+                        await _state.request_callback({
                             "type": "permission_request",
                             "request_id": req_id,
                             "tool_call": tool_call,
@@ -175,7 +205,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         outcome = "rejected"
                         logger.warning("Permission request timed out, rejecting")
                     finally:
-                        _pending_requests.pop(req_id, None)
+                        _state.pending_requests.pop(req_id, None)
                 
                 # Build ACP-compliant response
                 # Format: {"outcome": "cancelled"} or {"outcome": "selected", "optionId": "..."}
@@ -213,8 +243,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     "result": {"outcome": outcome_obj}
                 }
                 data = json.dumps(permission_response) + "\n"
-                _agent_writer.write(data.encode())
-                await _agent_writer.drain()
+                _state.agent_writer.write(data.encode())
+                await _state.agent_writer.drain()
                 continue
                 
             elif method_name in ("fs/read_text_file", "fs/write_text_file"):
@@ -226,8 +256,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     "error": {"code": -32601, "message": "Method not supported"}
                 }
                 data = json.dumps(error_response) + "\n"
-                _agent_writer.write(data.encode())
-                await _agent_writer.drain()
+                _state.agent_writer.write(data.encode())
+                await _state.agent_writer.drain()
                 continue
             elif method_name.startswith("terminal/"):
                 # Terminal requests - we don't support these yet
@@ -238,8 +268,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     "error": {"code": -32601, "message": "Method not supported"}
                 }
                 data = json.dumps(error_response) + "\n"
-                _agent_writer.write(data.encode())
-                await _agent_writer.drain()
+                _state.agent_writer.write(data.encode())
+                await _state.agent_writer.drain()
                 continue
             else:
                 logger.warning(f"Unknown agent request: {method_name}")
@@ -322,18 +352,16 @@ def _parse_content_block(block: dict) -> dict | None:
 
 async def _ensure_agent():
     """Ensure the agent is running and initialized."""
-    global _agent_proc, _agent_reader, _agent_writer, _session_id
-    
-    async with _agent_lock:
+    async with _state.agent_lock:
         # Check if existing connection is still valid
-        if _agent_proc is not None and _agent_proc.returncode is None:
+        if _state.agent_proc is not None and _state.agent_proc.returncode is None:
             return
         
         # Clean up old state
-        _agent_proc = None
-        _agent_reader = None
-        _agent_writer = None
-        _session_id = None
+        _state.agent_proc = None
+        _state.agent_reader = None
+        _state.agent_writer = None
+        _state.session_id = None
         
         config = get_config()
         agent_cmd = config.acp_agent
@@ -350,17 +378,17 @@ async def _ensure_agent():
         logger.info(f"Starting ACP agent: {agent_cmd}")
         
         # Start the agent process
-        _agent_proc = await asyncio.create_subprocess_exec(
+        _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
         
-        _agent_reader = _agent_proc.stdout
-        _agent_writer = _agent_proc.stdin
+        _state.agent_reader = _state.agent_proc.stdout
+        _state.agent_writer = _state.agent_proc.stdin
         
-        logger.info(f"ACP agent started (PID: {_agent_proc.pid})")
+        logger.info(f"ACP agent started (PID: {_state.agent_proc.pid})")
         
         # Initialize the connection
         result = await _send_request("initialize", {
@@ -379,32 +407,30 @@ async def _ensure_agent():
             "cwd": cwd,
             "mcpServers": []
         })
-        _session_id = result.get("sessionId")
-        logger.info(f"Session created: {_session_id}")
+        _state.session_id = result.get("sessionId")
+        logger.info(f"Session created: {_state.session_id}")
 
 
 async def send_message_simple(content: str, thread_id: Optional[int] = None, status_callback=None) -> str:
     """Send a message to the agent and return the response."""
-    global _session_id
-    
     # Check if lock is already held (agent busy)
-    if _request_lock.locked():
+    if _state.request_lock.locked():
         logger.warning("Agent is busy processing another request")
         return "[Agent is busy, please wait...]"
     
     # Only one request at a time to avoid read conflicts
-    async with _request_lock:
+    async with _state.request_lock:
         try:
             await _ensure_agent()
             
-            if not _session_id:
+            if not _state.session_id:
                 return "[Error: No active session]"
             
             logger.info(f"Sending message to agent: {content[:100]}...")
             
             # Send prompt and collect session updates
             result = await _send_request("session/prompt", {
-                "sessionId": _session_id,
+                "sessionId": _state.session_id,
                 "prompt": [{"type": "text", "text": content}]
             }, collect_updates=True, status_callback=status_callback)
             
@@ -442,10 +468,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
         - text: Combined text content (str)
         - content: List of content blocks (text, image, file, etc.)
     """
-    global _session_id
-    
     # Check if lock is already held (agent busy)
-    if _request_lock.locked():
+    if _state.request_lock.locked():
         logger.warning("Agent is busy processing another request")
         return {
             "text": "[Agent is busy, please wait...]",
@@ -453,11 +477,11 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
         }
     
     # Only one request at a time to avoid read conflicts
-    async with _request_lock:
+    async with _state.request_lock:
         try:
             await _ensure_agent()
             
-            if not _session_id:
+            if not _state.session_id:
                 return {
                     "text": "[Error: No active session]",
                     "content": [{"type": "text", "text": "[Error: No active session]"}]
@@ -467,7 +491,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             
             # Send prompt and collect session updates
             result = await _send_request("session/prompt", {
-                "sessionId": _session_id,
+                "sessionId": _state.session_id,
                 "prompt": [{"type": "text", "text": content}]
             }, collect_updates=True, status_callback=status_callback)
             
@@ -534,7 +558,7 @@ async def send_message(content: str, thread_id: Optional[int] = None) -> AsyncIt
 
 def is_agent_running() -> bool:
     """Check if the agent is currently running."""
-    return _agent_proc is not None and _agent_proc.returncode is None
+    return _state.agent_proc is not None and _state.agent_proc.returncode is None
 
 
 async def start_agent() -> bool:
@@ -549,21 +573,19 @@ async def start_agent() -> bool:
 
 async def stop_agent():
     """Stop the agent process."""
-    global _agent_proc, _agent_reader, _agent_writer, _session_id
-    
-    async with _agent_lock:
-        if _agent_proc is not None:
+    async with _state.agent_lock:
+        if _state.agent_proc is not None:
             try:
-                _agent_proc.terminate()
-                await asyncio.wait_for(_agent_proc.wait(), timeout=5.0)
+                _state.agent_proc.terminate()
+                await asyncio.wait_for(_state.agent_proc.wait(), timeout=5.0)
             except asyncio.TimeoutError:
-                _agent_proc.kill()
+                _state.agent_proc.kill()
             except Exception:
                 pass
             
             logger.info("ACP agent stopped")
         
-        _agent_proc = None
-        _agent_reader = None
-        _agent_writer = None
-        _session_id = None
+        _state.agent_proc = None
+        _state.agent_reader = None
+        _state.agent_writer = None
+        _state.session_id = None

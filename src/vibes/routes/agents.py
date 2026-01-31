@@ -1,6 +1,5 @@
 """ACP agent route handlers."""
 
-import asyncio
 import base64
 import json
 import logging
@@ -9,8 +8,9 @@ from ..db import get_db
 from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
 from ..acp_client import (
-    send_message_multimodal, is_agent_running, start_agent,
-    set_request_callback, set_whitelist_checker, respond_to_request
+    send_message_multimodal, is_agent_running,
+    set_request_callback, set_whitelist_checker, respond_to_request,
+    prompt_from_action
 )
 from ..tasks import enqueue
 from .sse import broadcast_event
@@ -162,10 +162,10 @@ async def _store_media_block(db, block: dict) -> int | None:
             else:
                 data = block["data"].encode() if isinstance(block["data"], str) else block["data"]
         elif "url" in block:
-            # For URL-based content, we could fetch it or just store the URL
-            # For now, store a reference
+            from ..opengraph import download_and_cache_image
             logger.info(f"Media block has URL: {block['url']}")
-            # TODO: Optionally fetch and cache the content
+            if mime_type.startswith("image/"):
+                return await download_and_cache_image(block["url"])
             return None
         
         if not data:
@@ -251,12 +251,17 @@ async def trigger_action(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         data = {}
 
-    # TODO: Implement custom actions via ACP
+    prompt = prompt_from_action(action_id, data.get("params"))
+    if not prompt:
+        return web.json_response({"error": "Unknown action"}, status=404)
+    thread_id = data.get("thread_id")
+    if not thread_id:
+        return web.json_response({"error": "Missing thread_id"}, status=400)
+    enqueue(process_agent_response, thread_id, prompt, agent_id)
     return web.json_response({
-        "status": "triggered",
+        "status": "queued",
         "agent_id": agent_id,
-        "action_id": action_id,
-        "params": data
+        "action_id": action_id
     })
 
 
