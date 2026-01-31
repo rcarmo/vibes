@@ -157,6 +157,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     post_tool_content = []  # Content blocks after a tool call begins
     current_tool_title = None
     saw_tool_call = False
+
+    # Some agents stream snapshots (cumulative text), others stream deltas.
+    # Track the currently displayed draft text so we can pick replace vs append.
+    last_draft_text: str | None = None
     
     # Read responses until we get the one matching our request ID
     while True:
@@ -211,8 +215,21 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                                 if segment_kind in ("think", "thought", "intent", "segment", "thinking"):
                                     await status_callback({"type": "thought_chunk", "text": text})
                                 else:
-                                    # Many agents send snapshots (cumulative text); replace avoids duplication.
-                                    await status_callback({"type": "message_chunk", "text": text, "kind": "draft", "mode": "replace"})
+                                    mode = "replace"
+                                    if last_draft_text is not None and text and not text.startswith(last_draft_text):
+                                        mode = "append"
+
+                                    await status_callback({
+                                        "type": "message_chunk",
+                                        "text": text,
+                                        "kind": "draft",
+                                        "mode": mode,
+                                    })
+
+                                    if mode == "replace":
+                                        last_draft_text = text
+                                    else:
+                                        last_draft_text = (last_draft_text or "") + text
                     elif session_update_type == "agent_thought_chunk":
                         # Stream agent thought chunks to UI
                         content = update.get("content", {})
@@ -255,10 +272,15 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         if saw_tool_call:
                             pre_tool_content.clear()
 
-                        # Avoid accumulating repeated snapshot chunks.
+                        # Avoid accumulating repeated snapshot chunks, but still support delta streams.
                         if session_update_type == "agent_message_chunk" and block.get("type") == "text":
                             if target_list and target_list[-1].get("type") == "text":
-                                target_list[-1] = block
+                                prev = target_list[-1].get("text") or ""
+                                curr = block.get("text") or ""
+                                if curr and curr.startswith(prev):
+                                    target_list[-1] = block
+                                else:
+                                    target_list.append(block)
                             else:
                                 target_list.append(block)
                         else:

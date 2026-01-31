@@ -189,6 +189,52 @@ class TestAcpClient:
         assert result["_collected_text"] == "World"
 
     @pytest.mark.asyncio
+    async def test_send_request_collects_delta_chunks(self):
+        """Test that delta-style agent_message_chunk streams are accumulated."""
+        mock_writer = AsyncMock()
+        mock_reader = AsyncMock()
+
+        mock_writer.write = MagicMock()
+        mock_writer.drain = AsyncMock()
+
+        notification_1 = {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "agent_message_chunk",
+                    "content": {"type": "text", "text": "Hello "}
+                }
+            }
+        }
+        notification_2 = {
+            "jsonrpc": "2.0",
+            "method": "session/update",
+            "params": {
+                "update": {
+                    "sessionUpdate": "agent_message_chunk",
+                    "content": {"type": "text", "text": "World"}
+                }
+            }
+        }
+        response = {"jsonrpc": "2.0", "id": 1, "result": {}}
+
+        responses = [
+            json.dumps(notification_1).encode() + b'\n',
+            json.dumps(notification_2).encode() + b'\n',
+            json.dumps(response).encode() + b'\n',
+        ]
+        mock_reader.readline = AsyncMock(side_effect=responses)
+
+        state = acp_client.get_state()
+        state.agent_writer = mock_writer
+        state.agent_reader = mock_reader
+        state.request_id = 0
+
+        result = await acp_client._send_request("test", {}, collect_updates=True)
+        assert result["_collected_text"] == "Hello World"
+
+    @pytest.mark.asyncio
     async def test_send_request_with_status_callback(self):
         """Test that status callback is called for tool_call updates."""
         mock_writer = AsyncMock()
