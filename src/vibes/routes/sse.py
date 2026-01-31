@@ -6,8 +6,12 @@ from typing import Any
 from aiohttp import web
 from aiohttp.client_exceptions import ClientConnectionResetError
 
+from ..acp_client import stop_agent, start_agent
+from ..config import get_config
+
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
+_restart_task: asyncio.Task | None = None
 
 
 async def broadcast_event(event_type: str, data: Any) -> None:
@@ -23,6 +27,35 @@ async def broadcast_event(event_type: str, data: Any) -> None:
     
     # Clean up disconnected clients
     _clients.difference_update(disconnected)
+
+
+async def _restart_agent_after_disconnect(delay_s: int) -> None:
+    try:
+        await asyncio.sleep(delay_s)
+        if _clients:
+            return
+        await stop_agent()
+        await start_agent()
+    except asyncio.CancelledError:
+        raise
+
+
+def _schedule_restart_if_needed() -> None:
+    global _restart_task
+    if _clients:
+        if _restart_task and not _restart_task.done():
+            _restart_task.cancel()
+        _restart_task = None
+        return
+
+    if _restart_task and not _restart_task.done():
+        return
+
+    delay_s = get_config().agent_restart_on_disconnect_s
+    if delay_s <= 0:
+        return
+
+    _restart_task = asyncio.create_task(_restart_agent_after_disconnect(delay_s))
 
 
 async def sse_stream(request: web.Request) -> web.StreamResponse:
@@ -42,6 +75,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     # Create client queue
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _clients.add(queue)
+    _schedule_restart_if_needed()
     
     try:
         # Send initial connection event
@@ -63,6 +97,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
         pass
     finally:
         _clients.discard(queue)
+        _schedule_restart_if_needed()
     
     return response
 

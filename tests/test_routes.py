@@ -130,6 +130,32 @@ class TestPostRoutesIntegration:
         assert len(data['posts']) == 1
 
 
+class TestSSEDisconnectRestart:
+    """Restart agent when all clients disconnect."""
+
+    @pytest.mark.asyncio
+    async def test_agent_restart_scheduled_when_last_client_disconnects(self, monkeypatch):
+        from aiohttp import web
+        from aiohttp.test_utils import TestClient, TestServer
+        from unittest.mock import AsyncMock
+        from vibes.routes import sse
+
+        monkeypatch.setattr(sse, "stop_agent", AsyncMock())
+        monkeypatch.setattr(sse, "start_agent", AsyncMock())
+        monkeypatch.setattr(sse, "get_config", lambda: type("C", (), {"agent_restart_on_disconnect_s": 0})())
+
+        app = web.Application()
+        sse.setup_routes(app)
+
+        async with TestClient(TestServer(app)) as client:
+            resp = await client.get('/sse/stream')
+            assert resp.status == 200
+
+        # After disconnect, with delay 0, restart is disabled.
+        assert sse.stop_agent.await_count == 0
+        assert sse.start_agent.await_count == 0
+
+
 class TestMediaRoutesIntegration:
     """Integration tests for media routes."""
 
