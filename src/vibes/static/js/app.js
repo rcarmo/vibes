@@ -272,7 +272,8 @@ function ComposeBox({ onPost, onFocus }) {
     };
     
     const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
             handleSubmit();
         }
     };
@@ -296,7 +297,7 @@ function ComposeBox({ onPost, onFocus }) {
             <div class="compose-input-wrapper">
                 <textarea
                     ref=${textareaRef}
-                    placeholder="Message..."
+                    placeholder="Message (Enter to send, Shift+Enter for newline)..."
                     value=${content}
                     onInput=${handleInput}
                     onKeyDown=${handleKeyDown}
