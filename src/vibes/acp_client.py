@@ -145,8 +145,9 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                     elif session_update_type == "agent_message_chunk":
                         # Stream agent message chunks to UI
                         content = update.get("content", {})
-                        if content.get("type") == "text":
-                            text = content.get("text", "")
+                        chunk_content = content.get("content", content)
+                        if chunk_content.get("type") == "text":
+                            text = chunk_content.get("text", "")
                             if text:
                                 await status_callback({"type": "message_chunk", "text": text, "kind": "draft"})
                     elif session_update_type == "plan":
@@ -307,13 +308,13 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
 def _collect_content_blocks(content, collected: list):
     """Extract content blocks from ACP content (handles dict or list)."""
     if isinstance(content, dict):
-        block = _parse_content_block(content)
+        block = _parse_content_block(content.get("content", content))
         if block:
             collected.append(block)
     elif isinstance(content, list):
         for item in content:
             if isinstance(item, dict):
-                block = _parse_content_block(item)
+                block = _parse_content_block(item.get("content", item))
                 if block:
                     collected.append(block)
 
