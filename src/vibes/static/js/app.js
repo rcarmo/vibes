@@ -185,102 +185,6 @@ function useTimestampRefresh(intervalMs = 30000) {
 }
 
 /**
- * Detect iOS (iPhone, iPad, iPod)
- * Note: iPad on iOS 13+ reports as 'MacIntel' with touch support
- */
-function isIOS() {
-    // Check for iOS devices by userAgent
-    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-        return true;
-    }
-    // iPad on iOS 13+ with desktop Safari: 'MacIntel' platform + touch + no mouse pointer
-    // But Mac laptops with trackpad also have touch points, so also check for standalone mode
-    // which is only available on actual iOS devices
-    if (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) {
-        // Additional check: actual Macs don't have standalone mode
-        return 'standalone' in navigator;
-    }
-    return false;
-}
-
-/**
- * Check if notifications are supported (excludes iOS which has poor PWA notification support)
- */
-function notificationsSupported() {
-    if (isIOS()) {
-        console.log('Notifications disabled: iOS detected');
-        return false;
-    }
-    const supported = 'Notification' in window;
-    console.log('Notifications API supported:', supported);
-    return supported;
-}
-
-/**
- * Request notification permission
- */
-async function requestNotificationPermission() {
-    if (!notificationsSupported()) {
-        console.log('Notifications not supported on this platform');
-        return false;
-    }
-    
-    console.log('Current notification permission:', Notification.permission);
-    
-    if (Notification.permission === 'granted') {
-        console.log('Notifications already granted');
-        return true;
-    }
-    
-    if (Notification.permission !== 'denied') {
-        console.log('Requesting notification permission...');
-        const permission = await Notification.requestPermission();
-        console.log('Permission result:', permission);
-        return permission === 'granted';
-    }
-    
-    console.log('Notifications were previously denied');
-    return false;
-}
-
-/**
- * Show desktop notification
- */
-function showNotification(title, body, onClick) {
-    if (!notificationsSupported()) {
-        console.log('Notifications not supported');
-        return;
-    }
-    if (Notification.permission !== 'granted') {
-        console.log('Notification permission not granted:', Notification.permission);
-        return;
-    }
-    
-    console.log('Showing notification:', title, body);
-    const notification = new Notification(title, {
-        body: body,
-        icon: '/static/icon-192.png',
-        badge: '/static/icon-192.png',
-        tag: 'vibes-notification',
-        renotify: true
-    });
-    
-    notification.onclick = () => {
-        window.focus();
-        notification.close();
-        onClick?.();
-    };
-}
-
-/**
- * Check if content mentions user with @
- */
-function hasMention(content) {
-    // Match @user, @me, @you or similar patterns
-    return /@\w+/i.test(content);
-}
-
-/**
  * Get avatar letter and color from name
  * Returns object with { letter, color }
  */
@@ -340,35 +244,6 @@ function updateThemeColor(dark) {
     if (meta) {
         meta.setAttribute('content', color);
     }
-}
-
-/**
- * Theme toggle component
- */
-function ThemeToggle() {
-    const [dark, setDark] = useState(() => {
-        const stored = localStorage.getItem('theme');
-        if (stored) return stored === 'dark';
-        return window.matchMedia('(prefers-color-scheme: dark)').matches;
-    });
-    
-    useEffect(() => {
-        document.body.classList.toggle('dark', dark);
-        document.body.classList.toggle('light', !dark);
-        localStorage.setItem('theme', dark ? 'dark' : 'light');
-        updateThemeColor(dark);
-    }, [dark]);
-    
-    // Set initial theme color
-    useEffect(() => {
-        updateThemeColor(dark);
-    }, []);
-    
-    return html`
-        <button class="theme-toggle floating-btn" onClick=${() => setDark(!dark)} title="Toggle theme">
-            ${dark ? html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>` : html`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`}
-        </button>
-    `;
 }
 
 /**
@@ -1145,9 +1020,6 @@ function App() {
     const [currentHashtag, setCurrentHashtag] = useState(null);
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
-    const [notificationsEnabled, setNotificationsEnabled] = useState(
-        notificationsSupported() && Notification.permission === 'granted'
-    );
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState('');
     const [agentPlan, setAgentPlan] = useState('');
@@ -1155,7 +1027,6 @@ function App() {
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
     const timelineRef = useRef(null);
-    const showNotificationButton = notificationsSupported();
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
@@ -1166,18 +1037,6 @@ function App() {
             timelineRef.current.scrollTop = 0;
         }
     }, []);
-    
-    // Request notification permission on first interaction
-    const enableNotifications = useCallback(async () => {
-        if (notificationsEnabled) {
-            setNotificationsEnabled(false);
-            return;
-        }
-        console.log('enableNotifications clicked!');
-        const granted = await requestNotificationPermission();
-        console.log('Permission granted:', granted);
-        setNotificationsEnabled(granted);
-    }, [notificationsEnabled]);
     
     // Load timeline or hashtag posts
     const loadPosts = useCallback(async (hashtag = null) => {
@@ -1351,20 +1210,6 @@ function App() {
                     setPosts(prev => prev ? prev.map(p => p.id === data.id ? data : p) : prev);
                 }
                 
-                // Show notifications for replies and mentions (only when window not focused)
-                if (document.hidden && notificationsEnabled) {
-                    const content = data.data?.content || '';
-                    const isReply = eventType === 'new_reply' || data.data?.thread_id;
-                    const isAgentResponse = eventType === 'agent_response';
-                    const hasMentionInContent = hasMention(content);
-                    
-                    if (isReply || isAgentResponse || hasMentionInContent) {
-                        const author = isAgentResponse ? 'Agent' : 'Reply';
-                        const title = hasMentionInContent ? `${author} mentioned you` : `New ${author.toLowerCase()}`;
-                        const body = content.length > 100 ? content.substring(0, 100) + '...' : content;
-                        showNotification(title, body);
-                    }
-                }
             },
             setConnectionStatus
         );
@@ -1372,26 +1217,10 @@ function App() {
         sse.connect();
         
         return () => sse.disconnect();
-    }, [loadPosts, notificationsEnabled]);
+    }, [loadPosts]);
     
     return html`
         <div class="container">
-            <div class="floating-controls">
-                ${showNotificationButton && html`
-                    <button 
-                        class="floating-btn ${notificationsEnabled ? 'enabled' : ''}" 
-                        onClick=${enableNotifications}
-                        title=${notificationsEnabled ? 'Notifications enabled' : 'Enable notifications'}
-                    >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-                            <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-                            ${!notificationsEnabled && html`<line x1="1" y1="1" x2="23" y2="23"/>`}
-                        </svg>
-                    </button>
-                `}
-                <${ThemeToggle} />
-            </div>
             <${SearchBar} 
                 onSearch=${handleSearch} 
                 isOpen=${searchOpen} 
