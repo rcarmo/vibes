@@ -739,11 +739,11 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
 /**
  * Timeline component (chat style - uses column-reverse for smooth prepending)
  */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, reverse = true }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
-        if (!reverse || !onLoadMore) return;
+        if (!onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
         // In column-reverse, scrollTop is negative or we check distance from "top" (which is visual bottom)
         // scrollTop of 0 means we're at the bottom, negative means scrolled up
@@ -774,11 +774,11 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
         `;
     }
     
-    // Sort posts by id (oldest first) for reverse (chat-style) view
-    const displayPosts = reverse ? posts.slice().sort((a, b) => a.id - b.id) : posts;
+    // Sort posts by id (oldest first)
+    const displayPosts = posts.slice().sort((a, b) => a.id - b.id);
     
     return html`
-        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${handleScroll}>
+        <div class="timeline" ref=${timelineRef} onScroll=${handleScroll}>
             <div class="timeline-content">
                 ${hasMore && html`
                     <button class="load-more-btn" onClick=${onLoadMore} disabled=${loadingMore}>
@@ -1027,7 +1027,7 @@ function App() {
     // Scroll to bottom of timeline (with column-reverse, scrollTop=0 is bottom)
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
-            timelineRef.current.scrollTop = 0;
+            timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
         }
     }, []);
     
@@ -1062,7 +1062,7 @@ function App() {
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
                 // Simply prepend - column-reverse handles scroll position
-                setPosts(prev => [...result.posts, ...prev]);
+                setPosts(prev => [...(prev || []), ...result.posts]);
                 setHasMore(result.has_more);
             } else {
                 setHasMore(false);
@@ -1282,7 +1282,7 @@ function App() {
                 // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
                 if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
                     setPosts(prev => prev ? [...prev, data] : [data]);
-                    // With column-reverse, new items at end appear at visual bottom automatically
+                    scrollToBottom();
                 }
                 // Update existing post (e.g., when link previews are fetched)
                 if (eventType === 'interaction_updated') {
@@ -1318,11 +1318,10 @@ function App() {
                 onPostClick=${searchQuery ? (post) => navigateToSearchResult(post.id) : undefined}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
-                reverse=${!(searchQuery && !currentHashtag) && !navigationActive}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
             <${ComposeBox} 
-                onPost=${() => { loadPosts(); }}
+                onPost=${() => { loadPosts(); scrollToBottom(); }}
                 onFocus=${scrollToBottom}
                 searchMode=${searchOpen}
                 onSearch=${handleSearch}
