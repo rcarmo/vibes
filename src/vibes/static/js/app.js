@@ -260,8 +260,9 @@ function updateThemeColor(dark) {
 /**
  * Compose box component
  */
-function ComposeBox({ onPost, onFocus }) {
+function ComposeBox({ onPost, onFocus, searchMode, onSearch, onEnterSearch, onExitSearch }) {
     const [content, setContent] = useState('');
+    const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
     const textareaRef = useRef(null);
@@ -295,7 +296,13 @@ function ComposeBox({ onPost, onFocus }) {
     const handleKeyDown = (e) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
-            handleSubmit();
+            if (searchMode) {
+                if (searchText.trim()) {
+                    onSearch?.(searchText.trim());
+                }
+            } else {
+                handleSubmit();
+            }
         }
     };
     
@@ -305,7 +312,12 @@ function ComposeBox({ onPost, onFocus }) {
     
     // Auto-resize textarea
     const handleInput = (e) => {
-        setContent(e.target.value);
+        const value = e.target.value;
+        if (searchMode) {
+            setSearchText(value);
+        } else {
+            setContent(value);
+        }
         const textarea = textareaRef.current;
         if (textarea) {
             textarea.style.height = 'auto';
@@ -318,8 +330,8 @@ function ComposeBox({ onPost, onFocus }) {
             <div class="compose-input-wrapper">
                 <textarea
                     ref=${textareaRef}
-                    placeholder="Message (Enter to send, Shift+Enter for newline)..."
-                    value=${content}
+                    placeholder=${searchMode ? "Search (Enter to run)..." : "Message (Enter to send, Shift+Enter for newline)..."}
+                    value=${searchMode ? searchText : content}
                     onInput=${handleInput}
                     onKeyDown=${handleKeyDown}
                     onFocus=${onFocus}
@@ -327,19 +339,37 @@ function ComposeBox({ onPost, onFocus }) {
                     disabled=${loading}
                     rows="1"
                 />
-                <div class="compose-actions">
-                    <label class="icon-btn" title="Attach image">
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                        <input type="file" accept="image/*" multiple hidden onChange=${handleFileChange} />
-                    </label>
-                    <button 
-                        class="icon-btn send-btn" 
-                        onClick=${handleSubmit}
-                        disabled=${loading || (!content.trim() && mediaFiles.length === 0)}
-                        title="Send (Ctrl+Enter)"
+                <div class="compose-actions ${searchMode ? 'search-mode' : ''}">
+                    <button
+                        class="icon-btn search-toggle"
+                        onClick=${searchMode ? onExitSearch : onEnterSearch}
+                        title=${searchMode ? "Close search" : "Search"}
                     >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        ${searchMode ? html`
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 6L6 18M6 6l12 12"/>
+                            </svg>
+                        ` : html`
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <circle cx="11" cy="11" r="8"/>
+                                <path d="M21 21l-4.35-4.35"/>
+                            </svg>
+                        `}
                     </button>
+                    ${!searchMode && html`
+                        <label class="icon-btn" title="Attach image">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <input type="file" accept="image/*" multiple hidden onChange=${handleFileChange} />
+                        </label>
+                        <button 
+                            class="icon-btn send-btn" 
+                            onClick=${handleSubmit}
+                            disabled=${loading || (!content.trim() && mediaFiles.length === 0)}
+                            title="Send (Ctrl+Enter)"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                        </button>
+                    `}
                 </div>
             </div>
             ${mediaFiles.length > 0 && html`
@@ -958,76 +988,6 @@ function AgentRequestModal({ request, onRespond }) {
 }
 
 /**
- * Search bar component (toggleable)
- */
-function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
-    const [query, setQuery] = useState('');
-    const inputRef = useRef(null);
-    
-    useEffect(() => {
-        if (isOpen && inputRef.current) {
-            inputRef.current.focus();
-        }
-    }, [isOpen]);
-    
-    const handleSubmit = (e) => {
-        e.preventDefault();
-        if (query.trim()) {
-            onSearch(query.trim());
-            onClose();
-        }
-    };
-    
-    const handleKeyDown = (e) => {
-        if (e.key === 'Escape') {
-            onClose();
-        }
-    };
-    
-    if (!isOpen) {
-        return html`
-            <button
-                type="button"
-                class="floating-btn search-toggle search-float ${isIOSDevice() ? 'ios-bottom' : ''}"
-                onClick=${onOpen}
-                title="Search"
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <path d="M21 21l-4.35-4.35"/>
-                </svg>
-            </button>
-        `;
-    }
-
-    return html`
-        <div class="search-row open ${isIOSDevice() ? 'ios-bottom' : ''}">
-            <form class="search-bar" onSubmit=${handleSubmit}>
-                <input
-                    ref=${inputRef}
-                    type="search"
-                    class="search-input"
-                    placeholder="Search posts..."
-                    value=${query}
-                    onInput=${(e) => setQuery(e.target.value)}
-                    onKeyDown=${handleKeyDown}
-                />
-            </form>
-            <button
-                type="button"
-                class="floating-btn search-toggle"
-                onClick=${onClose}
-                title="Close search"
-            >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                    <path d="M18 6L6 18M6 6l12 12"/>
-                </svg>
-            </button>
-        </div>
-    `;
-}
-
-/**
  * Connection status indicator
  */
 function ConnectionStatus({ status }) {
@@ -1151,6 +1111,19 @@ function App() {
             setPosts([]);
         }
     }, []);
+    
+    const enterSearchMode = useCallback(() => {
+        setSearchOpen(true);
+        setSearchQuery(null);
+        setCurrentHashtag(null);
+        setPosts([]);
+    }, []);
+    
+    const exitSearchMode = useCallback(() => {
+        setSearchOpen(false);
+        setSearchQuery(null);
+        loadPosts();
+    }, [loadPosts]);
 
     useEffect(() => {
         getAgents()
@@ -1251,12 +1224,6 @@ function App() {
     
     return html`
         <div class="container">
-            <${SearchBar} 
-                onSearch=${handleSearch} 
-                isOpen=${searchOpen} 
-                onClose=${() => setSearchOpen(false)} 
-                onOpen=${() => setSearchOpen(true)}
-            />
             ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
             ${(currentHashtag || searchQuery) && html`
                 <div class="hashtag-header">
@@ -1277,7 +1244,14 @@ function App() {
                 reverse=${!(searchQuery && !currentHashtag)}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
-            ${!currentHashtag && !searchQuery && html`<${ComposeBox} onPost=${() => { loadPosts(); }} onFocus=${scrollToBottom} />`}
+            <${ComposeBox} 
+                onPost=${() => { loadPosts(); }}
+                onFocus=${scrollToBottom}
+                searchMode=${searchOpen}
+                onSearch=${handleSearch}
+                onEnterSearch=${enterSearchMode}
+                onExitSearch=${exitSearchMode}
+            />
             <${ConnectionStatus} status=${connectionStatus} />
             <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
         </div>
