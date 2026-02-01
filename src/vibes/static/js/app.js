@@ -1131,27 +1131,34 @@ function App() {
         const element = document.getElementById(`post-${postId}`);
         if (!element) return;
         const container = timelineRef.current;
-        if (container) {
-            const elementOffset = element.offsetTop;
-            const elementHeight = element.offsetHeight;
-            const containerHeight = container.clientHeight;
-            const isReverse = container.classList.contains('reverse');
-            let targetTop;
-            if (isReverse) {
-                const fromBottom = container.scrollHeight - elementOffset - elementHeight;
-                targetTop = fromBottom - (containerHeight / 2 - elementHeight / 2);
-            } else {
-                targetTop = elementOffset - (containerHeight / 2 - elementHeight / 2);
-            }
-            const maxTop = Math.max(0, container.scrollHeight - containerHeight);
-            const clampedTop = Math.max(0, Math.min(maxTop, targetTop));
-            container.scrollTo({ top: clampedTop, behavior: 'smooth' });
-        } else {
+        const highlight = () => {
+            element.classList.remove('search-highlight');
+            void element.offsetWidth; // restart animation
+            element.classList.add('search-highlight');
+        };
+        if (!container) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            highlight();
+            return;
         }
-        element.classList.remove('search-highlight');
-        void element.offsetWidth; // restart animation
-        element.classList.add('search-highlight');
+        const centerInContainer = () => {
+            const containerRect = container.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            const containerCenter = containerRect.top + containerRect.height / 2;
+            const elementCenter = elementRect.top + elementRect.height / 2;
+            const delta = elementCenter - containerCenter;
+            if (Math.abs(delta) > 1) {
+                container.scrollBy({ top: delta, behavior: 'smooth' });
+            }
+        };
+        // Use rAF to ensure layout is settled before centering.
+        requestAnimationFrame(() => {
+            centerInContainer();
+            requestAnimationFrame(() => {
+                centerInContainer();
+                highlight();
+            });
+        });
     }, [timelineRef]);
 
     const navigateToSearchResult = useCallback(async (postId) => {
