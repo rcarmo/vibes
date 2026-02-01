@@ -1147,8 +1147,10 @@ function App() {
             const containerCenter = containerRect.top + containerRect.height / 2;
             const elementCenter = elementRect.top + elementRect.height / 2;
             const delta = elementCenter - containerCenter;
-            if (Math.abs(delta) > 1) {
-                container.scrollBy({ top: delta, behavior: 'smooth' });
+            const isReverse = container.classList.contains('reverse');
+            const adjustedDelta = isReverse ? -delta : delta;
+            if (Math.abs(adjustedDelta) > 1) {
+                container.scrollBy({ top: adjustedDelta, behavior: 'smooth' });
             }
         };
         // Use rAF to ensure layout is settled before centering.
