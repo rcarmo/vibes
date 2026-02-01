@@ -1135,7 +1135,9 @@ function App() {
             const containerRect = container.getBoundingClientRect();
             const elementRect = element.getBoundingClientRect();
             const offset = (elementRect.top - containerRect.top) - (containerRect.height / 2 - elementRect.height / 2);
-            container.scrollTo({ top: container.scrollTop + offset, behavior: 'smooth' });
+            const isReverse = container.classList.contains('reverse');
+            const targetTop = isReverse ? container.scrollTop - offset : container.scrollTop + offset;
+            container.scrollTo({ top: targetTop, behavior: 'smooth' });
         } else {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
