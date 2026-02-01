@@ -31,10 +31,12 @@ function decodeEntities(text) {
 function renderMath(html_content) {
     if (!window.katex) return html_content;
     
+    const decodeMath = (value) => decodeEntities(value).replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
+
     // Process display math first ($$...$$) - must not be inside code blocks
     html_content = html_content.replace(/\$\$([\s\S]+?)\$\$/g, (match, tex) => {
         try {
-            return katex.renderToString(tex.trim(), { displayMode: true, throwOnError: false });
+            return katex.renderToString(decodeMath(tex.trim()), { displayMode: true, throwOnError: false });
         } catch (e) {
             return `<span class="math-error" title="${e.message}">${match}</span>`;
         }
@@ -45,7 +47,7 @@ function renderMath(html_content) {
         // Skip if it looks like currency ($ followed by number)
         if (/^\d/.test(tex.trim())) return match;
         try {
-            return katex.renderToString(tex.trim(), { displayMode: false, throwOnError: false });
+            return katex.renderToString(decodeMath(tex.trim()), { displayMode: false, throwOnError: false });
         } catch (e) {
             return `<span class="math-error" title="${e.message}">${match}</span>`;
         }
@@ -745,7 +747,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const handleScroll = useCallback(async (e) => {
         if (!onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const distanceFromTop = scrollTop;
+        const distanceFromTop = scrollHeight - clientHeight + scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
         
         if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
@@ -1013,18 +1015,15 @@ function App() {
     const [agentThought, setAgentThought] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
-    const [pendingScrollId, setPendingScrollId] = useState(null);
     const timelineRef = useRef(null);
-    const navigatingRef = useRef(false);
-    const navigationActive = pendingScrollId !== null;
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
     
-    // Scroll to bottom of timeline
+    // Scroll to bottom of timeline (column-reverse: bottom is scrollTop=0)
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
-            timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
+            timelineRef.current.scrollTop = 0;
         }
     }, []);
     
@@ -1045,7 +1044,7 @@ function App() {
         }
     }, []);
     
-    // Load older messages
+    // Load older messages (prepend)
     const loadMore = useCallback(async () => {
         if (!posts || posts.length === 0) return;
         
@@ -1058,7 +1057,7 @@ function App() {
             const result = await getTimeline(5, oldestId);
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
-                setPosts(prev => [...(prev || []), ...result.posts]);
+                setPosts(prev => [...result.posts, ...(prev || [])]);
                 setHasMore(result.has_more);
             } else {
                 setHasMore(false);
@@ -1124,78 +1123,7 @@ function App() {
         loadPosts();
     }, [loadPosts]);
 
-    const scrollToPost = useCallback((postId) => {
-        const element = document.getElementById(`post-${postId}`);
-        if (!element) return;
-        const container = timelineRef.current;
-        const highlight = () => {
-            element.classList.remove('search-highlight');
-            void element.offsetWidth; // restart animation
-            element.classList.add('search-highlight');
-        };
-        if (!container) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            highlight();
-            return;
-        }
-        const centerInContainer = () => {
-            const containerRect = container.getBoundingClientRect();
-            const elementRect = element.getBoundingClientRect();
-            const containerCenter = containerRect.top + containerRect.height / 2;
-            const elementCenter = elementRect.top + elementRect.height / 2;
-            const delta = elementCenter - containerCenter;
-            if (Math.abs(delta) > 1) {
-                container.scrollBy({ top: delta, behavior: 'smooth' });
-            }
-        };
-        // Use rAF to ensure layout is settled before centering.
-        requestAnimationFrame(() => {
-            centerInContainer();
-            requestAnimationFrame(() => {
-                centerInContainer();
-                highlight();
-            });
-        });
-    }, [timelineRef]);
-
-    const navigateToSearchResult = useCallback(async (postId) => {
-        if (!postId) return;
-        setSearchOpen(false);
-        setSearchQuery(null);
-        setCurrentHashtag(null);
-        setPendingScrollId(postId);
-        setPosts(null);
-        loadPosts();
-    }, [loadPosts]);
-
-    useEffect(() => {
-        if (!pendingScrollId || searchQuery || currentHashtag) return;
-        if (!posts || posts.length === 0) return;
-        const element = document.getElementById(`post-${pendingScrollId}`);
-        if (element) {
-            scrollToPost(pendingScrollId);
-            setPendingScrollId(null);
-            return;
-        }
-        if (!hasMore || navigatingRef.current) return;
-        const loadOlder = async () => {
-            navigatingRef.current = true;
-            try {
-                const sortedPosts = posts.slice().sort((a, b) => a.id - b.id);
-                const oldestId = sortedPosts[0]?.id;
-                if (!oldestId) return;
-                const older = await getTimeline(10, oldestId);
-                if (older.posts.length === 0) return;
-                setPosts((prev) => [...older.posts, ...(prev || [])]);
-                setHasMore(older.has_more);
-            } catch (error) {
-                console.error('Failed to load older posts for navigation:', error);
-            } finally {
-                navigatingRef.current = false;
-            }
-        };
-        loadOlder();
-    }, [pendingScrollId, searchQuery, currentHashtag, posts, hasMore, scrollToPost]);
+    const navigateToSearchResult = useCallback(() => {}, []);
 
     useEffect(() => {
         getAgents()
@@ -1308,10 +1236,10 @@ function App() {
             <${Timeline} 
                 posts=${posts}
                 hasMore=${hasMore}
-                onLoadMore=${navigationActive ? undefined : loadMore}
+                onLoadMore=${loadMore}
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
-                onPostClick=${searchQuery ? (post) => navigateToSearchResult(post.id) : undefined}
+                onPostClick=${undefined}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
             />

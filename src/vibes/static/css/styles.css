@@ -296,7 +296,7 @@ body {
     flex: 1;
     overflow-y: auto;
     display: flex;
-    flex-direction: column;
+    flex-direction: column-reverse;
 }
 
 /* Wrapper to hold posts in correct order inside column-reverse container */
