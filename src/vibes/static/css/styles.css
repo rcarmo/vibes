@@ -156,6 +156,16 @@ body {
     z-index: 10;
 }
 
+.search-row.ios-bottom {
+    position: fixed;
+    top: auto;
+    bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    right: 0;
+    border-top: 1px solid var(--border-color);
+    border-bottom: none;
+}
+
 .search-toggle {
     flex: 0 0 auto;
 }
@@ -173,6 +183,11 @@ body {
     z-index: 20;
 }
 
+.search-float.ios-bottom {
+    top: auto;
+    bottom: calc(var(--spacing-sm) + env(safe-area-inset-bottom, 0px));
+}
+
 .search-input {
     flex: 1 1 auto;
     width: 100%;
@@ -188,6 +203,12 @@ body {
 .search-input:focus {
     outline: none;
     border-color: var(--accent-color);
+}
+
+/* Spacer to keep top padding for search results on iOS */
+.search-results-spacer {
+    height: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px));
+    flex-shrink: 0;
 }
 
 /* Search bar has no buttons */

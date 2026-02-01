@@ -173,6 +173,13 @@ function formatTime(timestamp) {
 }
 
 /**
+ * Detect iOS devices for layout adjustments.
+ */
+function isIOSDevice() {
+    return /iPad|iPhone/.test(navigator.userAgent);
+}
+
+/**
  * Hook to force re-render for updating timestamps
  */
 function useTimestampRefresh(intervalMs = 30000) {
@@ -977,7 +984,7 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
         return html`
             <button
                 type="button"
-                class="floating-btn search-toggle search-float"
+                class="floating-btn search-toggle search-float ${isIOSDevice() ? 'ios-bottom' : ''}"
                 onClick=${onOpen}
                 title="Search"
             >
@@ -990,7 +997,7 @@ function SearchBar({ onSearch, isOpen, onClose, onOpen }) {
     }
 
     return html`
-        <div class="search-row open">
+        <div class="search-row open ${isIOSDevice() ? 'ios-bottom' : ''}">
             <form class="search-bar" onSubmit=${handleSubmit}>
                 <input
                     ref=${inputRef}
@@ -1246,6 +1253,7 @@ function App() {
                 onClose=${() => setSearchOpen(false)} 
                 onOpen=${() => setSearchOpen(true)}
             />
+            ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
             ${(currentHashtag || searchQuery) && html`
                 <div class="hashtag-header">
                     <button class="back-btn" onClick=${handleBackToTimeline}>
