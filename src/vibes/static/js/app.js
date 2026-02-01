@@ -1128,7 +1128,7 @@ function App() {
     const scrollToPost = useCallback((postId) => {
         const element = document.getElementById(`post-${postId}`);
         if (element) {
-            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
     }, []);
 
