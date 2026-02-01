@@ -32,6 +32,7 @@
 |--------|----------|-------------|
 | GET | `/agents` | List available agents |
 | POST | `/agent/{id}/message` | Send message to agent |
+| POST | `/agent/{id}/action/{action_id}` | Trigger a configured custom action |
 | POST | `/agent/respond` | Respond to agent permission request |
 | GET | `/agent/whitelist` | Get permission whitelist |
 | POST | `/agent/whitelist` | Add pattern to whitelist |
