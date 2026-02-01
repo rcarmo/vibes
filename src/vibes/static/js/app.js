@@ -1132,12 +1132,20 @@ function App() {
         if (!element) return;
         const container = timelineRef.current;
         if (container) {
-            const containerRect = container.getBoundingClientRect();
-            const elementRect = element.getBoundingClientRect();
-            const offset = (elementRect.top - containerRect.top) - (containerRect.height / 2 - elementRect.height / 2);
+            const elementOffset = element.offsetTop;
+            const elementHeight = element.offsetHeight;
+            const containerHeight = container.clientHeight;
             const isReverse = container.classList.contains('reverse');
-            const targetTop = isReverse ? container.scrollTop - offset : container.scrollTop + offset;
-            container.scrollTo({ top: targetTop, behavior: 'smooth' });
+            let targetTop;
+            if (isReverse) {
+                const fromBottom = container.scrollHeight - elementOffset - elementHeight;
+                targetTop = fromBottom - (containerHeight / 2 - elementHeight / 2);
+            } else {
+                targetTop = elementOffset - (containerHeight / 2 - elementHeight / 2);
+            }
+            const maxTop = Math.max(0, container.scrollHeight - containerHeight);
+            const clampedTop = Math.max(0, Math.min(maxTop, targetTop));
+            container.scrollTo({ top: clampedTop, behavior: 'smooth' });
         } else {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
         }
