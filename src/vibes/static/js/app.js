@@ -1016,7 +1016,9 @@ function App() {
     const [agentThought, setAgentThought] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
+    const [pendingScrollId, setPendingScrollId] = useState(null);
     const timelineRef = useRef(null);
+    const navigatingRef = useRef(false);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
@@ -1137,31 +1139,39 @@ function App() {
         setSearchOpen(false);
         setSearchQuery(null);
         setCurrentHashtag(null);
-        try {
-            const seed = await getTimeline(10);
-            setPosts(seed.posts);
-            setHasMore(seed.has_more);
-            await new Promise((r) => setTimeout(r, 0));
-            scrollToPost(postId);
-            let attempts = 0;
-            while (!document.getElementById(`post-${postId}`) && attempts < 12) {
-                const sortedPosts = seed.posts.slice().sort((a, b) => a.id - b.id);
-                const oldestId = sortedPosts[0]?.id;
-                if (!oldestId) break;
-                const older = await getTimeline(10, oldestId);
-                if (older.posts.length === 0) break;
-                seed.posts = [...older.posts, ...seed.posts];
-                seed.has_more = older.has_more;
-                setPosts(seed.posts);
-                setHasMore(seed.has_more);
-                await new Promise((r) => setTimeout(r, 0));
-                scrollToPost(postId);
-                attempts += 1;
-            }
-        } catch (error) {
-            console.error('Failed to navigate to result:', error);
+        setPendingScrollId(postId);
+        setPosts(null);
+        loadPosts();
+    }, [loadPosts]);
+
+    useEffect(() => {
+        if (!pendingScrollId || searchQuery || currentHashtag) return;
+        if (!posts || posts.length === 0) return;
+        const element = document.getElementById(`post-${pendingScrollId}`);
+        if (element) {
+            scrollToPost(pendingScrollId);
+            setPendingScrollId(null);
+            return;
         }
-    }, [scrollToPost]);
+        if (!hasMore || navigatingRef.current) return;
+        const loadOlder = async () => {
+            navigatingRef.current = true;
+            try {
+                const sortedPosts = posts.slice().sort((a, b) => a.id - b.id);
+                const oldestId = sortedPosts[0]?.id;
+                if (!oldestId) return;
+                const older = await getTimeline(10, oldestId);
+                if (older.posts.length === 0) return;
+                setPosts((prev) => [...older.posts, ...(prev || [])]);
+                setHasMore(older.has_more);
+            } catch (error) {
+                console.error('Failed to load older posts for navigation:', error);
+            } finally {
+                navigatingRef.current = false;
+            }
+        };
+        loadOlder();
+    }, [pendingScrollId, searchQuery, currentHashtag, posts, hasMore, scrollToPost]);
 
     useEffect(() => {
         getAgents()
