@@ -1019,6 +1019,7 @@ function App() {
     const [pendingScrollId, setPendingScrollId] = useState(null);
     const timelineRef = useRef(null);
     const navigatingRef = useRef(false);
+    const navigationActive = pendingScrollId !== null;
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
@@ -1147,10 +1148,8 @@ function App() {
             const containerCenter = containerRect.top + containerRect.height / 2;
             const elementCenter = elementRect.top + elementRect.height / 2;
             const delta = elementCenter - containerCenter;
-            const isReverse = container.classList.contains('reverse');
-            const adjustedDelta = isReverse ? -delta : delta;
-            if (Math.abs(adjustedDelta) > 1) {
-                container.scrollBy({ top: adjustedDelta, behavior: 'smooth' });
+            if (Math.abs(delta) > 1) {
+                container.scrollBy({ top: delta, behavior: 'smooth' });
             }
         };
         // Use rAF to ensure layout is settled before centering.
@@ -1313,13 +1312,13 @@ function App() {
             <${Timeline} 
                 posts=${posts}
                 hasMore=${hasMore}
-                onLoadMore=${loadMore}
+                onLoadMore=${navigationActive ? undefined : loadMore}
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
                 onPostClick=${searchQuery ? (post) => navigateToSearchResult(post.id) : undefined}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
-                reverse=${!(searchQuery && !currentHashtag)}
+                reverse=${!(searchQuery && !currentHashtag) && !navigationActive}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
             <${ComposeBox} 
