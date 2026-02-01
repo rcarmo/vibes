@@ -737,7 +737,7 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
 }
 
 /**
- * Timeline component (chat style - uses column-reverse for smooth prepending)
+ * Timeline component
  */
 function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents }) {
     const [loadingMore, setLoadingMore] = useState(false);
@@ -745,10 +745,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const handleScroll = useCallback(async (e) => {
         if (!onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        // In column-reverse, scrollTop is negative or we check distance from "top" (which is visual bottom)
-        // scrollTop of 0 means we're at the bottom, negative means scrolled up
-        // We want to load more when near the visual top (which is scrollHeight - clientHeight - |scrollTop|)
-        const distanceFromTop = scrollHeight - clientHeight + scrollTop;
+        const distanceFromTop = scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
         
         if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
@@ -756,7 +753,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
             await onLoadMore();
             setLoadingMore(false);
         }
-    }, [hasMore, loadingMore, onLoadMore, reverse]);
+    }, [hasMore, loadingMore, onLoadMore]);
     
     if (!posts) {
         return html`<div class="loading"><div class="spinner"></div></div>`;
@@ -1024,7 +1021,7 @@ function App() {
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
     
-    // Scroll to bottom of timeline (with column-reverse, scrollTop=0 is bottom)
+    // Scroll to bottom of timeline
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
             timelineRef.current.scrollTop = timelineRef.current.scrollHeight;
@@ -1048,7 +1045,7 @@ function App() {
         }
     }, []);
     
-    // Load older messages - with column-reverse, browser handles scroll anchoring automatically
+    // Load older messages
     const loadMore = useCallback(async () => {
         if (!posts || posts.length === 0) return;
         
@@ -1061,7 +1058,6 @@ function App() {
             const result = await getTimeline(5, oldestId);
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
-                // Simply prepend - column-reverse handles scroll position
                 setPosts(prev => [...(prev || []), ...result.posts]);
                 setHasMore(result.has_more);
             } else {
