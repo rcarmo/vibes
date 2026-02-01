@@ -1129,13 +1129,20 @@ function App() {
 
     const scrollToPost = useCallback((postId) => {
         const element = document.getElementById(`post-${postId}`);
-        if (element) {
+        if (!element) return;
+        const container = timelineRef.current;
+        if (container) {
+            const containerRect = container.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+            const offset = (elementRect.top - containerRect.top) - (containerRect.height / 2 - elementRect.height / 2);
+            container.scrollTo({ top: container.scrollTop + offset, behavior: 'smooth' });
+        } else {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            element.classList.remove('search-highlight');
-            void element.offsetWidth; // restart animation
-            element.classList.add('search-highlight');
         }
-    }, []);
+        element.classList.remove('search-highlight');
+        void element.offsetWidth; // restart animation
+        element.classList.add('search-highlight');
+    }, [timelineRef]);
 
     const navigateToSearchResult = useCallback(async (postId) => {
         if (!postId) return;
