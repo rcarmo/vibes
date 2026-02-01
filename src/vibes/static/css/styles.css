@@ -144,7 +144,7 @@ body {
 
 /* Search bar */
 .search-results-spacer {
-    height: calc(var(--spacing-sm) + env(safe-area-inset-top, 0px) + 12px);
+    height: calc((var(--spacing-sm) + env(safe-area-inset-top, 0px) + 12px) * 1.25);
     flex-shrink: 0;
 }
 

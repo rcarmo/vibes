@@ -645,7 +645,7 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     }
     
     return html`
-        <div class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
+        <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
             <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}" style="background-color: ${avatarInfo.color}">
                 ${avatarInfo.letter}
             </div>
@@ -1125,6 +1125,44 @@ function App() {
         loadPosts();
     }, [loadPosts]);
 
+    const scrollToPost = useCallback((postId) => {
+        const element = document.getElementById(`post-${postId}`);
+        if (element) {
+            element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, []);
+
+    const navigateToSearchResult = useCallback(async (postId) => {
+        if (!postId) return;
+        setSearchOpen(false);
+        setSearchQuery(null);
+        setCurrentHashtag(null);
+        try {
+            const seed = await getTimeline(10);
+            setPosts(seed.posts);
+            setHasMore(seed.has_more);
+            await new Promise((r) => setTimeout(r, 0));
+            scrollToPost(postId);
+            let attempts = 0;
+            while (!document.getElementById(`post-${postId}`) && attempts < 12) {
+                const sortedPosts = seed.posts.slice().sort((a, b) => a.id - b.id);
+                const oldestId = sortedPosts[0]?.id;
+                if (!oldestId) break;
+                const older = await getTimeline(10, oldestId);
+                if (older.posts.length === 0) break;
+                seed.posts = [...older.posts, ...seed.posts];
+                seed.has_more = older.has_more;
+                setPosts(seed.posts);
+                setHasMore(seed.has_more);
+                await new Promise((r) => setTimeout(r, 0));
+                scrollToPost(postId);
+                attempts += 1;
+            }
+        } catch (error) {
+            console.error('Failed to navigate to result:', error);
+        }
+    }, [scrollToPost]);
+
     useEffect(() => {
         getAgents()
             .then((data) => {
@@ -1239,6 +1277,7 @@ function App() {
                 onLoadMore=${loadMore}
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
+                onPostClick=${searchQuery ? (post) => navigateToSearchResult(post.id) : undefined}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
                 reverse=${!(searchQuery && !currentHashtag)}
