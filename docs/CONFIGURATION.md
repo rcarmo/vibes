@@ -8,7 +8,7 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database path |
 | `VIBES_DEBUG` | `false` | Enable debug mode |
-| `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command |
+| `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command (recommended: `copilot --acp --model gpt-5-mini` |
 | `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request times out |
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to wait before restarting agent on disconnect |
