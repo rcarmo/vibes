@@ -1131,6 +1131,9 @@ function App() {
         const element = document.getElementById(`post-${postId}`);
         if (element) {
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            element.classList.remove('search-highlight');
+            void element.offsetWidth; // restart animation
+            element.classList.add('search-highlight');
         }
     }, []);
 

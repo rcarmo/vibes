@@ -38,6 +38,7 @@
     /* Shadows */
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
     --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.1);
+    --search-highlight-color: rgba(29, 155, 240, 0.2);
 }
 
 /* Dark mode */
@@ -49,6 +50,7 @@
         --text-primary: #e7e9ea;
         --text-secondary: #71767b;
         --border-color: #2f3336;
+        --search-highlight-color: rgba(29, 155, 240, 0.35);
     }
 }
 
@@ -61,6 +63,7 @@
     --text-primary: #e7e9ea;
     --text-secondary: #71767b;
     --border-color: #2f3336;
+    --search-highlight-color: rgba(29, 155, 240, 0.35);
 }
 
 .light {
@@ -71,6 +74,7 @@
     --text-primary: #0f1419;
     --text-secondary: #536471;
     --border-color: #eff3f4;
+    --search-highlight-color: rgba(29, 155, 240, 0.2);
 }
 
 /* Reset */
@@ -382,6 +386,15 @@ body {
 .post-time {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
+}
+
+@keyframes searchHighlightFade {
+    0% { background-color: var(--search-highlight-color); }
+    100% { background-color: transparent; }
+}
+
+.post.search-highlight {
+    animation: searchHighlightFade 2s ease-out;
 }
 
 .post-content {
