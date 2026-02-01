@@ -176,7 +176,11 @@ function formatTime(timestamp) {
  * Detect iOS devices for layout adjustments.
  */
 function isIOSDevice() {
-    return /iPad|iPhone/.test(navigator.userAgent);
+    if (/iPad|iPhone/.test(navigator.userAgent)) {
+        return true;
+    }
+    // iPadOS Safari (desktop mode) reports as MacIntel with touch points.
+    return navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1;
 }
 
 /**
