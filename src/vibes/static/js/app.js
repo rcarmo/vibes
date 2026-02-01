@@ -741,13 +741,13 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
 /**
  * Timeline component
  */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, reverse = true }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
         if (!onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const distanceFromTop = scrollHeight - clientHeight + scrollTop;
+        const distanceFromTop = reverse ? (scrollHeight - clientHeight + scrollTop) : scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
         
         if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
@@ -777,7 +777,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const displayPosts = posts.slice().sort((a, b) => a.id - b.id);
     
     return html`
-        <div class="timeline" ref=${timelineRef} onScroll=${handleScroll}>
+        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${handleScroll}>
             <div class="timeline-content">
                 ${hasMore && html`
                     <button class="load-more-btn" onClick=${onLoadMore} disabled=${loadingMore}>
@@ -1242,6 +1242,7 @@ function App() {
                 onPostClick=${undefined}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
+                reverse=${!(searchQuery && !currentHashtag)}
             />
             <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
             <${ComposeBox} 
