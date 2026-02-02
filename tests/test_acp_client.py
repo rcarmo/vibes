@@ -561,7 +561,7 @@ class TestContentParsing:
         monkeypatch.setattr(
             acp_client,
             "get_config",
-            lambda: SimpleNamespace(permission_timeout=0.001),
+            lambda: SimpleNamespace(permission_timeout=0.001, acp_throttle_rps=0),
         )
 
         stop_mock = AsyncMock()
@@ -575,4 +575,3 @@ class TestContentParsing:
         result = await asyncio.wait_for(acp_client._send_request("test", {}, collect_updates=False), timeout=0.2)
         assert result.get("_cancelled") is True
         stop_mock.assert_awaited_once()
-

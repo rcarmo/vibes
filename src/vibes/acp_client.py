@@ -39,6 +39,31 @@ class _ACPState:
 
 _state = _ACPState()
 
+_throttle_lock = asyncio.Lock()
+_last_send_ts: float | None = None
+_last_read_ts: float | None = None
+
+
+async def _maybe_throttle(direction: str) -> None:
+    """Throttle ACP traffic if configured."""
+    rps = get_config().acp_throttle_rps
+    if rps <= 0:
+        return
+    interval = 1.0 / rps
+    global _last_send_ts, _last_read_ts
+    async with _throttle_lock:
+        now = asyncio.get_event_loop().time()
+        last_ts = _last_send_ts if direction == "send" else _last_read_ts
+        if last_ts is not None:
+            sleep_for = interval - (now - last_ts)
+            if sleep_for > 0:
+                await asyncio.sleep(sleep_for)
+        now = asyncio.get_event_loop().time()
+        if direction == "send":
+            _last_send_ts = now
+        else:
+            _last_read_ts = now
+
 
 def reset_state() -> None:
     """Reset ACP client state (primarily for tests)."""
@@ -104,6 +129,7 @@ async def _read_frame(reader) -> list[dict]:
     - Returns list of dicts for JSON-RPC batches
     - Raises RuntimeError if connection closed
     """
+    await _maybe_throttle("receive")
     line = await reader.readline()
     if not line:
         raise RuntimeError("Agent connection closed")
@@ -134,6 +160,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
     }
     
     data = json.dumps(request) + "\n"
+    await _maybe_throttle("send")
     _state.agent_writer.write(data.encode())
     await _state.agent_writer.drain()
     
@@ -344,6 +371,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         "result": {"outcome": outcome_obj}
                     }
                     data = json.dumps(permission_response) + "\n"
+                    await _maybe_throttle("send")
                     _state.agent_writer.write(data.encode())
                     await _state.agent_writer.drain()
 
@@ -362,6 +390,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         "error": {"code": -32601, "message": "Method not supported"}
                     }
                     data = json.dumps(error_response) + "\n"
+                    await _maybe_throttle("send")
                     _state.agent_writer.write(data.encode())
                     await _state.agent_writer.drain()
                     continue
@@ -374,6 +403,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         "error": {"code": -32601, "message": "Method not supported"}
                     }
                     data = json.dumps(error_response) + "\n"
+                    await _maybe_throttle("send")
                     _state.agent_writer.write(data.encode())
                     await _state.agent_writer.drain()
                     continue
@@ -678,6 +708,7 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
             
         except asyncio.TimeoutError:
             logger.error("Timeout waiting for agent response")
+            await stop_agent()
             return "[Error: Agent timed out]"
         except RuntimeError as e:
             error_str = str(e)
@@ -759,6 +790,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             
         except asyncio.TimeoutError:
             logger.error("Timeout waiting for agent response")
+            await stop_agent()
             return {
                 "text": "[Error: Agent timed out]",
                 "content": [{"type": "text", "text": "[Error: Agent timed out]"}],
@@ -821,6 +853,7 @@ async def stop_agent():
                     "params": {"sessionId": _state.session_id, "_meta": {}}
                 }
                 data = json.dumps(cancel_notification) + "\n"
+                await _maybe_throttle("send")
                 _state.agent_writer.write(data.encode())
                 await _state.agent_writer.drain()
                 logger.info(f"Sent session/cancel for session {_state.session_id}")
@@ -854,6 +887,7 @@ async def cancel_session():
                 "params": {"sessionId": _state.session_id, "_meta": {}}
             }
             data = json.dumps(cancel_notification) + "\n"
+            await _maybe_throttle("send")
             _state.agent_writer.write(data.encode())
             await _state.agent_writer.drain()
             logger.info(f"Sent session/cancel for session {_state.session_id}")
@@ -862,4 +896,3 @@ async def cancel_session():
             logger.warning(f"Failed to send session/cancel: {e}")
             return False
     return False
-

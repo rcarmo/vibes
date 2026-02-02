@@ -13,6 +13,7 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request times out |
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to wait before restarting agent on disconnect |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
+| `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = no throttling) |
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Path to custom endpoints config |
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
