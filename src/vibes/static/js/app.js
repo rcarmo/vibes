@@ -1147,6 +1147,9 @@ function App() {
             const result = await deletePost(postId, replyCount > 0);
             if (result?.ids?.length) {
                 setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+                if (hasMore) {
+                    await loadMore();
+                }
             }
         } catch (error) {
             const errorMessage = error?.message || '';
@@ -1156,13 +1159,16 @@ function App() {
                 const result = await deletePost(postId, true);
                 if (result?.ids?.length) {
                     setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+                    if (hasMore) {
+                        await loadMore();
+                    }
                 }
                 return;
             }
             console.error('Failed to delete post:', error);
             alert(`Failed to delete message: ${errorMessage}`);
         }
-    }, [posts]);
+    }, [hasMore, loadMore, posts]);
 
     useEffect(() => {
         getAgents()
@@ -1255,6 +1261,9 @@ function App() {
                     const ids = data?.ids || [];
                     if (ids.length) {
                         setPosts(prev => prev ? prev.filter(p => !ids.includes(p.id)) : prev);
+                        if (hasMore && !currentHashtag && !searchQuery) {
+                            loadMore();
+                        }
                     }
                 }
                 

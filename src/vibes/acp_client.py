@@ -666,6 +666,7 @@ async def _ensure_agent():
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            limit=4 * 1024 * 1024,
         )
         
         _state.agent_reader = _state.agent_proc.stdout
