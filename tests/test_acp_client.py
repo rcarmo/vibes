@@ -441,6 +441,7 @@ class TestAcpClient:
                     
                     assert result == "OK"
                     mock_interrupt.assert_not_awaited()
+                    assert acp_client.get_state().session_id == "test-session"
 
 
 class TestContentParsing:
@@ -570,6 +571,7 @@ class TestContentParsing:
                     
                     assert result["text"] == "OK"
                     mock_interrupt.assert_not_awaited()
+                    assert acp_client.get_state().session_id == "test-session"
 
     @pytest.mark.asyncio
     async def test_permission_request_timeout_cancels_and_stops_agent(self, monkeypatch):

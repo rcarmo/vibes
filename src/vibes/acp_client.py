@@ -86,8 +86,10 @@ async def _interrupt_inflight_request() -> bool:
         _state.cancel_event.set()
     await cancel_session()
     if await _wait_for_request_slot(2.0):
+        _state.session_id = None
         return True
     await stop_agent()
+    _state.session_id = None
     return await _wait_for_request_slot(5.0)
 
 
