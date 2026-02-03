@@ -85,9 +85,6 @@ async def _interrupt_inflight_request() -> bool:
     if _state.cancel_event:
         _state.cancel_event.set()
     await cancel_session()
-    if await _wait_for_request_slot(2.0):
-        _state.session_id = None
-        return True
     await stop_agent()
     _state.session_id = None
     return await _wait_for_request_slot(5.0)
@@ -640,6 +637,14 @@ async def _ensure_agent():
     async with _state.agent_lock:
         # Check if existing connection is still valid
         if _state.agent_proc is not None and _state.agent_proc.returncode is None:
+            if _state.session_id is None:
+                cwd = str(Path.cwd())
+                result = await _send_request("session/new", {
+                    "cwd": cwd,
+                    "mcpServers": []
+                })
+                _state.session_id = result.get("sessionId")
+                logger.info(f"Session created: {_state.session_id}")
             return
         
         # Clean up old state
