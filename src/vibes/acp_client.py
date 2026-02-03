@@ -718,6 +718,9 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
                 await stop_agent()
                 await asyncio.sleep(1)
                 return "[Agent was busy, please try again]"
+            logger.warning("Agent internal error, restarting...")
+            await stop_agent()
+            await asyncio.sleep(1)
             logger.error(f"Error communicating with agent: {e}", exc_info=True)
             return f"[Error: {e}]"
         except Exception as e:
@@ -807,6 +810,9 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     "text": "[Agent was busy, please try again]",
                     "content": [{"type": "text", "text": "[Agent was busy, please try again]"}]
                 }
+            logger.warning("Agent internal error, restarting...")
+            await stop_agent()
+            await asyncio.sleep(1)
             logger.error(f"Error communicating with agent: {e}", exc_info=True)
             return {
                 "text": f"[Error: {e}]",

@@ -402,6 +402,20 @@ class TestAcpClient:
                     mock_stop.assert_called_once()
 
     @pytest.mark.asyncio
+    async def test_send_message_simple_internal_error_restarts_agent(self):
+        """Test that internal errors trigger agent restart."""
+        with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
+            with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
+                with patch.object(acp_client, 'stop_agent', new_callable=AsyncMock) as mock_stop:
+                    mock_send.side_effect = RuntimeError("Internal API error")
+                    acp_client.get_state().session_id = "test-session"
+                    
+                    result = await acp_client.send_message_simple("Hello")
+                    
+                    assert "error" in result.lower()
+                    mock_stop.assert_called_once()
+
+    @pytest.mark.asyncio
     async def test_send_message_simple_lock_check(self):
         """Test that busy check works when lock is held."""
         # Acquire the lock
