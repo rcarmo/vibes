@@ -30,6 +30,7 @@ class _ACPState:
         self.agent_writer = None
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()  # Ensures only one request at a time
+        self.cancel_event: asyncio.Event | None = None
         self.session_id = None
         self.request_id = 0
         self.pending_requests = {}  # request_id -> asyncio.Future
@@ -65,6 +66,31 @@ async def _maybe_throttle(direction: str) -> None:
             _last_read_ts = now
 
 
+async def _wait_for_request_slot(timeout_s: float) -> bool:
+    """Wait for the request lock to be released, returning True if acquired."""
+    acquired = False
+    try:
+        await asyncio.wait_for(_state.request_lock.acquire(), timeout=timeout_s)
+        acquired = True
+        return True
+    except asyncio.TimeoutError:
+        return False
+    finally:
+        if acquired:
+            _state.request_lock.release()
+
+
+async def _interrupt_inflight_request() -> bool:
+    """Cancel the active prompt and wait for the lock to release."""
+    if _state.cancel_event:
+        _state.cancel_event.set()
+    await cancel_session()
+    if await _wait_for_request_slot(2.0):
+        return True
+    await stop_agent()
+    return await _wait_for_request_slot(5.0)
+
+
 def reset_state() -> None:
     """Reset ACP client state (primarily for tests)."""
     _state.agent_proc = None
@@ -72,6 +98,7 @@ def reset_state() -> None:
     _state.agent_writer = None
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
+    _state.cancel_event = None
     _state.session_id = None
     _state.request_id = 0
     _state.pending_requests = {}
@@ -678,8 +705,10 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
     """Send a message to the agent and return the response."""
     # Check if lock is already held (agent busy)
     if _state.request_lock.locked():
-        logger.warning("Agent is busy processing another request")
-        return "[Agent is busy, please wait...]"
+        logger.info("Agent busy; sending session/cancel to interrupt.")
+        interrupted = await _interrupt_inflight_request()
+        if not interrupted:
+            return "[Agent is busy, please try again]"
     
     # Only one request at a time to avoid read conflicts
     async with _state.request_lock:
@@ -735,17 +764,20 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
         - text: Combined text content (str)
         - content: List of content blocks (text, image, file, etc.)
     """
-    # Check if lock is already held (agent busy)
+    # If another prompt is running, cancel it and wait to take the lock.
     if _state.request_lock.locked():
-        logger.warning("Agent is busy processing another request")
-        return {
-            "text": "[Agent is busy, please wait...]",
-            "content": [{"type": "text", "text": "[Agent is busy, please wait...]"}],
-            "cancelled": False
-        }
-    
+        logger.info("Agent busy; sending session/cancel to interrupt.")
+        interrupted = await _interrupt_inflight_request()
+        if not interrupted:
+            return {
+                "text": "[Agent is busy, please try again]",
+                "content": [{"type": "text", "text": "[Agent is busy, please try again]"}],
+                "cancelled": False
+            }
+
     # Only one request at a time to avoid read conflicts
     async with _state.request_lock:
+        _state.cancel_event = asyncio.Event()
         try:
             await _ensure_agent()
             
@@ -754,6 +786,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     "text": "[Error: No active session]",
                     "content": [{"type": "text", "text": "[Error: No active session]"}],
                     "cancelled": False
+                }
+            if _state.cancel_event.is_set():
+                return {
+                    "text": "[Agent was interrupted]",
+                    "content": [{"type": "text", "text": "[Agent was interrupted]"}],
+                    "cancelled": True
                 }
             
             logger.info(f"Sending message to agent: {content[:100]}...")
@@ -824,6 +862,9 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 "text": f"[Error: {e}]",
                 "content": [{"type": "text", "text": f"[Error: {e}]"}]
             }
+        finally:
+            if _state.cancel_event:
+                _state.cancel_event.set()
 
 
 async def send_message(content: str, thread_id: Optional[int] = None) -> AsyncIterator[str]:

@@ -146,6 +146,18 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 "content": [{"type": "text", "text": "[Cancelled: permission request timed out]"}],
             }
         
+        if response.get("cancelled"):
+            await broadcast_event("agent_status", {
+                "thread_id": thread_id,
+                "agent_id": agent_id,
+                "type": "cancelled",
+                "title": "Cancelled"
+            })
+            response = {
+                "text": "[Cancelled]",
+                "content": [{"type": "text", "text": "[Cancelled]"}],
+            }
+
         # Process content blocks - store images/files in media table
         db = await get_db()
         media_ids = []

@@ -761,7 +761,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const handleScroll = useCallback(async (e) => {
         if (!onLoadMore) return;
         const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const distanceFromTop = reverse ? (scrollHeight - clientHeight + scrollTop) : scrollTop;
+        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
         
         if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
@@ -793,11 +793,6 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     return html`
         <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${handleScroll}>
             <div class="timeline-content">
-                ${hasMore && html`
-                    <button class="load-more-btn" onClick=${onLoadMore} disabled=${loadingMore}>
-                        ${loadingMore ? 'Loading...' : 'Load older messages'}
-                    </button>
-                `}
                 ${displayPosts.map(post => html`
                     <${Post}
                         key=${post.id}

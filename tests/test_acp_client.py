@@ -417,7 +417,7 @@ class TestAcpClient:
 
     @pytest.mark.asyncio
     async def test_send_message_simple_lock_check(self):
-        """Test that busy check works when lock is held."""
+        """Test that interrupt path returns busy if lock can't be acquired."""
         # Acquire the lock
         await acp_client.get_state().request_lock.acquire()
         
@@ -426,6 +426,21 @@ class TestAcpClient:
             assert "busy" in result.lower()
         finally:
             acp_client.get_state().request_lock.release()
+
+    @pytest.mark.asyncio
+    async def test_send_message_simple_interrupts_and_sends(self):
+        """Test that interrupts allow the new prompt to proceed."""
+        with patch.object(acp_client, '_interrupt_inflight_request', new_callable=AsyncMock) as mock_interrupt:
+            with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
+                with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
+                    mock_interrupt.return_value = True
+                    mock_send.return_value = {"_collected_text": "OK"}
+                    acp_client.get_state().session_id = "test-session"
+                    
+                    result = await acp_client.send_message_simple("Hello")
+                    
+                    assert result == "OK"
+                    mock_interrupt.assert_not_awaited()
 
 
 class TestContentParsing:
@@ -540,6 +555,21 @@ class TestContentParsing:
             assert len(result["content"]) == 1
         finally:
             acp_client.get_state().request_lock.release()
+
+    @pytest.mark.asyncio
+    async def test_send_message_multimodal_interrupts_and_sends(self):
+        """Test that interrupts allow multimodal prompt to proceed."""
+        with patch.object(acp_client, '_interrupt_inflight_request', new_callable=AsyncMock) as mock_interrupt:
+            with patch.object(acp_client, '_ensure_agent', new_callable=AsyncMock):
+                with patch.object(acp_client, '_send_request', new_callable=AsyncMock) as mock_send:
+                    mock_interrupt.return_value = True
+                    mock_send.return_value = {"_collected_text": "OK", "_collected_content": []}
+                    acp_client.get_state().session_id = "test-session"
+                    
+                    result = await acp_client.send_message_multimodal("Hello")
+                    
+                    assert result["text"] == "OK"
+                    mock_interrupt.assert_not_awaited()
 
     @pytest.mark.asyncio
     async def test_permission_request_timeout_cancels_and_stops_agent(self, monkeypatch):
