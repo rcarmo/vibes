@@ -16,6 +16,7 @@
 | GET | `/search?q={query}` | Full-text search posts |
 | POST | `/post` | Create new post |
 | POST | `/reply` | Reply to thread |
+| DELETE | `/post/{post_id}?cascade=true` | Delete post (cascade replies when true) |
 
 ## Media
 
@@ -56,3 +57,4 @@
 | `agent_request` | Agent permission request |
 | `agent_request_timeout` | Permission request timed out |
 | `interaction_updated` | Post/reply metadata updated |
+| `interaction_deleted` | Post/reply deleted |

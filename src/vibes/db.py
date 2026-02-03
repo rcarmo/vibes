@@ -193,6 +193,27 @@ class Database:
                 }
             return None
 
+    async def get_reply_ids(self, thread_id: int) -> list[int]:
+        """Get reply IDs for a thread."""
+        async with self._connection.execute(
+            "SELECT id FROM interactions WHERE thread_id = ?",
+            (thread_id,)
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row["id"] for row in rows]
+
+    async def delete_interactions(self, interaction_ids: list[int]) -> int:
+        """Delete interactions by ID and return number of rows deleted."""
+        if not interaction_ids:
+            return 0
+        placeholders = ", ".join(["?"] * len(interaction_ids))
+        async with self.transaction():
+            cursor = await self._connection.execute(
+                f"DELETE FROM interactions WHERE id IN ({placeholders})",
+                interaction_ids,
+            )
+            return cursor.rowcount
+
     async def get_timeline(self, limit: int = 50, before_id: int = None) -> list[dict]:
         """Get timeline of all interactions (oldest first for chat view)."""
         if before_id:

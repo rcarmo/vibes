@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -589,7 +589,7 @@ function removePreviewedUrls(text, linkPreviews) {
 /**
  * Single post component
  */
-function Post({ post, onClick, onHashtagClick, agentName }) {
+function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
     const [zoomedImage, setZoomedImage] = useState(null);
     const contentRef = useRef(null);
     
@@ -613,6 +613,11 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
     const handleImageClick = (e, mediaId) => {
         e.stopPropagation();
         setZoomedImage(getMediaUrl(mediaId));
+    };
+
+    const handleDeleteClick = (e) => {
+        e.stopPropagation();
+        onDelete?.(post);
     };
     
     // Separate images from files using content_blocks info
@@ -652,6 +657,15 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
                 ${avatarInfo.letter}
             </div>
             <div class="post-body">
+                <button
+                    class="post-delete-btn"
+                    type="button"
+                    title="Delete message"
+                    aria-label="Delete message"
+                    onClick=${handleDeleteClick}
+                >
+                    x
+                </button>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
                     <span class="post-time">${formatTime(post.timestamp)}</span>
@@ -741,7 +755,7 @@ function Post({ post, onClick, onHashtagClick, agentName }) {
 /**
  * Timeline component
  */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, reverse = true }) {
+function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, onDeletePost, reverse = true }) {
     const [loadingMore, setLoadingMore] = useState(false);
     
     const handleScroll = useCallback(async (e) => {
@@ -791,6 +805,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
                         agentName=${getAgentName(post.data?.agent_id, agents)}
                         onClick=${() => onPostClick?.(post)}
                         onHashtagClick=${onHashtagClick}
+                        onDelete=${onDeletePost}
                     />
                 `)}
             </div>
@@ -1125,6 +1140,35 @@ function App() {
 
     const navigateToSearchResult = useCallback(() => {}, []);
 
+    const handleDeletePost = useCallback(async (post) => {
+        if (!post) return;
+        const postId = post.id;
+        const replyCount = posts?.filter((item) => item?.data?.thread_id === postId).length || 0;
+        if (replyCount > 0) {
+            const confirmed = window.confirm(`Delete this message and its ${replyCount} replies?`);
+            if (!confirmed) return;
+        }
+        try {
+            const result = await deletePost(postId, replyCount > 0);
+            if (result?.ids?.length) {
+                setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+            }
+        } catch (error) {
+            const errorMessage = error?.message || '';
+            if (replyCount === 0 && errorMessage.includes('Replies exist')) {
+                const confirmed = window.confirm('Delete this message and its replies?');
+                if (!confirmed) return;
+                const result = await deletePost(postId, true);
+                if (result?.ids?.length) {
+                    setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+                }
+                return;
+            }
+            console.error('Failed to delete post:', error);
+            alert(`Failed to delete message: ${errorMessage}`);
+        }
+    }, [posts]);
+
     useEffect(() => {
         getAgents()
             .then((data) => {
@@ -1212,6 +1256,12 @@ function App() {
                 if (eventType === 'interaction_updated') {
                     setPosts(prev => prev ? prev.map(p => p.id === data.id ? data : p) : prev);
                 }
+                if (eventType === 'interaction_deleted') {
+                    const ids = data?.ids || [];
+                    if (ids.length) {
+                        setPosts(prev => prev ? prev.filter(p => !ids.includes(p.id)) : prev);
+                    }
+                }
                 
             },
             setConnectionStatus
@@ -1240,6 +1290,7 @@ function App() {
                 timelineRef=${timelineRef}
                 onHashtagClick=${handleHashtagClick}
                 onPostClick=${undefined}
+                onDeletePost=${handleDeletePost}
                 emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                 agents=${agents}
                 reverse=${!(searchQuery && !currentHashtag)}

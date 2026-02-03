@@ -118,6 +118,32 @@ class TestPostRoutesIntegration:
         assert len(thread['thread']) == 2
 
     @pytest.mark.asyncio
+    async def test_delete_post_cascade(self, posts_test_client):
+        """Test deleting a post with replies cascades."""
+        client = posts_test_client
+        resp = await client.post('/post', json={'content': 'Parent'})
+        parent = await resp.json()
+
+        await client.post('/reply', json={
+            'content': 'Reply',
+            'thread_id': parent['id']
+        })
+
+        resp = await client.delete(f"/post/{parent['id']}")
+        assert resp.status == 409
+        data = await resp.json()
+        assert data['reply_count'] == 1
+
+        resp = await client.delete(f"/post/{parent['id']}?cascade=true")
+        assert resp.status == 200
+        deleted = await resp.json()
+        assert len(deleted['ids']) == 2
+
+        resp = await client.get('/timeline')
+        timeline = await resp.json()
+        assert len(timeline['posts']) == 0
+
+    @pytest.mark.asyncio
     async def test_hashtag_search(self, posts_test_client):
         """Test hashtag search."""
         client = posts_test_client

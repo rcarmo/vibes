@@ -155,6 +155,29 @@ async def search(request: web.Request) -> web.Response:
         "offset": offset
     })
 
+async def delete_post(request: web.Request) -> web.Response:
+    """Delete an interaction, optionally cascading replies."""
+    post_id = int(request.match_info["post_id"])
+    cascade = request.query.get("cascade", "false").lower() == "true"
+    
+    db = await get_db()
+    post = await db.get_interaction(post_id)
+    if not post:
+        return web.json_response({"error": "Post not found"}, status=404)
+    
+    reply_ids = await db.get_reply_ids(post_id)
+    if reply_ids and not cascade:
+        return web.json_response({"error": "Replies exist", "reply_count": len(reply_ids)}, status=409)
+    
+    delete_ids = [post_id]
+    if cascade and reply_ids:
+        delete_ids.extend(reply_ids)
+    
+    deleted = await db.delete_interactions(delete_ids)
+    await broadcast_event("interaction_deleted", {"ids": delete_ids})
+    
+    return web.json_response({"deleted": deleted, "ids": delete_ids})
+
 
 def setup_routes(app: web.Application) -> None:
     """Set up post routes."""
@@ -164,3 +187,4 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/timeline", get_timeline)
     app.router.add_get("/hashtag/{hashtag}", get_hashtag)
     app.router.add_get("/search", search)
+    app.router.add_delete("/post/{post_id}", delete_post)

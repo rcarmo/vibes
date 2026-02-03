@@ -77,6 +77,14 @@ export async function createReply(threadId, content, mediaIds = []) {
 }
 
 /**
+ * Delete a post (optionally cascade replies)
+ */
+export async function deletePost(postId, cascade = false) {
+    const url = `/post/${postId}?cascade=${cascade ? 'true' : 'false'}`;
+    return request(url, { method: 'DELETE' });
+}
+
+/**
  * Send message to agent
  */
 export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = []) {
@@ -220,6 +228,10 @@ export class SSEClient {
         
         this.eventSource.addEventListener('interaction_updated', (e) => {
             this.onEvent('interaction_updated', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('interaction_deleted', (e) => {
+            this.onEvent('interaction_deleted', JSON.parse(e.data));
         });
         
         this.eventSource.addEventListener('agent_status', (e) => {

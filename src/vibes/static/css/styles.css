@@ -375,6 +375,39 @@ body {
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
+    position: relative;
+}
+
+.post-delete-btn {
+    position: absolute;
+    top: 0;
+    right: 0;
+    border: 1px solid transparent;
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    cursor: pointer;
+    font-size: 13px;
+    line-height: 1;
+    transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.post:hover .post-delete-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.post-delete-btn:hover {
+    color: var(--danger-color);
+    border-color: var(--border-color);
+    background-color: var(--bg-hover);
 }
 
 .post-meta {
@@ -981,7 +1014,7 @@ body {
     bottom: 0;
     background-color: rgba(0, 0, 0, 0.8);
     display: flex;
-    align-items: flex-start;
+    align-items: center;
     justify-content: center;
     z-index: 1000;
     padding: 16px;
