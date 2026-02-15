@@ -61,6 +61,11 @@ vibes
 
 # Or with custom options
 VIBES_HOST=127.0.0.1 VIBES_PORT=3000 vibes
+
+# Manage agent permission whitelist
+vibes whitelist add "Run command"
+vibes whitelist remove "Run command"
+vibes whitelist list
 ```
 
 ## Configuration

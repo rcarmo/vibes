@@ -50,6 +50,7 @@ class Config:
         self.acp_agent: str = _get_env("VIBES_ACP_AGENT", "vibe-acp")
         self.agent_name: str = _get_env("VIBES_AGENT_NAME", socket.gethostname())
         self.permission_timeout: int = _get_env_int("VIBES_PERMISSION_TIMEOUT", 30)
+        self.permission_auto_approve: bool = _get_env_bool("VIBES_PERMISSION_AUTO_APPROVE", False)
         self.disconnect_timeout: int = _get_env_int("VIBES_DISCONNECT_TIMEOUT", 300)
         self.acp_debug: bool = _get_env_bool("VIBES_ACP_DEBUG", False)
         self.acp_throttle_rps: int = _get_env_int("VIBES_ACP_THROTTLE_RPS", 0)

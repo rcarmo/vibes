@@ -1,12 +1,14 @@
 """Main aiohttp application for Vibes."""
 
+import argparse
 import asyncio
 import logging
+import sys
 from pathlib import Path
 from aiohttp import web
 
 from .config import get_config
-from .db import init_db, close_db
+from .db import init_db, close_db, Database
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
 from .acp_client import start_agent, stop_agent
@@ -102,8 +104,41 @@ def create_app() -> web.Application:
     return app
 
 
-def main() -> None:
-    """Entry point for the application."""
+async def _run_whitelist(args: argparse.Namespace) -> int:
+    db_path = args.db_path or get_config().db_path
+    db = Database(db_path)
+    await db.connect()
+    try:
+        if args.whitelist_command == "add":
+            await db.add_to_whitelist(args.pattern, args.description)
+            print(f"Added whitelist pattern: {args.pattern}")
+            return 0
+        if args.whitelist_command == "remove":
+            removed = await db.remove_from_whitelist(args.pattern)
+            if not removed:
+                print(f"Pattern not found: {args.pattern}", file=sys.stderr)
+                return 1
+            print(f"Removed whitelist pattern: {args.pattern}")
+            return 0
+        if args.whitelist_command == "list":
+            entries = await db.get_whitelist()
+            if not entries:
+                print("No whitelist entries.")
+                return 0
+            for entry in entries:
+                description = entry.get("description") or ""
+                if description:
+                    print(f"{entry['pattern']}\t{description}")
+                else:
+                    print(entry["pattern"])
+            return 0
+        print("Unknown command", file=sys.stderr)
+        return 2
+    finally:
+        await db.close()
+
+
+def _run_server() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -127,6 +162,65 @@ def main() -> None:
         pass  # Graceful shutdown already handled by aiohttp
     
     logger.info("Server stopped")
+
+
+def main() -> None:
+    """Entry point for the application."""
+    parser = argparse.ArgumentParser(
+        description="Vibes server and tools."
+    )
+    subparsers = parser.add_subparsers(dest="command")
+    subparsers.add_parser("serve", help="Run the Vibes server.")
+
+    whitelist_parser = subparsers.add_parser(
+        "whitelist",
+        help="Manage agent permission whitelist.",
+    )
+    whitelist_parser.add_argument(
+        "--db-path",
+        default=None,
+        help="Override database path (default: VIBES_DB_PATH).",
+    )
+    whitelist_subparsers = whitelist_parser.add_subparsers(
+        dest="whitelist_command",
+        required=True,
+    )
+    whitelist_add = whitelist_subparsers.add_parser(
+        "add",
+        help="Add a whitelist pattern.",
+    )
+    whitelist_add.add_argument(
+        "pattern",
+        help="Whitelist pattern (supports '*').",
+    )
+    whitelist_add.add_argument(
+        "--description",
+        default=None,
+        help="Optional description for the pattern.",
+    )
+
+    whitelist_remove = whitelist_subparsers.add_parser(
+        "remove",
+        help="Remove a whitelist pattern.",
+    )
+    whitelist_remove.add_argument(
+        "pattern",
+        help="Whitelist pattern to remove.",
+    )
+
+    whitelist_subparsers.add_parser(
+        "list",
+        help="List whitelist patterns.",
+    )
+
+    args = parser.parse_args()
+
+    if args.command in (None, "serve"):
+        _run_server()
+        return
+    if args.command == "whitelist":
+        sys.exit(asyncio.run(_run_whitelist(args)))
+    parser.print_help()
 
 
 if __name__ == "__main__":

@@ -75,6 +75,8 @@ set_request_callback(_handle_agent_request)
 # Set up whitelist checker
 async def _check_whitelist(title: str) -> bool:
     """Check if a tool call title is whitelisted."""
+    if get_config().permission_auto_approve:
+        return True
     db = await get_db()
     return await db.is_whitelisted(title)
 
