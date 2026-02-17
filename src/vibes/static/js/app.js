@@ -1025,11 +1025,17 @@ function App() {
     const [agentThought, setAgentThought] = useState('');
     const [pendingRequest, setPendingRequest] = useState(null);
     const [agents, setAgents] = useState({});
+    const hasConnectedOnceRef = useRef(false);
+    const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
     const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
     
+    useEffect(() => {
+        viewStateRef.current = { currentHashtag, searchQuery };
+    }, [currentHashtag, searchQuery]);
+
     // Scroll to bottom of timeline (column-reverse: bottom is scrollTop=0)
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
@@ -1053,6 +1059,19 @@ function App() {
             console.error('Failed to load posts:', error);
         }
     }, []);
+
+    const handleConnectionStatusChange = useCallback((status) => {
+        setConnectionStatus(status);
+        if (status !== 'connected') return;
+        if (!hasConnectedOnceRef.current) {
+            hasConnectedOnceRef.current = true;
+            return;
+        }
+        const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
+        if (!activeHashtag && !activeSearch) {
+            loadPosts();
+        }
+    }, [loadPosts]);
     
     // Load older messages (prepend)
     const loadMore = useCallback(async () => {
@@ -1268,7 +1287,7 @@ function App() {
                 }
                 
             },
-            setConnectionStatus
+            handleConnectionStatusChange
         );
         
         sse.connect();
