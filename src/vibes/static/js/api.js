@@ -190,6 +190,7 @@ export class SSEClient {
         this.eventSource = null;
         this.reconnectTimeout = null;
         this.reconnectDelay = 1000;
+        this.status = 'disconnected';
     }
     
     connect() {
@@ -201,10 +202,12 @@ export class SSEClient {
         
         this.eventSource.onopen = () => {
             this.reconnectDelay = 1000;
+            this.status = 'connected';
             this.onStatusChange('connected');
         };
         
         this.eventSource.onerror = () => {
+            this.status = 'disconnected';
             this.onStatusChange('disconnected');
             this.scheduleReconnect();
         };
@@ -263,6 +266,15 @@ export class SSEClient {
         
         // Exponential backoff, max 30 seconds
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+    }
+
+    reconnectIfNeeded() {
+        if (this.status === 'connected') return;
+        if (this.reconnectTimeout) {
+            clearTimeout(this.reconnectTimeout);
+            this.reconnectTimeout = null;
+        }
+        this.connect();
     }
     
     disconnect() {

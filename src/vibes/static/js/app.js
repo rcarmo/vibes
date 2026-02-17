@@ -1272,8 +1272,18 @@ function App() {
         );
         
         sse.connect();
+
+        const handleWindowFocus = () => {
+            sse.reconnectIfNeeded();
+        };
+        window.addEventListener('focus', handleWindowFocus);
+        document.addEventListener('visibilitychange', handleWindowFocus);
         
-        return () => sse.disconnect();
+        return () => {
+            window.removeEventListener('focus', handleWindowFocus);
+            document.removeEventListener('visibilitychange', handleWindowFocus);
+            sse.disconnect();
+        };
     }, [loadPosts]);
     
     return html`
