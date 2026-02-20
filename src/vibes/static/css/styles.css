@@ -942,6 +942,12 @@ body {
     animation: fadeIn 0.2s ease-out;
 }
 
+.agent-status.agent-status-request {
+    background: rgba(29, 155, 240, 0.12);
+    border-bottom-color: rgba(29, 155, 240, 0.35);
+    color: var(--text-primary);
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

@@ -9,9 +9,18 @@ from ..db import get_db
 from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
 from ..acp_client import (
-    send_message_multimodal, is_agent_running,
-    set_request_callback, set_whitelist_checker, respond_to_request,
-    prompt_from_action
+    send_message_multimodal as send_acp_message_multimodal,
+    is_agent_running as is_acp_running,
+    set_request_callback as set_acp_request_callback,
+    set_whitelist_checker,
+    respond_to_request as respond_to_acp_request,
+    prompt_from_action,
+)
+from ..pi_client import (
+    send_message_multimodal as send_pi_message_multimodal,
+    is_pi_running,
+    set_request_callback as set_pi_request_callback,
+    respond_to_request as respond_to_pi_request,
 )
 from ..tasks import enqueue
 from .sse import broadcast_event
@@ -69,7 +78,8 @@ async def _handle_agent_request(request_data):
     """Broadcast agent requests to UI."""
     await broadcast_event("agent_request", request_data)
 
-set_request_callback(_handle_agent_request)
+set_acp_request_callback(_handle_agent_request)
+set_pi_request_callback(_handle_agent_request)
 
 
 # Set up whitelist checker
@@ -86,17 +96,55 @@ set_whitelist_checker(_check_whitelist)
 async def list_agents(request: web.Request) -> web.Response:
     """List available agents and their capabilities."""
     config = get_config()
-    return web.json_response({
-        "agents": [
-            {
-                "id": "default",
-                "name": config.agent_name,
-                "description": f"ACP agent ({config.acp_agent})",
-                "status": "running" if is_agent_running() else "stopped",
-                "actions": []
-            }
-        ]
-    })
+    default_mode = config.default_agent.lower()
+    agents = []
+
+    if default_mode == "pi":
+        agents.append({
+            "id": "default",
+            "name": "Pi",
+            "description": f"Pi agent ({config.pi_agent})",
+            "status": "running" if is_pi_running() else "stopped",
+            "actions": []
+        })
+    else:
+        agents.append({
+            "id": "default",
+            "name": config.agent_name,
+            "description": f"ACP agent ({config.acp_agent})",
+            "status": "running" if is_acp_running() else "stopped",
+            "actions": []
+        })
+
+    if config.pi_enabled and default_mode != "pi":
+        agents.append({
+            "id": "pi",
+            "name": "Pi",
+            "description": f"Pi agent ({config.pi_agent})",
+            "status": "running" if is_pi_running() else "stopped",
+            "actions": []
+        })
+
+    if default_mode != "acp":
+        agents.append({
+            "id": "acp",
+            "name": config.agent_name,
+            "description": f"ACP agent ({config.acp_agent})",
+            "status": "running" if is_acp_running() else "stopped",
+            "actions": []
+        })
+
+    return web.json_response({"agents": agents})
+
+
+def _resolve_agent_mode(agent_id: str) -> str:
+    config = get_config()
+    default_mode = config.default_agent.lower()
+    if agent_id == "default":
+        return default_mode
+    if agent_id in ("pi", "acp"):
+        return agent_id
+    return default_mode
 
 
 async def process_agent_response(thread_id: int, content: str, agent_id: str):
@@ -134,8 +182,11 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "title": "Thinking..."
         })
         
-        # Get multimodal response from ACP agent
-        response = await send_message_multimodal(content, thread_id, status_callback)
+        agent_mode = _resolve_agent_mode(agent_id)
+        if agent_mode == "pi":
+            response = await send_pi_message_multimodal(content, thread_id, status_callback)
+        else:
+            response = await send_acp_message_multimodal(content, thread_id, status_callback)
 
         # If a permission request timed out, stop and explain what happened.
         if response.get("cancelled"):
@@ -372,7 +423,9 @@ async def respond_to_agent_request(request: web.Request) -> web.Response:
     if request_id is None:
         return web.json_response({"error": "Missing request_id"}, status=400)
     
-    success = respond_to_request(request_id, outcome)
+    success = respond_to_acp_request(request_id, outcome)
+    if not success:
+        success = respond_to_pi_request(request_id, outcome)
     
     if success:
         logger.info(f"Responded to agent request {request_id}: {outcome}")

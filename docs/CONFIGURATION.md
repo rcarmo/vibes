@@ -15,7 +15,12 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to wait before restarting agent on disconnect |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = no throttling) |
+| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) for the `default` agent id |
+| `VIBES_PI_AGENT` | `pi --mode rpc --no-session` | Pi RPC command to spawn when Pi mode is enabled |
+| `VIBES_PI_ENABLED` | `false` | Enable Pi RPC agent (auto-enabled when `VIBES_DEFAULT_AGENT=pi`) |
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Path to custom endpoints config |
+
+For Pi mode details, see [docs/PI_MODE.md](PI_MODE.md).
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
 

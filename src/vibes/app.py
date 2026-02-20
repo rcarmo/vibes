@@ -11,7 +11,8 @@ from .config import get_config
 from .db import init_db, close_db, Database
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
-from .acp_client import start_agent, stop_agent
+from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
+from .pi_client import start_pi_agent, stop_pi_agent
 from .routes import posts, media, sse, agents
 
 logger = logging.getLogger(__name__)
@@ -57,10 +58,17 @@ async def on_startup(app: web.Application) -> None:
     logger.info("Background task queue started")
     
     # Start ACP agent
-    if await start_agent():
+    if await start_acp_agent():
         logger.info(f"ACP agent started: {config.acp_agent}")
     else:
         logger.warning(f"ACP agent not available: {config.acp_agent}")
+
+    # Start Pi agent if enabled
+    if config.pi_enabled:
+        if await start_pi_agent():
+            logger.info(f"Pi agent started: {config.pi_agent}")
+        else:
+            logger.warning(f"Pi agent not available: {config.pi_agent}")
     
     # Reconcile missing link previews in background
     asyncio.create_task(reconcile_missing_previews())
@@ -70,8 +78,12 @@ async def on_cleanup(app: web.Application) -> None:
     """Application cleanup handler."""
     logger.info("Shutting down...")
     
-    await stop_agent()
+    await stop_acp_agent()
     logger.info("ACP agent stopped")
+
+    if get_config().pi_enabled:
+        await stop_pi_agent()
+        logger.info("Pi agent stopped")
     
     await stop_task_queue()
     logger.info("Background task queue stopped")

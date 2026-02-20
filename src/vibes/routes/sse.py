@@ -6,7 +6,8 @@ from typing import Any
 from aiohttp import web
 from aiohttp.client_exceptions import ClientConnectionResetError
 
-from ..acp_client import stop_agent, start_agent
+from ..acp_client import stop_agent as stop_acp_agent, start_agent as start_acp_agent
+from ..pi_client import stop_pi_agent, start_pi_agent
 from ..config import get_config
 
 # Connected SSE clients
@@ -34,8 +35,11 @@ async def _restart_agent_after_disconnect(delay_s: int) -> None:
         await asyncio.sleep(delay_s)
         if _clients:
             return
-        await stop_agent()
-        await start_agent()
+        await stop_acp_agent()
+        await start_acp_agent()
+        if get_config().pi_enabled:
+            await stop_pi_agent()
+            await start_pi_agent()
     except asyncio.CancelledError:
         raise
 

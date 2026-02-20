@@ -70,7 +70,7 @@ vibes whitelist list
 
 ## Configuration
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md). For Pi RPC integration, see [docs/PI_MODE.md](docs/PI_MODE.md).
 
 ## API Endpoints
 

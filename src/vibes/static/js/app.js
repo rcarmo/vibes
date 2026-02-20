@@ -858,8 +858,8 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 /**
  * Agent status indicator
  */
-function AgentStatus({ status, draft, plan, thought }) {
-    if (!status && !draft && !plan && !thought) return null;
+function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
+    if (!status && !draft && !plan && !thought && !pendingRequest) return null;
 
     const DRAFT_MAX_CHARS = 2048;
     const DRAFT_TAIL_CHARS = 256;
@@ -887,8 +887,17 @@ function AgentStatus({ status, draft, plan, thought }) {
         content = title || statusText || 'Working...';
     }
     
+    const pendingTitle = pendingRequest?.tool_call?.title;
+    const pendingMessage = pendingTitle ? `Awaiting approval: ${pendingTitle}` : 'Awaiting approval';
+
     return html`
         <div class="agent-status-panel">
+            ${pendingRequest && html`
+                <div class="agent-status agent-status-request" aria-live="polite">
+                    <div class="agent-status-spinner"></div>
+                    <span class="agent-status-text">${pendingMessage}</span>
+                </div>
+            `}
             ${plan && html`
                 <div class="agent-thinking">
                     <div class="agent-thinking-title">Planning</div>
@@ -1055,6 +1064,7 @@ function ConnectionStatus({ status }) {
         </div>
     `;
 }
+
 
 /**
  * Main App component
@@ -1375,7 +1385,13 @@ function App() {
                 agents=${agents}
                 reverse=${!(searchQuery && !currentHashtag)}
             />
-            <${AgentStatus} status=${agentStatus} draft=${agentDraft} plan=${agentPlan} thought=${agentThought} />
+            <${AgentStatus}
+                status=${agentStatus}
+                draft=${agentDraft}
+                plan=${agentPlan}
+                thought=${agentThought}
+                pendingRequest=${pendingRequest}
+            />
             <${ComposeBox} 
                 onPost=${() => { loadPosts(); scrollToBottom(); }}
                 onFocus=${scrollToBottom}

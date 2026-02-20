@@ -54,6 +54,14 @@ class Config:
         self.disconnect_timeout: int = _get_env_int("VIBES_DISCONNECT_TIMEOUT", 300)
         self.acp_debug: bool = _get_env_bool("VIBES_ACP_DEBUG", False)
         self.acp_throttle_rps: int = _get_env_int("VIBES_ACP_THROTTLE_RPS", 0)
+
+        # Pi agent configuration (RPC mode)
+        self.default_agent: str = _get_env("VIBES_DEFAULT_AGENT", "acp")
+        self.pi_agent: str = _get_env("VIBES_PI_AGENT", "pi --mode rpc --no-session")
+        self.pi_enabled: bool = _get_env_bool(
+            "VIBES_PI_ENABLED",
+            self.default_agent.lower() == "pi"
+        )
         
         # Load custom endpoints from config file
         config_path = _get_env("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)
