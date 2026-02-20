@@ -27,16 +27,22 @@ logger = logging.getLogger(__name__)
 ACP_FILE_PREVIEW_TOOL_NAME = "vibes/preview_file"
 ACP_STORE_MEDIA_TOOL_NAME = "vibes/store_media_file"
 ACP_FILE_PREVIEW_INSTRUCTIONS = (
-    "Tools available:\n"
-    "- vibes/preview_file: attach a clickable preview (resource or file). "
+    "You can call Vibes tools via ACP JSON-RPC requests. Use these tools to attach files in chat.\n"
+    "\n"
+    "Tool: vibes/preview_file (preview + download attachment).\n"
     "Params: path (required, relative to server cwd), title/name (optional), "
     "mime_type/mimeType (optional), previewBytes (default 8192), "
     "maxBytes (default 5242880), mode: 'resource' (default, preview+download) "
     "or 'file' (attachment only).\n"
-    "- vibes/store_media_file: store a workspace file in the media table and return a file/image block. "
+    "\n"
+    "Tool: vibes/store_media_file (store binary in media table and return file/image block).\n"
     "Params: path (required), title/name (optional), mime_type/mimeType (optional), "
     "maxBytes (default 10485760).\n"
-    "These tools return content blocks; include those blocks in your final response."
+    "\n"
+    "How to call a tool (ACP JSON-RPC request from agent to client):\n"
+    "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"vibes/store_media_file\",\"params\":{\"path\":\"artifacts/report.pdf\"}}\n"
+    "\n"
+    "The tool response returns {text, content}. Include the returned content blocks in your final response so the UI renders the attachment."
 )
 
 DEFAULT_PREVIEW_BYTES = 8192
