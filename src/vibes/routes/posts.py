@@ -173,7 +173,15 @@ async def delete_post(request: web.Request) -> web.Response:
     if cascade and reply_ids:
         delete_ids.extend(reply_ids)
     
+    media_ids = await db.get_media_ids_for_interactions(delete_ids)
     deleted = await db.delete_interactions(delete_ids)
+
+    if media_ids:
+        refs = await db.get_media_reference_counts(media_ids)
+        to_delete = [mid for mid in media_ids if refs.get(mid, 0) == 0]
+        if to_delete:
+            await db.delete_media(to_delete)
+
     await broadcast_event("interaction_deleted", {"ids": delete_ids})
     
     return web.json_response({"deleted": deleted, "ids": delete_ids})

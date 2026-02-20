@@ -214,6 +214,51 @@ class Database:
             )
             return cursor.rowcount
 
+    async def get_media_ids_for_interactions(self, interaction_ids: list[int]) -> list[int]:
+        """Get distinct media IDs referenced by interactions."""
+        if not interaction_ids:
+            return []
+        placeholders = ", ".join(["?"] * len(interaction_ids))
+        async with self._connection.execute(
+            f"""
+            SELECT DISTINCT value AS media_id
+            FROM interactions, json_each(interactions.data, '$.media_ids')
+            WHERE interactions.id IN ({placeholders})
+            """,
+            interaction_ids,
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return [row["media_id"] for row in rows if row["media_id"] is not None]
+
+    async def get_media_reference_counts(self, media_ids: list[int]) -> dict[int, int]:
+        """Get reference counts for media IDs across remaining interactions."""
+        if not media_ids:
+            return {}
+        placeholders = ", ".join(["?"] * len(media_ids))
+        async with self._connection.execute(
+            f"""
+            SELECT json_each.value AS media_id, COUNT(DISTINCT interactions.id) AS ref_count
+            FROM interactions, json_each(interactions.data, '$.media_ids')
+            WHERE json_each.value IN ({placeholders})
+            GROUP BY json_each.value
+            """,
+            media_ids,
+        ) as cursor:
+            rows = await cursor.fetchall()
+            return {row["media_id"]: row["ref_count"] for row in rows}
+
+    async def delete_media(self, media_ids: list[int]) -> int:
+        """Delete media rows by ID and return number of rows deleted."""
+        if not media_ids:
+            return 0
+        placeholders = ", ".join(["?"] * len(media_ids))
+        async with self.transaction():
+            cursor = await self._connection.execute(
+                f"DELETE FROM media WHERE id IN ({placeholders})",
+                media_ids,
+            )
+            return cursor.rowcount
+
     async def get_timeline(self, limit: int = 50, before_id: int = None) -> list[dict]:
         """Get timeline of all interactions (oldest first for chat view)."""
         if before_id:
