@@ -43,4 +43,4 @@ Repository = "https://github.com/rcarmo/vibes"
 where = ["src"]
 
 [tool.setuptools.package-data]
-vibes = ["static/**/*"]
+vibes = ["static/**/*", "extensions/*.ts"]

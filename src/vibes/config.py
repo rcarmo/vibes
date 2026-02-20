@@ -2,6 +2,7 @@
 
 import json
 import os
+import shlex
 import socket
 from pathlib import Path
 from typing import Optional
@@ -36,6 +37,12 @@ def _get_env_bool(key: str, default: bool) -> bool:
     return value.lower() in ENV_BOOL_TRUE
 
 
+def _default_pi_agent_command() -> str:
+    extension_path = Path(__file__).parent / "extensions" / "pi-vibes-tools.ts"
+    quoted_extension = shlex.quote(str(extension_path))
+    return f"pi --mode rpc --no-session -e {quoted_extension}"
+
+
 class Config:
     """Application configuration."""
 
@@ -57,7 +64,10 @@ class Config:
 
         # Pi agent configuration (RPC mode)
         self.default_agent: str = _get_env("VIBES_DEFAULT_AGENT", "acp")
-        self.pi_agent: str = _get_env("VIBES_PI_AGENT", "pi --mode rpc --no-session")
+        self.pi_agent: str = _get_env(
+            "VIBES_PI_AGENT",
+            _default_pi_agent_command(),
+        )
         self.pi_enabled: bool = _get_env_bool(
             "VIBES_PI_ENABLED",
             self.default_agent.lower() == "pi"

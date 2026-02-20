@@ -8,7 +8,7 @@ Vibes can run a **Pi RPC agent** alongside (or instead of) ACP. This lets you us
 # Use Pi as the default agent
 VIBES_DEFAULT_AGENT=pi
 VIBES_PI_ENABLED=true
-VIBES_PI_AGENT="pi --mode rpc --no-session"
+VIBES_PI_AGENT="pi --mode rpc --no-session -e /path/to/site-packages/vibes/extensions/pi-vibes-tools.ts"
 ```
 
 You can also keep ACP as default and expose Pi as a separate agent id:
@@ -25,6 +25,8 @@ Agent ids:
 
 ## What Pi Mode Supports
 
+Pi mode automatically loads the packaged `vibes/extensions/pi-vibes-tools.ts` via the default `VIBES_PI_AGENT` command. This adds a `vibes_attach_file` tool for attaching local files as base64 content blocks.
+
 - **History & threading**: Pi responses are stored just like ACP responses in the timeline.
 - **Draft streaming**: `message_update` text deltas are streamed to the Draft pane.
 - **Thinking stream**: `thinking_delta` updates appear in the Thoughts pane.
@@ -33,6 +35,7 @@ Agent ids:
 - **Media**:
   - Base64 image blocks (recommended): `{type: "image", data, mimeType}`
   - File attachments: `{type: "file", fileName, mimeType, content}`
+  - `vibes_attach_file` tool from the bundled Pi extension
 
 Vibes stores received media in the media table and renders previews/downloads in the timeline.
 

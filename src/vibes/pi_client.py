@@ -15,7 +15,9 @@ from .config import get_config
 logger = logging.getLogger(__name__)
 
 PI_PROMPT_PREFIX = (
-    "You are responding inside Vibes (web UI). Formatting support:\n"
+    "You are responding inside Vibes (web UI).\n"
+    "A Vibes extension may be loaded to attach files when needed.\n"
+    "Formatting support:\n"
     "- Markdown via marked (tables, lists, fenced code).\n"
     "- KaTeX math: use $...$ (inline) and $$...$$ (display).\n"
     "- Mermaid diagrams: use fenced blocks like ```mermaid\n...\n```.\n"
