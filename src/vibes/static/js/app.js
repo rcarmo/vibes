@@ -757,6 +757,8 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
  */
 function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, onDeletePost, reverse = true }) {
     const [loadingMore, setLoadingMore] = useState(false);
+    const sentinelRef = useRef(null);
+    const hasIntersectionObserver = typeof IntersectionObserver !== 'undefined';
 
     const triggerLoadMore = useCallback(async () => {
         if (!onLoadMore || !hasMore || loadingMore) return;
@@ -779,6 +781,32 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     }, [reverse, triggerLoadMore]);
 
     useEffect(() => {
+        if (!hasIntersectionObserver) return;
+        if (!hasMore || !onLoadMore) return;
+        const root = timelineRef?.current;
+        const sentinel = sentinelRef.current;
+        if (!root || !sentinel) return;
+
+        const prefetchThreshold = Math.max(300, root.clientHeight || 0);
+        const observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    triggerLoadMore();
+                }
+            },
+            {
+                root,
+                rootMargin: `${prefetchThreshold}px 0px ${prefetchThreshold}px 0px`,
+                threshold: 0,
+            }
+        );
+
+        observer.observe(sentinel);
+        return () => observer.disconnect();
+    }, [hasIntersectionObserver, hasMore, onLoadMore, timelineRef, triggerLoadMore]);
+
+    useEffect(() => {
+        if (hasIntersectionObserver) return;
         if (!timelineRef?.current) return;
         const { scrollTop, scrollHeight, clientHeight } = timelineRef.current;
         const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
@@ -787,7 +815,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
         if (distanceFromTop < prefetchThreshold) {
             triggerLoadMore();
         }
-    }, [posts, hasMore, reverse, timelineRef, triggerLoadMore]);
+    }, [hasIntersectionObserver, posts, hasMore, reverse, timelineRef, triggerLoadMore]);
     
     if (!posts) {
         return html`<div class="loading"><div class="spinner"></div></div>`;
@@ -809,8 +837,9 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
     const displayPosts = posts.slice().sort((a, b) => a.id - b.id);
     
     return html`
-        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${handleScroll}>
+        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${hasIntersectionObserver ? undefined : handleScroll}>
             <div class="timeline-content">
+                <div class="timeline-sentinel" ref=${sentinelRef}></div>
                 ${displayPosts.map(post => html`
                     <${Post}
                         key=${post.id}
