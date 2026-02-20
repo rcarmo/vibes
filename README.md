@@ -1,12 +1,12 @@
 # Vibes
 
-A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol. Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
+A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol, as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
 
 ![Screenshot](docs/screenshot.png)
 
 ## Features
 
-- Persistent, infinite scrolling conversations with ACP agents
+- Persistent, infinite scrolling conversations with ACP agents and `pi`
 - Accept/Deny tool usage by agents, with command previews
 - Live reasoning/intent updates via Server-Sent Events (SSE)
 - Post text, links, images, and files
@@ -60,7 +60,7 @@ pip install -e ".[dev]"
 vibes
 
 # Or with custom options
-VIBES_HOST=127.0.0.1 VIBES_PORT=3000 vibes
+VIBES_DEFAULT_AGENT=pi VIBES_HOST=127.0.0.1 VIBES_PORT=3000 vibes
 
 # Manage agent permission whitelist
 vibes whitelist add "Run command"
