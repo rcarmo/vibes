@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 PI_PROMPT_PREFIX = (
     "You are responding inside Vibes (web UI).\n"
     "A Vibes extension may be loaded to attach files when needed.\n"
+    "Reminder: additional SKILL.md files are available under .github/skills.\n"
     "Formatting support:\n"
     "- Markdown via marked (tables, lists, fenced code).\n"
     "- KaTeX math: use $...$ (inline) and $$...$$ (display).\n"
@@ -155,10 +156,10 @@ def _collect_text(blocks: list[dict]) -> str:
     return "".join(parts)
 
 
-def _blocks_from_pi_content(content) -> list[dict]:
+def _blocks_from_pi_content(content, include_text: bool = True) -> list[dict]:
     blocks: list[dict] = []
     if isinstance(content, str):
-        if content:
+        if content and include_text:
             blocks.append({"type": "text", "text": content})
         return blocks
 
@@ -168,7 +169,8 @@ def _blocks_from_pi_content(content) -> list[dict]:
                 continue
             item_type = item.get("type")
             if item_type == "text":
-                blocks.append({"type": "text", "text": item.get("text", "")})
+                if include_text:
+                    blocks.append({"type": "text", "text": item.get("text", "")})
             elif item_type == "image":
                 data = item.get("data") or item.get("content")
                 mime_type = item.get("mimeType") or item.get("mime_type") or item.get("content_type")
@@ -178,6 +180,19 @@ def _blocks_from_pi_content(content) -> list[dict]:
                 }
                 if data:
                     block["data"] = data
+                blocks.append(block)
+            elif item_type == "file":
+                data = item.get("data") or item.get("content")
+                mime_type = item.get("mimeType") or item.get("mime_type") or item.get("content_type")
+                name = item.get("name") or item.get("fileName")
+                block = {
+                    "type": "file",
+                    "mime_type": mime_type or "application/octet-stream",
+                }
+                if data:
+                    block["data"] = data
+                if name:
+                    block["name"] = name
                 blocks.append(block)
             elif item_type in ("toolCall", "thinking"):
                 continue
@@ -216,6 +231,31 @@ def _blocks_from_pi_attachments(attachments: list[dict] | None) -> list[dict]:
             })
 
     return blocks
+
+
+def _blocks_from_pi_result_details(details: dict | None) -> list[dict]:
+    if not isinstance(details, dict):
+        return []
+    attachment = details.get("vibesAttachment")
+    if not isinstance(attachment, dict):
+        return []
+
+    data = attachment.get("data")
+    if not data:
+        return []
+
+    mime_type = attachment.get("mimeType") or "application/octet-stream"
+    name = attachment.get("name")
+    kind = attachment.get("kind")
+
+    block = {
+        "type": "image" if kind == "image" or mime_type.startswith("image/") else "file",
+        "mime_type": mime_type,
+        "data": data,
+    }
+    if name:
+        block["name"] = name
+    return [block]
 
 
 def _build_extension_request(event: dict) -> dict | None:
@@ -300,6 +340,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             draft_text = ""
             thought_text = ""
             final_message = None
+            tool_blocks: list[dict] = []
 
             while True:
                 event = await _read_event(_state.agent_reader)
@@ -359,6 +400,10 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                             "title": event.get("toolName", "Tool"),
                             "status": status_text,
                         })
+
+                    result = event.get("result") or {}
+                    tool_blocks.extend(_blocks_from_pi_content(result.get("content"), include_text=False))
+                    tool_blocks.extend(_blocks_from_pi_result_details(result.get("details")))
                     continue
 
                 if event_type == "extension_ui_request":
@@ -392,12 +437,17 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     continue
 
                 if event_type == "agent_end":
+                    messages = event.get("messages", [])
                     if not final_message:
-                        messages = event.get("messages", [])
                         for msg in reversed(messages):
                             if msg.get("role") == "assistant":
                                 final_message = msg
                                 break
+
+                    for msg in messages:
+                        if msg.get("role") == "toolResult":
+                            tool_blocks.extend(_blocks_from_pi_content(msg.get("content"), include_text=False))
+                            tool_blocks.extend(_blocks_from_pi_result_details(msg.get("details")))
                     break
 
             if not final_message:
@@ -410,6 +460,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             content_blocks = []
             content_blocks.extend(_blocks_from_pi_content(final_message.get("content")))
             content_blocks.extend(_blocks_from_pi_attachments(final_message.get("attachments")))
+            if tool_blocks:
+                content_blocks.extend(tool_blocks)
 
             text = _collect_text(content_blocks) or draft_text
 

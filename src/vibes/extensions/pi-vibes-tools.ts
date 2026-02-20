@@ -56,7 +56,8 @@ export default function (pi: ExtensionAPI) {
       const data = await readFile(filePath);
       const encoded = data.toString("base64");
 
-      const block = mimeType.startsWith("image/")
+      const isImage = mimeType.startsWith("image/");
+      const block = isImage
         ? {
             type: "image",
             data: encoded,
@@ -84,6 +85,13 @@ export default function (pi: ExtensionAPI) {
           fileName: displayName,
           mimeType,
           size: fileInfo.size,
+          vibesAttachment: {
+            kind: isImage ? "image" : "file",
+            name: displayName,
+            mimeType,
+            data: encoded,
+            encoding: "base64",
+          },
         },
       };
     },
