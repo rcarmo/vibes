@@ -258,6 +258,25 @@ def _blocks_from_pi_result_details(details: dict | None) -> list[dict]:
     return [block]
 
 
+def _has_binary_blocks(blocks: list[dict]) -> bool:
+    return any(block.get("type") in ("image", "file") for block in blocks)
+
+
+def _collect_tool_result_blocks(result: dict | None, tool_call_id: str | None, tool_blocks: list[dict], seen: set[str]) -> None:
+    if not isinstance(result, dict):
+        return
+    if tool_call_id and tool_call_id in seen:
+        return
+    if tool_call_id:
+        seen.add(tool_call_id)
+
+    blocks = _blocks_from_pi_content(result.get("content"), include_text=False)
+    if not _has_binary_blocks(blocks):
+        blocks.extend(_blocks_from_pi_result_details(result.get("details")))
+
+    tool_blocks.extend(blocks)
+
+
 def _build_extension_request(event: dict) -> dict | None:
     method = event.get("method")
     request_id = event.get("id")
@@ -341,6 +360,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             thought_text = ""
             final_message = None
             tool_blocks: list[dict] = []
+            tool_calls_seen: set[str] = set()
 
             while True:
                 event = await _read_event(_state.agent_reader)
@@ -401,9 +421,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                             "status": status_text,
                         })
 
-                    result = event.get("result") or {}
-                    tool_blocks.extend(_blocks_from_pi_content(result.get("content"), include_text=False))
-                    tool_blocks.extend(_blocks_from_pi_result_details(result.get("details")))
+                    _collect_tool_result_blocks(
+                        event.get("result"),
+                        event.get("toolCallId"),
+                        tool_blocks,
+                        tool_calls_seen,
+                    )
                     continue
 
                 if event_type == "extension_ui_request":
@@ -446,8 +469,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
 
                     for msg in messages:
                         if msg.get("role") == "toolResult":
-                            tool_blocks.extend(_blocks_from_pi_content(msg.get("content"), include_text=False))
-                            tool_blocks.extend(_blocks_from_pi_result_details(msg.get("details")))
+                            _collect_tool_result_blocks(
+                                msg,
+                                msg.get("toolCallId"),
+                                tool_blocks,
+                                tool_calls_seen,
+                            )
                     break
 
             if not final_message:

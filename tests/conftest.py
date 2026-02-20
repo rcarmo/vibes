@@ -1,9 +1,21 @@
 """Pytest configuration and fixtures."""
 
+import os
+import sys
+import tempfile
+from pathlib import Path
+
 import pytest
 import pytest_asyncio
-import tempfile
-import os
+
+SRC_PATH = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
+# Ensure local src package is used even if an installed vibes package exists.
+for module_name in list(sys.modules.keys()):
+    if module_name == "vibes" or module_name.startswith("vibes."):
+        sys.modules.pop(module_name, None)
 
 
 @pytest.fixture

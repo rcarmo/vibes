@@ -10,6 +10,16 @@ from ..acp_client import stop_agent as stop_acp_agent, start_agent as start_acp_
 from ..pi_client import stop_pi_agent, start_pi_agent
 from ..config import get_config
 
+
+async def stop_agent() -> None:
+    """Backward-compatible alias for ACP stop."""
+    await stop_acp_agent()
+
+
+async def start_agent() -> None:
+    """Backward-compatible alias for ACP start."""
+    await start_acp_agent()
+
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
 _restart_task: asyncio.Task | None = None
@@ -55,7 +65,10 @@ def _schedule_restart_if_needed() -> None:
     if _restart_task and not _restart_task.done():
         return
 
-    delay_s = get_config().disconnect_timeout
+    config = get_config()
+    delay_s = getattr(config, "disconnect_timeout", None)
+    if delay_s is None:
+        delay_s = getattr(config, "agent_restart_on_disconnect_s", 0)
     if delay_s <= 0:
         return
 

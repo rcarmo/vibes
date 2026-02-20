@@ -1,7 +1,18 @@
 """Tests for route handlers."""
 
-import pytest
 import io
+import sys
+from pathlib import Path
+
+import pytest
+
+SRC_PATH = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_PATH) not in sys.path:
+    sys.path.insert(0, str(SRC_PATH))
+
+for module_name in list(sys.modules.keys()):
+    if module_name == "vibes" or module_name.startswith("vibes."):
+        sys.modules.pop(module_name, None)
 
 from vibes.routes import media
 
@@ -166,9 +177,20 @@ class TestSSEDisconnectRestart:
         from unittest.mock import AsyncMock
         from vibes.routes import sse
 
-        monkeypatch.setattr(sse, "stop_agent", AsyncMock())
-        monkeypatch.setattr(sse, "start_agent", AsyncMock())
-        monkeypatch.setattr(sse, "get_config", lambda: type("C", (), {"agent_restart_on_disconnect_s": 0})())
+        stop_attr = "stop_agent" if hasattr(sse, "stop_agent") else "stop_acp_agent"
+        start_attr = "start_agent" if hasattr(sse, "start_agent") else "start_acp_agent"
+
+        monkeypatch.setattr(sse, stop_attr, AsyncMock())
+        monkeypatch.setattr(sse, start_attr, AsyncMock())
+        monkeypatch.setattr(
+            sse,
+            "get_config",
+            lambda: type(
+                "C",
+                (),
+                {"agent_restart_on_disconnect_s": 0, "disconnect_timeout": 0},
+            )(),
+        )
 
         app = web.Application()
         sse.setup_routes(app)
@@ -178,8 +200,8 @@ class TestSSEDisconnectRestart:
             assert resp.status == 200
 
         # After disconnect, with delay 0, restart is disabled.
-        assert sse.stop_agent.await_count == 0
-        assert sse.start_agent.await_count == 0
+        assert getattr(sse, stop_attr).await_count == 0
+        assert getattr(sse, start_attr).await_count == 0
 
 
 class TestMediaRoutesIntegration:
