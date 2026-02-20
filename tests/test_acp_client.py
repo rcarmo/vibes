@@ -478,6 +478,16 @@ class TestContentParsing:
         assert result["url"] == "https://example.com/image.png"
         assert result["mime_type"] == "image/png"
 
+    def test_parse_image_block_media_id(self):
+        block = {
+            "type": "image",
+            "media_id": 42,
+            "content_type": "image/png"
+        }
+        result = acp_client._parse_content_block(block)
+        assert result["type"] == "image"
+        assert result["media_id"] == 42
+
     def test_parse_file_block(self):
         """Test parsing file/artifact block."""
         block = {
@@ -523,6 +533,39 @@ class TestContentParsing:
         assert len(collected) == 2
         assert collected[0]["type"] == "text"
         assert collected[1]["type"] == "image"
+
+    @pytest.mark.asyncio
+    async def test_build_preview_file_result_resource(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        file_path = tmp_path / "sample.txt"
+        file_path.write_text("Hello world")
+
+        result = await acp_client._build_preview_file_result({
+            "path": "sample.txt",
+            "previewBytes": 5,
+        })
+
+        assert result["content"][0]["type"] == "resource"
+        resource = result["content"][0]["resource"]
+        assert resource["uri"] == "sample.txt"
+        assert resource["text"].startswith("Hello")
+        assert "blob" in resource
+
+    @pytest.mark.asyncio
+    async def test_build_preview_file_result_file_mode(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        file_path = tmp_path / "data.bin"
+        file_path.write_bytes(b"\x00\x01\x02")
+
+        result = await acp_client._build_preview_file_result({
+            "path": "data.bin",
+            "mode": "file",
+        })
+
+        assert result["content"][0]["type"] == "file"
+        block = result["content"][0]
+        assert block["content_encoding"] == "base64"
+        assert block["content"]
 
     @pytest.mark.asyncio
     async def test_send_message_multimodal_success(self):

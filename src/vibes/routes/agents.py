@@ -239,6 +239,10 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
 async def _store_media_block(db, block: dict) -> int | None:
     """Store an image or file block in the media table, return media_id."""
     try:
+        existing_media_id = block.get("media_id") or block.get("mediaId")
+        if existing_media_id:
+            return int(existing_media_id)
+
         block_type = block.get("type")
         mime_type = block.get("mime_type", "application/octet-stream")
         name = block.get("name", f"agent_{block_type}")

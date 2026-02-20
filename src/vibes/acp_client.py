@@ -1,14 +1,18 @@
 """ACP client for communicating with agents via stdio using the ACP protocol."""
 
 import asyncio
+import base64
 import json
 import logging
+import mimetypes
 import shlex
 import shutil
 from typing import Optional, AsyncIterator
 from pathlib import Path
 
 from .config import get_config
+from .db import get_db
+from .routes.media import generate_thumbnail
 from .acp_protocol import (
     parse_frame,
     classify_frame,
@@ -19,6 +23,35 @@ from .acp_protocol import (
 )
 
 logger = logging.getLogger(__name__)
+
+ACP_FILE_PREVIEW_TOOL_NAME = "vibes/preview_file"
+ACP_STORE_MEDIA_TOOL_NAME = "vibes/store_media_file"
+ACP_FILE_PREVIEW_INSTRUCTIONS = (
+    "Tools available:\n"
+    "- vibes/preview_file: attach a clickable preview (resource or file). "
+    "Params: path (required, relative to server cwd), title/name (optional), "
+    "mime_type/mimeType (optional), previewBytes (default 8192), "
+    "maxBytes (default 5242880), mode: 'resource' (default, preview+download) "
+    "or 'file' (attachment only).\n"
+    "- vibes/store_media_file: store a workspace file in the media table and return a file/image block. "
+    "Params: path (required), title/name (optional), mime_type/mimeType (optional), "
+    "maxBytes (default 10485760).\n"
+    "These tools return content blocks; include those blocks in your final response."
+)
+
+DEFAULT_PREVIEW_BYTES = 8192
+DEFAULT_MAX_BYTES = 5 * 1024 * 1024
+DEFAULT_STORE_MAX_BYTES = 10 * 1024 * 1024
+TEXT_MIME_TYPES = {
+    "application/json",
+    "application/xml",
+    "application/x-yaml",
+    "application/yaml",
+    "application/javascript",
+    "application/x-javascript",
+    "application/markdown",
+    "text/markdown",
+}
 
 
 class _ACPState:
@@ -140,6 +173,195 @@ def respond_to_request(request_id, outcome: str):
         future.set_result(outcome)
         return True
     return False
+
+
+def _build_agent_prompt(content: str) -> str:
+    """Build a prompt with ACP tool instructions appended."""
+    return f"{ACP_FILE_PREVIEW_INSTRUCTIONS}\n\nUser:\n{content}"
+
+
+def _coerce_int(value, default: int) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _is_text_mime(mime_type: str) -> bool:
+    return mime_type.startswith("text/") or mime_type in TEXT_MIME_TYPES
+
+
+def _resolve_preview_path(path_str: str) -> Path:
+    candidate = Path(path_str).expanduser()
+    if not candidate.is_absolute():
+        candidate = Path.cwd() / candidate
+    resolved = candidate.resolve()
+    root = Path.cwd().resolve()
+    if root not in resolved.parents and resolved != root:
+        raise ValueError("Path is outside the server working directory")
+    if not resolved.is_file():
+        raise ValueError("File not found")
+    return resolved
+
+
+def _read_preview_bytes(path: Path, preview_bytes: int) -> bytes:
+    if preview_bytes <= 0:
+        return b""
+    with path.open("rb") as handle:
+        return handle.read(preview_bytes)
+
+
+async def _build_preview_file_result(params: dict) -> dict:
+    path_value = params.get("path") or params.get("file") or params.get("filepath")
+    if not path_value:
+        raise ValueError("Missing required 'path' parameter")
+
+    resolved = _resolve_preview_path(path_value)
+    display_name = (
+        params.get("title")
+        or params.get("name")
+        or params.get("filename")
+        or resolved.name
+    )
+    preview_bytes = _coerce_int(
+        params.get("previewBytes") or params.get("preview_bytes"),
+        DEFAULT_PREVIEW_BYTES,
+    )
+    max_bytes = _coerce_int(
+        params.get("maxBytes") or params.get("max_bytes"),
+        DEFAULT_MAX_BYTES,
+    )
+    mode = (params.get("mode") or params.get("kind") or "resource").lower()
+    include_blob = params.get("includeBlob")
+    if include_blob is None:
+        include_blob = params.get("include_blob", True)
+
+    mime_type = (
+        params.get("mimeType")
+        or params.get("mime_type")
+        or params.get("content_type")
+        or mimetypes.guess_type(display_name)[0]
+        or "application/octet-stream"
+    )
+
+    file_size = resolved.stat().st_size
+    if mode == "file":
+        include_blob = True
+    if include_blob and file_size > max_bytes:
+        raise ValueError(f"File too large to embed ({file_size} bytes > {max_bytes} bytes)")
+
+    preview_data = await asyncio.to_thread(_read_preview_bytes, resolved, preview_bytes)
+    preview_text = None
+    if preview_data and _is_text_mime(mime_type):
+        preview_text = preview_data.decode("utf-8", errors="replace")
+
+    if include_blob:
+        data = await asyncio.to_thread(resolved.read_bytes)
+        encoded = base64.b64encode(data).decode("utf-8")
+    else:
+        encoded = None
+
+    if mode == "resource":
+        resource = {
+            "uri": display_name,
+            "mimeType": mime_type,
+        }
+        if preview_text:
+            resource["text"] = preview_text
+        if encoded:
+            resource["blob"] = encoded
+        block = {"type": "resource", "resource": resource}
+    elif mode == "file":
+        block = {
+            "type": "file",
+            "name": display_name,
+            "content_type": mime_type,
+            "content": encoded,
+            "content_encoding": "base64",
+        }
+    else:
+        raise ValueError("Invalid mode; expected 'resource' or 'file'")
+
+    note = ""
+    if preview_text and file_size > preview_bytes:
+        note = " (preview truncated)"
+
+    return {
+        "text": f"Attached {display_name}{note}.",
+        "content": [block],
+    }
+
+
+async def _build_store_media_result(params: dict) -> dict:
+    path_value = params.get("path") or params.get("file") or params.get("filepath")
+    if not path_value:
+        raise ValueError("Missing required 'path' parameter")
+
+    resolved = _resolve_preview_path(path_value)
+    display_name = (
+        params.get("title")
+        or params.get("name")
+        or params.get("filename")
+        or resolved.name
+    )
+    max_bytes = _coerce_int(
+        params.get("maxBytes") or params.get("max_bytes"),
+        DEFAULT_STORE_MAX_BYTES,
+    )
+
+    mime_type = (
+        params.get("mimeType")
+        or params.get("mime_type")
+        or params.get("content_type")
+        or mimetypes.guess_type(display_name)[0]
+        or "application/octet-stream"
+    )
+
+    data = await asyncio.to_thread(resolved.read_bytes)
+    if len(data) > max_bytes:
+        raise ValueError(f"File too large to store ({len(data)} bytes > {max_bytes} bytes)")
+
+    thumbnail = generate_thumbnail(data, mime_type)
+    metadata = {"size": len(data)}
+    if mime_type.startswith("image/"):
+        try:
+            from PIL import Image
+            import io
+
+            img = Image.open(io.BytesIO(data))
+            metadata["width"] = img.size[0]
+            metadata["height"] = img.size[1]
+        except Exception:
+            pass
+
+    db = await get_db()
+    media_id = await db.create_media(
+        filename=display_name,
+        content_type=mime_type,
+        data=data,
+        thumbnail=thumbnail,
+        metadata=metadata,
+    )
+
+    if mime_type.startswith("image/"):
+        block = {
+            "type": "image",
+            "name": display_name,
+            "content_type": mime_type,
+            "media_id": media_id,
+        }
+    else:
+        block = {
+            "type": "file",
+            "name": display_name,
+            "content_type": mime_type,
+            "media_id": media_id,
+        }
+
+    return {
+        "text": f"Stored {display_name} in media.",
+        "content": [block],
+    }
 
 
 def _next_request_id():
@@ -407,6 +629,46 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
 
                     continue
                     
+                elif method_name == ACP_FILE_PREVIEW_TOOL_NAME:
+                    params = response.get("params", {})
+                    try:
+                        result = await _build_preview_file_result(params)
+                        preview_response = {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "result": result,
+                        }
+                    except Exception as e:
+                        preview_response = {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {"code": -32602, "message": str(e)},
+                        }
+                    data = json.dumps(preview_response) + "\n"
+                    await _maybe_throttle("send")
+                    _state.agent_writer.write(data.encode())
+                    await _state.agent_writer.drain()
+                    continue
+                elif method_name == ACP_STORE_MEDIA_TOOL_NAME:
+                    params = response.get("params", {})
+                    try:
+                        result = await _build_store_media_result(params)
+                        store_response = {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "result": result,
+                        }
+                    except Exception as e:
+                        store_response = {
+                            "jsonrpc": "2.0",
+                            "id": req_id,
+                            "error": {"code": -32602, "message": str(e)},
+                        }
+                    data = json.dumps(store_response) + "\n"
+                    await _maybe_throttle("send")
+                    _state.agent_writer.write(data.encode())
+                    await _state.agent_writer.drain()
+                    continue
                 elif method_name in ("fs/read_text_file", "fs/write_text_file"):
                     # File system requests - we don't support these yet
                     logger.warning(f"Agent requested unsupported fs operation: {method_name}")
@@ -569,10 +831,14 @@ def _parse_content_block(block: dict) -> dict | None:
             result["mime_type"] = block["mimeType"]
         elif "content_type" in block:
             result["mime_type"] = block["content_type"]
+        elif "mime_type" in block:
+            result["mime_type"] = block["mime_type"]
         else:
             result["mime_type"] = "image/png"  # Default
         if "name" in block:
             result["name"] = block["name"]
+        if "media_id" in block or "mediaId" in block:
+            result["media_id"] = block.get("media_id") or block.get("mediaId")
         if annotations:
             result["annotations"] = annotations
         return result
@@ -614,13 +880,18 @@ def _parse_content_block(block: dict) -> dict | None:
         result = {
             "type": "file",
             "name": block.get("name", "unnamed"),
-            "mime_type": block.get("content_type", "application/octet-stream")
+            "mime_type": block.get(
+                "content_type",
+                block.get("mime_type", block.get("mimeType", "application/octet-stream"))
+            )
         }
         if "content" in block:
             result["data"] = block["content"]
             result["encoding"] = block.get("content_encoding", "base64")
         if "content_url" in block:
             result["url"] = block["content_url"]
+        if "media_id" in block or "mediaId" in block:
+            result["media_id"] = block.get("media_id") or block.get("mediaId")
         if annotations:
             result["annotations"] = annotations
         return result
@@ -727,11 +998,12 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
                 return "[Error: No active session]"
             
             logger.info(f"Sending message to agent: {content[:100]}...")
+            prompt_text = _build_agent_prompt(content)
             
             # Send prompt and collect session updates
             result = await _send_request("session/prompt", {
                 "sessionId": _state.session_id,
-                "prompt": [{"type": "text", "text": content}]
+                "prompt": [{"type": "text", "text": prompt_text}]
             }, collect_updates=True, status_callback=status_callback)
             
             # Delay to let agent fully complete its loop
@@ -803,11 +1075,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 }
             
             logger.info(f"Sending message to agent: {content[:100]}...")
+            prompt_text = _build_agent_prompt(content)
             
             # Send prompt and collect session updates
             result = await _send_request("session/prompt", {
                 "sessionId": _state.session_id,
-                "prompt": [{"type": "text", "text": content}]
+                "prompt": [{"type": "text", "text": prompt_text}]
             }, collect_updates=True, status_callback=status_callback)
             
             # Delay to let agent fully complete its loop
