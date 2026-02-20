@@ -757,19 +757,37 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
  */
 function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, onDeletePost, reverse = true }) {
     const [loadingMore, setLoadingMore] = useState(false);
-    
-    const handleScroll = useCallback(async (e) => {
-        if (!onLoadMore) return;
-        const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
-        const prefetchThreshold = Math.max(300, clientHeight);
-        
-        if (distanceFromTop < prefetchThreshold && hasMore && !loadingMore && onLoadMore) {
-            setLoadingMore(true);
+
+    const triggerLoadMore = useCallback(async () => {
+        if (!onLoadMore || !hasMore || loadingMore) return;
+        setLoadingMore(true);
+        try {
             await onLoadMore();
+        } finally {
             setLoadingMore(false);
         }
     }, [hasMore, loadingMore, onLoadMore]);
+
+    const handleScroll = useCallback((e) => {
+        const { scrollTop, scrollHeight, clientHeight } = e.target;
+        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
+        const prefetchThreshold = Math.max(300, clientHeight);
+
+        if (distanceFromTop < prefetchThreshold) {
+            triggerLoadMore();
+        }
+    }, [reverse, triggerLoadMore]);
+
+    useEffect(() => {
+        if (!timelineRef?.current) return;
+        const { scrollTop, scrollHeight, clientHeight } = timelineRef.current;
+        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
+        const prefetchThreshold = Math.max(300, clientHeight);
+
+        if (distanceFromTop < prefetchThreshold) {
+            triggerLoadMore();
+        }
+    }, [posts, hasMore, reverse, timelineRef, triggerLoadMore]);
     
     if (!posts) {
         return html`<div class="loading"><div class="spinner"></div></div>`;
