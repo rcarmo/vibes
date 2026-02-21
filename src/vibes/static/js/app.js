@@ -601,15 +601,8 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
     const avatarInfo = isAgent ? getAvatarInfo(agentName) : getAvatarInfo('You');
     
     // Remove URLs that have previews from the displayed content
-    const displayContent = removePreviewedUrls(data.content, data.link_previews);
-    
-    // Render mermaid diagrams after content is mounted
-    useEffect(() => {
-        if (contentRef.current) {
-            renderMermaidDiagrams(contentRef.current);
-        }
-    }, [displayContent]);
-    
+    let displayContent = removePreviewedUrls(data.content, data.link_previews);
+
     const handleImageClick = (e, mediaId) => {
         e.stopPropagation();
         setZoomedImage(getMediaUrl(mediaId));
@@ -619,10 +612,31 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
         e.stopPropagation();
         onDelete?.(post);
     };
-    
+
+    const resolveInlineAttachments = (content, attachments) => {
+        const usedIds = new Set();
+        if (!content || attachments.length === 0) {
+            return { content, usedIds };
+        }
+
+        const replaced = content.replace(/attachment:([^\s)"']+)/g, (match, rawRef) => {
+            const ref = rawRef.replace(/^\/+/, '');
+            const byName = attachments.find(
+                (entry) => entry.name && entry.name.toLowerCase() === ref.toLowerCase() && !usedIds.has(entry.id)
+            );
+            const entry = byName || attachments.find((item) => !usedIds.has(item.id));
+            if (!entry) return match;
+            usedIds.add(entry.id);
+            return `/media/${entry.id}`;
+        });
+
+        return { content: replaced, usedIds };
+    };
+
     // Separate images from files using content_blocks info
     const imageItems = [];
     const fileIds = [];
+    const attachmentEntries = [];
     const resourceLinks = [];
     const resources = [];
     const textAnnotations = [];
@@ -641,15 +655,36 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
                 resources.push(block);
             } else if (block?.type === 'file') {
                 const id = mediaIds[mediaIndex++];
-                if (id) fileIds.push(id);
+                if (id) {
+                    fileIds.push(id);
+                    attachmentEntries.push({ id, name: block?.name || block?.filename || block?.title });
+                }
             } else if (block?.type === 'image' || !block?.type) {
                 const id = mediaIds[mediaIndex++];
-                if (id) imageItems.push({ id, annotations: block?.annotations });
+                if (id) {
+                    imageItems.push({ id, annotations: block?.annotations });
+                    attachmentEntries.push({ id, name: block?.name || block?.filename || block?.title });
+                }
             }
         });
     } else if (mediaIds.length > 0) {
-        mediaIds.forEach((id) => imageItems.push({ id, annotations: null }));
+        mediaIds.forEach((id) => {
+            imageItems.push({ id, annotations: null });
+            attachmentEntries.push({ id, name: null });
+        });
     }
+
+    const { content: resolvedContent, usedIds } = resolveInlineAttachments(displayContent, attachmentEntries);
+    displayContent = resolvedContent;
+    const filteredImageItems = imageItems.filter(({ id }) => !usedIds.has(id));
+    const filteredFileIds = fileIds.filter((id) => !usedIds.has(id));
+
+    // Render mermaid diagrams after content is mounted
+    useEffect(() => {
+        if (contentRef.current) {
+            renderMermaidDiagrams(contentRef.current);
+        }
+    }, [displayContent]);
     
     return html`
         <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
@@ -694,9 +729,9 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
                         <${AnnotationsBadge} key=${idx} annotations=${annotations} />
                     `)}
                 `}
-                ${imageItems.length > 0 && html`
+                ${filteredImageItems.length > 0 && html`
                     <div class="media-preview">
-                        ${imageItems.map(({ id }) => html`
+                        ${filteredImageItems.map(({ id }) => html`
                             <img 
                                 key=${id} 
                                 src=${getThumbnailUrl(id)} 
@@ -707,14 +742,14 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
                         `)}
                     </div>
                 `}
-                ${imageItems.length > 0 && html`
-                    ${imageItems.map(({ annotations }, idx) => html`
+                ${filteredImageItems.length > 0 && html`
+                    ${filteredImageItems.map(({ annotations }, idx) => html`
                         ${annotations && html`<${AnnotationsBadge} key=${idx} annotations=${annotations} />`}
                     `)}
                 `}
-                ${fileIds.length > 0 && html`
+                ${filteredFileIds.length > 0 && html`
                     <div class="file-attachments">
-                        ${fileIds.map(id => html`
+                        ${filteredFileIds.map(id => html`
                             <${FileAttachment} key=${id} mediaId=${id} />
                         `)}
                     </div>
