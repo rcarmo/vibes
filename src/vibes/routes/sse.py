@@ -47,7 +47,8 @@ async def _restart_agent_after_disconnect(delay_s: int) -> None:
             return
         await stop_acp_agent()
         await start_acp_agent()
-        if get_config().pi_enabled:
+        config = get_config()
+        if config.pi_enabled and config.pi_restart_on_disconnect:
             await stop_pi_agent()
             await start_pi_agent()
     except asyncio.CancelledError:

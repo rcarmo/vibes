@@ -8,7 +8,7 @@ Vibes can run a **Pi RPC agent** alongside (or instead of) ACP. This lets you us
 # Use Pi as the default agent
 VIBES_DEFAULT_AGENT=pi
 VIBES_PI_ENABLED=true
-VIBES_PI_AGENT="pi --mode rpc --no-session -e /path/to/site-packages/vibes/extensions/pi-vibes-tools.ts"
+VIBES_PI_AGENT="pi --mode rpc --no-session --append-system-prompt '<vibes prompt>' -e /path/to/site-packages/vibes/extensions/pi-vibes-tools.ts"
 ```
 
 You can also keep ACP as default and expose Pi as a separate agent id:
@@ -25,7 +25,7 @@ Agent ids:
 
 ## What Pi Mode Supports
 
-Pi mode automatically loads the packaged `vibes/extensions/pi-vibes-tools.ts` via the default `VIBES_PI_AGENT` command. This adds a `vibes_attach_file` tool for attaching local files as base64 content blocks.
+Pi mode automatically loads the packaged `vibes/extensions/pi-vibes-tools.ts` via the default `VIBES_PI_AGENT` command and injects a Vibes formatting prompt via `--append-system-prompt`. This adds a `vibes_attach_file` tool for attaching local files as base64 content blocks.
 
 - **History & threading**: Pi responses are stored just like ACP responses in the timeline.
 - **Draft streaming**: `message_update` text deltas are streamed to the Draft pane.
@@ -51,6 +51,10 @@ Pi receives a prompt prefix that describes Vibes’ supported formats:
 
 - Only `confirm` and `select` extension dialogs are supported in the UI. Other dialog types are auto-cancelled.
 - Tool output is summarized as status updates; full tool outputs are not rendered inline (yet).
+
+## Restart behavior
+
+Pi is kept warm by default even if all SSE clients disconnect. Set `VIBES_PI_RESTART_ON_DISCONNECT=true` to restart Pi when all clients disconnect.
 
 ## Troubleshooting
 

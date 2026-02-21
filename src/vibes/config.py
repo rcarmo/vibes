@@ -7,6 +7,8 @@ import socket
 from pathlib import Path
 from typing import Optional
 
+from .pi_prompt import PI_PROMPT_PREFIX
+
 from dotenv import load_dotenv
 
 # Load .env file if present
@@ -40,7 +42,12 @@ def _get_env_bool(key: str, default: bool) -> bool:
 def _default_pi_agent_command() -> str:
     extension_path = Path(__file__).parent / "extensions" / "pi-vibes-tools.ts"
     quoted_extension = shlex.quote(str(extension_path))
-    return f"pi --mode rpc --no-session -e {quoted_extension}"
+    quoted_prompt = shlex.quote(PI_PROMPT_PREFIX)
+    return (
+        "pi --mode rpc --no-session "
+        f"--append-system-prompt {quoted_prompt} "
+        f"-e {quoted_extension}"
+    )
 
 
 class Config:
@@ -71,6 +78,10 @@ class Config:
         self.pi_enabled: bool = _get_env_bool(
             "VIBES_PI_ENABLED",
             self.default_agent.lower() == "pi"
+        )
+        self.pi_restart_on_disconnect: bool = _get_env_bool(
+            "VIBES_PI_RESTART_ON_DISCONNECT",
+            False,
         )
         
         # Load custom endpoints from config file

@@ -7,8 +7,9 @@ from pathlib import Path
 import pytest
 
 SRC_PATH = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_PATH) not in sys.path:
-    sys.path.insert(0, str(SRC_PATH))
+if str(SRC_PATH) in sys.path:
+    sys.path.remove(str(SRC_PATH))
+sys.path.insert(0, str(SRC_PATH))
 
 for module_name in list(sys.modules.keys()):
     if module_name == "vibes" or module_name.startswith("vibes."):
@@ -188,7 +189,12 @@ class TestSSEDisconnectRestart:
             lambda: type(
                 "C",
                 (),
-                {"agent_restart_on_disconnect_s": 0, "disconnect_timeout": 0},
+                {
+                    "agent_restart_on_disconnect_s": 0,
+                    "disconnect_timeout": 0,
+                    "pi_enabled": True,
+                    "pi_restart_on_disconnect": False,
+                },
             )(),
         )
 
@@ -202,6 +208,32 @@ class TestSSEDisconnectRestart:
         # After disconnect, with delay 0, restart is disabled.
         assert getattr(sse, stop_attr).await_count == 0
         assert getattr(sse, start_attr).await_count == 0
+
+    @pytest.mark.asyncio
+    async def test_pi_restart_respects_flag(self, monkeypatch):
+        from unittest.mock import AsyncMock
+        from vibes.routes import sse
+
+        monkeypatch.setattr(sse, "stop_acp_agent", AsyncMock())
+        monkeypatch.setattr(sse, "start_acp_agent", AsyncMock())
+        monkeypatch.setattr(sse, "stop_pi_agent", AsyncMock())
+        monkeypatch.setattr(sse, "start_pi_agent", AsyncMock())
+        monkeypatch.setattr(
+            sse,
+            "get_config",
+            lambda: type(
+                "C",
+                (),
+                {"pi_enabled": True, "pi_restart_on_disconnect": False},
+            )(),
+        )
+
+        await sse._restart_agent_after_disconnect(0)
+
+        assert sse.stop_acp_agent.await_count == 1
+        assert sse.start_acp_agent.await_count == 1
+        assert sse.stop_pi_agent.await_count == 0
+        assert sse.start_pi_agent.await_count == 0
 
 
 class TestMediaRoutesIntegration:
