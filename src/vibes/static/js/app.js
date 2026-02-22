@@ -699,7 +699,9 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
                     aria-label="Delete message"
                     onClick=${handleDeleteClick}
                 >
-                    x
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
                 </button>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
@@ -1101,6 +1103,15 @@ function ConnectionStatus({ status }) {
 }
 
 
+const dedupePosts = (items) => {
+    const seen = new Set();
+    return (items || []).filter((post) => {
+        if (!post || seen.has(post.id)) return false;
+        seen.add(post.id);
+        return true;
+    });
+};
+
 /**
  * Main App component
  */
@@ -1178,7 +1189,7 @@ function App() {
             const result = await getTimeline(5, oldestId);
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
-                setPosts(prev => [...result.posts, ...(prev || [])]);
+                setPosts(prev => dedupePosts([...result.posts, ...(prev || [])]));
                 setHasMore(result.has_more);
             } else {
                 setHasMore(false);
@@ -1361,7 +1372,11 @@ function App() {
                 
                 // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
                 if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
-                    setPosts(prev => prev ? [...prev, data] : [data]);
+                    setPosts(prev => {
+                        if (!prev) return [data];
+                        if (prev.some((post) => post.id === data.id)) return prev;
+                        return [...prev, data];
+                    });
                     scrollToBottom();
                 }
                 // Update existing post (e.g., when link previews are fetched)
