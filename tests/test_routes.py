@@ -1,6 +1,7 @@
 """Tests for route handlers."""
 
 import io
+import importlib
 import sys
 from pathlib import Path
 
@@ -15,7 +16,7 @@ for module_name in list(sys.modules.keys()):
     if module_name == "vibes" or module_name.startswith("vibes."):
         sys.modules.pop(module_name, None)
 
-from vibes.routes import media
+media = importlib.import_module("vibes.routes.media")
 
 
 class TestGenerateThumbnail:

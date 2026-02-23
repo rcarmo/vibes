@@ -1,5 +1,6 @@
 import shlex
 import sys
+import importlib
 from pathlib import Path
 
 SRC_PATH = Path(__file__).resolve().parents[1] / "src"
@@ -11,8 +12,8 @@ for module_name in list(sys.modules.keys()):
     if module_name == "vibes" or module_name.startswith("vibes."):
         sys.modules.pop(module_name, None)
 
-from vibes.config import _default_pi_agent_command
-from vibes.pi_prompt import PI_PROMPT_PREFIX
+_default_pi_agent_command = importlib.import_module("vibes.config")._default_pi_agent_command
+PI_PROMPT_PREFIX = importlib.import_module("vibes.pi_prompt").PI_PROMPT_PREFIX
 
 
 def test_default_pi_agent_command_includes_prompt_and_extension():

@@ -7,7 +7,6 @@ import json
 import logging
 import shlex
 import shutil
-from pathlib import Path
 from typing import Optional
 
 from .config import get_config

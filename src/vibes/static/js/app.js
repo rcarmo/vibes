@@ -1130,6 +1130,8 @@ function App() {
     const [agents, setAgents] = useState({});
     const hasConnectedOnceRef = useRef(false);
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
+    const hasMoreRef = useRef(false);
+    const loadMoreRef = useRef(null);
     const timelineRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
@@ -1138,6 +1140,10 @@ function App() {
     useEffect(() => {
         viewStateRef.current = { currentHashtag, searchQuery };
     }, [currentHashtag, searchQuery]);
+
+    useEffect(() => {
+        hasMoreRef.current = hasMore;
+    }, [hasMore]);
 
     // Scroll to bottom of timeline (column-reverse: bottom is scrollTop=0)
     const scrollToBottom = useCallback(() => {
@@ -1165,7 +1171,14 @@ function App() {
 
     const handleConnectionStatusChange = useCallback((status) => {
         setConnectionStatus(status);
-        if (status !== 'connected') return;
+        if (status !== 'connected') {
+            setAgentStatus(null);
+            setAgentDraft('');
+            setAgentPlan('');
+            setAgentThought('');
+            setPendingRequest(null);
+            return;
+        }
         if (!hasConnectedOnceRef.current) {
             hasConnectedOnceRef.current = true;
             return;
@@ -1198,6 +1211,10 @@ function App() {
             console.error('Failed to load more posts:', error);
         }
     }, [posts, timelineRef]);
+
+    useEffect(() => {
+        loadMoreRef.current = loadMore;
+    }, [loadMore]);
     
     // Handle hashtag click
     const handleHashtagClick = useCallback(async (hashtag) => {
@@ -1323,6 +1340,15 @@ function App() {
         const sse = new SSEClient(
             (eventType, data) => {
                 // Handle agent status updates
+                if (eventType === 'connected') {
+                    setAgentStatus(null);
+                    setAgentDraft('');
+                    setAgentPlan('');
+                    setAgentThought('');
+                    setPendingRequest(null);
+                    return;
+                }
+
                 if (eventType === 'agent_status') {
                     console.log('Agent status:', data);
                     if (data.type === 'done' || data.type === 'error') {
@@ -1371,7 +1397,9 @@ function App() {
                 }
                 
                 // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
-                if (!currentHashtag && (eventType === 'new_post' || eventType === 'agent_response')) {
+                const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
+
+                if (!activeHashtag && !activeSearch && (eventType === 'new_post' || eventType === 'agent_response')) {
                     setPosts(prev => {
                         if (!prev) return [data];
                         if (prev.some((post) => post.id === data.id)) return prev;
@@ -1387,8 +1415,8 @@ function App() {
                     const ids = data?.ids || [];
                     if (ids.length) {
                         setPosts(prev => prev ? prev.filter(p => !ids.includes(p.id)) : prev);
-                        if (hasMore && !currentHashtag && !searchQuery) {
-                            loadMore();
+                        if (hasMoreRef.current && !activeHashtag && !activeSearch) {
+                            loadMoreRef.current?.();
                         }
                     }
                 }

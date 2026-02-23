@@ -215,6 +215,7 @@ export class SSEClient {
         // Event handlers
         this.eventSource.addEventListener('connected', () => {
             console.log('SSE connected');
+            this.onEvent('connected', {});
         });
         
         this.eventSource.addEventListener('new_post', (e) => {
