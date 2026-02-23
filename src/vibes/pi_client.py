@@ -7,7 +7,7 @@ import json
 import logging
 import shlex
 import shutil
-from typing import Optional
+from typing import Any, Optional
 
 from .config import get_config
 
@@ -135,6 +135,75 @@ def _extract_tool_status(result: dict | None) -> str | None:
             if line:
                 return line[:120]
     return None
+
+
+def _extract_tool_args(args: Any) -> dict | None:
+    if not args:
+        return None
+    if isinstance(args, str):
+        try:
+            parsed = json.loads(args)
+        except json.JSONDecodeError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    if not isinstance(args, dict):
+        return None
+
+    nested = (
+        args.get("arguments")
+        or args.get("input")
+        or args.get("params")
+        or args.get("parameters")
+        or args.get("args")
+        or args.get("payload")
+    )
+    if isinstance(nested, dict):
+        return nested
+    return args
+
+
+def _format_tool_title(tool_name: str, args: Any) -> str:
+    record = _extract_tool_args(args)
+    if not record:
+        return tool_name
+
+    detail = None
+    command = record.get("command")
+    if isinstance(command, str):
+        detail = command
+
+    if not detail and isinstance(record.get("commands"), list):
+        commands = [item for item in record["commands"] if isinstance(item, str)]
+        if commands:
+            detail = " && ".join(commands)
+
+    path = record.get("path") or record.get("filePath") or record.get("target")
+    if not detail and isinstance(path, str):
+        detail = path
+
+    if not detail and isinstance(record.get("paths"), list):
+        paths = [item for item in record["paths"] if isinstance(item, str)]
+        if paths:
+            detail = ", ".join(paths)
+
+    filename = record.get("fileName") or record.get("filename") or record.get("file")
+    if not detail and isinstance(filename, str):
+        detail = filename
+
+    url = record.get("url")
+    if not detail and isinstance(url, str):
+        detail = url
+
+    query = record.get("query")
+    if not detail and isinstance(query, str):
+        detail = query
+
+    if not detail:
+        return tool_name
+
+    normalized = " ".join(detail.split())
+    clipped = f"{normalized[:120]}..." if len(normalized) > 120 else normalized
+    return f"{tool_name}: {clipped}"
 
 
 def _collect_text(blocks: list[dict]) -> str:
@@ -346,6 +415,18 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             final_message = None
             tool_blocks: list[dict] = []
             tool_calls_seen: set[str] = set()
+            tool_titles: dict[str, str] = {}
+
+            def remember_tool_title(tool_call_id: str | None, tool_name: str, args: Any) -> str:
+                title = _format_tool_title(tool_name, args)
+                if tool_call_id:
+                    tool_titles[tool_call_id] = title
+                return title
+
+            def lookup_tool_title(tool_call_id: str | None, tool_name: str, args: Any = None) -> str:
+                if tool_call_id and tool_call_id in tool_titles:
+                    return tool_titles[tool_call_id]
+                return _format_tool_title(tool_name, args)
 
             while True:
                 event = await _read_event(_state.agent_reader)
@@ -381,18 +462,28 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
 
                 if event_type == "tool_execution_start":
                     if status_callback:
+                        title = remember_tool_title(
+                            event.get("toolCallId"),
+                            event.get("toolName", "Tool"),
+                            event.get("args") or event.get("arguments"),
+                        )
                         await status_callback({
                             "type": "tool_call",
-                            "title": event.get("toolName", "Tool"),
+                            "title": title,
                         })
                     continue
 
                 if event_type == "tool_execution_update":
                     if status_callback:
                         status_text = _extract_tool_status(event.get("partialResult")) or "Running"
+                        title = lookup_tool_title(
+                            event.get("toolCallId"),
+                            event.get("toolName", "Tool"),
+                            event.get("args") or event.get("arguments"),
+                        )
                         await status_callback({
                             "type": "tool_status",
-                            "title": event.get("toolName", "Tool"),
+                            "title": title,
                             "status": status_text,
                         })
                     continue
@@ -400,9 +491,17 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 if event_type == "tool_execution_end":
                     if status_callback:
                         status_text = "Error" if event.get("isError") else "Done"
+                        tool_call_id = event.get("toolCallId")
+                        title = lookup_tool_title(
+                            tool_call_id,
+                            event.get("toolName", "Tool"),
+                            event.get("args") or event.get("arguments"),
+                        )
+                        if tool_call_id:
+                            tool_titles.pop(tool_call_id, None)
                         await status_callback({
                             "type": "tool_status",
-                            "title": event.get("toolName", "Tool"),
+                            "title": title,
                             "status": status_text,
                         })
 
