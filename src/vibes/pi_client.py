@@ -455,6 +455,18 @@ def _extract_text_from_pi_message(message: dict | None) -> str:
     return text if isinstance(text, str) else ""
 
 
+def _message_content_score(message: dict | None) -> int:
+    if not isinstance(message, dict):
+        return -1
+    score = len(_extract_text_from_pi_message(message).strip())
+    content = message.get("content")
+    score += len(_blocks_from_pi_content(content, include_text=True))
+    attachments = message.get("attachments")
+    if isinstance(attachments, list):
+        score += len(attachments)
+    return score
+
+
 async def _respond_extension_request(request_id: str, method: str, outcome: str | None) -> None:
     if outcome in (None, "cancel", "cancelled"):
         response = {"type": "extension_ui_response", "id": request_id, "cancelled": True}
@@ -493,6 +505,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             draft_text = ""
             thought_text = ""
             final_message = None
+            agent_messages: list[dict] = []
             tool_blocks: list[dict] = []
             tool_calls_seen: set[str] = set()
             tool_titles: dict[str, str] = {}
@@ -624,18 +637,28 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     continue
 
                 if event_type == "turn_end":
-                    final_message = event.get("message")
+                    candidate = event.get("message")
+                    if isinstance(candidate, dict):
+                        final_message = candidate
+                        if not draft_text:
+                            draft_text = _extract_text_from_pi_message(candidate)
                     continue
 
                 if event_type == "agent_end":
                     messages = event.get("messages", [])
-                    if not final_message:
-                        for msg in reversed(messages):
-                            if msg.get("role") == "assistant":
-                                final_message = msg
-                                break
+                    agent_messages = [msg for msg in messages if isinstance(msg, dict)]
+                    best_assistant = final_message if isinstance(final_message, dict) else None
 
-                    for msg in messages:
+                    for msg in agent_messages:
+                        if msg.get("role") == "assistant":
+                            if _message_content_score(msg) > _message_content_score(best_assistant):
+                                best_assistant = msg
+
+                    final_message = best_assistant
+                    if final_message and not draft_text:
+                        draft_text = _extract_text_from_pi_message(final_message)
+
+                    for msg in agent_messages:
                         if msg.get("role") == "toolResult":
                             _collect_tool_result_blocks(
                                 msg,
@@ -659,6 +682,18 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 content_blocks.extend(tool_blocks)
 
             text = _collect_text(content_blocks) or draft_text or _extract_text_from_pi_message(final_message)
+
+            if not text and agent_messages:
+                for msg in reversed(agent_messages):
+                    if msg.get("role") != "assistant":
+                        continue
+                    fallback_text = _extract_text_from_pi_message(msg)
+                    if fallback_text:
+                        text = fallback_text
+                        if not content_blocks:
+                            content_blocks.extend(_blocks_from_pi_content(msg.get("content")))
+                            content_blocks.extend(_blocks_from_pi_attachments(msg.get("attachments")))
+                        break
 
             if not content_blocks and text:
                 content_blocks = [{"type": "text", "text": text}]

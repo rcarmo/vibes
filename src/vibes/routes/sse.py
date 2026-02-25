@@ -23,26 +23,44 @@ async def start_agent() -> None:
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
 _restart_task: asyncio.Task | None = None
+_LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_thought"}
 
 
 async def broadcast_event(event_type: str, data: Any) -> None:
     """Broadcast an event to all connected SSE clients."""
     message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    lossy = event_type in _LOSSY_EVENT_TYPES
     for queue in _clients:
+        if lossy and queue.qsize() >= queue.maxsize:
+            # Drop low-priority stream noise first; keep critical timeline events.
+            continue
+
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
-            # Keep the client subscribed under bursty updates by dropping
-            # the oldest queued event and enqueueing the newest one.
-            try:
-                queue.get_nowait()
-            except asyncio.QueueEmpty:
-                pass
-            try:
-                queue.put_nowait(message)
-            except asyncio.QueueFull:
-                # If it is still full, skip this event but keep connection alive.
-                pass
+            if lossy:
+                continue
+
+            # For critical events, evict stale queued entries until we can enqueue.
+            enqueued = False
+            for _ in range(max(queue.maxsize, 1)):
+                try:
+                    queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    break
+                try:
+                    queue.put_nowait(message)
+                    enqueued = True
+                    break
+                except asyncio.QueueFull:
+                    continue
+
+            if not enqueued:
+                # Last attempt: keep subscription alive even if this event is dropped.
+                try:
+                    queue.put_nowait(message)
+                except asyncio.QueueFull:
+                    pass
 
 
 async def _restart_agent_after_disconnect(delay_s: int) -> None:
