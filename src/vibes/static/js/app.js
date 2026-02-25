@@ -674,6 +674,27 @@ function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
         });
     }
 
+    if ((!displayContent || !displayContent.trim()) && blocks.length > 0) {
+        const textParts = [];
+        const stack = [...blocks];
+        while (stack.length > 0) {
+            const item = stack.shift();
+            if (!item || typeof item !== 'object') continue;
+            if (item.type === 'text' && typeof item.text === 'string') {
+                textParts.push(item.text);
+            }
+            if (Array.isArray(item.content)) {
+                stack.push(...item.content);
+            } else if (item.content && typeof item.content === 'object') {
+                stack.push(item.content);
+            }
+        }
+        const fallbackContent = textParts.join('');
+        if (fallbackContent.trim()) {
+            displayContent = fallbackContent;
+        }
+    }
+
     const { content: resolvedContent, usedIds } = resolveInlineAttachments(displayContent, attachmentEntries);
     displayContent = resolvedContent;
     const filteredImageItems = imageItems.filter(({ id }) => !usedIds.has(id));

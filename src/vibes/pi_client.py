@@ -229,6 +229,41 @@ def _blocks_from_pi_content(content, include_text: bool = True) -> list[dict]:
             blocks.append({"type": "text", "text": content})
         return blocks
 
+    if isinstance(content, dict):
+        item_type = content.get("type")
+        if item_type == "text":
+            if include_text:
+                blocks.append({"type": "text", "text": content.get("text", "")})
+        elif include_text and isinstance(content.get("text"), str):
+            blocks.append({"type": "text", "text": content.get("text", "")})
+        elif item_type == "image":
+            data = content.get("data") or content.get("content")
+            mime_type = content.get("mimeType") or content.get("mime_type") or content.get("content_type")
+            block = {
+                "type": "image",
+                "mime_type": mime_type or "application/octet-stream",
+            }
+            if data:
+                block["data"] = data
+            blocks.append(block)
+        elif item_type == "file":
+            data = content.get("data") or content.get("content")
+            mime_type = content.get("mimeType") or content.get("mime_type") or content.get("content_type")
+            name = content.get("name") or content.get("fileName")
+            block = {
+                "type": "file",
+                "mime_type": mime_type or "application/octet-stream",
+            }
+            if data:
+                block["data"] = data
+            if name:
+                block["name"] = name
+            blocks.append(block)
+
+        if "content" in content:
+            blocks.extend(_blocks_from_pi_content(content.get("content"), include_text=include_text))
+        return blocks
+
     if isinstance(content, list):
         for item in content:
             if not isinstance(item, dict):
@@ -237,6 +272,8 @@ def _blocks_from_pi_content(content, include_text: bool = True) -> list[dict]:
             if item_type == "text":
                 if include_text:
                     blocks.append({"type": "text", "text": item.get("text", "")})
+            elif include_text and isinstance(item.get("text"), str):
+                blocks.append({"type": "text", "text": item.get("text", "")})
             elif item_type == "image":
                 data = item.get("data") or item.get("content")
                 mime_type = item.get("mimeType") or item.get("mime_type") or item.get("content_type")
@@ -262,6 +299,8 @@ def _blocks_from_pi_content(content, include_text: bool = True) -> list[dict]:
                 blocks.append(block)
             elif item_type in ("toolCall", "thinking"):
                 continue
+            if "content" in item:
+                blocks.extend(_blocks_from_pi_content(item.get("content"), include_text=include_text))
         return blocks
 
     return blocks
@@ -384,6 +423,36 @@ def _build_extension_request(event: dict) -> dict | None:
         "tool_call": tool_call,
         "options": options,
     }
+
+
+def _extract_text_from_pi_message(message: dict | None) -> str:
+    if not isinstance(message, dict):
+        return ""
+
+    parts: list[str] = []
+
+    def _walk(node) -> None:
+        if isinstance(node, str):
+            if node:
+                parts.append(node)
+            return
+        if isinstance(node, dict):
+            text = node.get("text")
+            if isinstance(text, str):
+                parts.append(text)
+            if "content" in node:
+                _walk(node.get("content"))
+            return
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(message.get("content"))
+    if parts:
+        return "".join(parts)
+
+    text = message.get("text")
+    return text if isinstance(text, str) else ""
 
 
 async def _respond_extension_request(request_id: str, method: str, outcome: str | None) -> None:
@@ -589,7 +658,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             if tool_blocks:
                 content_blocks.extend(tool_blocks)
 
-            text = _collect_text(content_blocks) or draft_text
+            text = _collect_text(content_blocks) or draft_text or _extract_text_from_pi_message(final_message)
 
             if not content_blocks and text:
                 content_blocks = [{"type": "text", "text": text}]
