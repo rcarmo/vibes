@@ -73,6 +73,24 @@ async def _extract_and_store_data_uri_images(db, text: str) -> str:
 logger = logging.getLogger(__name__)
 
 
+def _extract_text_from_blocks(blocks) -> str:
+    parts: list[str] = []
+
+    def _walk(node) -> None:
+        if isinstance(node, dict):
+            if node.get("type") == "text" and isinstance(node.get("text"), str):
+                parts.append(node["text"])
+            if "content" in node:
+                _walk(node.get("content"))
+            return
+        if isinstance(node, list):
+            for item in node:
+                _walk(item)
+
+    _walk(blocks)
+    return "".join(parts)
+
+
 # Set up callback for agent requests
 async def _handle_agent_request(request_data):
     """Broadcast agent requests to UI."""
@@ -216,13 +234,14 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         # Process content blocks - store images/files in media table
         db = await get_db()
         media_ids = []
-        text_content = response.get("text", "")
+        content_blocks = response.get("content", [])
+        text_content = response.get("text", "") or _extract_text_from_blocks(content_blocks)
 
         # If the agent injected data-uri base64 images into markdown, convert them
         # to stored media and rewrite the markdown to /media/<id>.
         text_content = await _extract_and_store_data_uri_images(db, text_content)
         
-        for block in response.get("content", []):
+        for block in content_blocks:
             block_type = block.get("type")
             
             if block_type == "image":
@@ -241,7 +260,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         agent_response = {
             "type": "agent_response",
             "content": text_content,
-            "content_blocks": response.get("content", []),
+            "content_blocks": content_blocks,
             "agent_id": agent_id,
             "thread_id": thread_id,
             "media_ids": media_ids,

@@ -1130,6 +1130,9 @@ function App() {
     const [agents, setAgents] = useState({});
     const hasConnectedOnceRef = useRef(false);
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
+    const agentDraftRef = useRef('');
+    const activeAgentThreadRef = useRef(null);
+    const activeAgentThreadTerminalRef = useRef(false);
     const hasMoreRef = useRef(false);
     const loadMoreRef = useRef(null);
     const timelineRef = useRef(null);
@@ -1140,6 +1143,10 @@ function App() {
     useEffect(() => {
         viewStateRef.current = { currentHashtag, searchQuery };
     }, [currentHashtag, searchQuery]);
+
+    useEffect(() => {
+        agentDraftRef.current = agentDraft || '';
+    }, [agentDraft]);
 
     useEffect(() => {
         hasMoreRef.current = hasMore;
@@ -1177,6 +1184,8 @@ function App() {
             setAgentPlan('');
             setAgentThought('');
             setPendingRequest(null);
+            activeAgentThreadRef.current = null;
+            activeAgentThreadTerminalRef.current = false;
             return;
         }
         if (!hasConnectedOnceRef.current) {
@@ -1346,16 +1355,39 @@ function App() {
                     setAgentPlan('');
                     setAgentThought('');
                     setPendingRequest(null);
+                    activeAgentThreadRef.current = null;
+                    activeAgentThreadTerminalRef.current = false;
                     return;
                 }
 
                 if (eventType === 'agent_status') {
                     console.log('Agent status:', data);
-                    if (data.type === 'done' || data.type === 'error') {
+                    const threadId = data?.thread_id;
+                    const statusType = data?.type;
+                    if (statusType === 'thinking' && threadId !== undefined) {
+                        const switchedThread = activeAgentThreadRef.current !== threadId;
+                        activeAgentThreadRef.current = threadId;
+                        activeAgentThreadTerminalRef.current = false;
+                        if (switchedThread) {
+                            setAgentDraft('');
+                            setAgentPlan('');
+                            setAgentThought('');
+                            setPendingRequest(null);
+                        }
+                    } else if (
+                        threadId !== undefined
+                        && activeAgentThreadRef.current !== null
+                        && threadId !== activeAgentThreadRef.current
+                    ) {
+                        return;
+                    }
+
+                    if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
                         setAgentStatus(null);
                         setAgentDraft('');
                         setAgentPlan('');
                         setAgentThought('');
+                        activeAgentThreadTerminalRef.current = true;
                     } else {
                         setAgentStatus(data);
                     }
@@ -1363,6 +1395,15 @@ function App() {
                 }
 
                 if (eventType === 'agent_draft') {
+                    const threadId = data?.thread_id;
+                    if (
+                        threadId !== undefined
+                        && activeAgentThreadRef.current !== null
+                        && threadId !== activeAgentThreadRef.current
+                    ) {
+                        return;
+                    }
+                    if (activeAgentThreadTerminalRef.current) return;
                     const text = data.text || '';
                     const mode = data.mode || (data.kind === 'plan' ? 'replace' : 'append');
 
@@ -1377,6 +1418,15 @@ function App() {
                 }
                 
                 if (eventType === 'agent_thought') {
+                    const threadId = data?.thread_id;
+                    if (
+                        threadId !== undefined
+                        && activeAgentThreadRef.current !== null
+                        && threadId !== activeAgentThreadRef.current
+                    ) {
+                        return;
+                    }
+                    if (activeAgentThreadTerminalRef.current) return;
                     // Thoughts tend to be sent as snapshots.
                     setAgentThought(data.text || '');
                     return;
@@ -1390,9 +1440,18 @@ function App() {
                 }
 
                 if (eventType === 'agent_request_timeout') {
+                    const threadId = data?.thread_id;
+                    if (
+                        threadId !== undefined
+                        && activeAgentThreadRef.current !== null
+                        && threadId !== activeAgentThreadRef.current
+                    ) {
+                        return;
+                    }
                     console.log('Agent request timeout:', data);
                     setPendingRequest(null);
                     setAgentStatus({ type: 'error', title: 'Permission request timed out' });
+                    activeAgentThreadTerminalRef.current = true;
                     return;
                 }
                 
@@ -1400,6 +1459,21 @@ function App() {
                 const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
 
                 if (!activeHashtag && !activeSearch && (eventType === 'new_post' || eventType === 'agent_response')) {
+                    if (eventType === 'agent_response') {
+                        const content = data?.data?.content;
+                        if ((!content || !String(content).trim()) && activeAgentThreadRef.current === data?.data?.thread_id) {
+                            const fallback = agentDraftRef.current || '';
+                            if (fallback.trim()) {
+                                data = {
+                                    ...data,
+                                    data: {
+                                        ...data.data,
+                                        content: fallback,
+                                    },
+                                };
+                            }
+                        }
+                    }
                     setPosts(prev => {
                         if (!prev) return [data];
                         if (prev.some((post) => post.id === data.id)) return prev;
