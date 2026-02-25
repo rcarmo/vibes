@@ -206,6 +206,17 @@ def _format_tool_title(tool_name: str, args: Any) -> str:
     return f"{tool_name}: {clipped}"
 
 
+def _build_preview(text: str, max_lines: int, max_chars_per_line: int = 160) -> dict[str, Any]:
+    value = (text or "").replace("\r\n", "\n")
+    if not value:
+        return {"text": "", "total_lines": 0}
+
+    lines = value.split("\n")
+    total_lines = sum(max(1, (len(line) + max_chars_per_line - 1) // max_chars_per_line) for line in lines)
+    preview = "\n".join(lines[:max_lines])
+    return {"text": preview, "total_lines": total_lines}
+
+
 def _collect_text(blocks: list[dict]) -> str:
     parts = [b.get("text", "") for b in blocks if b.get("type") == "text"]
     return "".join(parts)
@@ -443,20 +454,24 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                         if chunk:
                             draft_text += chunk
                             if status_callback:
+                                preview = _build_preview(draft_text, max_lines=8)
                                 await status_callback({
                                     "type": "message_chunk",
-                                    "text": chunk,
+                                    "text": preview["text"],
+                                    "total_lines": preview["total_lines"],
                                     "kind": "draft",
-                                    "mode": "append",
+                                    "mode": "replace",
                                 })
                     elif delta_type == "thinking_delta":
                         chunk = delta.get("delta", "")
                         if chunk:
                             thought_text += chunk
                             if status_callback:
+                                preview = _build_preview(thought_text, max_lines=8)
                                 await status_callback({
                                     "type": "thought_chunk",
-                                    "text": thought_text,
+                                    "text": preview["text"],
+                                    "total_lines": preview["total_lines"],
                                 })
                     continue
 

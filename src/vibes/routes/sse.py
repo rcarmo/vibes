@@ -28,16 +28,21 @@ _restart_task: asyncio.Task | None = None
 async def broadcast_event(event_type: str, data: Any) -> None:
     """Broadcast an event to all connected SSE clients."""
     message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
-    disconnected = set()
-    
     for queue in _clients:
         try:
             queue.put_nowait(message)
         except asyncio.QueueFull:
-            disconnected.add(queue)
-    
-    # Clean up disconnected clients
-    _clients.difference_update(disconnected)
+            # Keep the client subscribed under bursty updates by dropping
+            # the oldest queued event and enqueueing the newest one.
+            try:
+                queue.get_nowait()
+            except asyncio.QueueEmpty:
+                pass
+            try:
+                queue.put_nowait(message)
+            except asyncio.QueueFull:
+                # If it is still full, skip this event but keep connection alive.
+                pass
 
 
 async def _restart_agent_after_disconnect(delay_s: int) -> None:

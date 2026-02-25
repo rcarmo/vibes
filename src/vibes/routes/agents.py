@@ -157,6 +157,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                     "thread_id": thread_id,
                     "agent_id": agent_id,
                     "text": status.get("text", ""),
+                    "total_lines": status.get("total_lines"),
                     "kind": status.get("kind", "draft"),
                     "mode": status.get("mode", "append"),
                 })
@@ -165,7 +166,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 await broadcast_event("agent_thought", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
-                    "text": status.get("text", "")
+                    "text": status.get("text", ""),
+                    "total_lines": status.get("total_lines"),
                 })
                 return
             await broadcast_event("agent_status", {
