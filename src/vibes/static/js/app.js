@@ -12,6 +12,18 @@ if (window.marked) {
         breaks: true,  // Convert \n to <br>
         gfm: true,     // GitHub Flavored Markdown
     });
+    marked.use({
+        renderer: {
+            // Treat raw HTML tokens as literal text so angle-bracket examples are preserved.
+            html(token) {
+                const raw = typeof token === 'string' ? token : (token?.text ?? '');
+                return raw
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;');
+            },
+        },
+    });
 }
 
 /**
@@ -61,12 +73,9 @@ function renderMath(html_content) {
  */
 function renderMarkdown(text, onHashtagClick) {
     if (!text) return '';
-    
-    // Decode HTML entities first (in case content has encoded entities)
-    const decoded = decodeEntities(text);
-    
+
     // Render markdown to HTML
-    let html_content = window.marked ? marked.parse(decoded) : decoded.replace(/\n/g, '<br>');
+    let html_content = window.marked ? marked.parse(text) : text.replace(/\n/g, '<br>');
     
     // Decode any entities that marked might have introduced
     html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
@@ -97,8 +106,7 @@ function renderMarkdown(text, onHashtagClick) {
  */
 function renderThinkingMarkdown(text) {
     if (!text) return '';
-    const decoded = decodeEntities(text);
-    let html_content = window.marked ? marked.parse(decoded) : decoded.replace(/\n/g, '<br>');
+    let html_content = window.marked ? marked.parse(text) : text.replace(/\n/g, '<br>');
     html_content = html_content.replace(/&#(\d+);/g, (match, num) => String.fromCharCode(num));
     html_content = html_content.replace(/&#x([0-9a-fA-F]+);/g, (match, hex) => String.fromCharCode(parseInt(hex, 16)));
     html_content = renderMath(html_content);
