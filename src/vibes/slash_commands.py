@@ -149,14 +149,21 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
             "Set `VIBES_ACP_AGENT` and restart.",
         )
 
-    # Pi mode
+    # Pi mode — list models
     if not args:
         current = config.pi_model or "(default)"
         thinking = config.pi_thinking or "off"
-        return SlashCommandResult(
-            status="success",
-            message=f"Current model: {current}\nThinking level: {thinking}",
-        )
+        models_list = await _query_pi_models(config)
+        lines = [f"Current model: {current}", f"Thinking level: {thinking}"]
+        if models_list:
+            lines.append("")
+            lines.append("Available models:")
+            for name in models_list:
+                marker = " (current)" if name == config.pi_model else ""
+                lines.append(f"• {name}{marker}")
+        lines.append("")
+        lines.append("Set with: `/model <provider/model>`")
+        return SlashCommandResult(status="success", message="\n".join(lines))
 
     # Set model and restart
     config.pi_model = args.strip()
@@ -176,6 +183,47 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
         status="success",
         message=f"Model set to {config.pi_model}. Pi agent restarted.{thinking_note}",
     )
+
+
+async def _query_pi_models(config) -> list[str]:
+    """Try to get available models from the pi CLI."""
+    import shlex
+    import shutil
+
+    cmd_parts = shlex.split(config.pi_agent)
+    if not cmd_parts:
+        return []
+    executable = cmd_parts[0]
+    if not shutil.which(executable):
+        return []
+
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            executable, "models",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+            stdin=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=10)
+        output = stdout.decode("utf-8", errors="replace") if stdout else ""
+        if proc.returncode != 0 or not output.strip():
+            return []
+        # Parse output: one model per line, skip empty/header lines
+        models = []
+        for line in output.strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or line.startswith("-"):
+                continue
+            # Some CLIs prefix with bullet or number — strip those
+            cleaned = line.lstrip("•·- 0123456789.)\t")
+            if cleaned and "/" in cleaned:
+                models.append(cleaned.split()[0])
+            elif cleaned:
+                models.append(cleaned.split()[0])
+        return models
+    except Exception:
+        logger.debug("Failed to query pi models", exc_info=True)
+        return []
 
 
 async def _handle_thinking(args: str, agent_mode: str) -> SlashCommandResult:

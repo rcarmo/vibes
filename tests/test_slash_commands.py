@@ -144,10 +144,31 @@ async def test_model_show_pi(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", None)
     monkeypatch.setattr(config, "pi_thinking", None)
+    # Mock _query_pi_models to avoid needing pi binary
+    sc = importlib.import_module("vibes.slash_commands")
+    monkeypatch.setattr(sc, "_query_pi_models", AsyncMock(return_value=[]))
     cmd = SlashCommand(name="model", args="", raw="/model")
     result = await execute_command(cmd, "pi")
     assert result.status == "success"
     assert "(default)" in result.message
+    assert "/model <provider/model>" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_show_pi_with_list(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", "anthropic/claude-sonnet")
+    monkeypatch.setattr(config, "pi_thinking", None)
+    sc = importlib.import_module("vibes.slash_commands")
+    monkeypatch.setattr(sc, "_query_pi_models", AsyncMock(return_value=[
+        "anthropic/claude-sonnet", "anthropic/claude-haiku", "openai/gpt-4",
+    ]))
+    cmd = SlashCommand(name="model", args="", raw="/model")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "Available models:" in result.message
+    assert "anthropic/claude-sonnet (current)" in result.message
+    assert "openai/gpt-4" in result.message
 
 
 @pytest.mark.asyncio
