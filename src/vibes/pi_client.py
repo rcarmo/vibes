@@ -102,6 +102,30 @@ def _connection_closed_message() -> str:
 
 async def _read_event(reader) -> dict | None:
     """Read a JSON line from pi stdout."""
+    def _parse_line(payload: str) -> tuple[dict | None, json.JSONDecodeError | None]:
+        last_error: json.JSONDecodeError | None = None
+        decoder = json.JSONDecoder(strict=False)
+        candidates = [payload]
+        start = payload.find("{")
+        if start > 0:
+            candidates.append(payload[start:])
+
+        for candidate in candidates:
+            try:
+                obj = json.loads(candidate, strict=False)
+                if isinstance(obj, dict):
+                    return obj, None
+            except json.JSONDecodeError as err:
+                last_error = err
+                try:
+                    obj, _idx = decoder.raw_decode(candidate)
+                    if isinstance(obj, dict):
+                        return obj, None
+                except json.JSONDecodeError as err2:
+                    last_error = err2
+                    continue
+        return None, last_error
+
     try:
         line = await reader.readline()
     except ValueError:
@@ -124,37 +148,42 @@ async def _read_event(reader) -> dict | None:
         return None
 
     # Parse in tolerant mode (handles unescaped control chars in streamed deltas).
-    last_error: json.JSONDecodeError | None = None
-    decoder = json.JSONDecoder(strict=False)
-    candidates = [text]
-    start = text.find("{")
-    if start > 0:
-        candidates.append(text[start:])
+    # If we get an unterminated string, attempt to stitch a few subsequent lines.
+    MAX_STITCH_LINES = 8
+    MAX_STITCH_BYTES = 8 * 1024 * 1024
+    stitched = text
+    obj, last_error = _parse_line(stitched)
+    if obj is not None:
+        return obj
 
-    for candidate in candidates:
+    for _ in range(MAX_STITCH_LINES):
+        if last_error is None or "Unterminated string" not in last_error.msg:
+            break
+        if len(stitched) >= MAX_STITCH_BYTES:
+            break
         try:
-            obj = json.loads(candidate, strict=False)
-            if isinstance(obj, dict):
-                return obj
-        except json.JSONDecodeError as err:
-            last_error = err
-            try:
-                obj, _idx = decoder.raw_decode(candidate)
-                if isinstance(obj, dict):
-                    return obj
-            except json.JSONDecodeError as err2:
-                last_error = err2
-                continue
+            nxt = await asyncio.wait_for(reader.readline(), timeout=0.25)
+        except asyncio.TimeoutError:
+            break
+        except ValueError:
+            break
+        if not nxt:
+            break
+        stitched += "\n" + nxt.decode("utf-8", errors="replace").rstrip("\r\n")
+        obj, last_error = _parse_line(stitched)
+        if obj is not None:
+            logger.warning("Pi RPC: recovered fragmented JSON event via line stitching")
+            return obj
 
     if last_error:
         logger.warning(
             "Pi RPC: invalid JSON line ignored (%s at pos %s): %r",
             last_error.msg,
             last_error.pos,
-            text[:200],
+            stitched[:200],
         )
     else:
-        logger.warning(f"Pi RPC: invalid JSON line ignored: {text[:200]!r}")
+        logger.warning(f"Pi RPC: invalid JSON line ignored: {stitched[:200]!r}")
     return None
 
 
@@ -628,8 +657,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
 
             while True:
                 try:
-                    event_timeout = 5.0 if saw_turn_end else 60.0
-                    event = await asyncio.wait_for(_read_event(_state.agent_reader), timeout=event_timeout)
+                    config = get_config()
+                    event_timeout = config.pi_agent_end_timeout_s if saw_turn_end else config.pi_response_timeout_s
+                    if event_timeout > 0:
+                        event = await asyncio.wait_for(_read_event(_state.agent_reader), timeout=event_timeout)
+                    else:
+                        event = await _read_event(_state.agent_reader)
                 except asyncio.TimeoutError:
                     if saw_turn_end or final_message or draft_text:
                         logger.warning("Pi RPC: timed out waiting for agent_end; finalizing from collected content")

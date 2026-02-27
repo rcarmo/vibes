@@ -83,6 +83,9 @@ class Config:
             "VIBES_PI_RESTART_ON_DISCONNECT",
             False,
         )
+        # Pi RPC idle timeouts (seconds). Set to 0 to disable timeout.
+        self.pi_response_timeout_s: int = _get_env_int("VIBES_PI_RESPONSE_TIMEOUT_S", 0)
+        self.pi_agent_end_timeout_s: int = _get_env_int("VIBES_PI_AGENT_END_TIMEOUT_S", 0)
 
         # Runtime-mutable overrides for Pi model and thinking level.
         # Set via /model and /thinking slash commands; applied on next agent restart.
