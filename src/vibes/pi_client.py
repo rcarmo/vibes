@@ -79,12 +79,40 @@ async def _read_event(reader) -> dict | None:
         return None
     if not line:
         raise RuntimeError("Pi agent connection closed")
-    try:
-        return json.loads(line.decode("utf-8"))
-    except json.JSONDecodeError:
-        snippet = line[:200].decode("utf-8", errors="replace").strip()
-        logger.warning(f"Pi RPC: invalid JSON line ignored: {snippet!r}")
+    text = line.decode("utf-8", errors="replace").strip()
+    if not text:
         return None
+
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Some environments may prepend log noise before JSON events.
+    start = text.find("{")
+    candidates = [text]
+    if start > 0:
+        candidates.append(text[start:])
+
+    decoder = json.JSONDecoder()
+    for candidate in candidates:
+        try:
+            obj = json.loads(candidate)
+            if isinstance(obj, dict):
+                return obj
+        except json.JSONDecodeError:
+            try:
+                obj, idx = decoder.raw_decode(candidate)
+                if isinstance(obj, dict):
+                    trailing = candidate[idx:].strip()
+                    if trailing:
+                        logger.debug("Pi RPC: trailing non-JSON data after event was ignored")
+                    return obj
+            except json.JSONDecodeError:
+                continue
+
+    logger.warning(f"Pi RPC: invalid JSON line ignored: {text[:200]!r}")
+    return None
 
 
 async def _send_command(payload: dict) -> None:
