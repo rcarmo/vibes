@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 
 SHELL_TIMEOUT = 30
 
+THINKING_LEVELS = ("off", "minimal", "low", "medium", "high", "xhigh")
+
 
 @dataclass
 class SlashCommandResult:
@@ -64,6 +66,12 @@ async def execute_command(
     if command.name == "restart":
         return await _restart_agent(agent_mode)
 
+    if command.name == "model":
+        return await _handle_model(command.args, agent_mode)
+
+    if command.name == "thinking":
+        return await _handle_thinking(command.args, agent_mode)
+
     if command.name == "shell":
         return await _run_shell(command.args)
 
@@ -79,6 +87,8 @@ def _list_commands() -> SlashCommandResult:
     """List available slash commands."""
     lines = [
         "Available commands:",
+        "• /model [provider/model] — Show or set the model",
+        "• /thinking [level] — Show or set thinking level",
         "• /restart — Restart the active agent",
         "• /shell <command> — Run a shell command",
         "• /commands — List available commands",
@@ -117,6 +127,105 @@ async def _restart_agent(agent_mode: str) -> SlashCommandResult:
             status="error",
             message=f"Restart failed: {e}",
         )
+
+
+async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
+    """Show or set the model for the active agent."""
+    from .config import get_config
+
+    config = get_config()
+
+    if agent_mode != "pi":
+        current = config.acp_agent
+        if not args:
+            return SlashCommandResult(
+                status="success",
+                message=f"Current ACP agent: `{current}`.\n\n"
+                "Model selection requires restarting with a different ACP agent binary.",
+            )
+        return SlashCommandResult(
+            status="error",
+            message="Model selection is not supported for ACP agents. "
+            "Set `VIBES_ACP_AGENT` and restart.",
+        )
+
+    # Pi mode
+    if not args:
+        current = config.pi_model or "(default)"
+        thinking = config.pi_thinking or "off"
+        return SlashCommandResult(
+            status="success",
+            message=f"Current model: {current}\nThinking level: {thinking}",
+        )
+
+    # Set model and restart
+    config.pi_model = args.strip()
+    try:
+        from .pi_client import stop_pi_agent, start_pi_agent
+        await stop_pi_agent()
+        ok = await start_pi_agent()
+    except Exception as e:
+        logger.error(f"Error restarting Pi agent after model change: {e}", exc_info=True)
+        return SlashCommandResult(status="error", message=f"Model set but restart failed: {e}")
+
+    if not ok:
+        return SlashCommandResult(status="error", message=f"Model set to {config.pi_model} but restart failed.")
+
+    thinking_note = f" Thinking level: {config.pi_thinking}." if config.pi_thinking else ""
+    return SlashCommandResult(
+        status="success",
+        message=f"Model set to {config.pi_model}. Pi agent restarted.{thinking_note}",
+    )
+
+
+async def _handle_thinking(args: str, agent_mode: str) -> SlashCommandResult:
+    """Show or set the thinking level for the active agent."""
+    from .config import get_config
+
+    config = get_config()
+
+    if agent_mode != "pi":
+        return SlashCommandResult(
+            status="error",
+            message="Thinking level configuration is not supported for ACP agents.",
+        )
+
+    # Pi mode — show current
+    if not args:
+        current = config.pi_thinking or "off"
+        model = config.pi_model or "(default)"
+        return SlashCommandResult(
+            status="success",
+            message=f"Current model: {model}\n"
+            f"Current thinking level: {current}\n"
+            f"Available levels: {', '.join(THINKING_LEVELS)}",
+        )
+
+    # Validate level
+    level = args.strip().lower()
+    if level not in THINKING_LEVELS:
+        return SlashCommandResult(
+            status="error",
+            message=f"Unknown thinking level: {args}. Available: {', '.join(THINKING_LEVELS)}",
+        )
+
+    config.pi_thinking = level if level != "off" else None
+    try:
+        from .pi_client import stop_pi_agent, start_pi_agent
+        await stop_pi_agent()
+        ok = await start_pi_agent()
+    except Exception as e:
+        logger.error(f"Error restarting Pi agent after thinking change: {e}", exc_info=True)
+        return SlashCommandResult(status="error", message=f"Thinking level set but restart failed: {e}")
+
+    if not ok:
+        return SlashCommandResult(status="error", message=f"Thinking set to {level} but restart failed.")
+
+    effective = config.pi_thinking or "off"
+    return SlashCommandResult(
+        status="success",
+        message=f"Thinking level set to {effective}. Pi agent restarted.",
+    )
 
 
 async def _run_shell(args: str) -> SlashCommandResult:

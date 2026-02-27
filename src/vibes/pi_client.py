@@ -88,7 +88,7 @@ async def start_pi_agent() -> bool:
             return True
 
         config = get_config()
-        cmd = config.pi_agent
+        cmd = config.effective_pi_command()
         cmd_parts = shlex.split(cmd)
         if not cmd_parts:
             raise RuntimeError("Pi agent command is empty")

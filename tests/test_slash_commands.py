@@ -123,6 +123,133 @@ async def test_execute_unknown_not_handled():
     assert result.handled is False
 
 
+# ── /model ─────────────────────────────────────────────────
+
+
+def test_parse_model_no_args():
+    cmd = parse_command("/model")
+    assert cmd is not None
+    assert cmd.name == "model"
+    assert cmd.args == ""
+
+
+def test_parse_model_with_args():
+    cmd = parse_command("/model anthropic/claude-sonnet")
+    assert cmd.name == "model"
+    assert cmd.args == "anthropic/claude-sonnet"
+
+
+@pytest.mark.asyncio
+async def test_model_show_pi(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    monkeypatch.setattr(config, "pi_thinking", None)
+    cmd = SlashCommand(name="model", args="", raw="/model")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "(default)" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_show_acp():
+    cmd = SlashCommand(name="model", args="", raw="/model")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert "ACP agent" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_set_acp_not_supported():
+    cmd = SlashCommand(name="model", args="some-model", raw="/model some-model")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "not supported" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_set_pi(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
+         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+        cmd = SlashCommand(name="model", args="anthropic/claude-sonnet", raw="/model anthropic/claude-sonnet")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "anthropic/claude-sonnet" in result.message
+        assert config.pi_model == "anthropic/claude-sonnet"
+
+
+# ── /thinking ──────────────────────────────────────────────
+
+
+def test_parse_thinking():
+    cmd = parse_command("/thinking high")
+    assert cmd.name == "thinking"
+    assert cmd.args == "high"
+
+
+@pytest.mark.asyncio
+async def test_thinking_show_pi(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", "medium")
+    monkeypatch.setattr(config, "pi_model", None)
+    cmd = SlashCommand(name="thinking", args="", raw="/thinking")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "medium" in result.message
+    assert "Available levels" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_acp_not_supported():
+    cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "not supported" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_invalid_level():
+    cmd = SlashCommand(name="thinking", args="turbo", raw="/thinking turbo")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "error"
+    assert "Unknown thinking level" in result.message
+    assert "turbo" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_set_pi(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
+         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+        cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "high" in result.message
+        assert config.pi_thinking == "high"
+
+
+@pytest.mark.asyncio
+async def test_thinking_set_off_clears(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", "high")
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
+         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+        cmd = SlashCommand(name="thinking", args="off", raw="/thinking off")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert config.pi_thinking is None
+
+
+@pytest.mark.asyncio
+async def test_commands_lists_model_and_thinking():
+    cmd = SlashCommand(name="commands", raw="/commands")
+    result = await execute_command(cmd, "acp")
+    assert "/model" in result.message
+    assert "/thinking" in result.message
+
+
 # ── /shell ─────────────────────────────────────────────────
 
 

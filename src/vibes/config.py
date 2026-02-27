@@ -83,6 +83,11 @@ class Config:
             "VIBES_PI_RESTART_ON_DISCONNECT",
             False,
         )
+
+        # Runtime-mutable overrides for Pi model and thinking level.
+        # Set via /model and /thinking slash commands; applied on next agent restart.
+        self.pi_model: Optional[str] = os.environ.get("VIBES_PI_MODEL")
+        self.pi_thinking: Optional[str] = os.environ.get("VIBES_PI_THINKING")
         
         # Load custom endpoints from config file
         config_path = _get_env("VIBES_CONFIG_PATH", DEFAULT_CONFIG_PATH)
@@ -97,6 +102,15 @@ class Config:
                 self.custom_endpoints = data.get("endpoints", {})
         except (json.JSONDecodeError, IOError) as e:
             print(f"Warning: Failed to load config from {config_path}: {e}")
+
+    def effective_pi_command(self) -> str:
+        """Return the pi agent command with model/thinking overrides appended."""
+        cmd = self.pi_agent
+        if self.pi_model:
+            cmd += f" --model {shlex.quote(self.pi_model)}"
+        if self.pi_thinking:
+            cmd += f" --thinking {shlex.quote(self.pi_thinking)}"
+        return cmd
 
 
 # Global config instance
