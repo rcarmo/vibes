@@ -79,12 +79,28 @@ A naive `readline()` approach splits on every `\n` byte, including those *inside
 
 ### Current approach: `read()` + `raw_decode(strict=False)`
 
-The parser uses `reader.read(524288)` to read raw byte chunks into a persistent string buffer (`_state.rpc_buffer`), then calls `json.JSONDecoder(strict=False).raw_decode()` to extract complete JSON objects:
+The parser uses `reader.read(512KB)` to read raw byte chunks into a persistent string buffer (`_state.rpc_buffer`), then calls `json.JSONDecoder(strict=False).raw_decode()` to extract complete JSON objects:
 
 - `strict=False` tells Python's JSON parser to **accept raw control characters** inside strings — no sanitization needed.
 - `raw_decode()` stops at the exact end of the first JSON value, leaving remaining data in the buffer for the next call.
 - No dependence on newline boundaries at all.
 - Buffer is capped at 16 MB to prevent unbounded growth; on overflow the oldest half is discarded.
+
+### Why not use a streaming JSON parser?
+
+We evaluated **ijson** (yajl2 backend), **json-stream** (Rust tokenizer), and **jsonslicer** — all reject raw control characters inside strings per the JSON spec. Only Python's built-in `json.JSONDecoder(strict=False)` accepts raw `0x0a` bytes in string values without sanitization. Since Pi emits these routinely in thinking/tool payloads, off-the-shelf streaming parsers are not viable.
+
+### Error recovery
+
+The parser distinguishes two failure modes:
+
+1. **Incomplete event** (`Unterminated string`): the buffer ends mid-event because `read()` returned a partial chunk. The parser waits for more data.
+2. **Malformed event** (any other `JSONDecodeError`): the buffer starts with garbage. The parser skips forward to the next `{` and retries.
+
+Two safety mechanisms prevent the parser from blocking forever:
+
+- **Per-read timeout (30s)**: each `reader.read()` call has a timeout. If Pi stops writing (e.g. it already sent `agent_end` but the buffer has a malformed prefix), the timeout fires instead of blocking indefinitely.
+- **Stuck detection**: after 3 consecutive read timeouts with no events extracted, the parser force-skips past the current `{` to the next one, discarding the stuck prefix.
 
 ### Key event types
 
