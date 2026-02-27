@@ -231,8 +231,9 @@ class TestSSEDisconnectRestart:
 
         await sse._restart_agent_after_disconnect(0)
 
-        assert sse.stop_acp_agent.await_count == 1
-        assert sse.start_acp_agent.await_count == 1
+        # Pi is the active agent but restart_on_disconnect is False, so nothing restarts.
+        assert sse.stop_acp_agent.await_count == 0
+        assert sse.start_acp_agent.await_count == 0
         assert sse.stop_pi_agent.await_count == 0
         assert sse.start_pi_agent.await_count == 0
 

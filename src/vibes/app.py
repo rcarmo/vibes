@@ -61,18 +61,17 @@ async def on_startup(app: web.Application) -> None:
     await start_task_queue(num_workers=3)
     logger.info("Background task queue started")
     
-    # Start ACP agent
-    if await start_acp_agent():
-        logger.info(f"ACP agent started: {config.acp_agent}")
-    else:
-        logger.warning(f"ACP agent not available: {config.acp_agent}")
-
-    # Start Pi agent if enabled
+    # Start the configured agent (only one at a time).
     if config.pi_enabled:
         if await start_pi_agent():
             logger.info(f"Pi agent started: {config.pi_agent}")
         else:
             logger.warning(f"Pi agent not available: {config.pi_agent}")
+    else:
+        if await start_acp_agent():
+            logger.info(f"ACP agent started: {config.acp_agent}")
+        else:
+            logger.warning(f"ACP agent not available: {config.acp_agent}")
     
     # Reconcile missing link previews in background
     asyncio.create_task(reconcile_missing_previews())
@@ -82,12 +81,12 @@ async def on_cleanup(app: web.Application) -> None:
     """Application cleanup handler."""
     logger.info("Shutting down...")
     
-    await stop_acp_agent()
-    logger.info("ACP agent stopped")
-
     if get_config().pi_enabled:
         await stop_pi_agent()
         logger.info("Pi agent stopped")
+    else:
+        await stop_acp_agent()
+        logger.info("ACP agent stopped")
     
     await stop_task_queue()
     logger.info("Background task queue stopped")
