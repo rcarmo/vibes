@@ -104,3 +104,43 @@ If responses hang (no reply until `/restart`), check logs for:
 - `Pi RPC: buffer exceeded ... truncating` — a single event exceeded 16 MB (extremely rare; increase `_MAX_RPC_BUFFER`).
 - `Pi RPC: read exceeded buffer limit` — the asyncio pipe limit (16 MB) was hit. Increase the `limit=` parameter in `create_subprocess_exec`.
 - `Pi RPC: timed out waiting for agent_end` — Pi stopped sending events but didn't close. Check if Pi is alive (`/agents` endpoint).
+- `Pi RPC: stuck for N reads` — the parser detected a malformed event blocking the buffer and skipped past it.
+
+## RPC Commands Reference
+
+Pi's `--mode rpc` protocol accepts JSON commands on **stdin** and emits events on **stdout**. Below is the full set of supported commands (discovered from Pi v0.55.1 type definitions).
+
+### Currently implemented
+
+| Command | Payload | Notes |
+|---------|---------|-------|
+| `prompt` | `{"type":"prompt","message":"..."}` | Send a user message. Supports optional `images` and `streamingBehavior` (`"steer"` or `"followUp"`). |
+| `extension_ui_response` | `{"type":"extension_ui_response","id":"...","confirmed":true}` | Respond to permission/choice dialogs. |
+| `set_model` | `{"type":"set_model","provider":"...","modelId":"..."}` | Change model live via `/model` command (no restart). |
+| `set_thinking_level` | `{"type":"set_thinking_level","level":"high"}` | Change thinking level live via `/thinking` command. |
+| `get_state` | `{"type":"get_state"}` | Query current session state (used by `/model` to show active model). |
+| `get_available_models` | `{"type":"get_available_models"}` | List models via RPC (used by `/model` listing). |
+| `new_session` | `{"type":"new_session"}` | Reset session via `/restart` (keeps process alive). |
+| `steer` | `{"type":"steer","message":"..."}` | Mid-turn steering via `/steer` command. |
+| `abort` | `{"type":"abort"}` | Cancel current execution via `/abort` command. |
+
+### Not yet implemented
+
+These commands are available in Pi's RPC protocol but not yet wired up:
+
+| Command | Payload | Description |
+|---------|---------|-------------|
+| `follow_up` | `{"type":"follow_up","message":"..."}` | Queue a follow-up message to be processed after the current turn completes. |
+| `compact` | `{"type":"compact"}` | Trigger context window compaction. |
+| `get_commands` | `{"type":"get_commands"}` | List slash commands registered by extensions/skills. |
+| `cycle_model` | `{"type":"cycle_model"}` | Cycle to the next model in the `--models` list. |
+| `cycle_thinking_level` | `{"type":"cycle_thinking_level"}` | Cycle to the next thinking level. |
+| `bash` / `abort_bash` | `{"type":"bash","command":"..."}` | Run a bash command / abort running bash. |
+| `set_steering_mode` | `{"type":"set_steering_mode","mode":"all"}` | Controls how steering messages are batched (`"all"` or `"one-at-a-time"`). |
+| `set_follow_up_mode` | `{"type":"set_follow_up_mode","mode":"all"}` | Controls how follow-up messages are batched. |
+
+### Prompt streaming behavior
+
+The `prompt` command accepts an optional `streamingBehavior` field:
+- `"steer"` — if the agent is already streaming, treat this prompt as a steering message
+- `"followUp"` — if the agent is already streaming, queue this prompt as a follow-up

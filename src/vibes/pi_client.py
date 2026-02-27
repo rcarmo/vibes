@@ -216,6 +216,50 @@ async def _send_command(payload: dict) -> None:
     await _state.agent_writer.drain()
 
 
+async def send_rpc_command(payload: dict, timeout: float = 10.0) -> dict | None:
+    """Send an RPC command to the Pi agent and wait for its response.
+
+    Returns the response dict, or None if the agent is not running.
+    Raises RuntimeError on communication failure or timeout.
+    """
+    if not is_pi_running():
+        return None
+
+    await _send_command(payload)
+
+    # Read events until we get a "response" matching our command type.
+    cmd_type = payload.get("type", "")
+    try:
+        while True:
+            event = await asyncio.wait_for(
+                _read_event(_state.agent_reader), timeout=timeout
+            )
+            if event.get("type") == "response" and event.get("command") == cmd_type:
+                return event
+            # Non-response events during command execution are possible
+            # (e.g. state change notifications) — skip them.
+    except asyncio.TimeoutError:
+        logger.warning("Pi RPC: timed out waiting for response to %s", cmd_type)
+        raise RuntimeError(f"Pi agent timed out responding to {cmd_type}")
+
+
+async def send_rpc_fire_and_forget(payload: dict) -> bool:
+    """Send an RPC command without waiting for a response.
+
+    Used for commands that affect an in-progress turn (steer, abort)
+    where the response is interleaved with streaming events.
+    Returns True if sent successfully, False if agent not running.
+    """
+    if not is_pi_running():
+        return False
+    try:
+        await _send_command(payload)
+        return True
+    except Exception as e:
+        logger.warning("Pi RPC: failed to send %s: %s", payload.get("type"), e)
+        return False
+
+
 async def start_pi_agent() -> bool:
     """Start pi RPC agent if not already running."""
     async with _state.agent_lock:

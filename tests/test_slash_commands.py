@@ -144,14 +144,15 @@ async def test_model_show_pi(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", None)
     monkeypatch.setattr(config, "pi_thinking", None)
-    # Mock _query_pi_models to avoid needing pi binary
     sc = importlib.import_module("vibes.slash_commands")
-    monkeypatch.setattr(sc, "_query_pi_models", AsyncMock(return_value=[]))
-    cmd = SlashCommand(name="model", args="", raw="/model")
-    result = await execute_command(cmd, "pi")
-    assert result.status == "success"
-    assert "default" in result.message
-    assert "/model <provider/model>" in result.message
+    monkeypatch.setattr(sc, "_query_pi_models_rpc", AsyncMock(return_value=[]))
+    monkeypatch.setattr(sc, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        cmd = SlashCommand(name="model", args="", raw="/model")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "default" in result.message
+        assert "/model <provider/model>" in result.message
 
 
 @pytest.mark.asyncio
@@ -160,15 +161,17 @@ async def test_model_show_pi_with_list(monkeypatch):
     monkeypatch.setattr(config, "pi_model", "anthropic/claude-sonnet")
     monkeypatch.setattr(config, "pi_thinking", None)
     sc = importlib.import_module("vibes.slash_commands")
-    monkeypatch.setattr(sc, "_query_pi_models", AsyncMock(return_value=[
+    monkeypatch.setattr(sc, "_query_pi_models_rpc", AsyncMock(return_value=[
         "anthropic/claude-sonnet", "anthropic/claude-haiku", "openai/gpt-4",
     ]))
-    cmd = SlashCommand(name="model", args="", raw="/model")
-    result = await execute_command(cmd, "pi")
-    assert result.status == "success"
-    assert "Available models:" in result.message
-    assert "`anthropic/claude-sonnet` *(current)*" in result.message
-    assert "openai/gpt-4" in result.message
+    monkeypatch.setattr(sc, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        cmd = SlashCommand(name="model", args="", raw="/model")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Available models:" in result.message
+        assert "`anthropic/claude-sonnet` *(current)*" in result.message
+        assert "openai/gpt-4" in result.message
 
 
 @pytest.mark.asyncio
@@ -191,12 +194,13 @@ async def test_model_set_acp_not_supported():
 async def test_model_set_pi(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
-         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_model", "success": True, "data": {"name": "claude-sonnet"}}):
         cmd = SlashCommand(name="model", args="anthropic/claude-sonnet", raw="/model anthropic/claude-sonnet")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
-        assert "anthropic/claude-sonnet" in result.message
+        assert "claude-sonnet" in result.message
         assert config.pi_model == "anthropic/claude-sonnet"
 
 
@@ -242,8 +246,9 @@ async def test_thinking_invalid_level():
 async def test_thinking_set_pi(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_thinking", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
-         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_thinking_level", "success": True}):
         cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
@@ -255,8 +260,9 @@ async def test_thinking_set_pi(monkeypatch):
 async def test_thinking_set_off_clears(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_thinking", "high")
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
-         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=True):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_thinking_level", "success": True}):
         cmd = SlashCommand(name="thinking", args="off", raw="/thinking off")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
@@ -264,11 +270,13 @@ async def test_thinking_set_off_clears(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_commands_lists_model_and_thinking():
+async def test_commands_lists_all():
     cmd = SlashCommand(name="commands", raw="/commands")
     result = await execute_command(cmd, "acp")
     assert "/model" in result.message
     assert "/thinking" in result.message
+    assert "/steer" in result.message
+    assert "/abort" in result.message
 
 
 # ── /shell ─────────────────────────────────────────────────
@@ -352,7 +360,9 @@ async def test_shell_commands_listed():
 
 @pytest.mark.asyncio
 async def test_restart_exception():
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, side_effect=RuntimeError("boom")), \
+         patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
         cmd = SlashCommand(name="restart", raw="/restart")
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
@@ -360,49 +370,117 @@ async def test_restart_exception():
 
 
 @pytest.mark.asyncio
-async def test_model_set_pi_restart_exception(monkeypatch):
+async def test_model_set_pi_rpc_failure(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_model", "success": False, "error": "unknown model"}):
         cmd = SlashCommand(name="model", args="x/y", raw="/model x/y")
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
-        assert "restart failed" in result.message
+        assert "unknown model" in result.message
 
 
 @pytest.mark.asyncio
-async def test_model_set_pi_restart_not_ok(monkeypatch):
+async def test_model_set_pi_not_running(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
-         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=False):
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
         cmd = SlashCommand(name="model", args="x/y", raw="/model x/y")
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
-        assert "restart failed" in result.message
+        assert "not running" in result.message
 
 
 @pytest.mark.asyncio
-async def test_thinking_set_pi_restart_exception(monkeypatch):
+async def test_thinking_set_pi_rpc_failure(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_thinking", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_thinking_level", "success": False, "error": "bad level"}):
         cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
-        assert "restart failed" in result.message
+        assert "bad level" in result.message
 
 
 @pytest.mark.asyncio
-async def test_thinking_set_pi_restart_not_ok(monkeypatch):
+async def test_thinking_set_pi_not_running(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_thinking", None)
-    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
-         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=False):
-        cmd = SlashCommand(name="thinking", args="medium", raw="/thinking medium")
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
-        assert "restart failed" in result.message
+        assert "not running" in result.message
+
+
+# ── /abort ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_abort_pi():
+    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=True):
+        cmd = SlashCommand(name="abort", args="", raw="/abort")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Abort" in result.message
+
+
+@pytest.mark.asyncio
+async def test_abort_not_running():
+    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=False):
+        cmd = SlashCommand(name="abort", args="", raw="/abort")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "not running" in result.message
+
+
+@pytest.mark.asyncio
+async def test_abort_acp_not_supported():
+    cmd = SlashCommand(name="abort", args="", raw="/abort")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "only supported" in result.message
+
+
+# ── /steer ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_steer_pi():
+    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=True):
+        cmd = SlashCommand(name="steer", args="focus on the tests", raw="/steer focus on the tests")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "focus on the tests" in result.message
+
+
+@pytest.mark.asyncio
+async def test_steer_no_args():
+    cmd = SlashCommand(name="steer", args="", raw="/steer")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "error"
+    assert "Usage" in result.message
+
+
+@pytest.mark.asyncio
+async def test_steer_not_running():
+    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=False):
+        cmd = SlashCommand(name="steer", args="do X", raw="/steer do X")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "not running" in result.message
+
+
+@pytest.mark.asyncio
+async def test_steer_acp_not_supported():
+    cmd = SlashCommand(name="steer", args="do X", raw="/steer do X")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "only supported" in result.message
 
 
 @pytest.mark.asyncio

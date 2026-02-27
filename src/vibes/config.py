@@ -88,7 +88,7 @@ class Config:
         self.pi_agent_end_timeout_s: int = _get_env_int("VIBES_PI_AGENT_END_TIMEOUT_S", 0)
 
         # Runtime-mutable overrides for Pi model and thinking level.
-        # Set via /model and /thinking slash commands; applied on next agent restart.
+        # Applied via CLI flags on initial startup; changed live via RPC set_model/set_thinking_level.
         self.pi_model: Optional[str] = os.environ.get("VIBES_PI_MODEL")
         self.pi_thinking: Optional[str] = os.environ.get("VIBES_PI_THINKING")
         
