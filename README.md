@@ -26,8 +26,24 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 ## Roadmap
 
 - [ ] Better integration with multimodal models (ACP punts on that right now)
-- [ ] Slash commands
-- [ ] Switching agents/models
+- [x] Slash commands
+- [x] Switching agents/models
+
+## Slash Commands
+
+Type a `/` command in the message input to control the agent or run utilities without sending a prompt. Built-in commands are handled instantly; unknown commands are forwarded to the agent as regular prompts.
+
+| Command | Description |
+|---|---|
+| `/commands` | List all available slash commands |
+| `/model` | Show the current model (Pi) or agent binary (ACP) |
+| `/model <provider/model>` | Switch the Pi agent to a different model and restart |
+| `/thinking` | Show current thinking level and available levels |
+| `/thinking <level>` | Set thinking level (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) and restart |
+| `/restart` | Restart the active agent |
+| `/shell <command>` | Run a shell command and display the output |
+
+> **Note:** `/model` and `/thinking` apply to the Pi agent. ACP agents do not expose model or thinking configuration via the protocol.
 
 ## Installation
 
