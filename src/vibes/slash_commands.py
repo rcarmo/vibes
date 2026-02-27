@@ -199,7 +199,7 @@ async def _query_pi_models(config) -> list[str]:
 
     try:
         proc = await asyncio.create_subprocess_exec(
-            executable, "models",
+            executable, "--list-models",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.DEVNULL,
             stdin=asyncio.subprocess.DEVNULL,
@@ -208,19 +208,14 @@ async def _query_pi_models(config) -> list[str]:
         output = stdout.decode("utf-8", errors="replace") if stdout else ""
         if proc.returncode != 0 or not output.strip():
             return []
-        # Parse output: one model per line, skip empty/header lines
+        # Parse tabular output: "provider  model  context  ..."
+        # Skip header line, build provider/model identifiers
         models = []
-        for line in output.strip().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or line.startswith("-"):
-                continue
-            # Some CLIs prefix with bullet or number — strip those
-            cleaned = line.lstrip("•·- 0123456789.)\t")
-            if cleaned and "/" in cleaned:
-                models.append(cleaned.split()[0])
-            elif cleaned:
-                models.append(cleaned.split()[0])
-        return models
+        for line in output.strip().splitlines()[1:]:
+            cols = line.split()
+            if len(cols) >= 2:
+                models.append(f"{cols[0]}/{cols[1]}")
+        return sorted(models)
     except Exception:
         logger.debug("Failed to query pi models", exc_info=True)
         return []
