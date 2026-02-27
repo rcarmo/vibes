@@ -167,7 +167,7 @@ async def test_model_show_pi_with_list(monkeypatch):
     result = await execute_command(cmd, "pi")
     assert result.status == "success"
     assert "Available models:" in result.message
-    assert "anthropic/claude-sonnet (current)" in result.message
+    assert "`anthropic/claude-sonnet` *(current)*" in result.message
     assert "openai/gpt-4" in result.message
 
 

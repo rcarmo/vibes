@@ -87,11 +87,11 @@ def _list_commands() -> SlashCommandResult:
     """List available slash commands."""
     lines = [
         "Available commands:",
-        "• /model [provider/model] — Show or set the model",
-        "• /thinking [level] — Show or set thinking level",
-        "• /restart — Restart the active agent",
-        "• /shell <command> — Run a shell command",
-        "• /commands — List available commands",
+        "- `/model [provider/model]` - Show or set the model",
+        "- `/thinking [level]` - Show or set thinking level",
+        "- `/restart` - Restart the active agent",
+        "- `/shell <command>` - Run a shell command",
+        "- `/commands` - List available commands",
         "",
         "Any other /command is forwarded to the agent.",
     ]
@@ -158,9 +158,12 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
         if models_list:
             lines.append("")
             lines.append("Available models:")
+            lines.append("")
             for name in models_list:
-                marker = " (current)" if name == config.pi_model else ""
-                lines.append(f"• {name}{marker}")
+                if name == config.pi_model:
+                    lines.append(f"- `{name}` *(current)*")
+                else:
+                    lines.append(f"- `{name}`")
         lines.append("")
         lines.append("Set with: `/model <provider/model>`")
         return SlashCommandResult(status="success", message="\n".join(lines))

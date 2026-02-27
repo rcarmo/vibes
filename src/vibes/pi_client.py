@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import shlex
 import shutil
 from typing import Any, Optional
@@ -173,11 +174,14 @@ async def start_pi_agent() -> bool:
             raise RuntimeError(f"Pi agent executable '{executable}' not found in PATH")
 
         logger.info(f"Starting Pi agent: {cmd}")
+        env = os.environ.copy()
+        env.setdefault("PYTHONUNBUFFERED", "1")
         _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
             limit=16 * 1024 * 1024,
         )
         _state.agent_reader = _state.agent_proc.stdout

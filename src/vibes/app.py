@@ -3,6 +3,7 @@
 import argparse
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 from aiohttp import web
@@ -16,6 +17,9 @@ from .pi_client import start_pi_agent, stop_pi_agent
 from .routes import posts, media, sse, agents
 
 logger = logging.getLogger(__name__)
+
+# Propagate unbuffered behavior to child processes launched by the server.
+os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
 # Path to static files (bundled with package)
 STATIC_PATH = Path(__file__).parent / "static"
