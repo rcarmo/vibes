@@ -27,7 +27,6 @@ class _PiState:
         self.agent_stderr = None
         self.stderr_task = None
         self.stderr_tail = deque(maxlen=100)
-        self.rpc_buffer = ""
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
@@ -59,7 +58,6 @@ def reset_state() -> None:
     _state.agent_stderr = None
     _state.stderr_task = None
     _state.stderr_tail = deque(maxlen=100)
-    _state.rpc_buffer = ""
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
@@ -102,69 +100,82 @@ def _connection_closed_message() -> str:
     return f"Pi agent connection closed (exit code {code})"
 
 
-async def _read_event(reader) -> dict | None:
-    """Read a JSON event from pi stdout using a tolerant stream parser."""
+# Maximum number of continuation lines to accumulate when an event
+# contains raw newlines inside JSON string values.
+_MAX_STITCH_LINES = 500
 
-    def _extract_next_event(buffer: str) -> tuple[dict | None, str, json.JSONDecodeError | None]:
-        if not buffer:
-            return None, buffer, None
 
-        start = buffer.find("{")
-        if start == -1:
-            # Keep only a small suffix to avoid unbounded growth on noise.
-            return None, buffer[-4096:], None
-        if start > 0:
-            buffer = buffer[start:]
+async def _read_event(reader) -> dict:
+    """Read one JSON event from Pi stdout.
 
-        decoder = json.JSONDecoder(strict=False)
-        try:
-            obj, idx = decoder.raw_decode(buffer)
-        except json.JSONDecodeError as err:
-            # Incomplete JSON payload: wait for more bytes.
-            if err.msg.startswith("Unterminated string") or err.pos >= len(buffer) - 1:
-                return None, buffer, err
+    Pi emits newline-delimited JSON.  The only complication is that tool
+    and thinking payloads can contain raw control characters (including
+    literal 0x0a newlines) inside JSON string values, which splits a
+    single logical event across multiple readline() calls.
 
-            # Malformed prefix: resync to the next JSON object candidate.
-            next_start = buffer.find("{", 1)
-            if next_start != -1:
-                return None, buffer[next_start:], err
-            return None, "", err
+    Strategy:
+    1. readline() to get a candidate line
+    2. json.loads(line, strict=False) — strict=False tolerates raw
+       control chars (\\t, \\r, etc.) inside strings
+    3. On parse failure, the line was likely split by an embedded \\n —
+       read the next line, join with \\n, and retry
+    4. Cap stitching to avoid infinite accumulation
+    """
+    line = b""
+    stitch_count = 0
 
-        remaining = buffer[idx:]
-        if isinstance(obj, dict):
-            return obj, remaining, None
-        return None, remaining, None
-
-    last_error: json.JSONDecodeError | None = None
     while True:
-        obj, _state.rpc_buffer, last_error = _extract_next_event(_state.rpc_buffer)
-        if obj is not None:
-            return obj
-        if last_error and not (
-            last_error.msg.startswith("Unterminated string")
-            or last_error.pos >= max(0, len(_state.rpc_buffer) - 1)
-        ):
-            logger.warning(
-                "Pi RPC: invalid JSON chunk recovered (%s at pos %s)",
-                last_error.msg,
-                last_error.pos,
-            )
-
         try:
-            chunk = await reader.read(65536)
+            segment = await reader.readline()
         except ValueError:
-            logger.warning("Pi RPC: read exceeded buffer limit, dropping buffered fragment")
-            _state.rpc_buffer = ""
-            return None
+            # readline() raises ValueError when line exceeds buffer limit.
+            logger.warning("Pi RPC: readline exceeded buffer limit, skipping")
+            continue
 
-        if not chunk:
-            # Try one last parse pass before declaring closed.
-            obj, _state.rpc_buffer, _ = _extract_next_event(_state.rpc_buffer)
-            if obj is not None:
-                return obj
+        if not segment:
+            # EOF — try parsing whatever we have, then signal closed.
+            if line:
+                obj = _try_parse(line)
+                if obj is not None:
+                    return obj
             raise RuntimeError(_connection_closed_message())
 
-        _state.rpc_buffer += chunk.decode("utf-8", errors="replace")
+        if not line:
+            # Starting a new event — skip blank/non-JSON lines.
+            stripped = segment.strip()
+            if not stripped or not stripped.startswith(b"{"):
+                continue
+            line = segment.rstrip(b"\n")
+        else:
+            # Stitching: join with the newline that split the event.
+            line = line + b"\n" + segment.rstrip(b"\n")
+            stitch_count += 1
+
+        obj = _try_parse(line)
+        if obj is not None:
+            return obj
+
+        # Parse failed — stitch the next line if within limits.
+        if stitch_count >= _MAX_STITCH_LINES:
+            logger.warning(
+                "Pi RPC: abandoning event after %d stitched lines (%.200s)",
+                stitch_count,
+                line[:200].decode("utf-8", errors="replace"),
+            )
+            line = b""
+            stitch_count = 0
+
+
+def _try_parse(line: bytes) -> dict | None:
+    """Try to parse a byte string as a JSON object, tolerating control chars."""
+    try:
+        text = line.decode("utf-8", errors="replace")
+        obj = json.loads(text, strict=False)
+        if isinstance(obj, dict):
+            return obj
+    except json.JSONDecodeError:
+        pass
+    return None
 
 
 async def _send_command(payload: dict) -> None:
@@ -206,7 +217,6 @@ async def start_pi_agent() -> bool:
         _state.agent_writer = _state.agent_proc.stdin
         _state.agent_stderr = _state.agent_proc.stderr
         _state.stderr_tail.clear()
-        _state.rpc_buffer = ""
         if _state.agent_stderr is not None:
             _state.stderr_task = asyncio.create_task(_drain_stderr(_state.agent_stderr))
         return True
@@ -236,7 +246,6 @@ async def stop_pi_agent() -> None:
             _state.agent_writer = None
             _state.agent_stderr = None
             _state.stderr_task = None
-            _state.rpc_buffer = ""
 
 
 def _extract_tool_status(result: dict | None) -> str | None:
@@ -619,7 +628,6 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             thought_text = ""
             final_message = None
             saw_turn_end = False
-            non_event_count = 0
             finalized_from_collected = False
             agent_messages: list[dict] = []
             tool_blocks: list[dict] = []
@@ -642,7 +650,9 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     config = get_config()
                     event_timeout = config.pi_agent_end_timeout_s if saw_turn_end else config.pi_response_timeout_s
                     if event_timeout > 0:
-                        event = await asyncio.wait_for(_read_event(_state.agent_reader), timeout=event_timeout)
+                        event = await asyncio.wait_for(
+                            _read_event(_state.agent_reader), timeout=event_timeout
+                        )
                     else:
                         event = await _read_event(_state.agent_reader)
                 except asyncio.TimeoutError:
@@ -659,16 +669,6 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                         finalized_from_collected = True
                         break
                     raise
-                if not event:
-                    non_event_count += 1
-                    if saw_turn_end and non_event_count >= 200:
-                        logger.warning(
-                            "Pi RPC: too many non-events after turn_end; finalizing from collected content"
-                        )
-                        finalized_from_collected = True
-                        break
-                    continue
-                non_event_count = 0
 
                 event_type = event.get("type")
 
