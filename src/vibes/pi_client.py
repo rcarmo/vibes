@@ -27,6 +27,7 @@ class _PiState:
         self.agent_stderr = None
         self.stderr_task = None
         self.stderr_tail = deque(maxlen=100)
+        self.rpc_buffer = ""
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
@@ -62,6 +63,7 @@ def reset_state() -> None:
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
     _state.request_callback = None
+    _state.rpc_buffer = ""
 
 
 def is_pi_running() -> bool:
@@ -100,82 +102,64 @@ def _connection_closed_message() -> str:
     return f"Pi agent connection closed (exit code {code})"
 
 
-# Maximum number of continuation lines to accumulate when an event
-# contains raw newlines inside JSON string values.
-_MAX_STITCH_LINES = 500
+_decoder = json.JSONDecoder(strict=False)
+_MAX_RPC_BUFFER = 16 * 1024 * 1024  # 16MB
 
 
 async def _read_event(reader) -> dict:
     """Read one JSON event from Pi stdout.
 
-    Pi emits newline-delimited JSON.  The only complication is that tool
-    and thinking payloads can contain raw control characters (including
-    literal 0x0a newlines) inside JSON string values, which splits a
-    single logical event across multiple readline() calls.
+    Pi emits newline-delimited JSON, but tool/thinking payloads often
+    contain raw control characters (including literal 0x0a newlines)
+    inside JSON string values.  This means we cannot rely on readline()
+    — a single event can span many lines.
 
-    Strategy:
-    1. readline() to get a candidate line
-    2. json.loads(line, strict=False) — strict=False tolerates raw
-       control chars (\\t, \\r, etc.) inside strings
-    3. On parse failure, the line was likely split by an embedded \\n —
-       read the next line, join with \\n, and retry
-    4. Cap stitching to avoid infinite accumulation
+    Instead we read raw chunks via read(), accumulate into a buffer, and
+    use JSONDecoder.raw_decode(strict=False) to extract the next complete
+    JSON object.  raw_decode with strict=False handles all control chars
+    natively and stops exactly at the end of the first JSON value.
     """
-    line = b""
-    stitch_count = 0
-
     while True:
+        # Try to extract from existing buffer.
+        buf = _state.rpc_buffer.lstrip()
+        if buf:
+            # Skip to first '{'.
+            idx = buf.find("{")
+            if idx == -1:
+                _state.rpc_buffer = ""
+            else:
+                if idx > 0:
+                    buf = buf[idx:]
+                try:
+                    obj, end = _decoder.raw_decode(buf)
+                    _state.rpc_buffer = buf[end:]
+                    if isinstance(obj, dict):
+                        return obj
+                    # Parsed non-dict (unlikely) — discard and loop.
+                    continue
+                except json.JSONDecodeError:
+                    # Incomplete or malformed — need more data.
+                    _state.rpc_buffer = buf
+
+        # Read more data from the stream.
         try:
-            segment = await reader.readline()
+            chunk = await reader.read(65536)
         except ValueError:
-            # readline() raises ValueError when line exceeds buffer limit.
-            logger.warning("Pi RPC: readline exceeded buffer limit, skipping")
+            logger.warning("Pi RPC: read exceeded buffer limit, clearing buffer")
+            _state.rpc_buffer = ""
             continue
 
-        if not segment:
-            # EOF — try parsing whatever we have, then signal closed.
-            if line:
-                obj = _try_parse(line)
-                if obj is not None:
-                    return obj
+        if not chunk:
+            # EOF — connection closed.
             raise RuntimeError(_connection_closed_message())
 
-        if not line:
-            # Starting a new event — skip blank/non-JSON lines.
-            stripped = segment.strip()
-            if not stripped or not stripped.startswith(b"{"):
-                continue
-            line = segment.rstrip(b"\n")
-        else:
-            # Stitching: join with the newline that split the event.
-            line = line + b"\n" + segment.rstrip(b"\n")
-            stitch_count += 1
+        _state.rpc_buffer += chunk.decode("utf-8", errors="replace")
 
-        obj = _try_parse(line)
-        if obj is not None:
-            return obj
-
-        # Parse failed — stitch the next line if within limits.
-        if stitch_count >= _MAX_STITCH_LINES:
-            logger.warning(
-                "Pi RPC: abandoning event after %d stitched lines (%.200s)",
-                stitch_count,
-                line[:200].decode("utf-8", errors="replace"),
-            )
-            line = b""
-            stitch_count = 0
-
-
-def _try_parse(line: bytes) -> dict | None:
-    """Try to parse a byte string as a JSON object, tolerating control chars."""
-    try:
-        text = line.decode("utf-8", errors="replace")
-        obj = json.loads(text, strict=False)
-        if isinstance(obj, dict):
-            return obj
-    except json.JSONDecodeError:
-        pass
-    return None
+        # Prevent unbounded growth.
+        if len(_state.rpc_buffer) > _MAX_RPC_BUFFER:
+            logger.warning("Pi RPC: buffer exceeded %d bytes, truncating", _MAX_RPC_BUFFER)
+            # Keep the tail — most likely to contain the next valid event.
+            _state.rpc_buffer = _state.rpc_buffer[-_MAX_RPC_BUFFER // 2:]
 
 
 async def _send_command(payload: dict) -> None:
@@ -217,6 +201,7 @@ async def start_pi_agent() -> bool:
         _state.agent_writer = _state.agent_proc.stdin
         _state.agent_stderr = _state.agent_proc.stderr
         _state.stderr_tail.clear()
+        _state.rpc_buffer = ""
         if _state.agent_stderr is not None:
             _state.stderr_task = asyncio.create_task(_drain_stderr(_state.agent_stderr))
         return True
@@ -246,6 +231,7 @@ async def stop_pi_agent() -> None:
             _state.agent_writer = None
             _state.agent_stderr = None
             _state.stderr_task = None
+            _state.rpc_buffer = ""
 
 
 def _extract_tool_status(result: dict | None) -> str | None:

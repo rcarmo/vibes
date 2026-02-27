@@ -4,62 +4,35 @@ import json
 
 import pytest
 
-from vibes.pi_client import (
-    _read_event,
-    _try_parse,
-)
+from vibes import pi_client
+from vibes.pi_client import _read_event
 
 
 class FakeReader:
-    """Simulate asyncio.StreamReader.readline() with controlled lines."""
+    """Simulate asyncio.StreamReader.read() with controlled chunks."""
 
-    def __init__(self, lines: list[bytes]):
-        self._lines = list(lines)
+    def __init__(self, chunks: list[bytes]):
+        self._chunks = list(chunks)
 
-    async def readline(self) -> bytes:
-        if not self._lines:
+    async def read(self, n: int) -> bytes:
+        if not self._chunks:
             return b""
-        return self._lines.pop(0)
+        return self._chunks.pop(0)
 
 
 class ErrorReader:
     """Reader that raises ValueError to simulate buffer overflow."""
 
-    async def readline(self) -> bytes:
+    async def read(self, n: int) -> bytes:
         raise ValueError("Separator is found, but chunk is too long")
 
 
-# ---------- _try_parse ----------
-
-
-def test_try_parse_simple():
-    assert _try_parse(b'{"type":"agent_end"}') == {"type": "agent_end"}
-
-
-def test_try_parse_invalid():
-    assert _try_parse(b"{broken}") is None
-
-
-def test_try_parse_not_dict():
-    assert _try_parse(b"[1,2,3]") is None
-
-
-def test_try_parse_tab_in_string():
-    """strict=False tolerates raw tab inside string values."""
-    result = _try_parse(b'{"text":"hello\tworld"}')
-    assert result == {"text": "hello\tworld"}
-
-
-def test_try_parse_with_raw_newline():
-    """strict=False tolerates raw newline inside string values."""
-    result = _try_parse(b'{"text":"line1\nline2"}')
-    assert result == {"text": "line1\nline2"}
-
-
-def test_try_parse_null_byte():
-    result = _try_parse(b'{"text":"a\x00b"}')
-    assert result is not None
-    assert result["text"] == "a\x00b"
+@pytest.fixture(autouse=True)
+def _reset_buffer():
+    """Clear the RPC buffer before each test."""
+    pi_client._state.rpc_buffer = ""
+    yield
+    pi_client._state.rpc_buffer = ""
 
 
 # ---------- _read_event ----------
@@ -74,14 +47,14 @@ async def test_read_event_single_line():
 
 @pytest.mark.asyncio
 async def test_read_event_skips_blank_lines():
-    reader = FakeReader([b"\n", b"\n", b'{"type":"ok"}\n'])
+    reader = FakeReader([b'\n\n{"type":"ok"}\n'])
     event = await _read_event(reader)
     assert event == {"type": "ok"}
 
 
 @pytest.mark.asyncio
 async def test_read_event_skips_non_json():
-    reader = FakeReader([b"some noise\n", b'{"type":"ok"}\n'])
+    reader = FakeReader([b'some noise\n{"type":"ok"}\n'])
     event = await _read_event(reader)
     assert event == {"type": "ok"}
 
@@ -95,27 +68,21 @@ async def test_read_event_eof_raises():
 
 @pytest.mark.asyncio
 async def test_read_event_eof_with_partial():
-    """Partial line at EOF — unparseable, so raises."""
+    """Partial JSON at EOF — unparseable, so raises."""
     reader = FakeReader([b'{"type":"trun'])
     with pytest.raises(RuntimeError, match="connection closed"):
         await _read_event(reader)
 
 
 @pytest.mark.asyncio
-async def test_read_event_eof_with_complete():
-    """Complete JSON at EOF (no trailing newline) — should parse."""
-    reader = FakeReader([b'{"type":"agent_end"}'])
-    event = await _read_event(reader)
-    assert event == {"type": "agent_end"}
+async def test_read_event_read_overflow():
+    """ValueError from read() is handled gracefully and retried."""
 
-
-@pytest.mark.asyncio
-async def test_read_event_readline_overflow():
-    """ValueError from readline is handled gracefully and retried."""
     class OverflowThenOk:
         def __init__(self):
             self.call = 0
-        async def readline(self):
+
+        async def read(self, n):
             self.call += 1
             if self.call == 1:
                 raise ValueError("line too long")
@@ -128,39 +95,48 @@ async def test_read_event_readline_overflow():
 
 
 @pytest.mark.asyncio
-async def test_read_event_stitches_embedded_newline():
-    """Event with raw \\n in a string value gets split by readline.
-    The parser should stitch lines back together."""
-    # Original event: {"text":"hello\nworld"}
-    # readline() returns two pieces because of the raw 0x0a byte.
-    reader = FakeReader([
-        b'{"text":"hello\n',
-        b'world"}\n',
-    ])
+async def test_read_event_embedded_newline():
+    """Event with raw \\n in a string value — raw_decode handles it."""
+    # raw_decode(strict=False) parses control chars inside strings.
+    event_dict = {"text": "hello\nworld"}
+    raw = json.dumps(event_dict).encode()
+    # Replace the escaped \\n with a real newline byte.
+    raw = raw.replace(b"\\n", b"\n")
+    reader = FakeReader([raw + b"\n"])
     event = await _read_event(reader)
     assert event is not None
     assert event["text"] == "hello\nworld"
 
 
 @pytest.mark.asyncio
-async def test_read_event_stitches_multiple_newlines():
-    """Event with multiple raw \\n bytes — needs multiple stitches."""
-    reader = FakeReader([
-        b'{"text":"a\n',
-        b'b\n',
-        b'c"}\n',
-    ])
+async def test_read_event_many_embedded_newlines():
+    """Event with hundreds of embedded \\n — must not be dropped."""
+    # This is the key case: thinking_delta with large partial.thinking
+    thinking = "\n".join(f"line {i}" for i in range(600))
+    event_dict = {"type": "thinking_delta", "partial": {"thinking": thinking}}
+    raw = json.dumps(event_dict).encode()
+    # Replace escaped newlines with raw bytes.
+    raw = raw.replace(b"\\n", b"\n")
+    reader = FakeReader([raw + b"\n"])
     event = await _read_event(reader)
     assert event is not None
-    assert event["text"] == "a\nb\nc"
+    assert event["type"] == "thinking_delta"
+    assert "line 599" in event["partial"]["thinking"]
 
 
 @pytest.mark.asyncio
-async def test_read_event_two_events():
-    reader = FakeReader([
-        b'{"type":"a"}\n',
-        b'{"type":"b"}\n',
-    ])
+async def test_read_event_fragmented():
+    """Event split across two read() chunks."""
+    raw = b'{"type":"agent_end"}'
+    mid = len(raw) // 2
+    reader = FakeReader([raw[:mid], raw[mid:] + b"\n"])
+    event = await _read_event(reader)
+    assert event == {"type": "agent_end"}
+
+
+@pytest.mark.asyncio
+async def test_read_event_two_events_one_chunk():
+    reader = FakeReader([b'{"type":"a"}\n{"type":"b"}\n'])
     e1 = await _read_event(reader)
     e2 = await _read_event(reader)
     assert e1 == {"type": "a"}
@@ -169,8 +145,7 @@ async def test_read_event_two_events():
 
 @pytest.mark.asyncio
 async def test_read_event_control_chars_in_thinking():
-    """Real-world scenario: thinking content with raw tabs and CRs."""
-    # These don't cause line splits (only \n does), so single readline.
+    """Real-world: thinking content with raw tabs and CRs."""
     raw = b'{"type":"msg","delta":"plan\tthe\rscript"}\n'
     reader = FakeReader([raw])
     event = await _read_event(reader)
@@ -181,7 +156,6 @@ async def test_read_event_control_chars_in_thinking():
 
 @pytest.mark.asyncio
 async def test_read_event_large_payload():
-    """Large tool call IDs (seen in production) are handled."""
     long_id = "call_xyz|" + "A" * 60000
     event_dict = {"type": "turn_end", "toolCallId": long_id}
     raw = json.dumps(event_dict).encode() + b"\n"
@@ -196,10 +170,7 @@ async def test_read_event_large_payload():
 async def test_read_event_nested_json():
     event_dict = {
         "type": "message_update",
-        "assistantMessageEvent": {
-            "type": "text_delta",
-            "delta": "hello",
-        },
+        "assistantMessageEvent": {"type": "text_delta", "delta": "hello"},
     }
     raw = json.dumps(event_dict).encode() + b"\n"
     reader = FakeReader([raw])
@@ -209,7 +180,6 @@ async def test_read_event_nested_json():
 
 @pytest.mark.asyncio
 async def test_read_event_braces_in_string():
-    """Braces inside string values must not affect parsing."""
     event_dict = {"type": "update", "text": "function() { return {}; }"}
     raw = json.dumps(event_dict).encode() + b"\n"
     reader = FakeReader([raw])
@@ -233,3 +203,35 @@ async def test_read_event_backslash_path():
     reader = FakeReader([raw])
     event = await _read_event(reader)
     assert event == event_dict
+
+
+@pytest.mark.asyncio
+async def test_read_event_malformed_then_valid():
+    """Garbage line before a valid event — parser skips it."""
+    reader = FakeReader([b"not json\n", b'{"type":"good"}\n'])
+    event = await _read_event(reader)
+    assert event == {"type": "good"}
+
+
+@pytest.mark.asyncio
+async def test_read_event_buffer_overflow_protection():
+    """Buffer overflow triggers truncation, not crash."""
+    original_max = pi_client._MAX_RPC_BUFFER
+    pi_client._MAX_RPC_BUFFER = 1000  # Low limit for testing.
+    try:
+        reader = FakeReader([b"x" * 600, b"x" * 600, b'{"type":"ok"}\n'])
+        event = await _read_event(reader)
+        assert event == {"type": "ok"}
+    finally:
+        pi_client._MAX_RPC_BUFFER = original_max
+
+
+@pytest.mark.asyncio
+async def test_read_event_buffered_remainder():
+    """After parsing, leftover data stays in buffer for next call."""
+    pi_client._state.rpc_buffer = '{"type":"a"}{"type":"b"}'
+    reader = FakeReader([])
+    e1 = await _read_event(reader)
+    e2 = await _read_event(reader)
+    assert e1 == {"type": "a"}
+    assert e2 == {"type": "b"}
