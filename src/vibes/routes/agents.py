@@ -22,6 +22,7 @@ from ..pi_client import (
     set_request_callback as set_pi_request_callback,
     respond_to_request as respond_to_pi_request,
 )
+from ..slash_commands import parse_command, execute_command
 from ..tasks import enqueue
 from .sse import broadcast_event
 
@@ -397,7 +398,30 @@ async def send_message(request: web.Request) -> web.Response:
     
     # Broadcast user message
     await broadcast_event("new_post" if not data.get("thread_id") else "new_reply", user_interaction)
-    
+
+    # Intercept slash commands before sending to agent
+    command = parse_command(data["content"])
+    if command:
+        agent_mode = _resolve_agent_mode(agent_id)
+        result = await execute_command(command, agent_mode)
+        if result.handled:
+            # Built-in command — post result as agent response
+            agent_response = {
+                "type": "agent_response",
+                "content": result.message,
+                "agent_id": agent_id,
+                "thread_id": thread_id,
+            }
+            response_id = await db.create_interaction(agent_response)
+            response_interaction = await db.get_interaction(response_id)
+            await broadcast_event("agent_response", response_interaction)
+            return web.json_response({
+                "user_message": user_interaction,
+                "thread_id": thread_id,
+                "command": {"status": result.status, "message": result.message},
+            }, status=201)
+        # Not a built-in command — fall through to forward to agent
+
     # Queue agent response processing in background
     enqueue(process_agent_response, thread_id, data["content"], agent_id)
     
