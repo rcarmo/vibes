@@ -27,6 +27,7 @@ class _PiState:
         self.agent_stderr = None
         self.stderr_task = None
         self.stderr_tail = deque(maxlen=100)
+        self.rpc_buffer = ""
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
@@ -58,6 +59,7 @@ def reset_state() -> None:
     _state.agent_stderr = None
     _state.stderr_task = None
     _state.stderr_tail = deque(maxlen=100)
+    _state.rpc_buffer = ""
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
@@ -101,90 +103,68 @@ def _connection_closed_message() -> str:
 
 
 async def _read_event(reader) -> dict | None:
-    """Read a JSON line from pi stdout."""
-    def _parse_line(payload: str) -> tuple[dict | None, json.JSONDecodeError | None]:
-        last_error: json.JSONDecodeError | None = None
-        decoder = json.JSONDecoder(strict=False)
-        candidates = [payload]
-        start = payload.find("{")
+    """Read a JSON event from pi stdout using a tolerant stream parser."""
+
+    def _extract_next_event(buffer: str) -> tuple[dict | None, str, json.JSONDecodeError | None]:
+        if not buffer:
+            return None, buffer, None
+
+        start = buffer.find("{")
+        if start == -1:
+            # Keep only a small suffix to avoid unbounded growth on noise.
+            return None, buffer[-4096:], None
         if start > 0:
-            candidates.append(payload[start:])
+            buffer = buffer[start:]
 
-        for candidate in candidates:
-            try:
-                obj = json.loads(candidate, strict=False)
-                if isinstance(obj, dict):
-                    return obj, None
-            except json.JSONDecodeError as err:
-                last_error = err
-                try:
-                    obj, _idx = decoder.raw_decode(candidate)
-                    if isinstance(obj, dict):
-                        return obj, None
-                except json.JSONDecodeError as err2:
-                    last_error = err2
-                    continue
-        return None, last_error
-
-    try:
-        line = await reader.readline()
-    except ValueError:
-        # readline() raises ValueError when line exceeds the stream buffer limit
-        logger.warning("Pi RPC: line exceeded buffer limit, skipping")
-        # Drain any remaining data from the oversized line
+        decoder = json.JSONDecoder(strict=False)
         try:
-            while not reader.at_eof():
-                chunk = await reader.read(65536)
-                if not chunk or b"\n" in chunk:
-                    break
-        except Exception:
-            pass
-        return None
-    if not line:
-        raise RuntimeError(_connection_closed_message())
+            obj, idx = decoder.raw_decode(buffer)
+        except json.JSONDecodeError as err:
+            # Incomplete JSON payload: wait for more bytes.
+            if err.msg.startswith("Unterminated string") or err.pos >= len(buffer) - 1:
+                return None, buffer, err
 
-    text = line.decode("utf-8", errors="replace").rstrip("\r\n")
-    if not text.strip():
-        return None
+            # Malformed prefix: resync to the next JSON object candidate.
+            next_start = buffer.find("{", 1)
+            if next_start != -1:
+                return None, buffer[next_start:], err
+            return None, "", err
 
-    # Parse in tolerant mode (handles unescaped control chars in streamed deltas).
-    # If we get an unterminated string, attempt to stitch a few subsequent lines.
-    MAX_STITCH_LINES = 8
-    MAX_STITCH_BYTES = 8 * 1024 * 1024
-    stitched = text
-    obj, last_error = _parse_line(stitched)
-    if obj is not None:
-        return obj
+        remaining = buffer[idx:]
+        if isinstance(obj, dict):
+            return obj, remaining, None
+        return None, remaining, None
 
-    for _ in range(MAX_STITCH_LINES):
-        if last_error is None or "Unterminated string" not in last_error.msg:
-            break
-        if len(stitched) >= MAX_STITCH_BYTES:
-            break
-        try:
-            nxt = await asyncio.wait_for(reader.readline(), timeout=0.25)
-        except asyncio.TimeoutError:
-            break
-        except ValueError:
-            break
-        if not nxt:
-            break
-        stitched += "\n" + nxt.decode("utf-8", errors="replace").rstrip("\r\n")
-        obj, last_error = _parse_line(stitched)
+    last_error: json.JSONDecodeError | None = None
+    while True:
+        obj, _state.rpc_buffer, last_error = _extract_next_event(_state.rpc_buffer)
         if obj is not None:
-            logger.warning("Pi RPC: recovered fragmented JSON event via line stitching")
             return obj
+        if last_error and not (
+            last_error.msg.startswith("Unterminated string")
+            or last_error.pos >= max(0, len(_state.rpc_buffer) - 1)
+        ):
+            logger.warning(
+                "Pi RPC: invalid JSON chunk recovered (%s at pos %s)",
+                last_error.msg,
+                last_error.pos,
+            )
 
-    if last_error:
-        logger.warning(
-            "Pi RPC: invalid JSON line ignored (%s at pos %s): %r",
-            last_error.msg,
-            last_error.pos,
-            stitched[:200],
-        )
-    else:
-        logger.warning(f"Pi RPC: invalid JSON line ignored: {stitched[:200]!r}")
-    return None
+        try:
+            chunk = await reader.read(65536)
+        except ValueError:
+            logger.warning("Pi RPC: read exceeded buffer limit, dropping buffered fragment")
+            _state.rpc_buffer = ""
+            return None
+
+        if not chunk:
+            # Try one last parse pass before declaring closed.
+            obj, _state.rpc_buffer, _ = _extract_next_event(_state.rpc_buffer)
+            if obj is not None:
+                return obj
+            raise RuntimeError(_connection_closed_message())
+
+        _state.rpc_buffer += chunk.decode("utf-8", errors="replace")
 
 
 async def _send_command(payload: dict) -> None:
@@ -226,6 +206,7 @@ async def start_pi_agent() -> bool:
         _state.agent_writer = _state.agent_proc.stdin
         _state.agent_stderr = _state.agent_proc.stderr
         _state.stderr_tail.clear()
+        _state.rpc_buffer = ""
         if _state.agent_stderr is not None:
             _state.stderr_task = asyncio.create_task(_drain_stderr(_state.agent_stderr))
         return True
@@ -255,6 +236,7 @@ async def stop_pi_agent() -> None:
             _state.agent_writer = None
             _state.agent_stderr = None
             _state.stderr_task = None
+            _state.rpc_buffer = ""
 
 
 def _extract_tool_status(result: dict | None) -> str | None:
