@@ -121,3 +121,66 @@ async def test_execute_unknown_not_handled():
     cmd = SlashCommand(name="foobar", args="test", raw="/foobar test")
     result = await execute_command(cmd, "acp")
     assert result.handled is False
+
+
+# ── /shell ─────────────────────────────────────────────────
+
+
+def test_parse_shell_command():
+    cmd = parse_command("/shell echo hello")
+    assert cmd is not None
+    assert cmd.name == "shell"
+    assert cmd.args == "echo hello"
+
+
+@pytest.mark.asyncio
+async def test_shell_no_args():
+    cmd = SlashCommand(name="shell", args="", raw="/shell")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "Usage" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_success():
+    cmd = SlashCommand(name="shell", args="echo hello", raw="/shell echo hello")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert result.handled is True
+    assert "```" in result.message
+    assert "hello" in result.message
+    assert "[ok]" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_failure():
+    cmd = SlashCommand(name="shell", args="false", raw="/shell false")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert result.handled is True
+    assert "exit code" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_stderr_merged():
+    cmd = SlashCommand(name="shell", args="echo err >&2", raw="/shell echo err >&2")
+    result = await execute_command(cmd, "acp")
+    assert result.handled is True
+    assert "err" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_timeout(monkeypatch):
+    import vibes.slash_commands as sc
+    monkeypatch.setattr(sc, "SHELL_TIMEOUT", 0.01)
+    cmd = SlashCommand(name="shell", args="sleep 10", raw="/shell sleep 10")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "timed out" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_commands_listed():
+    cmd = SlashCommand(name="commands", raw="/commands")
+    result = await execute_command(cmd, "acp")
+    assert "/shell" in result.message

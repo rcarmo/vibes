@@ -6,11 +6,14 @@ and dispatches built-in control commands or forwards to the active agent.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from typing import Optional
 
 logger = logging.getLogger(__name__)
+
+SHELL_TIMEOUT = 30
 
 
 @dataclass
@@ -61,6 +64,9 @@ async def execute_command(
     if command.name == "restart":
         return await _restart_agent(agent_mode)
 
+    if command.name == "shell":
+        return await _run_shell(command.args)
+
     # Unknown command — tell caller to forward to agent
     return SlashCommandResult(
         status="success",
@@ -74,6 +80,7 @@ def _list_commands() -> SlashCommandResult:
     lines = [
         "Available commands:",
         "• /restart — Restart the active agent",
+        "• /shell <command> — Run a shell command",
         "• /commands — List available commands",
         "",
         "Any other /command is forwarded to the agent.",
@@ -109,4 +116,40 @@ async def _restart_agent(agent_mode: str) -> SlashCommandResult:
         return SlashCommandResult(
             status="error",
             message=f"Restart failed: {e}",
+        )
+
+
+async def _run_shell(args: str) -> SlashCommandResult:
+    """Run a shell command and return stdout/stderr as a fenced code block."""
+    if not args:
+        return SlashCommandResult(
+            status="error",
+            message="Usage: `/shell <command>`",
+        )
+
+    try:
+        proc = await asyncio.create_subprocess_shell(
+            args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDOUT,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=SHELL_TIMEOUT)
+        output = stdout.decode("utf-8", errors="replace") if stdout else ""
+        exit_label = f"exit code {proc.returncode}" if proc.returncode else "ok"
+        header = f"$ {args}  [{exit_label}]"
+        message = f"{header}\n```\n{output}```"
+        return SlashCommandResult(
+            status="success" if proc.returncode == 0 else "error",
+            message=message,
+        )
+    except asyncio.TimeoutError:
+        return SlashCommandResult(
+            status="error",
+            message=f"$ {args}\n```\n[timed out after {SHELL_TIMEOUT}s]\n```",
+        )
+    except Exception as e:
+        logger.error(f"Shell command error: {e}", exc_info=True)
+        return SlashCommandResult(
+            status="error",
+            message=f"Shell error: {e}",
         )
