@@ -106,20 +106,24 @@ def _connection_closed_message() -> str:
 
 _decoder = json.JSONDecoder(strict=False)
 _MAX_RPC_BUFFER = 16 * 1024 * 1024  # 16MB
+_READ_CHUNK = 524288  # 512KB
+_READ_TIMEOUT = 30.0  # seconds per read() call
+_STUCK_READ_THRESHOLD = 3  # read timeouts before force-skipping
 
 
 async def _read_event(reader) -> dict:
     """Read one JSON event from Pi stdout.
 
-    Pi emits newline-delimited JSON, but tool/thinking payloads often
-    contain raw control characters (including literal 0x0a newlines)
-    inside JSON string values.  This means we cannot rely on readline()
-    — a single event can span many lines.
+    Pi emits newline-delimited JSON, but tool/thinking payloads contain
+    raw control characters (including literal 0x0a newlines) inside JSON
+    string values.  No streaming JSON parser (ijson, json-stream, etc.)
+    accepts raw control chars — they all reject them per the JSON spec.
+    Only Python's built-in ``json.JSONDecoder(strict=False)`` handles this.
 
-    Instead we read raw chunks via read(), accumulate into a buffer, and
-    use JSONDecoder.raw_decode(strict=False) to extract the next complete
-    JSON object.  raw_decode with strict=False handles all control chars
-    natively and stops exactly at the end of the first JSON value.
+    We use ``raw_decode(strict=False)`` on a byte buffer, which:
+    - accepts raw 0x00-0x1F bytes inside strings
+    - stops at the exact end of the first complete JSON value
+    - works regardless of newline boundaries
     """
     # Track consecutive read() calls that didn't yield an event.
     # If we keep reading without parsing anything, the buffer start is
@@ -152,23 +156,13 @@ async def _read_event(reader) -> dict:
                 continue
             except json.JSONDecodeError as e:
                 # Decide: incomplete (need more data) or malformed (skip)?
-                # "Unterminated" at the very end of the buffer means we
-                # likely have a truncated event.  But if the buffer already
-                # contains a *later* '{' beyond the error position, the
-                # current object is malformed — skip to the next one.
-                is_unterminated = e.msg.startswith("Unterminated")
-                if is_unterminated:
-                    next_brace = stripped.find("{", 1)
-                    if next_brace != -1 and next_brace < e.pos:
-                        # There is another object start before the error —
-                        # the current prefix is malformed, skip to it.
-                        logger.debug(
-                            "Pi RPC: skipping malformed prefix (%s at pos %d)",
-                            e.msg, e.pos,
-                        )
-                        _state.rpc_buffer = stripped[next_brace:]
-                        continue
-                    # Truly incomplete — wait for more data.
+                # "Unterminated" means the JSON parser found a string or
+                # container that wasn't closed.  This usually means the
+                # event is split across read() boundaries — wait for more.
+                # Non-unterminated errors (e.g. "Expecting value") near
+                # the start mean the prefix is garbage — skip past it.
+                if e.msg.startswith("Unterminated"):
+                    # Genuinely incomplete — wait for more data.
                     _state.rpc_buffer = stripped
                     break
 
@@ -192,10 +186,10 @@ async def _read_event(reader) -> dict:
         # Pi has stopped writing (e.g. it already sent agent_end but our
         # buffer has a malformed prefix blocking extraction).
         try:
-            chunk = await asyncio.wait_for(reader.read(524288), timeout=30.0)
+            chunk = await asyncio.wait_for(reader.read(_READ_CHUNK), timeout=_READ_TIMEOUT)
         except asyncio.TimeoutError:
             reads_without_event += 1
-            if reads_without_event >= 3 and _state.rpc_buffer:
+            if reads_without_event >= _STUCK_READ_THRESHOLD and _state.rpc_buffer:
                 # We've been waiting with no new data — the buffer is
                 # likely stuck on a malformed event.  Force a skip.
                 first_brace = _state.rpc_buffer.find("{")
