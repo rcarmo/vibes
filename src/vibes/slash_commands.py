@@ -132,8 +132,17 @@ async def _run_shell(args: str) -> SlashCommandResult:
             args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            stdin=asyncio.subprocess.DEVNULL,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=SHELL_TIMEOUT)
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=SHELL_TIMEOUT)
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return SlashCommandResult(
+                status="error",
+                message=f"$ {args}\n```\n[timed out after {SHELL_TIMEOUT}s]\n```",
+            )
         output = stdout.decode("utf-8", errors="replace") if stdout else ""
         exit_label = f"exit code {proc.returncode}" if proc.returncode else "ok"
         header = f"$ {args}  [{exit_label}]"
@@ -141,11 +150,6 @@ async def _run_shell(args: str) -> SlashCommandResult:
         return SlashCommandResult(
             status="success" if proc.returncode == 0 else "error",
             message=message,
-        )
-    except asyncio.TimeoutError:
-        return SlashCommandResult(
-            status="error",
-            message=f"$ {args}\n```\n[timed out after {SHELL_TIMEOUT}s]\n```",
         )
     except Exception as e:
         logger.error(f"Shell command error: {e}", exc_info=True)
