@@ -298,9 +298,22 @@ async def test_shell_stderr_merged():
 
 @pytest.mark.asyncio
 async def test_shell_timeout(monkeypatch):
+    import asyncio as _asyncio
     import vibes.slash_commands as sc
-    monkeypatch.setattr(sc, "SHELL_TIMEOUT", 0.01)
-    cmd = SlashCommand(name="shell", args="sleep 10", raw="/shell sleep 10")
+
+    monkeypatch.setattr(sc, "SHELL_TIMEOUT", 0.05)
+
+    class FakeProc:
+        def kill(self): pass
+        async def wait(self): pass
+        async def communicate(self):
+            await _asyncio.sleep(999)
+
+    async def fake_shell(*a, **kw):
+        return FakeProc()
+
+    monkeypatch.setattr(_asyncio, "create_subprocess_shell", fake_shell)
+    cmd = SlashCommand(name="shell", args="sleep 60", raw="/shell sleep 60")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
     assert "timed out" in result.message
@@ -311,3 +324,75 @@ async def test_shell_commands_listed():
     cmd = SlashCommand(name="commands", raw="/commands")
     result = await execute_command(cmd, "acp")
     assert "/shell" in result.message
+
+
+# ── error path coverage ────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_restart_exception():
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+        cmd = SlashCommand(name="restart", raw="/restart")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "boom" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_set_pi_restart_exception(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
+        cmd = SlashCommand(name="model", args="x/y", raw="/model x/y")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "restart failed" in result.message
+
+
+@pytest.mark.asyncio
+async def test_model_set_pi_restart_not_ok(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
+         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=False):
+        cmd = SlashCommand(name="model", args="x/y", raw="/model x/y")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "restart failed" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_set_pi_restart_exception(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock, side_effect=RuntimeError("fail")):
+        cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "restart failed" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_set_pi_restart_not_ok(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", None)
+    with patch("vibes.pi_client.stop_pi_agent", new_callable=AsyncMock), \
+         patch("vibes.pi_client.start_pi_agent", new_callable=AsyncMock, return_value=False):
+        cmd = SlashCommand(name="thinking", args="medium", raw="/thinking medium")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "restart failed" in result.message
+
+
+@pytest.mark.asyncio
+async def test_shell_generic_exception(monkeypatch):
+    import asyncio as _asyncio
+
+    async def _boom(*a, **kw):
+        raise OSError("no such file")
+
+    monkeypatch.setattr(_asyncio, "create_subprocess_shell", _boom)
+    cmd = SlashCommand(name="shell", args="echo hi", raw="/shell echo hi")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "Shell error" in result.message
