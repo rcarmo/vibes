@@ -655,6 +655,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             final_message = None
             saw_turn_end = False
             non_event_count = 0
+            finalized_from_collected = False
             agent_messages: list[dict] = []
             tool_blocks: list[dict] = []
             tool_calls_seen: set[str] = set()
@@ -678,6 +679,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 except asyncio.TimeoutError:
                     if saw_turn_end or final_message or draft_text:
                         logger.warning("Pi RPC: timed out waiting for agent_end; finalizing from collected content")
+                        finalized_from_collected = True
                         break
                     raise RuntimeError("Pi agent timed out waiting for response")
                 except RuntimeError as e:
@@ -685,6 +687,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                         logger.warning(
                             "Pi RPC: connection closed before agent_end; finalizing from collected content"
                         )
+                        finalized_from_collected = True
                         break
                     raise
                 if not event:
@@ -693,6 +696,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                         logger.warning(
                             "Pi RPC: too many non-events after turn_end; finalizing from collected content"
                         )
+                        finalized_from_collected = True
                         break
                     continue
                 non_event_count = 0
@@ -839,6 +843,15 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                                 tool_calls_seen,
                             )
                     break
+
+            if not final_message and (draft_text or tool_blocks):
+                content = []
+                if draft_text:
+                    content.append({"type": "text", "text": draft_text})
+                final_message = {"content": content}
+
+            if not final_message and finalized_from_collected and thought_text:
+                final_message = {"content": [{"type": "text", "text": thought_text}]}
 
             if not final_message:
                 return {
