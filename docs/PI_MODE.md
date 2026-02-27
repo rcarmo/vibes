@@ -1,6 +1,8 @@
 # Pi Mode Integration
 
-Vibes can run a **Pi RPC agent** alongside (or instead of) ACP. This lets you use pi’s streaming updates (drafts/thinking), tool execution events, and rich media attachments in the Vibes UI.
+Vibes can use a **Pi coding agent** as its backend via Pi's `--mode rpc` protocol. This provides streaming drafts, thinking traces, tool execution events, and rich media attachments in the Vibes timeline.
+
+When Pi mode is enabled, **only Pi is launched** — the ACP agent subprocess is not started.
 
 ## Enable Pi Mode
 
@@ -8,7 +10,12 @@ Vibes can run a **Pi RPC agent** alongside (or instead of) ACP. This lets you us
 # Use Pi as the default agent
 VIBES_DEFAULT_AGENT=pi
 VIBES_PI_ENABLED=true
-VIBES_PI_AGENT="pi --mode rpc --no-session --append-system-prompt '<vibes prompt>' -e /path/to/site-packages/vibes/extensions/pi-vibes-tools.ts"
+```
+
+The default `VIBES_PI_AGENT` command is auto-generated and includes the bundled extension (`pi-vibes-tools.ts`) and formatting prompt. Override it only if you need custom flags:
+
+```bash
+VIBES_PI_AGENT="pi --mode rpc --no-session --append-system-prompt '<vibes prompt>' -e /path/to/pi-vibes-tools.ts"
 ```
 
 You can also keep ACP as default and expose Pi as a separate agent id:
@@ -25,102 +32,108 @@ Agent ids:
 
 ## What Pi Mode Supports
 
-Pi mode automatically loads the packaged `vibes/extensions/pi-vibes-tools.ts` via the default `VIBES_PI_AGENT` command and injects a Vibes formatting prompt via `--append-system-prompt`. This adds a `vibes_attach_file` tool for attaching local files as base64 content blocks.
-
-- **History & threading**: Pi responses are stored just like ACP responses in the timeline.
-- **Draft streaming**: `message_update` text deltas are streamed to the Draft pane.
-- **Thinking stream**: `thinking_delta` updates appear in the Thoughts pane.
+- **Draft streaming**: `text_delta` events stream to the Draft pane in real time.
+- **Thinking stream**: `thinking_delta` events appear in the Thoughts pane.
 - **Tool status**: `tool_execution_start/update/end` map to `agent_status` updates.
-- **Permission/choice prompts**: Pi extension UI requests (`confirm`, `select`) surface in the existing modal.
-- **Media**:
-  - Base64 image blocks (recommended): `{type: "image", data, mimeType}`
-  - File attachments: `{type: "file", fileName, mimeType, content}`
-  - `vibes_attach_file` tool from the bundled Pi extension
+- **Permission/choice prompts**: Pi `extension_ui_request` events (`confirm`, `select`) surface in the existing approval modal.
+- **Media**: base64 image blocks, file attachments, and the `vibes_attach_file` tool from the bundled extension.
+- **Live model/thinking changes**: `/model` and `/thinking` slash commands use RPC (no restart needed).
+- **Mid-turn steering**: `/steer` sends guidance while the agent is working.
+- **Abort**: `/abort` cancels the current request immediately.
 
-Vibes stores received media in the media table and renders previews/downloads in the timeline.
+## Slash Commands
 
-## Output Formatting (Pi Guidance)
+| Command | Description |
+|---------|-------------|
+| `/model [provider/model]` | Show or change the active model via RPC |
+| `/model list` | List available models |
+| `/thinking [level]` | Show or change thinking level via RPC |
+| `/restart` | Reset session (or hard restart as fallback) |
+| `/abort` | Cancel current request + in-flight task |
+| `/steer <message>` | Send mid-turn steering guidance |
+| `/shell <command>` | Run a shell command (30s timeout) |
+| `/commands` | List all slash commands |
 
-Pi receives a prompt prefix that describes Vibes’ supported formats:
+## Output Formatting
+
+Pi receives a prompt prefix describing Vibes' supported formats:
 - Markdown rendering via `marked` (tables, lists, fenced code)
 - KaTeX math: `$...$` and `$$...$$`
-- Mermaid: fenced blocks ` ```mermaid ... ``` `
+- Mermaid diagrams: ` ```mermaid ... ``` `
 - Base64 media blocks and file attachments
 
-## Limitations (current)
-
-- Only `confirm` and `select` extension dialogs are supported in the UI. Other dialog types are auto-cancelled.
-- Tool output is summarized as status updates; full tool outputs are not rendered inline (yet).
-
-## Restart behavior
+## Restart & Disconnect Behavior
 
 Pi is kept warm by default even if all SSE clients disconnect. Set `VIBES_PI_RESTART_ON_DISCONNECT=true` to restart Pi when all clients disconnect.
 
-## Troubleshooting
+`/restart` first tries `new_session` RPC (resets session without killing the process). If that fails, it falls back to a hard process restart.
 
-- Use `GET /agents` to verify agent status and mode.
-- Ensure `VIBES_PI_AGENT` is in PATH and callable by the server process.
-- Check server logs for Pi startup/shutdown messages.
+## Limitations
 
-## RPC Parsing Notes
+- Only `confirm` and `select` extension dialogs are supported. Other dialog types are auto-cancelled.
+- Tool output is summarized as status updates; full tool outputs are not rendered inline (yet).
 
-Pi communicates via **newline-delimited JSON** on stdout when running with `--mode rpc`. Pi uses `JSON.stringify()` to serialize events, which always produces valid JSON with properly escaped control characters (`\\n`, `\\t`, etc.). Live testing confirms that `json.loads()` with `strict=True` parses every line correctly — there are no raw control characters in Pi's output.
+---
 
-### Why `readline()` doesn't work
+## RPC Protocol Details
 
-Although each JSON object is valid, `readline()` still fails because events are written to stdout as a byte stream. A single `read()` call may return data that cuts a JSON line in half — the second half starts a new `readline()` call, which then returns a partial JSON string that fails to parse. This is a normal NDJSON challenge, not a Pi-specific bug.
+### Event stream format
 
-### Current approach: `read()` + `raw_decode(strict=False)`
+Pi emits **newline-delimited JSON** on stdout. Each line is a complete JSON object produced by `JSON.stringify()`, which always escapes control characters properly (`\n`, `\t`, etc.).
 
-The parser uses `reader.read(512KB)` to read raw byte chunks into a persistent string buffer (`_state.rpc_buffer`), then calls `json.JSONDecoder(strict=False).raw_decode()` to extract complete JSON objects:
+**Key finding from live testing**: Pi's JSON output is always valid. `json.loads()` with `strict=True` parses every line correctly across multiple models and 13+ MB of captured output. There are no raw control characters in Pi's stdout. Early parser issues were caused by `readline()` returning partial lines when pipe reads split across event boundaries, not by malformed JSON.
 
-- `raw_decode()` stops at the exact end of the first JSON value, leaving remaining data in the buffer for the next call.
-- No dependence on newline boundaries at all.
-- `strict=False` is kept as a safety margin even though Pi's JSON is valid — it costs nothing and protects against future changes in Pi's serialization.
-- Buffer is capped at 16 MB to prevent unbounded growth; on overflow the oldest half is discarded.
-
-### Error recovery
-
-The parser distinguishes two failure modes:
-
-1. **Incomplete event** (`Unterminated string`): the buffer ends mid-event because `read()` returned a partial chunk. The parser waits for more data.
-2. **Malformed event** (any other `JSONDecodeError`): the buffer starts with garbage. The parser skips forward to the next `{` and retries.
-
-Two safety mechanisms prevent the parser from blocking forever:
-
-- **Per-read timeout (30s)**: each `reader.read()` call has a timeout. If Pi stops writing (e.g. it already sent `agent_end` but the buffer has a malformed prefix), the timeout fires instead of blocking indefinitely.
-- **Stuck detection**: after 3 consecutive read timeouts with no events extracted, the parser force-skips past the current `{` to the next one, discarding the stuck prefix.
-
-### Hang prevention: activity timeouts
-
-The most common cause of hangs is **Pi going silent** — the model API stalls, a rate limit is hit, or Pi's internal processing pauses. Pi continuously streams `thinking_delta` events while models think, so any gap longer than the timeout indicates a genuine stall.
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `VIBES_PI_RESPONSE_TIMEOUT_S` | 120 | Max silence between events during response generation. Resets on every event. |
-| `VIBES_PI_AGENT_END_TIMEOUT_S` | 30 | Max wait for `agent_end` after `turn_end` is received. |
-
-Set either to `0` to disable (not recommended — hangs become unrecoverable without `/abort`).
-
-### Key event types
+### Event types
 
 | Event | Description |
 |-------|-------------|
-| `agent_start` | Agent session begins |
-| `turn_start` / `turn_end` | One reasoning turn |
-| `message_start` / `message_update` / `message_end` | Text/thinking/tool-call deltas |
-| `tool_execution_start` / `tool_execution_update` / `tool_execution_end` | Tool runs |
+| `response` | Acknowledgement after sending a command |
+| `agent_start` | Agent session begins (emitted after first `prompt`) |
+| `turn_start` / `turn_end` | One reasoning turn (may include thinking, tool calls, and text) |
+| `message_start` / `message_update` / `message_end` | Deltas: `thinking_delta`, `text_delta`, `toolcall_delta`, etc. |
+| `tool_execution_start` / `tool_execution_update` / `tool_execution_end` | Tool runs with progress |
 | `extension_ui_request` | Permission/choice dialogs |
-| `agent_end` | **Terminal event** — loop must wait for this |
+| `agent_end` | **Terminal event** — the event loop exits here |
 
-### Debugging
+A typical flow: `response` → `agent_start` → (`turn_start` → `message_*` → `tool_*` → `turn_end`)+ → `agent_end`.
 
-If responses hang (no reply until `/restart`), check logs for:
+### Parser implementation
 
-- `Pi RPC: buffer exceeded ... truncating` — a single event exceeded 16 MB (extremely rare; increase `_MAX_RPC_BUFFER`).
-- `Pi RPC: read exceeded buffer limit` — the asyncio pipe limit (16 MB) was hit. Increase the `limit=` parameter in `create_subprocess_exec`.
-- `Pi RPC: timed out waiting for agent_end` — Pi stopped sending events but didn't close. Check if Pi is alive (`/agents` endpoint).
-- `Pi RPC: stuck for N reads` — the parser detected a malformed event blocking the buffer and skipped past it.
+The parser (`_read_event` in `pi_client.py`) uses `reader.read(512KB)` + `json.JSONDecoder(strict=False).raw_decode()`:
+
+- **Why not `readline()`?** Although Pi's JSON is valid, `readline()` returns partial lines when a pipe read boundary falls mid-event. Stitching partial lines is fragile and was the original source of "invalid JSON" errors.
+- **Why `raw_decode()`?** It extracts the first complete JSON object from a byte buffer regardless of newline positions. No line-splitting, no stitching.
+- **Why `strict=False`?** Pi's output is valid, so this is not strictly needed. It is kept as a safety margin at zero cost.
+- **Buffer cap**: 16 MB. On overflow, the oldest half is discarded.
+- **Error recovery**: `Unterminated string` → wait for more data. Any other `JSONDecodeError` → skip to next `{`.
+- **Stuck detection**: 30s per-read timeout. After 3 consecutive timeouts with buffered data, force-skip past the stuck prefix.
+
+### Hang prevention: activity timeouts
+
+The most common cause of hangs is **the model API stalling mid-stream**. When the upstream model provider hits a rate limit, has an infrastructure hiccup, or simply pauses token generation, Pi has no new tokens to forward and stdout goes silent. This is not a parser bug or a pipe issue — Pi is faithfully waiting for the model.
+
+Pi streams `thinking_delta` events continuously while models think, so any gap longer than the timeout indicates a genuine API stall rather than slow reasoning.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VIBES_PI_RESPONSE_TIMEOUT_S` | 120 | Max silence between any two events. Resets on every event received. |
+| `VIBES_PI_AGENT_END_TIMEOUT_S` | 30 | Max wait for `agent_end` after `turn_end`. |
+
+When a timeout fires:
+- If we already have content (draft text, thinking, or tool results), the response is finalized from collected content.
+- If no content has been received, a "timed out" error is returned.
+- The user can also `/abort` at any time to cancel immediately.
+
+Set either to `0` to disable (not recommended — hangs become unrecoverable without `/abort`).
+
+### Busy-state prevention
+
+The `request_lock` is held for the entire duration of a response. To prevent permanent "agent is busy" lockouts:
+
+1. **Lock acquire timeout (5s)**: instead of instant-fail, waits briefly. After `/abort` cancels the in-flight task, the lock releases within this window.
+2. **Task cancellation**: `/abort` and `/restart` call `cancel_current_request()` which cancels the asyncio task. `CancelledError` is caught, the lock is released via `finally`, and a `[Request cancelled]` response is returned.
+
+---
 
 ## RPC Commands Reference
 
@@ -130,33 +143,44 @@ Pi's `--mode rpc` protocol accepts JSON commands on **stdin** and emits events o
 
 | Command | Payload | Notes |
 |---------|---------|-------|
-| `prompt` | `{"type":"prompt","message":"..."}` | Send a user message. Supports optional `images` and `streamingBehavior` (`"steer"` or `"followUp"`). |
+| `prompt` | `{"type":"prompt","message":"..."}` | Send a user message. Supports optional `images` and `streamingBehavior`. |
 | `extension_ui_response` | `{"type":"extension_ui_response","id":"...","confirmed":true}` | Respond to permission/choice dialogs. |
-| `set_model` | `{"type":"set_model","provider":"...","modelId":"..."}` | Change model live via `/model` command (no restart). |
-| `set_thinking_level` | `{"type":"set_thinking_level","level":"high"}` | Change thinking level live via `/thinking` command. |
-| `get_state` | `{"type":"get_state"}` | Query current session state (used by `/model` to show active model). |
-| `get_available_models` | `{"type":"get_available_models"}` | List models via RPC (used by `/model` listing). |
-| `new_session` | `{"type":"new_session"}` | Reset session via `/restart` (keeps process alive). |
-| `steer` | `{"type":"steer","message":"..."}` | Mid-turn steering via `/steer` command. |
-| `abort` | `{"type":"abort"}` | Cancel current execution via `/abort` command. |
+| `set_model` | `{"type":"set_model","provider":"...","modelId":"..."}` | Change model live (no restart). |
+| `set_thinking_level` | `{"type":"set_thinking_level","level":"high"}` | Change thinking level live. |
+| `get_state` | `{"type":"get_state"}` | Query current session state. |
+| `get_available_models` | `{"type":"get_available_models"}` | List available models. |
+| `new_session` | `{"type":"new_session"}` | Reset session (keeps process alive). |
+| `steer` | `{"type":"steer","message":"..."}` | Mid-turn steering. |
+| `abort` | `{"type":"abort"}` | Cancel current execution. |
 
 ### Not yet implemented
 
-These commands are available in Pi's RPC protocol but not yet wired up:
-
 | Command | Payload | Description |
 |---------|---------|-------------|
-| `follow_up` | `{"type":"follow_up","message":"..."}` | Queue a follow-up message to be processed after the current turn completes. |
+| `follow_up` | `{"type":"follow_up","message":"..."}` | Queue a follow-up after the current turn. |
 | `compact` | `{"type":"compact"}` | Trigger context window compaction. |
-| `get_commands` | `{"type":"get_commands"}` | List slash commands registered by extensions/skills. |
-| `cycle_model` | `{"type":"cycle_model"}` | Cycle to the next model in the `--models` list. |
-| `cycle_thinking_level` | `{"type":"cycle_thinking_level"}` | Cycle to the next thinking level. |
-| `bash` / `abort_bash` | `{"type":"bash","command":"..."}` | Run a bash command / abort running bash. |
-| `set_steering_mode` | `{"type":"set_steering_mode","mode":"all"}` | Controls how steering messages are batched (`"all"` or `"one-at-a-time"`). |
-| `set_follow_up_mode` | `{"type":"set_follow_up_mode","mode":"all"}` | Controls how follow-up messages are batched. |
+| `get_commands` | `{"type":"get_commands"}` | List slash commands from extensions. |
+| `cycle_model` | `{"type":"cycle_model"}` | Cycle to the next model. |
+| `cycle_thinking_level` | `{"type":"cycle_thinking_level"}` | Cycle thinking level. |
+| `bash` / `abort_bash` | `{"type":"bash","command":"..."}` | Direct bash execution via RPC. |
+| `set_steering_mode` | `{"type":"set_steering_mode","mode":"all"}` | Steering message batching. |
+| `set_follow_up_mode` | `{"type":"set_follow_up_mode","mode":"all"}` | Follow-up message batching. |
 
 ### Prompt streaming behavior
 
 The `prompt` command accepts an optional `streamingBehavior` field:
-- `"steer"` — if the agent is already streaming, treat this prompt as a steering message
-- `"followUp"` — if the agent is already streaming, queue this prompt as a follow-up
+- `"steer"` — if the agent is already streaming, treat as a steering message
+- `"followUp"` — if already streaming, queue as a follow-up
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---------|-------------|-----|
+| No response, agent appears hung | Model API stall; activity timeout will finalize | Wait for 120s timeout, or `/abort` |
+| "Pi agent is busy, please try again" | Previous request lock still held | `/abort` to cancel, then retry |
+| Response appears after `/restart` | Previous request timed out or was cancelled | Expected — check logs for timeout warnings |
+| `timed out waiting for agent_end` | Pi stopped sending events after `turn_end` | Normal — response is finalized from collected content |
+| `read timeout with N bytes buffered` | Parser stuck on incomplete buffer prefix | Auto-recovers by skipping; check if Pi version changed |
+| Pi not starting | Executable not in PATH | Verify `which pi` works from the server process |
