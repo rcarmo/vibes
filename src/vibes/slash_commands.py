@@ -110,7 +110,13 @@ async def _restart_agent(agent_mode: str) -> SlashCommandResult:
     """Restart the active agent."""
     try:
         if agent_mode == "pi":
-            from .pi_client import send_rpc_command, is_pi_running, stop_pi_agent, start_pi_agent
+            from .pi_client import (
+                send_rpc_command, is_pi_running, stop_pi_agent,
+                start_pi_agent, cancel_current_request,
+            )
+
+            # Cancel any in-flight request so the lock is released.
+            cancel_current_request()
 
             # Try RPC new_session first (keeps process alive).
             if is_pi_running():
@@ -377,10 +383,12 @@ async def _handle_abort(agent_mode: str) -> SlashCommandResult:
             message="Abort is only supported for Pi agents.",
         )
 
-    from .pi_client import send_rpc_fire_and_forget
+    from .pi_client import send_rpc_fire_and_forget, cancel_current_request
 
+    # Send abort to Pi and cancel the in-flight event loop task.
     ok = await send_rpc_fire_and_forget({"type": "abort"})
-    if ok:
+    cancelled = cancel_current_request()
+    if ok or cancelled:
         return SlashCommandResult(status="success", message="Abort signal sent.")
     return SlashCommandResult(status="error", message="Pi agent is not running.")
 

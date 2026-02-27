@@ -30,6 +30,7 @@ class _PiState:
         self.rpc_buffer = ""
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
+        self.current_request_task: asyncio.Task | None = None
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = None
 
@@ -61,6 +62,7 @@ def reset_state() -> None:
     _state.stderr_tail = deque(maxlen=100)
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
+    _state.current_request_task = None
     _state.pending_requests = {}
     _state.request_callback = None
     _state.rpc_buffer = ""
@@ -258,6 +260,21 @@ async def send_rpc_fire_and_forget(payload: dict) -> bool:
     except Exception as e:
         logger.warning("Pi RPC: failed to send %s: %s", payload.get("type"), e)
         return False
+
+
+def cancel_current_request() -> bool:
+    """Cancel the in-flight request task, releasing the request_lock.
+
+    Called when the user sends /abort to ensure the event loop in
+    send_message_multimodal is interrupted even if the parser is stuck.
+    Returns True if a task was cancelled.
+    """
+    task = _state.current_request_task
+    if task is not None and not task.done():
+        task.cancel()
+        logger.info("Pi RPC: cancelled in-flight request task")
+        return True
+    return False
 
 
 async def start_pi_agent() -> bool:
@@ -681,14 +698,21 @@ async def _respond_extension_request(request_id: str, method: str, outcome: str 
 
 async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None) -> dict:
     """Send a message to the pi agent and return multimodal response."""
-    if _state.request_lock.locked():
+    # Try to acquire the lock with a short timeout — if another request
+    # is in flight, wait briefly in case it's about to finish (e.g. after
+    # an /abort).  If still locked, return busy.
+    try:
+        await asyncio.wait_for(_state.request_lock.acquire(), timeout=5.0)
+    except asyncio.TimeoutError:
         return {
             "text": "[Pi agent is busy, please try again]",
             "content": [{"type": "text", "text": "[Pi agent is busy, please try again]"}],
             "cancelled": False,
         }
 
-    async with _state.request_lock:
+    try:
+        # Store a reference to the current task so /abort can cancel it.
+        _state.current_request_task = asyncio.current_task()
         try:
             await start_pi_agent()
             if not is_pi_running():
@@ -934,6 +958,13 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 "cancelled": False,
             }
 
+        except asyncio.CancelledError:
+            logger.warning("Pi RPC: request cancelled (likely via /abort)")
+            return {
+                "text": "[Request cancelled]",
+                "content": [{"type": "text", "text": "[Request cancelled]"}],
+                "cancelled": True,
+            }
         except Exception as e:
             logger.error(f"Error communicating with pi agent: {e}", exc_info=True)
             return {
@@ -941,3 +972,6 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 "content": [{"type": "text", "text": f"[Error: {e}]"}],
                 "cancelled": False,
             }
+    finally:
+        _state.current_request_task = None
+        _state.request_lock.release()
