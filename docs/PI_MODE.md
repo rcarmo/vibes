@@ -64,31 +64,20 @@ Pi is kept warm by default even if all SSE clients disconnect. Set `VIBES_PI_RES
 
 ## RPC Parsing Notes
 
-Pi communicates via **newline-delimited JSON** on stdout when running with `--mode rpc`. In practice, JSON events frequently contain **raw control characters** (literal `\n`, `\t`, `\r` bytes — not `\\n` escapes) inside string values, particularly in:
-
-- `thinking_delta` events — the `partial.thinking` field carries the **entire accumulated thinking text**, which grows to hundreds of lines during long reasoning sessions.
-- `toolcall_delta` events — tool argument deltas can contain file contents with embedded newlines.
-- `tool_execution_update` / `turn_end` events — base64 `toolCallId` fields can exceed 50 KB.
+Pi communicates via **newline-delimited JSON** on stdout when running with `--mode rpc`. Pi uses `JSON.stringify()` to serialize events, which always produces valid JSON with properly escaped control characters (`\\n`, `\\t`, etc.). Live testing confirms that `json.loads()` with `strict=True` parses every line correctly — there are no raw control characters in Pi's output.
 
 ### Why `readline()` doesn't work
 
-A naive `readline()` approach splits on every `\n` byte, including those *inside* JSON string values. A single `thinking_delta` event with 500 lines of thinking content would be split into 500+ readline segments. Any line-stitching approach either:
-
-- Drops events when stitching exceeds a cap (causing hung responses — the UI waits for `agent_end` that was silently discarded), or
-- Re-parses the growing buffer on every stitch (O(N²) per event).
+Although each JSON object is valid, `readline()` still fails because events are written to stdout as a byte stream. A single `read()` call may return data that cuts a JSON line in half — the second half starts a new `readline()` call, which then returns a partial JSON string that fails to parse. This is a normal NDJSON challenge, not a Pi-specific bug.
 
 ### Current approach: `read()` + `raw_decode(strict=False)`
 
 The parser uses `reader.read(512KB)` to read raw byte chunks into a persistent string buffer (`_state.rpc_buffer`), then calls `json.JSONDecoder(strict=False).raw_decode()` to extract complete JSON objects:
 
-- `strict=False` tells Python's JSON parser to **accept raw control characters** inside strings — no sanitization needed.
 - `raw_decode()` stops at the exact end of the first JSON value, leaving remaining data in the buffer for the next call.
 - No dependence on newline boundaries at all.
+- `strict=False` is kept as a safety margin even though Pi's JSON is valid — it costs nothing and protects against future changes in Pi's serialization.
 - Buffer is capped at 16 MB to prevent unbounded growth; on overflow the oldest half is discarded.
-
-### Why not use a streaming JSON parser?
-
-We evaluated **ijson** (yajl2 backend), **json-stream** (Rust tokenizer), and **jsonslicer** — all reject raw control characters inside strings per the JSON spec. Only Python's built-in `json.JSONDecoder(strict=False)` accepts raw `0x0a` bytes in string values without sanitization. Since Pi emits these routinely in thinking/tool payloads, off-the-shelf streaming parsers are not viable.
 
 ### Error recovery
 
@@ -101,6 +90,17 @@ Two safety mechanisms prevent the parser from blocking forever:
 
 - **Per-read timeout (30s)**: each `reader.read()` call has a timeout. If Pi stops writing (e.g. it already sent `agent_end` but the buffer has a malformed prefix), the timeout fires instead of blocking indefinitely.
 - **Stuck detection**: after 3 consecutive read timeouts with no events extracted, the parser force-skips past the current `{` to the next one, discarding the stuck prefix.
+
+### Hang prevention: activity timeouts
+
+The most common cause of hangs is **Pi going silent** — the model API stalls, a rate limit is hit, or Pi's internal processing pauses. Pi continuously streams `thinking_delta` events while models think, so any gap longer than the timeout indicates a genuine stall.
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VIBES_PI_RESPONSE_TIMEOUT_S` | 120 | Max silence between events during response generation. Resets on every event. |
+| `VIBES_PI_AGENT_END_TIMEOUT_S` | 30 | Max wait for `agent_end` after `turn_end` is received. |
+
+Set either to `0` to disable (not recommended — hangs become unrecoverable without `/abort`).
 
 ### Key event types
 
