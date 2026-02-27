@@ -150,7 +150,7 @@ async def test_model_show_pi(monkeypatch):
     cmd = SlashCommand(name="model", args="", raw="/model")
     result = await execute_command(cmd, "pi")
     assert result.status == "success"
-    assert "(default)" in result.message
+    assert "default" in result.message
     assert "/model <provider/model>" in result.message
 
 

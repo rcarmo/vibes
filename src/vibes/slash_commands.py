@@ -151,7 +151,7 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
 
     # Pi mode — list models
     if not args:
-        current = config.pi_model or "(default)"
+        current = config.pi_model or "(default — pi selects automatically)"
         thinking = config.pi_thinking or "off"
         models_list = await _query_pi_models(config)
         lines = [f"Current model: {current}", f"Thinking level: {thinking}"]
