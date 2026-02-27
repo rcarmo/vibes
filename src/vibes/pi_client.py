@@ -63,7 +63,20 @@ def is_pi_running() -> bool:
 
 async def _read_event(reader) -> dict | None:
     """Read a JSON line from pi stdout."""
-    line = await reader.readline()
+    try:
+        line = await reader.readline()
+    except ValueError:
+        # readline() raises ValueError when line exceeds the stream buffer limit
+        logger.warning("Pi RPC: line exceeded buffer limit, skipping")
+        # Drain any remaining data from the oversized line
+        try:
+            while not reader.at_eof():
+                chunk = await reader.read(65536)
+                if not chunk or b"\n" in chunk:
+                    break
+        except Exception:
+            pass
+        return None
     if not line:
         raise RuntimeError("Pi agent connection closed")
     try:

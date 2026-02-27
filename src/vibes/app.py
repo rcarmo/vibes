@@ -170,8 +170,8 @@ def _run_server() -> None:
             handle_signals=True,
             print=None  # Suppress default "Running on" message
         )
-    except KeyboardInterrupt:
-        pass  # Graceful shutdown already handled by aiohttp
+    except (KeyboardInterrupt, SystemExit):
+        pass  # GracefulExit (from aiohttp signal handling) inherits SystemExit
     
     logger.info("Server stopped")
 
