@@ -948,6 +948,15 @@ body {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     animation: fadeIn 0.2s ease-out;
+    --turn-color: var(--accent-color);
+}
+
+.turn-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--turn-color);
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
 }
 
 .agent-status.agent-status-request {
@@ -965,7 +974,7 @@ body {
     width: 16px;
     height: 16px;
     border: 2px solid var(--border-color);
-    border-top-color: var(--accent-color);
+    border-top-color: var(--turn-color, var(--accent-color));
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
@@ -991,15 +1000,24 @@ body {
     color: var(--text-secondary);
     font-size: var(--font-size-sm);
     animation: fadeIn 0.2s ease-out;
+    --turn-color: var(--accent-color);
 }
 
 .agent-thinking-title {
     font-weight: 600;
     margin-bottom: var(--spacing-xs);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    color: var(--turn-color, inherit);
 }
 
 .agent-thinking-title.thought {
-    color: #ff9f7f;
+    color: var(--turn-color, #ff9f7f);
+}
+
+.agent-thinking-title.thought .turn-dot {
+    background: var(--turn-color, #ff9f7f);
 }
 
 .agent-thinking-body {
@@ -1028,11 +1046,17 @@ body {
 .agent-thinking-body ul,
 .agent-thinking-body ol {
     margin: 0;
-    padding-left: 1.25em;
+    padding-left: 1.1em;
 }
 
 .agent-thinking-body li {
     margin: 0;
+    padding: 0;
+    line-height: 1.1;
+}
+
+.agent-thinking-body li + li {
+    margin-top: 0.15em;
 }
 
 .agent-thinking-body blockquote {
