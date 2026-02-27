@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections import deque
 import json
 import logging
 import os
@@ -23,6 +24,9 @@ class _PiState:
         self.agent_proc = None
         self.agent_reader = None
         self.agent_writer = None
+        self.agent_stderr = None
+        self.stderr_task = None
+        self.stderr_tail = deque(maxlen=100)
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
@@ -52,6 +56,9 @@ def reset_state() -> None:
     _state.agent_proc = None
     _state.agent_reader = None
     _state.agent_writer = None
+    _state.agent_stderr = None
+    _state.stderr_task = None
+    _state.stderr_tail = deque(maxlen=100)
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
@@ -62,6 +69,37 @@ def reset_state() -> None:
 def is_pi_running() -> bool:
     """Check if the pi agent is currently running."""
     return _state.agent_proc is not None and _state.agent_proc.returncode is None
+
+
+async def _drain_stderr(reader) -> None:
+    """Continuously drain pi stderr to avoid backpressure."""
+    try:
+        while True:
+            line = await reader.readline()
+            if not line:
+                break
+            text = line.decode("utf-8", errors="replace").strip()
+            if text:
+                _state.stderr_tail.append(text)
+                logger.debug("Pi stderr: %s", text)
+    except asyncio.CancelledError:
+        raise
+    except Exception as e:
+        logger.debug("Pi stderr drain stopped: %s", e)
+
+
+def _connection_closed_message() -> str:
+    """Build a detailed error message when the pi connection closes unexpectedly."""
+    proc = _state.agent_proc
+    if proc is None:
+        return "Pi agent connection closed"
+    code = proc.returncode
+    if code is None:
+        return "Pi agent connection closed"
+    if _state.stderr_tail:
+        tail = _state.stderr_tail[-1]
+        return f"Pi agent connection closed (exit code {code}; stderr: {tail})"
+    return f"Pi agent connection closed (exit code {code})"
 
 
 async def _read_event(reader) -> dict | None:
@@ -81,7 +119,7 @@ async def _read_event(reader) -> dict | None:
             pass
         return None
     if not line:
-        raise RuntimeError("Pi agent connection closed")
+        raise RuntimeError(_connection_closed_message())
     text = line.decode("utf-8", errors="replace").rstrip("\r\n")
     if _state.rpc_partial:
         text = f"{_state.rpc_partial}{text}"
@@ -90,8 +128,9 @@ async def _read_event(reader) -> dict | None:
         return None
 
     last_error: json.JSONDecodeError | None = None
+    decoder = json.JSONDecoder(strict=False)
     try:
-        obj = json.loads(text)
+        obj = json.loads(text, strict=False)
         if isinstance(obj, dict):
             _state.rpc_partial = ""
             return obj
@@ -105,10 +144,9 @@ async def _read_event(reader) -> dict | None:
     if start > 0:
         candidates.append(text[start:])
 
-    decoder = json.JSONDecoder()
     for candidate in candidates:
         try:
-            obj = json.loads(candidate)
+            obj = json.loads(candidate, strict=False)
             if isinstance(obj, dict):
                 _state.rpc_partial = ""
                 return obj
@@ -132,7 +170,7 @@ async def _read_event(reader) -> dict | None:
     # If this looks like a fragmented JSON object, buffer it and wait for next line.
     stripped = text.lstrip()
     if stripped.startswith("{") and not stripped.endswith("}") and len(text) <= 2 * 1024 * 1024:
-        _state.rpc_partial = f"{text}\n"
+        _state.rpc_partial = text
         logger.debug("Pi RPC: buffering partial JSON fragment (%d chars)", len(_state.rpc_partial))
         return None
 
@@ -186,6 +224,10 @@ async def start_pi_agent() -> bool:
         )
         _state.agent_reader = _state.agent_proc.stdout
         _state.agent_writer = _state.agent_proc.stdin
+        _state.agent_stderr = _state.agent_proc.stderr
+        _state.stderr_tail.clear()
+        if _state.agent_stderr is not None:
+            _state.stderr_task = asyncio.create_task(_drain_stderr(_state.agent_stderr))
         return True
 
 
@@ -200,9 +242,19 @@ async def stop_pi_agent() -> None:
         except Exception as e:
             logger.warning(f"Failed to terminate pi agent: {e}")
         finally:
+            if _state.stderr_task is not None:
+                _state.stderr_task.cancel()
+                try:
+                    await _state.stderr_task
+                except asyncio.CancelledError:
+                    pass
+                except Exception:
+                    pass
             _state.agent_proc = None
             _state.agent_reader = None
             _state.agent_writer = None
+            _state.agent_stderr = None
+            _state.stderr_task = None
             _state.rpc_partial = ""
 
 
