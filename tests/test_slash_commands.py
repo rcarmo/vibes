@@ -495,3 +495,34 @@ async def test_shell_generic_exception(monkeypatch):
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
     assert "Shell error" in result.message
+
+
+@pytest.mark.asyncio
+async def test_prompt_show_empty():
+    cmd = SlashCommand(name="prompt", args="", raw="/prompt")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "No user prompt set" in result.message
+
+
+@pytest.mark.asyncio
+async def test_prompt_set():
+    cmd = SlashCommand(name="prompt", args="Be concise", raw="/prompt Be concise")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "Be concise" in result.message
+
+    # Verify it shows up
+    cmd2 = SlashCommand(name="prompt", args="", raw="/prompt")
+    result2 = await execute_command(cmd2, "pi")
+    assert "Be concise" in result2.message
+
+    # Clear it
+    cmd3 = SlashCommand(name="prompt", args="clear", raw="/prompt clear")
+    result3 = await execute_command(cmd3, "pi")
+    assert "cleared" in result3.message
+
+    # Verify cleared
+    cmd4 = SlashCommand(name="prompt", args="", raw="/prompt")
+    result4 = await execute_command(cmd4, "pi")
+    assert "No user prompt set" in result4.message

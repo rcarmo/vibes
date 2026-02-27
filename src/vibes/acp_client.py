@@ -183,7 +183,13 @@ def respond_to_request(request_id, outcome: str):
 
 def _build_agent_prompt(content: str) -> str:
     """Build a prompt with ACP tool instructions appended."""
-    return f"{ACP_FILE_PREVIEW_INSTRUCTIONS}\n\nUser:\n{content}"
+    from .config import get_config
+    config = get_config()
+    parts = [ACP_FILE_PREVIEW_INSTRUCTIONS]
+    if config.prompt:
+        parts.append(config.prompt)
+    parts.append(f"User:\n{content}")
+    return "\n\n".join(parts)
 
 
 def _coerce_int(value, default: int) -> int:

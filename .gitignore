@@ -53,3 +53,6 @@ htmlcov/
 # Environment
 .env
 .env.local
+
+# User settings
+.vibes/

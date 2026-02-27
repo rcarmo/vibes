@@ -81,6 +81,9 @@ async def execute_command(
     if command.name == "steer":
         return await _handle_steer(command.args, agent_mode)
 
+    if command.name == "prompt":
+        return _handle_prompt(command.args)
+
     # Unknown command — tell caller to forward to agent
     return SlashCommandResult(
         status="success",
@@ -96,6 +99,7 @@ def _list_commands() -> SlashCommandResult:
         "- `/model [provider/model]` - Show or set the model",
         "- `/thinking [level]` - Show or set thinking level",
         "- `/steer <message>` - Steer the agent mid-turn",
+        "- `/prompt [text]` - Show or set the user system prompt",
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
         "- `/shell <command>` - Run a shell command",
@@ -413,6 +417,42 @@ async def _handle_steer(args: str, agent_mode: str) -> SlashCommandResult:
     if ok:
         return SlashCommandResult(status="success", message=f"Steering sent: {args}")
     return SlashCommandResult(status="error", message="Pi agent is not running.")
+
+
+def _handle_prompt(args: str) -> SlashCommandResult:
+    """Show or set the user system prompt.
+
+    With no args, displays the current prompt.
+    With args, sets the prompt (takes effect on next agent restart).
+    Use `/prompt clear` to remove the prompt.
+    """
+    from .config import get_config
+
+    config = get_config()
+
+    if not args:
+        if config.prompt:
+            return SlashCommandResult(
+                status="success",
+                message=f"Current prompt:\n```\n{config.prompt}\n```",
+            )
+        return SlashCommandResult(
+            status="success",
+            message="No user prompt set. Use `/prompt <text>` to set one.",
+        )
+
+    if args.strip().lower() == "clear":
+        config.prompt = ""
+        return SlashCommandResult(
+            status="success",
+            message="User prompt cleared. Restart the agent for changes to take effect.",
+        )
+
+    config.prompt = args
+    return SlashCommandResult(
+        status="success",
+        message=f"User prompt set. Restart the agent for changes to take effect.\n```\n{args}\n```",
+    )
 
 
 async def _run_shell(args: str) -> SlashCommandResult:
