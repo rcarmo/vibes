@@ -69,7 +69,8 @@ async def _read_event(reader) -> dict | None:
     try:
         return json.loads(line.decode("utf-8"))
     except json.JSONDecodeError:
-        logger.warning("Pi RPC: invalid JSON line ignored")
+        snippet = line[:200].decode("utf-8", errors="replace").strip()
+        logger.warning(f"Pi RPC: invalid JSON line ignored: {snippet!r}")
         return None
 
 
@@ -103,7 +104,7 @@ async def start_pi_agent() -> bool:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            limit=4 * 1024 * 1024,
+            limit=16 * 1024 * 1024,
         )
         _state.agent_reader = _state.agent_proc.stdout
         _state.agent_writer = _state.agent_proc.stdin
