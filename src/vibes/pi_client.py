@@ -31,8 +31,6 @@ class _PiState:
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = None
-        self.rpc_partial = ""
-        self.rpc_partial_failures = 0
 
 
 _state = _PiState()
@@ -64,8 +62,6 @@ def reset_state() -> None:
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
     _state.request_callback = None
-    _state.rpc_partial = ""
-    _state.rpc_partial_failures = 0
 
 
 def is_pi_running() -> bool:
@@ -106,37 +102,6 @@ def _connection_closed_message() -> str:
 
 async def _read_event(reader) -> dict | None:
     """Read a JSON line from pi stdout."""
-    def _parse_json_text(value: str) -> tuple[dict | None, json.JSONDecodeError | None, str | None]:
-        text = value.strip()
-        if not text:
-            return None, None, None
-
-        candidates = [text]
-        start = text.find("{")
-        if start > 0:
-            candidates.append(text[start:])
-
-        decoder = json.JSONDecoder(strict=False)
-        last_error: json.JSONDecodeError | None = None
-        for candidate in candidates:
-            try:
-                obj = json.loads(candidate, strict=False)
-                if isinstance(obj, dict):
-                    return obj, None, None
-            except json.JSONDecodeError as err:
-                last_error = err
-                try:
-                    obj, idx = decoder.raw_decode(candidate)
-                    if isinstance(obj, dict):
-                        trailing = candidate[idx:].strip()
-                        next_partial = trailing if trailing.startswith("{") else None
-                        return obj, None, next_partial
-                except json.JSONDecodeError as err2:
-                    last_error = err2
-                    continue
-
-        return None, last_error, None
-
     try:
         line = await reader.readline()
     except ValueError:
@@ -154,43 +119,33 @@ async def _read_event(reader) -> dict | None:
     if not line:
         raise RuntimeError(_connection_closed_message())
 
-    current_line = line.decode("utf-8", errors="replace").rstrip("\r\n")
-    text = f"{_state.rpc_partial}{current_line}" if _state.rpc_partial else current_line
+    text = line.decode("utf-8", errors="replace").rstrip("\r\n")
     if not text.strip():
-        _state.rpc_partial = ""
-        _state.rpc_partial_failures = 0
         return None
 
-    obj, last_error, trailing = _parse_json_text(text)
-    if obj is not None:
-        _state.rpc_partial = trailing or ""
-        _state.rpc_partial_failures = 0
-        return obj
+    # Parse in tolerant mode (handles unescaped control chars in streamed deltas).
+    last_error: json.JSONDecodeError | None = None
+    decoder = json.JSONDecoder(strict=False)
+    candidates = [text]
+    start = text.find("{")
+    if start > 0:
+        candidates.append(text[start:])
 
-    if _state.rpc_partial:
-        # Retry parsing the current line without previous partial data.
-        # If stale partial data poisoned the stream, this recovers immediately.
-        obj, last_error, trailing = _parse_json_text(current_line)
-        if obj is not None:
-            logger.warning("Pi RPC: recovered by discarding stale buffered fragment")
-            _state.rpc_partial = trailing or ""
-            _state.rpc_partial_failures = 0
-            return obj
-        _state.rpc_partial_failures += 1
-        if _state.rpc_partial_failures >= 3:
-            logger.warning("Pi RPC: discarding stale buffered fragment after repeated parse failures")
-            _state.rpc_partial = ""
-            _state.rpc_partial_failures = 0
+    for candidate in candidates:
+        try:
+            obj = json.loads(candidate, strict=False)
+            if isinstance(obj, dict):
+                return obj
+        except json.JSONDecodeError as err:
+            last_error = err
+            try:
+                obj, _idx = decoder.raw_decode(candidate)
+                if isinstance(obj, dict):
+                    return obj
+            except json.JSONDecodeError as err2:
+                last_error = err2
+                continue
 
-    # If this looks like a fragmented JSON object, buffer it and wait for next line.
-    stripped = text.lstrip()
-    if stripped.startswith("{") and not stripped.endswith("}") and len(text) <= 2 * 1024 * 1024:
-        _state.rpc_partial = text
-        logger.debug("Pi RPC: buffering partial JSON fragment (%d chars)", len(_state.rpc_partial))
-        return None
-
-    _state.rpc_partial = ""
-    _state.rpc_partial_failures = 0
     if last_error:
         logger.warning(
             "Pi RPC: invalid JSON line ignored (%s at pos %s): %r",
@@ -271,7 +226,6 @@ async def stop_pi_agent() -> None:
             _state.agent_writer = None
             _state.agent_stderr = None
             _state.stderr_task = None
-            _state.rpc_partial = ""
 
 
 def _extract_tool_status(result: dict | None) -> str | None:
