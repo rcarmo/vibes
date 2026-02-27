@@ -168,3 +168,107 @@ def test_config_inline_endpoints(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     config = Config()
     assert "my_tool" in config.custom_endpoints
+
+
+def test_config_prompt_from_settings(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({
+        "prompt": "Always respond in Portuguese",
+    }))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("VIBES_PROMPT", raising=False)
+    config = Config()
+    assert config.prompt == "Always respond in Portuguese"
+
+
+def test_config_prompt_default_empty(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("VIBES_PROMPT", raising=False)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
+    config = Config()
+    assert config.prompt == ""
+
+
+def test_config_prompt_env_overrides_file(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({
+        "prompt": "from file",
+    }))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("VIBES_PROMPT", "from env")
+    config = Config()
+    assert config.prompt == "from env"
+
+
+def test_effective_pi_command_with_prompt():
+    config = Config()
+    config.pi_model = None
+    config.pi_thinking = None
+    config.prompt = "Be terse"
+    cmd = config.effective_pi_command()
+    assert "--append-system-prompt" in cmd
+    assert "Be terse" in cmd
+
+
+def test_effective_pi_command_no_prompt():
+    config = Config()
+    config.pi_model = None
+    config.pi_thinking = None
+    config.prompt = ""
+    base = config.pi_agent
+    assert config.effective_pi_command() == base
+
+
+def test_settings_file_cwd_over_xdg(tmp_path, monkeypatch):
+    """CWD .vibes/ takes priority over XDG."""
+    local_dir = tmp_path / ".vibes"
+    local_dir.mkdir()
+    (local_dir / "settings.json").write_text('{"port": 1111}')
+    xdg_dir = tmp_path / "xdg" / "vibes"
+    xdg_dir.mkdir(parents=True)
+    (xdg_dir / "settings.json").write_text('{"port": 2222}')
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    result = _find_settings_file()
+    assert ".vibes" in str(result)
+
+
+def test_load_settings_file_malformed(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text("not json {{{")
+    monkeypatch.chdir(tmp_path)
+    assert _load_settings_file() == {}
+
+
+def test_load_settings_file_non_object(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text('"just a string"')
+    monkeypatch.chdir(tmp_path)
+    assert _load_settings_file() == {}
+
+
+def test_resolve_str_from_file():
+    assert _resolve({"agent_name": "mybox"}, "agent_name", "VIBES_AGENT_NAME", "default", "str") == "mybox"
+
+
+def test_resolve_int_invalid_in_file():
+    assert _resolve({"port": "abc"}, "port", "VIBES_PORT", 8080, "int") == 8080
+
+
+def test_resolve_bool_non_string_non_bool():
+    assert _resolve({"debug": 42}, "debug", "VIBES_DEBUG", False, "bool") is False
+
+
+def test_resolve_none_str_returns_default():
+    assert _resolve({"pi_model": None}, "pi_model", "VIBES_PI_MODEL", None, "str") is None
+
+
+def test_settings_file_diagnostics(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
+    config = Config()
+    assert config.settings_file is None

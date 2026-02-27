@@ -526,3 +526,20 @@ async def test_prompt_set():
     cmd4 = SlashCommand(name="prompt", args="", raw="/prompt")
     result4 = await execute_command(cmd4, "pi")
     assert "No user prompt set" in result4.message
+
+
+@pytest.mark.asyncio
+async def test_prompt_listed_in_commands():
+    cmd = SlashCommand(name="commands", args="", raw="/commands")
+    result = await execute_command(cmd, "pi")
+    assert "/prompt" in result.message
+
+
+@pytest.mark.asyncio
+async def test_prompt_works_in_acp_mode():
+    cmd = SlashCommand(name="prompt", args="Be brief", raw="/prompt Be brief")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert "Be brief" in result.message
+    # Clean up
+    await execute_command(SlashCommand(name="prompt", args="clear", raw="/prompt clear"), "acp")
