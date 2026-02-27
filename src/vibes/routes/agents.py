@@ -210,7 +210,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             response = await send_acp_message_multimodal(content, thread_id, status_callback)
 
         # If a permission request timed out, stop and explain what happened.
-        if response.get("cancelled"):
+        if response.get("cancelled") and response.get("cancel_reason") != "abort":
             await broadcast_event("agent_request_timeout", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
@@ -218,6 +218,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             response = {
                 "text": "[Cancelled: permission request timed out]",
                 "content": [{"type": "text", "text": "[Cancelled: permission request timed out]"}],
+                "cancelled": True,
             }
         
         if response.get("cancelled"):
@@ -227,10 +228,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 "type": "cancelled",
                 "title": "Cancelled"
             })
-            response = {
-                "text": "[Cancelled]",
-                "content": [{"type": "text", "text": "[Cancelled]"}],
-            }
+            # Don't overwrite with generic message — keep the specific one from the client.
 
         # Process content blocks - store images/files in media table
         db = await get_db()

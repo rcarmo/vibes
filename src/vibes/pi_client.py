@@ -151,13 +151,29 @@ async def _read_event(reader) -> dict:
                 # Parsed non-dict — discard and continue extracting.
                 continue
             except json.JSONDecodeError as e:
-                # Is the error indicating an incomplete event (needs more data)?
-                if e.msg.startswith("Unterminated") or e.pos > len(stripped) // 2:
+                # Decide: incomplete (need more data) or malformed (skip)?
+                # "Unterminated" at the very end of the buffer means we
+                # likely have a truncated event.  But if the buffer already
+                # contains a *later* '{' beyond the error position, the
+                # current object is malformed — skip to the next one.
+                is_unterminated = e.msg.startswith("Unterminated")
+                if is_unterminated:
+                    next_brace = stripped.find("{", 1)
+                    if next_brace != -1 and next_brace < e.pos:
+                        # There is another object start before the error —
+                        # the current prefix is malformed, skip to it.
+                        logger.debug(
+                            "Pi RPC: skipping malformed prefix (%s at pos %d)",
+                            e.msg, e.pos,
+                        )
+                        _state.rpc_buffer = stripped[next_brace:]
+                        continue
+                    # Truly incomplete — wait for more data.
                     _state.rpc_buffer = stripped
                     break
 
-                # Error is near the start — this prefix is malformed.
-                # Skip past this '{' to the next candidate.
+                # Non-unterminated error: the start of the buffer is
+                # malformed.  Skip past this '{' to the next candidate.
                 next_brace = stripped.find("{", 1)
                 if next_brace != -1:
                     logger.debug(
@@ -172,8 +188,27 @@ async def _read_event(reader) -> dict:
                     break
 
         # Read more data from the stream.
+        # Use a per-read timeout so the safety valve can fire even when
+        # Pi has stopped writing (e.g. it already sent agent_end but our
+        # buffer has a malformed prefix blocking extraction).
         try:
-            chunk = await reader.read(524288)
+            chunk = await asyncio.wait_for(reader.read(524288), timeout=30.0)
+        except asyncio.TimeoutError:
+            reads_without_event += 1
+            if reads_without_event >= 3 and _state.rpc_buffer:
+                # We've been waiting with no new data — the buffer is
+                # likely stuck on a malformed event.  Force a skip.
+                first_brace = _state.rpc_buffer.find("{")
+                if first_brace != -1:
+                    next_brace = _state.rpc_buffer.find("{", first_brace + 1)
+                    if next_brace != -1:
+                        logger.warning(
+                            "Pi RPC: read timeout with %d bytes buffered; skipping to next event",
+                            len(_state.rpc_buffer),
+                        )
+                        _state.rpc_buffer = _state.rpc_buffer[next_brace:]
+                        reads_without_event = 0
+            continue
         except ValueError:
             logger.warning("Pi RPC: read exceeded buffer limit, clearing buffer")
             _state.rpc_buffer = ""
@@ -964,6 +999,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 "text": "[Request cancelled]",
                 "content": [{"type": "text", "text": "[Request cancelled]"}],
                 "cancelled": True,
+                "cancel_reason": "abort",
             }
         except Exception as e:
             logger.error(f"Error communicating with pi agent: {e}", exc_info=True)
