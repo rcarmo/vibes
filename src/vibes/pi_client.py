@@ -26,6 +26,7 @@ class _PiState:
         self.request_lock = asyncio.Lock()
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = None
+        self.rpc_partial = ""
 
 
 _state = _PiState()
@@ -54,6 +55,7 @@ def reset_state() -> None:
     _state.request_lock = asyncio.Lock()
     _state.pending_requests = {}
     _state.request_callback = None
+    _state.rpc_partial = ""
 
 
 def is_pi_running() -> bool:
@@ -79,13 +81,21 @@ async def _read_event(reader) -> dict | None:
         return None
     if not line:
         raise RuntimeError("Pi agent connection closed")
-    text = line.decode("utf-8", errors="replace").strip()
-    if not text:
+    text = line.decode("utf-8", errors="replace").rstrip("\r\n")
+    if _state.rpc_partial:
+        text = f"{_state.rpc_partial}{text}"
+    if not text.strip():
+        _state.rpc_partial = ""
         return None
 
+    last_error: json.JSONDecodeError | None = None
     try:
-        return json.loads(text)
-    except json.JSONDecodeError:
+        obj = json.loads(text)
+        if isinstance(obj, dict):
+            _state.rpc_partial = ""
+            return obj
+    except json.JSONDecodeError as err:
+        last_error = err
         pass
 
     # Some environments may prepend log noise before JSON events.
@@ -99,19 +109,42 @@ async def _read_event(reader) -> dict | None:
         try:
             obj = json.loads(candidate)
             if isinstance(obj, dict):
+                _state.rpc_partial = ""
                 return obj
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as err:
+            last_error = err
             try:
                 obj, idx = decoder.raw_decode(candidate)
                 if isinstance(obj, dict):
                     trailing = candidate[idx:].strip()
-                    if trailing:
+                    if trailing.startswith("{"):
+                        _state.rpc_partial = trailing
+                    else:
+                        _state.rpc_partial = ""
+                    if trailing and not trailing.startswith("{"):
                         logger.debug("Pi RPC: trailing non-JSON data after event was ignored")
                     return obj
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as err2:
+                last_error = err2
                 continue
 
-    logger.warning(f"Pi RPC: invalid JSON line ignored: {text[:200]!r}")
+    # If this looks like a fragmented JSON object, buffer it and wait for next line.
+    stripped = text.lstrip()
+    if stripped.startswith("{") and not stripped.endswith("}") and len(text) <= 2 * 1024 * 1024:
+        _state.rpc_partial = f"{text}\n"
+        logger.debug("Pi RPC: buffering partial JSON fragment (%d chars)", len(_state.rpc_partial))
+        return None
+
+    _state.rpc_partial = ""
+    if last_error:
+        logger.warning(
+            "Pi RPC: invalid JSON line ignored (%s at pos %s): %r",
+            last_error.msg,
+            last_error.pos,
+            text[:200],
+        )
+    else:
+        logger.warning(f"Pi RPC: invalid JSON line ignored: {text[:200]!r}")
     return None
 
 
@@ -166,6 +199,7 @@ async def stop_pi_agent() -> None:
             _state.agent_proc = None
             _state.agent_reader = None
             _state.agent_writer = None
+            _state.rpc_partial = ""
 
 
 def _extract_tool_status(result: dict | None) -> str | None:
