@@ -119,27 +119,55 @@ async def _read_event(reader) -> dict:
     JSON object.  raw_decode with strict=False handles all control chars
     natively and stops exactly at the end of the first JSON value.
     """
+    # Track consecutive read() calls that didn't yield an event.
+    # If we keep reading without parsing anything, the buffer start is
+    # likely stuck on a malformed event — we need to skip past it.
+    reads_without_event = 0
+
     while True:
-        # Try to extract from existing buffer.
-        buf = _state.rpc_buffer.lstrip()
-        if buf:
-            # Skip to first '{'.
-            idx = buf.find("{")
+        # Try to extract complete JSON objects from the buffer.
+        while _state.rpc_buffer:
+            # Skip whitespace and find the start of the next object.
+            stripped = _state.rpc_buffer.lstrip()
+            if not stripped:
+                _state.rpc_buffer = ""
+                break
+
+            idx = stripped.find("{")
             if idx == -1:
                 _state.rpc_buffer = ""
-            else:
-                if idx > 0:
-                    buf = buf[idx:]
-                try:
-                    obj, end = _decoder.raw_decode(buf)
-                    _state.rpc_buffer = buf[end:]
-                    if isinstance(obj, dict):
-                        return obj
-                    # Parsed non-dict (unlikely) — discard and loop.
+                break
+            if idx > 0:
+                stripped = stripped[idx:]
+
+            try:
+                obj, end = _decoder.raw_decode(stripped)
+                _state.rpc_buffer = stripped[end:]
+                reads_without_event = 0
+                if isinstance(obj, dict):
+                    return obj
+                # Parsed non-dict — discard and continue extracting.
+                continue
+            except json.JSONDecodeError as e:
+                # Is the error indicating an incomplete event (needs more data)?
+                if e.msg.startswith("Unterminated") or e.pos > len(stripped) // 2:
+                    _state.rpc_buffer = stripped
+                    break
+
+                # Error is near the start — this prefix is malformed.
+                # Skip past this '{' to the next candidate.
+                next_brace = stripped.find("{", 1)
+                if next_brace != -1:
+                    logger.debug(
+                        "Pi RPC: skipping malformed prefix (%s at pos %d)",
+                        e.msg, e.pos,
+                    )
+                    _state.rpc_buffer = stripped[next_brace:]
                     continue
-                except json.JSONDecodeError:
-                    # Incomplete or malformed — need more data.
-                    _state.rpc_buffer = buf
+                else:
+                    # No more '{' — discard everything and read more.
+                    _state.rpc_buffer = ""
+                    break
 
         # Read more data from the stream.
         try:
@@ -147,6 +175,7 @@ async def _read_event(reader) -> dict:
         except ValueError:
             logger.warning("Pi RPC: read exceeded buffer limit, clearing buffer")
             _state.rpc_buffer = ""
+            reads_without_event = 0
             continue
 
         if not chunk:
@@ -154,12 +183,29 @@ async def _read_event(reader) -> dict:
             raise RuntimeError(_connection_closed_message())
 
         _state.rpc_buffer += chunk.decode("utf-8", errors="replace")
+        reads_without_event += 1
+
+        # Safety valve: if we've read many chunks without extracting a
+        # single event, the buffer is probably stuck on a malformed prefix.
+        # Skip past the first '{' and try the next one.
+        if reads_without_event >= 20 and _state.rpc_buffer:
+            first_brace = _state.rpc_buffer.find("{")
+            if first_brace != -1:
+                next_brace = _state.rpc_buffer.find("{", first_brace + 1)
+                if next_brace != -1:
+                    logger.warning(
+                        "Pi RPC: stuck for %d reads (%d bytes); skipping to next event",
+                        reads_without_event,
+                        len(_state.rpc_buffer),
+                    )
+                    _state.rpc_buffer = _state.rpc_buffer[next_brace:]
+                    reads_without_event = 0
 
         # Prevent unbounded growth.
         if len(_state.rpc_buffer) > _MAX_RPC_BUFFER:
             logger.warning("Pi RPC: buffer exceeded %d bytes, truncating", _MAX_RPC_BUFFER)
-            # Keep the tail — most likely to contain the next valid event.
             _state.rpc_buffer = _state.rpc_buffer[-_MAX_RPC_BUFFER // 2:]
+            reads_without_event = 0
 
 
 async def _send_command(payload: dict) -> None:

@@ -235,3 +235,43 @@ async def test_read_event_buffered_remainder():
     e2 = await _read_event(reader)
     assert e1 == {"type": "a"}
     assert e2 == {"type": "b"}
+
+
+@pytest.mark.asyncio
+async def test_read_event_malformed_prefix_skipped():
+    """A malformed JSON prefix must be skipped, not block forever."""
+    # Simulate: broken event sitting in buffer, then valid event arrives.
+    pi_client._state.rpc_buffer = '{malformed garbage'
+    reader = FakeReader([b'\n{"type":"agent_end"}\n'])
+    event = await _read_event(reader)
+    assert event == {"type": "agent_end"}
+
+
+@pytest.mark.asyncio
+async def test_read_event_malformed_between_valid():
+    """Malformed event sandwiched between valid ones doesn't hang."""
+    data = b'{"type":"a"}\n{broken\n{"type":"b"}\n'
+    reader = FakeReader([data])
+    e1 = await _read_event(reader)
+    e2 = await _read_event(reader)
+    assert e1 == {"type": "a"}
+    assert e2 == {"type": "b"}
+
+
+@pytest.mark.asyncio
+async def test_read_event_stuck_buffer_recovery():
+    """After many reads without an event, parser skips stuck prefix."""
+    # Simulate a permanently broken event followed by many data chunks,
+    # then finally a valid event.  The safety valve should skip the stuck
+    # prefix after 20 reads.
+    chunks = []
+    # Broken event prefix that raw_decode sees as "Unterminated"
+    chunks.append(b'{"type":"broken","text":"no closing quote')
+    # 25 small chunks of additional noise (no valid JSON)
+    for _ in range(25):
+        chunks.append(b" more data")
+    # Then a valid event after another '{'
+    chunks.append(b'\n{"type":"recovered"}\n')
+    reader = FakeReader(chunks)
+    event = await _read_event(reader)
+    assert event == {"type": "recovered"}
