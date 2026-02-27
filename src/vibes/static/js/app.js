@@ -925,21 +925,53 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
  * Agent status indicator
  */
 function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
-    if (!status && !draft && !plan && !thought && !pendingRequest) return null;
+    const THOUGHT_MAX_LINES = 8;
+    const DRAFT_MAX_LINES = 8;
+    const PREVIEW_MAX_CHARS_PER_LINE = 160;
 
-    const DRAFT_MAX_CHARS = 2048;
-    const DRAFT_TAIL_CHARS = 256;
-
-    const truncateDraft = (text) => {
-        const value = text || '';
-        if (value.length <= DRAFT_MAX_CHARS) return { text: value, omitted: 0 };
-        const headLen = Math.max(0, DRAFT_MAX_CHARS - DRAFT_TAIL_CHARS);
-        const head = value.slice(0, headLen);
-        const tail = value.slice(-DRAFT_TAIL_CHARS);
-        const omitted = value.length - head.length - tail.length;
-        return { text: `${head}\n…\n${tail}`, omitted };
+    const normalizePreview = (value) => {
+        if (!value) return { text: '', totalLines: 0 };
+        if (typeof value === 'string') {
+            const totalLines = value ? value.replace(/\r\n/g, '\n').split('\n').length : 0;
+            return { text: value, totalLines };
+        }
+        const text = value.text || '';
+        const totalLines = Number.isFinite(value.totalLines)
+            ? value.totalLines
+            : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
+        return { text, totalLines };
     };
-    
+
+    const countSoftLines = (line) => {
+        if (!line) return 1;
+        return Math.max(1, Math.ceil(line.length / PREVIEW_MAX_CHARS_PER_LINE));
+    };
+
+    const truncateLines = (text, maxLines, totalLinesOverride) => {
+        const value = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+        if (!value) {
+            const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : 0;
+            return { text: '', omitted: 0, totalLines, visibleLines: 0 };
+        }
+        const lines = value.split('\n');
+        const clipped = lines.length > maxLines ? lines.slice(0, maxLines).join('\n') : value;
+        const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : lines.reduce((acc, line) => acc + countSoftLines(line), 0);
+        const visibleLines = clipped
+            ? clipped.split('\n').reduce((acc, line) => acc + countSoftLines(line), 0)
+            : 0;
+        const omitted = Math.max(totalLines - visibleLines, 0);
+        return { text: clipped, omitted, totalLines, visibleLines };
+    };
+
+    const planInfo = normalizePreview(plan);
+    const thoughtInfo = normalizePreview(thought);
+    const draftInfo = normalizePreview(draft);
+    const hasPlan = Boolean(planInfo.text) || planInfo.totalLines > 0;
+    const hasThought = Boolean(thoughtInfo.text) || thoughtInfo.totalLines > 0;
+    const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
+
+    if (!status && !hasDraft && !hasPlan && !hasThought && !pendingRequest) return null;
+
     let content = '';
     const title = status?.title;
     const statusText = status?.status;
@@ -952,7 +984,26 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
     } else {
         content = title || statusText || 'Working...';
     }
-    
+
+    const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass }) => {
+        const truncated = typeof maxLines === 'number'
+            ? truncateLines(text, maxLines, totalLines)
+            : { text: text || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
+        if (!truncated.text && !(Number.isFinite(truncated.totalLines) && truncated.totalLines > 0)) return null;
+        return html`
+            <div class="agent-thinking">
+                <div class="agent-thinking-title ${titleClass || ''}">${panelTitle}</div>
+                <div
+                    class="agent-thinking-body"
+                    dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(truncated.text) }}
+                />
+                ${truncated.omitted > 0 && html`
+                    <div class="agent-thinking-truncation">(${truncated.omitted} more lines)</div>
+                `}
+            </div>
+        `;
+    };
+
     const pendingTitle = pendingRequest?.tool_call?.title;
     const pendingMessage = pendingTitle ? `Awaiting approval: ${pendingTitle}` : 'Awaiting approval';
 
@@ -964,39 +1015,25 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
                     <span class="agent-status-text">${pendingMessage}</span>
                 </div>
             `}
-            ${plan && html`
-                <div class="agent-thinking">
-                    <div class="agent-thinking-title">Planning</div>
-                    <div
-                        class="agent-thinking-body"
-                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(plan) }}
-                    />
-                </div>
-            `}
-            ${thought && html`
-                <div class="agent-thinking">
-                    <div class="agent-thinking-title thought">Thoughts</div>
-                    <div
-                        class="agent-thinking-body"
-                        dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(thought) }}
-                    />
-                </div>
-            `}
-            ${draft && (() => {
-                const truncated = truncateDraft(draft);
-                return html`
-                    <div class="agent-thinking">
-                        <div class="agent-thinking-title thought">Draft</div>
-                        <div
-                            class="agent-thinking-body"
-                            dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(truncated.text) }}
-                        />
-                        ${truncated.omitted > 0 && html`
-                            <div class="agent-thinking-truncation">(${truncated.omitted} more characters)</div>
-                        `}
-                    </div>
-                `;
-            })()}
+            ${hasPlan && renderThinkingPanel({
+                panelTitle: 'Planning',
+                text: planInfo.text,
+                totalLines: planInfo.totalLines,
+            })}
+            ${hasThought && renderThinkingPanel({
+                panelTitle: 'Thoughts',
+                text: thoughtInfo.text,
+                totalLines: thoughtInfo.totalLines,
+                maxLines: THOUGHT_MAX_LINES,
+                titleClass: 'thought',
+            })}
+            ${hasDraft && renderThinkingPanel({
+                panelTitle: 'Draft',
+                text: draftInfo.text,
+                totalLines: draftInfo.totalLines,
+                maxLines: DRAFT_MAX_LINES,
+                titleClass: 'thought',
+            })}
             ${status && html`
                 <div class="agent-status">
                     <div class="agent-status-spinner"></div>
