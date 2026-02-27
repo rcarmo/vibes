@@ -61,3 +61,46 @@ Pi is kept warm by default even if all SSE clients disconnect. Set `VIBES_PI_RES
 - Use `GET /agents` to verify agent status and mode.
 - Ensure `VIBES_PI_AGENT` is in PATH and callable by the server process.
 - Check server logs for Pi startup/shutdown messages.
+
+## RPC Parsing Notes
+
+Pi communicates via **newline-delimited JSON** on stdout when running with `--mode rpc`. In practice, JSON events frequently contain **raw control characters** (literal `\n`, `\t`, `\r` bytes — not `\\n` escapes) inside string values, particularly in:
+
+- `thinking_delta` events — the `partial.thinking` field carries the **entire accumulated thinking text**, which grows to hundreds of lines during long reasoning sessions.
+- `toolcall_delta` events — tool argument deltas can contain file contents with embedded newlines.
+- `tool_execution_update` / `turn_end` events — base64 `toolCallId` fields can exceed 50 KB.
+
+### Why `readline()` doesn't work
+
+A naive `readline()` approach splits on every `\n` byte, including those *inside* JSON string values. A single `thinking_delta` event with 500 lines of thinking content would be split into 500+ readline segments. Any line-stitching approach either:
+
+- Drops events when stitching exceeds a cap (causing hung responses — the UI waits for `agent_end` that was silently discarded), or
+- Re-parses the growing buffer on every stitch (O(N²) per event).
+
+### Current approach: `read()` + `raw_decode(strict=False)`
+
+The parser uses `reader.read(524288)` to read raw byte chunks into a persistent string buffer (`_state.rpc_buffer`), then calls `json.JSONDecoder(strict=False).raw_decode()` to extract complete JSON objects:
+
+- `strict=False` tells Python's JSON parser to **accept raw control characters** inside strings — no sanitization needed.
+- `raw_decode()` stops at the exact end of the first JSON value, leaving remaining data in the buffer for the next call.
+- No dependence on newline boundaries at all.
+- Buffer is capped at 16 MB to prevent unbounded growth; on overflow the oldest half is discarded.
+
+### Key event types
+
+| Event | Description |
+|-------|-------------|
+| `agent_start` | Agent session begins |
+| `turn_start` / `turn_end` | One reasoning turn |
+| `message_start` / `message_update` / `message_end` | Text/thinking/tool-call deltas |
+| `tool_execution_start` / `tool_execution_update` / `tool_execution_end` | Tool runs |
+| `extension_ui_request` | Permission/choice dialogs |
+| `agent_end` | **Terminal event** — loop must wait for this |
+
+### Debugging
+
+If responses hang (no reply until `/restart`), check logs for:
+
+- `Pi RPC: buffer exceeded ... truncating` — a single event exceeded 16 MB (extremely rare; increase `_MAX_RPC_BUFFER`).
+- `Pi RPC: read exceeded buffer limit` — the asyncio pipe limit (16 MB) was hit. Increase the `limit=` parameter in `create_subprocess_exec`.
+- `Pi RPC: timed out waiting for agent_end` — Pi stopped sending events but didn't close. Check if Pi is alive (`/agents` endpoint).

@@ -143,7 +143,7 @@ async def _read_event(reader) -> dict:
 
         # Read more data from the stream.
         try:
-            chunk = await reader.read(65536)
+            chunk = await reader.read(524288)
         except ValueError:
             logger.warning("Pi RPC: read exceeded buffer limit, clearing buffer")
             _state.rpc_buffer = ""
