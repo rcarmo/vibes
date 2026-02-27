@@ -114,16 +114,14 @@ _STUCK_READ_THRESHOLD = 3  # read timeouts before force-skipping
 async def _read_event(reader) -> dict:
     """Read one JSON event from Pi stdout.
 
-    Pi emits newline-delimited JSON, but tool/thinking payloads contain
-    raw control characters (including literal 0x0a newlines) inside JSON
-    string values.  No streaming JSON parser (ijson, json-stream, etc.)
-    accepts raw control chars — they all reject them per the JSON spec.
-    Only Python's built-in ``json.JSONDecoder(strict=False)`` handles this.
+    Pi emits newline-delimited JSON via ``JSON.stringify()``, which always
+    produces valid JSON.  We use ``read()`` + ``raw_decode()`` instead of
+    ``readline()`` because pipe reads can split a JSON line mid-event —
+    ``readline()`` would return a partial line that fails to parse.
 
-    We use ``raw_decode(strict=False)`` on a byte buffer, which:
-    - accepts raw 0x00-0x1F bytes inside strings
-    - stops at the exact end of the first complete JSON value
-    - works regardless of newline boundaries
+    ``raw_decode(strict=False)`` extracts the first complete JSON object
+    from the buffer regardless of newline positions.  ``strict=False`` is
+    kept as a safety margin at zero cost.
     """
     # Track consecutive read() calls that didn't yield an event.
     # If we keep reading without parsing anything, the buffer start is
@@ -774,21 +772,54 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     return tool_titles[tool_call_id]
                 return _format_tool_title(tool_name, args)
 
+            _STALL_WARN_INTERVAL = 30  # seconds before showing stall warning
+
             while True:
                 try:
                     config = get_config()
                     event_timeout = config.pi_agent_end_timeout_s if saw_turn_end else config.pi_response_timeout_s
+
                     if event_timeout > 0:
-                        event = await asyncio.wait_for(
-                            _read_event(_state.agent_reader), timeout=event_timeout
-                        )
+                        # Use a shorter inner timeout so we can broadcast stall
+                        # warnings while still respecting the overall timeout.
+                        remaining = event_timeout
+                        while remaining > 0:
+                            interval = min(_STALL_WARN_INTERVAL, remaining)
+                            try:
+                                event = await asyncio.wait_for(
+                                    _read_event(_state.agent_reader), timeout=interval
+                                )
+                                break  # got an event
+                            except asyncio.TimeoutError:
+                                remaining -= interval
+                                if remaining > 0 and status_callback:
+                                    await status_callback({
+                                        "type": "tool_status",
+                                        "title": "Waiting for model",
+                                        "status": f"No events for {int(event_timeout - remaining)}s…",
+                                    })
+                        else:
+                            # Exhausted all remaining time — raise as outer timeout.
+                            raise asyncio.TimeoutError()
                     else:
                         event = await _read_event(_state.agent_reader)
                 except asyncio.TimeoutError:
-                    if saw_turn_end or final_message or draft_text:
+                    if saw_turn_end or final_message or draft_text or thought_text:
                         logger.warning("Pi RPC: timed out waiting for agent_end; finalizing from collected content")
+                        if status_callback:
+                            await status_callback({
+                                "type": "tool_status",
+                                "title": "Response stalled",
+                                "status": "Finalizing from partial content…",
+                            })
                         finalized_from_collected = True
                         break
+                    if status_callback:
+                        await status_callback({
+                            "type": "tool_status",
+                            "title": "Response stalled",
+                            "status": "No content received — giving up",
+                        })
                     raise RuntimeError("Pi agent timed out waiting for response")
                 except RuntimeError as e:
                     if "connection closed" in str(e).lower() and (saw_turn_end or final_message or draft_text):
@@ -950,6 +981,14 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
 
             if not final_message and finalized_from_collected and thought_text:
                 final_message = {"content": [{"type": "text", "text": thought_text}]}
+
+            # Append a note when the response was finalized from partial content.
+            if finalized_from_collected and final_message:
+                stall_note = "\n\n---\n*⚠️ Response may be incomplete — the model stopped responding and the reply was assembled from partial content.*"
+                existing = final_message.get("content", [])
+                if isinstance(existing, list):
+                    existing.append({"type": "text", "text": stall_note})
+                    final_message["content"] = existing
 
             if not final_message:
                 return {
