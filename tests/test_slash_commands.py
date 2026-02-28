@@ -275,7 +275,8 @@ async def test_commands_lists_all():
     result = await execute_command(cmd, "acp")
     assert "/model" in result.message
     assert "/thinking" in result.message
-    assert "/steer" in result.message
+    assert "/steer" not in result.message
+    assert "/queue" in result.message
     assert "/abort" in result.message
 
 
@@ -450,34 +451,34 @@ async def test_abort_acp_not_supported():
 
 
 @pytest.mark.asyncio
-async def test_steer_pi():
-    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=True):
-        cmd = SlashCommand(name="steer", args="focus on the tests", raw="/steer focus on the tests")
+async def test_queue_pi_busy():
+    with patch("vibes.pi_client.is_busy", return_value=True):
+        cmd = SlashCommand(name="queue", args="do the tests next", raw="/queue do the tests next")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
-        assert "focus on the tests" in result.message
+        assert "queued" in result.message.lower()
+        assert "do the tests next" in result.message
 
 
 @pytest.mark.asyncio
-async def test_steer_no_args():
-    cmd = SlashCommand(name="steer", args="", raw="/steer")
+async def test_queue_no_args():
+    cmd = SlashCommand(name="queue", args="", raw="/queue")
     result = await execute_command(cmd, "pi")
     assert result.status == "error"
     assert "Usage" in result.message
 
 
 @pytest.mark.asyncio
-async def test_steer_not_running():
-    with patch("vibes.pi_client.send_rpc_fire_and_forget", new_callable=AsyncMock, return_value=False):
-        cmd = SlashCommand(name="steer", args="do X", raw="/steer do X")
+async def test_queue_idle():
+    with patch("vibes.pi_client.is_busy", return_value=False):
+        cmd = SlashCommand(name="queue", args="do X", raw="/queue do X")
         result = await execute_command(cmd, "pi")
-        assert result.status == "error"
-        assert "not running" in result.message
+        assert "idle" in result.message.lower()
 
 
 @pytest.mark.asyncio
-async def test_steer_acp_not_supported():
-    cmd = SlashCommand(name="steer", args="do X", raw="/steer do X")
+async def test_queue_acp_not_supported():
+    cmd = SlashCommand(name="queue", args="do X", raw="/queue do X")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
     assert "only supported" in result.message

@@ -19,6 +19,8 @@ from ..acp_client import (
 from ..pi_client import (
     send_message_multimodal as send_pi_message_multimodal,
     is_pi_running,
+    is_busy as is_pi_busy,
+    send_rpc_fire_and_forget as send_pi_rpc_fire_and_forget,
     set_request_callback as set_pi_request_callback,
     respond_to_request as respond_to_pi_request,
 )
@@ -282,6 +284,14 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         })
         
         logger.info(f"Agent response posted for thread {thread_id} with {len(media_ids)} media items")
+
+        # Check for queued messages and send the next one
+        if agent_mode == "pi":
+            from ..pi_client import pop_queued_message
+            queued = pop_queued_message()
+            if queued:
+                logger.info("Sending queued message after turn completion")
+                enqueue(process_agent_response, thread_id, queued, agent_id)
         
     except Exception as e:
         logger.error(f"Error processing agent response: {e}", exc_info=True)
@@ -419,6 +429,18 @@ async def send_message(request: web.Request) -> web.Response:
                 "command": {"status": result.status, "message": result.message},
             }, status=201)
         # Not a built-in command — fall through to forward to agent
+
+    # If agent is busy, send as steering instead of queueing a new turn
+    agent_mode = _resolve_agent_mode(agent_id)
+    if agent_mode == "pi" and is_pi_busy():
+        ok = await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]})
+        status_msg = "Sent as steering to active turn" if ok else "Agent is busy (steering failed)"
+        return web.json_response({
+            "user_message": user_interaction,
+            "thread_id": thread_id,
+            "steered": ok,
+            "status": status_msg,
+        }, status=201)
 
     # Queue agent response processing in background
     enqueue(process_agent_response, thread_id, data["content"], agent_id)

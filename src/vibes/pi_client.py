@@ -33,6 +33,7 @@ class _PiState:
         self.current_request_task: asyncio.Task | None = None
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = None
+        self.message_queue: list[str] = []
 
 
 _state = _PiState()
@@ -65,6 +66,7 @@ def reset_state() -> None:
     _state.current_request_task = None
     _state.pending_requests = {}
     _state.request_callback = None
+    _state.message_queue = []
     _state.rpc_buffer = ""
 
 
@@ -302,6 +304,23 @@ def cancel_current_request() -> bool:
         logger.info("Pi RPC: cancelled in-flight request task")
         return True
     return False
+
+
+def is_busy() -> bool:
+    """Return True if a request is currently in-flight."""
+    return _state.request_lock.locked()
+
+
+def queue_message(message: str) -> None:
+    """Queue a message to be sent after the current turn completes."""
+    _state.message_queue.append(message)
+
+
+def pop_queued_message() -> str | None:
+    """Pop the next queued message, or None if empty."""
+    if _state.message_queue:
+        return _state.message_queue.pop(0)
+    return None
 
 
 async def start_pi_agent() -> bool:

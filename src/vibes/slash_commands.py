@@ -78,8 +78,8 @@ async def execute_command(
     if command.name == "abort":
         return await _handle_abort(agent_mode)
 
-    if command.name == "steer":
-        return await _handle_steer(command.args, agent_mode)
+    if command.name == "queue":
+        return await _handle_queue(command.args, agent_mode)
 
     if command.name == "prompt":
         return _handle_prompt(command.args)
@@ -98,13 +98,14 @@ def _list_commands() -> SlashCommandResult:
         "Available commands:",
         "- `/model [provider/model]` - Show or set the model",
         "- `/thinking [level]` - Show or set thinking level",
-        "- `/steer <message>` - Steer the agent mid-turn",
         "- `/prompt [text]` - Show or set the user system prompt",
+        "- `/queue <message>` - Queue a message for after the current turn",
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
         "- `/shell <command>` - Run a shell command",
         "- `/commands` - List available commands",
         "",
+        "Messages sent while the agent is working are automatically sent as steering.",
         "Any other /command is forwarded to the agent.",
     ]
     return SlashCommandResult(status="success", message="\n".join(lines))
@@ -401,26 +402,33 @@ async def _handle_abort(agent_mode: str) -> SlashCommandResult:
     return SlashCommandResult(status="error", message="Pi agent is not running.")
 
 
-async def _handle_steer(args: str, agent_mode: str) -> SlashCommandResult:
-    """Send a steering message to the agent mid-turn."""
+async def _handle_queue(args: str, agent_mode: str) -> SlashCommandResult:
+    """Queue a message to be sent after the current turn completes."""
     if not args:
         return SlashCommandResult(
             status="error",
-            message="Usage: `/steer <message>`",
+            message="Usage: `/queue <message>`",
         )
 
     if agent_mode != "pi":
         return SlashCommandResult(
             status="error",
-            message="Steering is only supported for Pi agents.",
+            message="Message queueing is only supported for Pi agents.",
         )
 
-    from .pi_client import send_rpc_fire_and_forget
+    from .pi_client import is_busy, queue_message
 
-    ok = await send_rpc_fire_and_forget({"type": "steer", "message": args})
-    if ok:
-        return SlashCommandResult(status="success", message=f"Steering sent: {args}")
-    return SlashCommandResult(status="error", message="Pi agent is not running.")
+    if not is_busy():
+        return SlashCommandResult(
+            status="success",
+            message="Agent is idle — send your message directly (no need to queue).",
+        )
+
+    queue_message(args)
+    return SlashCommandResult(
+        status="success",
+        message=f"Message queued — will be sent after the current turn:\n```\n{args}\n```",
+    )
 
 
 def _handle_prompt(args: str) -> SlashCommandResult:
