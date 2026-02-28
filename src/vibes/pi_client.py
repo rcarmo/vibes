@@ -398,6 +398,36 @@ def _extract_tool_status(result: dict | None) -> str | None:
     return None
 
 
+def _status_from_auto_compaction_event(event: dict[str, Any]) -> dict[str, str] | None:
+    event_type = event.get("type")
+    if event_type == "auto_compaction_start":
+        reason = event.get("reason")
+        reason_suffix = f" ({reason})" if isinstance(reason, str) and reason else ""
+        return {
+            "type": "tool_status",
+            "title": "Context compaction",
+            "status": f"Auto-compacting context{reason_suffix}…",
+        }
+    if event_type == "auto_compaction_end":
+        if event.get("aborted"):
+            if event.get("willRetry"):
+                status = "Compaction interrupted, retrying…"
+            else:
+                status = "Compaction aborted"
+        elif event.get("errorMessage"):
+            status = f"Compaction failed: {event.get('errorMessage')}"
+        elif event.get("result") is not None:
+            status = "Compaction complete"
+        else:
+            status = "Compaction finished"
+        return {
+            "type": "tool_status",
+            "title": "Context compaction",
+            "status": status,
+        }
+    return None
+
+
 def _extract_tool_args(args: Any) -> dict | None:
     if not args:
         return None
@@ -850,6 +880,12 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     raise
 
                 event_type = event.get("type")
+
+                if status_callback:
+                    compaction_status = _status_from_auto_compaction_event(event)
+                    if compaction_status:
+                        await status_callback(compaction_status)
+                        continue
 
                 if event_type == "message_update":
                     delta = event.get("assistantMessageEvent", {})

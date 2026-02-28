@@ -174,3 +174,40 @@ def test_reset_state_clears_everything():
     assert pi._state.request_callback is None
     assert pi._state.current_request_task is None
     assert pi._state.pending_requests == {}
+
+
+def test_status_from_auto_compaction_start():
+    status = pi._status_from_auto_compaction_event(
+        {"type": "auto_compaction_start", "reason": "threshold"}
+    )
+    assert status == {
+        "type": "tool_status",
+        "title": "Context compaction",
+        "status": "Auto-compacting context (threshold)…",
+    }
+
+
+def test_status_from_auto_compaction_end_retrying():
+    status = pi._status_from_auto_compaction_event(
+        {"type": "auto_compaction_end", "aborted": True, "willRetry": True}
+    )
+    assert status == {
+        "type": "tool_status",
+        "title": "Context compaction",
+        "status": "Compaction interrupted, retrying…",
+    }
+
+
+def test_status_from_auto_compaction_end_complete():
+    status = pi._status_from_auto_compaction_event(
+        {"type": "auto_compaction_end", "aborted": False, "result": {"summary": "ok"}}
+    )
+    assert status == {
+        "type": "tool_status",
+        "title": "Context compaction",
+        "status": "Compaction complete",
+    }
+
+
+def test_status_from_auto_compaction_event_non_compaction():
+    assert pi._status_from_auto_compaction_event({"type": "message_update"}) is None
