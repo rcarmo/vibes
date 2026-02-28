@@ -1663,18 +1663,6 @@ function App() {
             })
             .catch((e) => console.warn('Failed to load agents:', e));
     }, []);
-    
-    useEffect(() => {
-        getAgents()
-            .then((data) => {
-                const map = {};
-                (data.agents || []).forEach((agent) => {
-                    map[agent.id] = agent;
-                });
-                setAgents(map);
-            })
-            .catch((e) => console.warn('Failed to load agents:', e));
-    }, []);
 
     // Silence detection timer
     useEffect(() => {
@@ -1876,6 +1864,15 @@ function App() {
                     loadMoreRef.current?.();
                 }
             }
+        }
+        if (eventType === 'agents_changed') {
+            getAgents()
+                .then((data) => {
+                    const map = {};
+                    (data.agents || []).forEach((agent) => { map[agent.id] = agent; });
+                    setAgents(map);
+                })
+                .catch((e) => console.warn('Failed to reload agents:', e));
         }
     }, [clearAgentRunState, setActiveTurn, noteAgentActivity, removeStalledPost]);
 

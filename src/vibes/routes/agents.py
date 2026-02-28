@@ -423,6 +423,8 @@ async def send_message(request: web.Request) -> web.Response:
             response_id = await db.create_interaction(agent_response)
             response_interaction = await db.get_interaction(response_id)
             await broadcast_event("agent_response", response_interaction)
+            if result.refresh_agents:
+                await broadcast_event("agents_changed", {})
             return web.json_response({
                 "user_message": user_interaction,
                 "thread_id": thread_id,

@@ -24,6 +24,7 @@ class SlashCommandResult:
     status: str  # "success" or "error"
     message: str
     handled: bool = True  # False means forward to agent as normal prompt
+    refresh_agents: bool = False  # True to tell frontend to reload agents
 
 
 @dataclass
@@ -495,6 +496,7 @@ def _handle_name(args: str) -> SlashCommandResult:
         return SlashCommandResult(
             status="success",
             message=f"Agent name reset to default: **{config.agent_name}**",
+            refresh_agents=True,
         )
 
     config.agent_name = args.strip()
@@ -503,6 +505,7 @@ def _handle_name(args: str) -> SlashCommandResult:
     return SlashCommandResult(
         status="success",
         message=f"Agent name set to **{args.strip()}**",
+        refresh_agents=True,
     )
 
 
