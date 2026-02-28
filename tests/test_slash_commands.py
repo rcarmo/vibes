@@ -544,3 +544,43 @@ async def test_prompt_works_in_acp_mode():
     assert "Be brief" in result.message
     # Clean up
     await execute_command(SlashCommand(name="prompt", args="clear", raw="/prompt clear"), "acp")
+
+
+# ── /name ─────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_name_show():
+    cmd = SlashCommand(name="name", args="", raw="/name")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "Agent name" in result.message
+
+
+@pytest.mark.asyncio
+async def test_name_set():
+    cmd = SlashCommand(name="name", args="HAL 9000", raw="/name HAL 9000")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "HAL 9000" in result.message
+    from vibes.config import get_config
+    assert get_config().agent_name == "HAL 9000"
+    # Clean up
+    await execute_command(SlashCommand(name="name", args="clear", raw="/name clear"), "pi")
+
+
+@pytest.mark.asyncio
+async def test_name_clear():
+    # Set a name first
+    await execute_command(SlashCommand(name="name", args="TestBot", raw="/name TestBot"), "pi")
+    cmd = SlashCommand(name="name", args="clear", raw="/name clear")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "reset" in result.message.lower()
+
+
+@pytest.mark.asyncio
+async def test_name_listed_in_commands():
+    cmd = SlashCommand(name="commands", raw="/commands")
+    result = await execute_command(cmd, "pi")
+    assert "/name" in result.message

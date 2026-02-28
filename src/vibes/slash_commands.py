@@ -84,6 +84,9 @@ async def execute_command(
     if command.name == "prompt":
         return _handle_prompt(command.args)
 
+    if command.name == "name":
+        return _handle_name(command.args)
+
     # Unknown command — tell caller to forward to agent
     return SlashCommandResult(
         status="success",
@@ -99,6 +102,7 @@ def _list_commands() -> SlashCommandResult:
         "- `/model [provider/model]` - Show or set the model",
         "- `/thinking [level]` - Show or set thinking level",
         "- `/prompt [text]` - Show or set the user system prompt",
+        "- `/name [name]` - Show or set the agent display name",
         "- `/queue <message>` - Queue a message for after the current turn",
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
@@ -468,6 +472,37 @@ def _handle_prompt(args: str) -> SlashCommandResult:
     return SlashCommandResult(
         status="success",
         message=f"User prompt set. Restart the agent for changes to take effect.\n```\n{args}\n```",
+    )
+
+
+def _handle_name(args: str) -> SlashCommandResult:
+    """Show or set the agent display name."""
+    from .config import get_config
+
+    config = get_config()
+
+    if not args:
+        return SlashCommandResult(
+            status="success",
+            message=f"Agent name: **{config.agent_name}**",
+        )
+
+    if args.strip().lower() == "clear":
+        import socket
+        config.agent_name = socket.gethostname()
+        from .config import save_setting
+        save_setting("agent_name", None)
+        return SlashCommandResult(
+            status="success",
+            message=f"Agent name reset to default: **{config.agent_name}**",
+        )
+
+    config.agent_name = args.strip()
+    from .config import save_setting
+    save_setting("agent_name", args.strip())
+    return SlashCommandResult(
+        status="success",
+        message=f"Agent name set to **{args.strip()}**",
     )
 
 
