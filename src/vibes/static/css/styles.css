@@ -1024,13 +1024,13 @@ body {
     margin: 0;
     word-break: break-word;
     font-family: inherit;
-    line-height: 1.2;
+    line-height: 1.35;
     padding-bottom: 0.15em;
 }
 
 .agent-thinking-body,
 .agent-thinking-body * {
-    line-height: 1.2;
+    line-height: 1.35;
 }
 
 .agent-thinking-truncation {
@@ -1040,7 +1040,7 @@ body {
 }
 
 .agent-thinking-body p {
-    margin: 0 0 0.3em 0;
+    margin: 0 0 0.4em 0;
     padding: 0;
 }
 
@@ -1054,19 +1054,19 @@ body {
 
 .agent-thinking-body ul,
 .agent-thinking-body ol {
-    margin: 0.2em 0;
+    margin: 0.3em 0;
     padding-left: 1.1em;
-    line-height: 1.2;
+    line-height: 1.35;
 }
 
 .agent-thinking-body li {
     margin: 0;
     padding: 0;
-    line-height: 1.2;
+    line-height: 1.35;
 }
 
 .agent-thinking-body li + li {
-    margin-top: 0.05em;
+    margin-top: 0.15em;
 }
 
 .agent-thinking-body li p {
@@ -1088,7 +1088,7 @@ body {
 .agent-thinking-body pre {
     margin: 0;
     white-space: pre-wrap;
-    line-height: 1.2;
+    line-height: 1.3;
 }
 
 /* Agent request modal */
