@@ -257,6 +257,14 @@ export class SSEClient {
         this.eventSource.addEventListener('agent_thought', (e) => {
             this.onEvent('agent_thought', JSON.parse(e.data));
         });
+
+        this.eventSource.addEventListener('agent_draft_delta', (e) => {
+            this.onEvent('agent_draft_delta', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agents_changed', (e) => {
+            this.onEvent('agents_changed', JSON.parse(e.data));
+        });
     }
     
     scheduleReconnect() {

@@ -1001,14 +1001,6 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
             if not final_message and finalized_from_collected and thought_text:
                 final_message = {"content": [{"type": "text", "text": thought_text}]}
 
-            # Append a note when the response was finalized from partial content.
-            if finalized_from_collected and final_message:
-                stall_note = "\n\n---\n*⚠️ Response may be incomplete — the model stopped responding and the reply was assembled from partial content.*"
-                existing = final_message.get("content", [])
-                if isinstance(existing, list):
-                    existing.append({"type": "text", "text": stall_note})
-                    final_message["content"] = existing
-
             if not final_message:
                 return {
                     "text": "[No response from pi agent]",

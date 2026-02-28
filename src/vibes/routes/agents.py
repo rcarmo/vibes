@@ -170,6 +170,12 @@ def _resolve_agent_mode(agent_id: str) -> str:
 
 async def process_agent_response(thread_id: int, content: str, agent_id: str):
     """Background task to get agent response and broadcast it."""
+    import random
+    import string
+    import time
+
+    turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
@@ -177,6 +183,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
+                    "turn_id": turn_id,
                     "text": status.get("text", ""),
                     "total_lines": status.get("total_lines"),
                     "kind": status.get("kind", "draft"),
@@ -187,6 +194,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 await broadcast_event("agent_thought", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
+                    "turn_id": turn_id,
                     "text": status.get("text", ""),
                     "total_lines": status.get("total_lines"),
                 })
@@ -194,6 +202,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
+                "turn_id": turn_id,
                 **status
             })
         
@@ -201,6 +210,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
             "agent_id": agent_id,
+            "turn_id": turn_id,
             "type": "thinking",
             "title": "Thinking..."
         })
@@ -216,6 +226,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             await broadcast_event("agent_request_timeout", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
+                "turn_id": turn_id,
             })
             response = {
                 "text": "[Cancelled: permission request timed out]",
@@ -227,6 +238,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
+                "turn_id": turn_id,
                 "type": "cancelled",
                 "title": "Cancelled"
             })
@@ -280,6 +292,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
             "agent_id": agent_id,
+            "turn_id": turn_id,
             "type": "done"
         })
         
@@ -300,6 +313,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
             "agent_id": agent_id,
+            "turn_id": turn_id,
             "type": "error",
             "title": str(e)
         })
