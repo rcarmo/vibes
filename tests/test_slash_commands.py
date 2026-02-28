@@ -589,3 +589,126 @@ async def test_name_listed_in_commands():
     cmd = SlashCommand(name="commands", raw="/commands")
     result = await execute_command(cmd, "pi")
     assert "/name" in result.message
+
+
+# ── _query_pi_models_rpc ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_query_models_rpc_not_running():
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        result = await _mod._query_pi_models_rpc()
+        assert result == []
+
+
+@pytest.mark.asyncio
+async def test_query_models_rpc_success():
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {
+                 "models": [
+                     {"provider": "openai", "name": "gpt-4"},
+                     {"provider": "anthropic", "modelId": "claude-3"},
+                     {"provider": "", "name": "local-model"},
+                 ]
+             }
+         }):
+        result = await _mod._query_pi_models_rpc()
+        assert "anthropic/claude-3" in result
+        assert "openai/gpt-4" in result
+        assert "local-model" in result
+        assert result == sorted(result)
+
+
+@pytest.mark.asyncio
+async def test_query_models_rpc_failure():
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": False, "error": "not supported"
+         }):
+        result = await _mod._query_pi_models_rpc()
+        assert result == []
+
+
+@pytest.mark.asyncio
+async def test_query_models_rpc_exception():
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               side_effect=ConnectionError("broken")):
+        result = await _mod._query_pi_models_rpc()
+        assert result == []
+
+
+# ── _query_pi_models_cli ─────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_query_models_cli_no_executable(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_agent", "nonexistent-binary-xyz")
+    result = await _mod._query_pi_models_cli(config)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_query_models_cli_empty_command(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_agent", "")
+    result = await _mod._query_pi_models_cli(config)
+    assert result == []
+
+
+@pytest.mark.asyncio
+async def test_query_models_cli_parses_output(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_agent", "echo")
+
+    mock_proc = AsyncMock()
+    mock_proc.communicate = AsyncMock(return_value=(
+        b"Provider  Model\nopenai    gpt-4\nanthropic claude-3\n", b""
+    ))
+    mock_proc.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", new_callable=AsyncMock, return_value=mock_proc), \
+         patch("shutil.which", return_value="/usr/bin/echo"):
+        result = await _mod._query_pi_models_cli(config)
+        assert "openai/gpt-4" in result
+        assert "anthropic/claude-3" in result
+
+
+# ── _handle_thinking ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_thinking_show_current():
+    cmd = SlashCommand(name="thinking", args="", raw="/thinking")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "Current thinking level:" in result.message
+    assert "Available levels:" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_invalid_level_extreme():
+    cmd = SlashCommand(name="thinking", args="extreme", raw="/thinking extreme")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "error"
+    assert "Unknown thinking level" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_acp_unsupported():
+    cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "error"
+    assert "not supported" in result.message
+
+
+@pytest.mark.asyncio
+async def test_thinking_set_not_running():
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        cmd = SlashCommand(name="thinking", args="high", raw="/thinking high")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "not running" in result.message

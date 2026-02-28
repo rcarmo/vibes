@@ -205,3 +205,101 @@ async def test_send_message_missing_content():
     req.json = AsyncMock(return_value={"not_content": "x"})
     resp = await agents_mod.send_message(req)
     assert resp.status == 400
+
+
+# ── list_agents ───────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_list_agents_pi_default():
+    with patch.object(agents_mod, "get_config") as mc, \
+         patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "is_acp_running", return_value=False):
+        mc.return_value.default_agent = "pi"
+        mc.return_value.pi_agent = "pi-binary"
+        mc.return_value.pi_enabled = True
+        mc.return_value.acp_agent = "copilot --acp"
+        mc.return_value.agent_name = "TestBot"
+        req = make_mocked_request("GET", "/agents")
+        resp = await agents_mod.list_agents(req)
+        body = json.loads(resp.body)
+        agents = body["agents"]
+        assert any(a["id"] == "default" and a["name"] == "Pi" for a in agents)
+        assert any(a["id"] == "acp" for a in agents)
+
+
+@pytest.mark.asyncio
+async def test_list_agents_acp_default():
+    with patch.object(agents_mod, "get_config") as mc, \
+         patch.object(agents_mod, "is_pi_running", return_value=False), \
+         patch.object(agents_mod, "is_acp_running", return_value=True):
+        mc.return_value.default_agent = "acp"
+        mc.return_value.pi_agent = "pi-binary"
+        mc.return_value.pi_enabled = True
+        mc.return_value.acp_agent = "copilot --acp"
+        mc.return_value.agent_name = "TestBot"
+        req = make_mocked_request("GET", "/agents")
+        resp = await agents_mod.list_agents(req)
+        body = json.loads(resp.body)
+        agents = body["agents"]
+        default_agent = next(a for a in agents if a["id"] == "default")
+        assert default_agent["name"] == "TestBot"
+        assert default_agent["status"] == "running"
+        assert any(a["id"] == "pi" for a in agents)
+
+
+# ── _extract_and_store_data_uri_images ────────────────────
+
+
+@pytest.mark.asyncio
+async def test_extract_data_uri_no_images():
+    db = AsyncMock()
+    result = await agents_mod._extract_and_store_data_uri_images(db, "plain text")
+    assert result == "plain text"
+    db.create_media.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_extract_data_uri_none():
+    db = AsyncMock()
+    result = await agents_mod._extract_and_store_data_uri_images(db, None)
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_extract_data_uri_replaces_image():
+    db = AsyncMock()
+    db.create_media = AsyncMock(return_value=42)
+    # A minimal valid base64 PNG data URI in markdown
+    import base64
+    pixel = base64.b64encode(b"\x89PNG\r\n\x1a\n").decode()
+    text = f"![chart](data:image/png;base64,{pixel})"
+    result = await agents_mod._extract_and_store_data_uri_images(db, text)
+    assert "/media/42" in result
+    assert "data:image" not in result
+    db.create_media.assert_called_once()
+
+
+# ── _check_whitelist ──────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_check_whitelist_auto_approve():
+    with patch.object(agents_mod, "get_config") as mc, \
+         patch.object(agents_mod, "get_db", new_callable=AsyncMock) as mock_db:
+        mc.return_value.permission_auto_approve = True
+        result = await agents_mod._check_whitelist("dangerous_tool")
+        assert result is True
+        mock_db.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_check_whitelist_delegates_to_db():
+    mock_db = AsyncMock()
+    mock_db.is_whitelisted = AsyncMock(return_value=False)
+    with patch.object(agents_mod, "get_config") as mc, \
+         patch.object(agents_mod, "get_db", new_callable=AsyncMock, return_value=mock_db):
+        mc.return_value.permission_auto_approve = False
+        result = await agents_mod._check_whitelist("some_tool")
+        assert result is False
+        mock_db.is_whitelisted.assert_called_once_with("some_tool")
