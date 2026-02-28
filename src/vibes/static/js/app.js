@@ -6,6 +6,38 @@ const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
 // Hashtag regex
 const HASHTAG_REGEX = /#(\w+)/g;
 
+// Silence detection thresholds (configurable via window.__VIBES_SILENCE)
+function readSilenceOverride(key, fallback) {
+    try {
+        if (typeof window === 'undefined') return fallback;
+        const overrides = window.__VIBES_SILENCE || {};
+        const directKey = `__VIBES_SILENCE_${key.toUpperCase()}_MS`;
+        const raw = overrides[key] ?? window[directKey];
+        const value = Number(raw);
+        return Number.isFinite(value) ? value : fallback;
+    } catch {
+        return fallback;
+    }
+}
+
+const SILENCE_WARNING_MS = readSilenceOverride('warning', 30_000);
+const SILENCE_FINALIZE_MS = readSilenceOverride('finalize', 120_000);
+const SILENCE_REFRESH_MS = readSilenceOverride('refresh', 30_000);
+
+function getTurnColor(turnId) {
+    if (!turnId) return null;
+    const palette = [
+        '#4ECDC4', '#FF6B6B', '#45B7D1', '#BB8FCE', '#FDCB6E',
+        '#00B894', '#74B9FF', '#FD79A8', '#81ECEC', '#FFA07A',
+    ];
+    const str = String(turnId);
+    let hash = 0;
+    for (let i = 0; i < str.length; i += 1) {
+        hash = (hash * 31 + str.charCodeAt(i)) % 0x7fffffff;
+    }
+    return palette[Math.abs(hash) % palette.length];
+}
+
 // Configure marked for safe rendering
 if (window.marked) {
     marked.setOptions({
@@ -1068,7 +1100,7 @@ function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emp
 /**
  * Agent status indicator
  */
-function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
+function AgentStatus({ status, draft, plan, thought, pendingRequest, turnId }) {
     const THOUGHT_MAX_LINES = 8;
     const DRAFT_MAX_LINES = 8;
     const PREVIEW_MAX_CHARS_PER_LINE = 160;
@@ -1129,14 +1161,20 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
         content = title || statusText || 'Working...';
     }
 
+    const activeTurn = status?.turn_id || turnId;
+    const turnColor = getTurnColor(activeTurn);
+
     const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass }) => {
         const truncated = typeof maxLines === 'number'
             ? truncateLines(text, maxLines, totalLines)
             : { text: text || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
         if (!truncated.text && !(Number.isFinite(truncated.totalLines) && truncated.totalLines > 0)) return null;
         return html`
-            <div class="agent-thinking">
-                <div class="agent-thinking-title ${titleClass || ''}">${panelTitle}</div>
+            <div class="agent-thinking" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+                <div class="agent-thinking-title ${titleClass || ''}">
+                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
+                    ${panelTitle}
+                </div>
                 <div
                     class="agent-thinking-body"
                     dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(truncated.text) }}
@@ -1154,7 +1192,7 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
     return html`
         <div class="agent-status-panel">
             ${pendingRequest && html`
-                <div class="agent-status agent-status-request" aria-live="polite">
+                <div class="agent-status agent-status-request" aria-live="polite" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                     <div class="agent-status-spinner"></div>
                     <span class="agent-status-text">${pendingMessage}</span>
                 </div>
@@ -1179,7 +1217,8 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest }) {
                 titleClass: 'thought',
             })}
             ${status && html`
-                <div class="agent-status">
+                <div class="agent-status" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
                     <div class="agent-status-spinner"></div>
                     <span class="agent-status-text">${content}</span>
                 </div>
@@ -1333,41 +1372,126 @@ function App() {
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
     const [agentStatus, setAgentStatus] = useState(null);
-    const [agentDraft, setAgentDraft] = useState('');
+    const [agentDraft, setAgentDraft] = useState({ text: '', totalLines: 0 });
     const [agentPlan, setAgentPlan] = useState('');
-    const [agentThought, setAgentThought] = useState('');
+    const [agentThought, setAgentThought] = useState({ text: '', totalLines: 0 });
     const [pendingRequest, setPendingRequest] = useState(null);
+    const [currentTurnId, setCurrentTurnId] = useState(null);
     const [agents, setAgents] = useState({});
     const hasConnectedOnceRef = useRef(false);
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
-    const agentDraftRef = useRef('');
-    const activeAgentThreadRef = useRef(null);
-    const activeAgentThreadTerminalRef = useRef(false);
     const hasMoreRef = useRef(false);
     const loadMoreRef = useRef(null);
     const timelineRef = useRef(null);
+    const lastAgentEventRef = useRef(null);
+    const lastSilenceNoticeRef = useRef(0);
+    const isAgentRunningRef = useRef(false);
+    const draftBufferRef = useRef('');
+    const pendingRequestRef = useRef(null);
+    const stalledPostIdRef = useRef(null);
+    const currentTurnIdRef = useRef(null);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
-    
+
+    const noteAgentActivity = useCallback((options = {}) => {
+        lastAgentEventRef.current = Date.now();
+        if (options.running) {
+            isAgentRunningRef.current = true;
+        }
+        if (options.clearSilence) {
+            lastSilenceNoticeRef.current = 0;
+        }
+    }, []);
+
+    const clearAgentRunState = useCallback(() => {
+        isAgentRunningRef.current = false;
+        lastAgentEventRef.current = null;
+        lastSilenceNoticeRef.current = 0;
+        draftBufferRef.current = '';
+        pendingRequestRef.current = null;
+        currentTurnIdRef.current = null;
+        setCurrentTurnId(null);
+    }, [setCurrentTurnId]);
+
+    const setActiveTurn = useCallback((turnId) => {
+        if (!turnId) return;
+        if (currentTurnIdRef.current === turnId) return;
+        currentTurnIdRef.current = turnId;
+        setCurrentTurnId(turnId);
+        draftBufferRef.current = '';
+        setAgentDraft({ text: '', totalLines: 0 });
+        setAgentPlan('');
+        setAgentThought({ text: '', totalLines: 0 });
+        setPendingRequest(null);
+        pendingRequestRef.current = null;
+    }, [setCurrentTurnId]);
+
+    const removeStalledPost = useCallback(() => {
+        const stalledId = stalledPostIdRef.current;
+        if (!stalledId) return;
+        setPosts((prev) => (prev ? prev.filter((post) => post.id !== stalledId) : prev));
+        stalledPostIdRef.current = null;
+    }, []);
+
     useEffect(() => {
         viewStateRef.current = { currentHashtag, searchQuery };
     }, [currentHashtag, searchQuery]);
-
-    useEffect(() => {
-        agentDraftRef.current = agentDraft || '';
-    }, [agentDraft]);
 
     useEffect(() => {
         hasMoreRef.current = hasMore;
     }, [hasMore]);
 
     // Scroll to bottom of timeline (column-reverse: bottom is scrollTop=0)
+    const scrollToBottomRef = useRef(null);
     const scrollToBottom = useCallback(() => {
         if (timelineRef.current) {
             timelineRef.current.scrollTop = 0;
         }
     }, []);
+    scrollToBottomRef.current = scrollToBottom;
+
+    const finalizeStalledResponse = useCallback(() => {
+        if (!isAgentRunningRef.current) return;
+        isAgentRunningRef.current = false;
+        lastSilenceNoticeRef.current = 0;
+        lastAgentEventRef.current = null;
+        currentTurnIdRef.current = null;
+        setCurrentTurnId(null);
+
+        const partial = (draftBufferRef.current || '').trim();
+        draftBufferRef.current = '';
+        setAgentDraft({ text: '', totalLines: 0 });
+        setAgentPlan('');
+        setAgentThought({ text: '', totalLines: 0 });
+        setPendingRequest(null);
+        pendingRequestRef.current = null;
+
+        if (!partial) {
+            setAgentStatus({ type: 'error', title: 'Response stalled — No content received' });
+            return;
+        }
+
+        const warning = '\n\n⚠️ Response may be incomplete — the model stopped responding';
+        const content = `${partial}${warning}`;
+        const id = Date.now();
+        const timestamp = new Date().toISOString();
+        const localPost = {
+            id,
+            timestamp,
+            data: {
+                type: 'agent_response',
+                content,
+                agent_id: 'default',
+                is_local_stall: true,
+            },
+        };
+
+        stalledPostIdRef.current = id;
+        setPosts((prev) => (prev ? dedupePosts([...prev, localPost]) : [localPost]));
+        scrollToBottomRef.current?.();
+        setAgentStatus(null);
+    }, [setCurrentTurnId]);
     
     // Load timeline or hashtag posts
     const loadPosts = useCallback(async (hashtag = null) => {
@@ -1390,12 +1514,12 @@ function App() {
         setConnectionStatus(status);
         if (status !== 'connected') {
             setAgentStatus(null);
-            setAgentDraft('');
+            setAgentDraft({ text: '', totalLines: 0 });
             setAgentPlan('');
-            setAgentThought('');
+            setAgentThought({ text: '', totalLines: 0 });
             setPendingRequest(null);
-            activeAgentThreadRef.current = null;
-            activeAgentThreadTerminalRef.current = false;
+            pendingRequestRef.current = null;
+            clearAgentRunState();
             return;
         }
         if (!hasConnectedOnceRef.current) {
@@ -1406,7 +1530,7 @@ function App() {
         if (!activeHashtag && !activeSearch) {
             loadPosts();
         }
-    }, [loadPosts]);
+    }, [clearAgentRunState, loadPosts]);
     
     // Load older messages (prepend)
     const loadMore = useCallback(async () => {
@@ -1552,162 +1676,214 @@ function App() {
             .catch((e) => console.warn('Failed to load agents:', e));
     }, []);
 
+    // Silence detection timer
+    useEffect(() => {
+        const intervalMs = Math.min(1000, Math.max(100, Math.floor(SILENCE_WARNING_MS / 2)));
+        const interval = setInterval(() => {
+            if (!isAgentRunningRef.current) return;
+            if (pendingRequestRef.current) return;
+            const lastEvent = lastAgentEventRef.current;
+            if (!lastEvent) return;
+            const now = Date.now();
+            const silenceMs = now - lastEvent;
+
+            if (silenceMs >= SILENCE_FINALIZE_MS) {
+                finalizeStalledResponse();
+                return;
+            }
+
+            if (silenceMs >= SILENCE_WARNING_MS) {
+                if (now - lastSilenceNoticeRef.current >= SILENCE_REFRESH_MS) {
+                    const seconds = Math.floor(silenceMs / 1000);
+                    setAgentStatus({
+                        type: 'waiting',
+                        title: `Waiting for model… No events for ${seconds}s`,
+                    });
+                    lastSilenceNoticeRef.current = now;
+                }
+            }
+        }, intervalMs);
+
+        return () => clearInterval(interval);
+    }, [finalizeStalledResponse]);
+
+    const handleSseEvent = useCallback((eventType, data) => {
+        const turnId = data?.turn_id;
+
+        if (eventType === 'connected') {
+            setAgentStatus(null);
+            setAgentDraft({ text: '', totalLines: 0 });
+            setAgentPlan('');
+            setAgentThought({ text: '', totalLines: 0 });
+            setPendingRequest(null);
+            pendingRequestRef.current = null;
+            clearAgentRunState();
+            return;
+        }
+
+        if (eventType === 'agent_status') {
+            console.log('Agent status:', data);
+            if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
+                if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                    return;
+                }
+                clearAgentRunState();
+                setAgentStatus(null);
+                setAgentDraft({ text: '', totalLines: 0 });
+                setAgentPlan('');
+                setAgentThought({ text: '', totalLines: 0 });
+                setPendingRequest(null);
+            } else {
+                if (turnId) setActiveTurn(turnId);
+                noteAgentActivity({ running: true, clearSilence: true });
+                if (data.type === 'thinking') {
+                    draftBufferRef.current = '';
+                    setAgentDraft({ text: '', totalLines: 0 });
+                    setAgentPlan('');
+                    setAgentThought({ text: '', totalLines: 0 });
+                }
+                setAgentStatus(data);
+            }
+            return;
+        }
+
+        if (eventType === 'agent_draft_delta') {
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            if (turnId && !currentTurnIdRef.current) {
+                setActiveTurn(turnId);
+            }
+            noteAgentActivity({ running: true, clearSilence: true });
+            if (data?.reset) {
+                draftBufferRef.current = '';
+            }
+            if (data?.delta) {
+                draftBufferRef.current += data.delta;
+            }
+            return;
+        }
+
+        if (eventType === 'agent_draft') {
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            if (turnId && !currentTurnIdRef.current) {
+                setActiveTurn(turnId);
+            }
+            noteAgentActivity({ running: true, clearSilence: true });
+            const text = data.text || '';
+            const mode = data.mode || (data.kind === 'plan' ? 'replace' : 'append');
+            const inferredTotal = Number.isFinite(data.total_lines)
+                ? data.total_lines
+                : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
+
+            if (data.kind === 'plan') {
+                if (mode === 'replace') setAgentPlan(text);
+                else setAgentPlan((prev) => (prev || '') + text);
+            } else {
+                draftBufferRef.current = text;
+                setAgentDraft({ text, totalLines: inferredTotal });
+            }
+            return;
+        }
+
+        if (eventType === 'agent_thought') {
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            if (turnId && !currentTurnIdRef.current) {
+                setActiveTurn(turnId);
+            }
+            noteAgentActivity({ running: true, clearSilence: true });
+            const text = data.text || '';
+            const inferredTotal = Number.isFinite(data.total_lines)
+                ? data.total_lines
+                : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
+            setAgentThought({ text, totalLines: inferredTotal });
+            return;
+        }
+
+        // Handle agent requests (permission, choices)
+        if (eventType === 'agent_request') {
+            console.log('Agent request:', data);
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            if (turnId) setActiveTurn(turnId);
+            noteAgentActivity({ running: true, clearSilence: true });
+            setPendingRequest(data);
+            pendingRequestRef.current = data;
+            return;
+        }
+
+        if (eventType === 'agent_request_timeout') {
+            console.log('Agent request timeout:', data);
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            setPendingRequest(null);
+            pendingRequestRef.current = null;
+            clearAgentRunState();
+            setAgentStatus({ type: 'error', title: 'Permission request timed out' });
+            return;
+        }
+
+        // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
+        const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
+        if (eventType === 'agent_response') {
+            removeStalledPost();
+            clearAgentRunState();
+            setAgentStatus(null);
+            setAgentDraft({ text: '', totalLines: 0 });
+            setAgentPlan('');
+            setAgentThought({ text: '', totalLines: 0 });
+            setPendingRequest(null);
+        }
+        if (!activeHashtag && !activeSearch && (eventType === 'new_post' || eventType === 'agent_response')) {
+            if (eventType === 'agent_response') {
+                const content = data?.data?.content;
+                if (!content || !String(content).trim()) {
+                    const fallback = (draftBufferRef.current || '').trim();
+                    if (fallback) {
+                        data = {
+                            ...data,
+                            data: {
+                                ...data.data,
+                                content: fallback,
+                            },
+                        };
+                    }
+                }
+            }
+            setPosts(prev => {
+                if (!prev) return [data];
+                if (prev.some((post) => post.id === data.id)) return prev;
+                return [...prev, data];
+            });
+            scrollToBottomRef.current?.();
+        }
+        // Update existing post (e.g., when link previews are fetched)
+        if (eventType === 'interaction_updated') {
+            setPosts(prev => prev ? prev.map(p => p.id === data.id ? data : p) : prev);
+        }
+        if (eventType === 'interaction_deleted') {
+            const ids = data?.ids || [];
+            if (ids.length) {
+                setPosts(prev => prev ? prev.filter(p => !ids.includes(p.id)) : prev);
+                const vs = viewStateRef.current;
+                if (hasMoreRef.current && !vs.currentHashtag && !vs.searchQuery) {
+                    loadMoreRef.current?.();
+                }
+            }
+        }
+    }, [clearAgentRunState, setActiveTurn, noteAgentActivity, removeStalledPost]);
+
     // Set up SSE connection
     useEffect(() => {
         loadPosts();
         
-        const sse = new SSEClient(
-            (eventType, data) => {
-                // Handle agent status updates
-                if (eventType === 'connected') {
-                    setAgentStatus(null);
-                    setAgentDraft('');
-                    setAgentPlan('');
-                    setAgentThought('');
-                    setPendingRequest(null);
-                    activeAgentThreadRef.current = null;
-                    activeAgentThreadTerminalRef.current = false;
-                    return;
-                }
-
-                if (eventType === 'agent_status') {
-                    console.log('Agent status:', data);
-                    const threadId = data?.thread_id;
-                    const statusType = data?.type;
-                    if (statusType === 'thinking' && threadId !== undefined) {
-                        const switchedThread = activeAgentThreadRef.current !== threadId;
-                        activeAgentThreadRef.current = threadId;
-                        activeAgentThreadTerminalRef.current = false;
-                        if (switchedThread) {
-                            setAgentDraft('');
-                            setAgentPlan('');
-                            setAgentThought('');
-                            setPendingRequest(null);
-                        }
-                    } else if (
-                        threadId !== undefined
-                        && activeAgentThreadRef.current !== null
-                        && threadId !== activeAgentThreadRef.current
-                    ) {
-                        return;
-                    }
-
-                    if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
-                        setAgentStatus(null);
-                        setAgentDraft('');
-                        setAgentPlan('');
-                        setAgentThought('');
-                        activeAgentThreadTerminalRef.current = true;
-                    } else {
-                        setAgentStatus(data);
-                    }
-                    return;
-                }
-
-                if (eventType === 'agent_draft') {
-                    const threadId = data?.thread_id;
-                    if (
-                        threadId !== undefined
-                        && activeAgentThreadRef.current !== null
-                        && threadId !== activeAgentThreadRef.current
-                    ) {
-                        return;
-                    }
-                    if (activeAgentThreadTerminalRef.current) return;
-                    const text = data.text || '';
-                    const mode = data.mode || (data.kind === 'plan' ? 'replace' : 'append');
-
-                    if (data.kind === 'plan') {
-                        if (mode === 'replace') setAgentPlan(text);
-                        else setAgentPlan((prev) => (prev || '') + text);
-                    } else {
-                        if (mode === 'replace') setAgentDraft(text);
-                        else setAgentDraft((prev) => (prev || '') + text);
-                    }
-                    return;
-                }
-                
-                if (eventType === 'agent_thought') {
-                    const threadId = data?.thread_id;
-                    if (
-                        threadId !== undefined
-                        && activeAgentThreadRef.current !== null
-                        && threadId !== activeAgentThreadRef.current
-                    ) {
-                        return;
-                    }
-                    if (activeAgentThreadTerminalRef.current) return;
-                    // Thoughts tend to be sent as snapshots.
-                    setAgentThought(data.text || '');
-                    return;
-                }
-                
-                // Handle agent requests (permission, choices)
-                if (eventType === 'agent_request') {
-                    console.log('Agent request:', data);
-                    setPendingRequest(data);
-                    return;
-                }
-
-                if (eventType === 'agent_request_timeout') {
-                    const threadId = data?.thread_id;
-                    if (
-                        threadId !== undefined
-                        && activeAgentThreadRef.current !== null
-                        && threadId !== activeAgentThreadRef.current
-                    ) {
-                        return;
-                    }
-                    console.log('Agent request timeout:', data);
-                    setPendingRequest(null);
-                    setAgentStatus({ type: 'error', title: 'Permission request timed out' });
-                    activeAgentThreadTerminalRef.current = true;
-                    return;
-                }
-                
-                // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
-                const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
-
-                if (!activeHashtag && !activeSearch && (eventType === 'new_post' || eventType === 'agent_response')) {
-                    if (eventType === 'agent_response') {
-                        const content = data?.data?.content;
-                        if ((!content || !String(content).trim()) && activeAgentThreadRef.current === data?.data?.thread_id) {
-                            const fallback = agentDraftRef.current || '';
-                            if (fallback.trim()) {
-                                data = {
-                                    ...data,
-                                    data: {
-                                        ...data.data,
-                                        content: fallback,
-                                    },
-                                };
-                            }
-                        }
-                    }
-                    setPosts(prev => {
-                        if (!prev) return [data];
-                        if (prev.some((post) => post.id === data.id)) return prev;
-                        return [...prev, data];
-                    });
-                    scrollToBottom();
-                }
-                // Update existing post (e.g., when link previews are fetched)
-                if (eventType === 'interaction_updated') {
-                    setPosts(prev => prev ? prev.map(p => p.id === data.id ? data : p) : prev);
-                }
-                if (eventType === 'interaction_deleted') {
-                    const ids = data?.ids || [];
-                    if (ids.length) {
-                        setPosts(prev => prev ? prev.filter(p => !ids.includes(p.id)) : prev);
-                        if (hasMoreRef.current && !activeHashtag && !activeSearch) {
-                            loadMoreRef.current?.();
-                        }
-                    }
-                }
-                
-            },
-            handleConnectionStatusChange
-        );
+        const sse = new SSEClient(handleSseEvent, handleConnectionStatusChange);
         
         sse.connect();
 
@@ -1722,7 +1898,7 @@ function App() {
             document.removeEventListener('visibilitychange', handleWindowFocus);
             sse.disconnect();
         };
-    }, [loadPosts]);
+    }, [loadPosts, handleSseEvent]);
     
     return html`
         <div class="container">
@@ -1753,6 +1929,7 @@ function App() {
                 plan=${agentPlan}
                 thought=${agentThought}
                 pendingRequest=${pendingRequest}
+                turnId=${currentTurnId}
             />
             <${ComposeBox} 
                 onPost=${() => { loadPosts(); scrollToBottom(); }}
