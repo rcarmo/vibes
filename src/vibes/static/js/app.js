@@ -1861,6 +1861,18 @@ function App() {
                         };
                     }
                 }
+                const resolvedContent = data?.data?.content;
+                const hasText = !!(resolvedContent && String(resolvedContent).trim());
+                const hasMedia = Array.isArray(data?.data?.media_ids) && data.data.media_ids.length > 0;
+                const hasBlocks = Array.isArray(data?.data?.content_blocks) && data.data.content_blocks.some((block) => {
+                    if (!block || typeof block !== 'object') return false;
+                    if (block.type === 'image' || block.type === 'file') return true;
+                    if (block.type === 'text') return !!String(block.text || '').trim();
+                    return false;
+                });
+                if (!hasText && !hasMedia && !hasBlocks) {
+                    return;
+                }
             }
             setPosts(prev => {
                 if (!prev) return [data];

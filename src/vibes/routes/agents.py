@@ -94,6 +94,29 @@ def _extract_text_from_blocks(blocks) -> str:
     return "".join(parts)
 
 
+def _has_meaningful_response(text_content: str, content_blocks, media_ids) -> bool:
+    if str(text_content or "").strip():
+        return True
+    if media_ids:
+        return True
+
+    def _walk(node) -> bool:
+        if isinstance(node, dict):
+            block_type = node.get("type")
+            if block_type in {"image", "file"}:
+                return True
+            if block_type == "text":
+                return bool(str(node.get("text", "")).strip())
+            if "content" in node:
+                return _walk(node.get("content"))
+            return False
+        if isinstance(node, list):
+            return any(_walk(item) for item in node)
+        return False
+
+    return _walk(content_blocks)
+
+
 # Set up callback for agent requests
 async def _handle_agent_request(request_data):
     """Broadcast agent requests to UI."""
@@ -299,30 +322,35 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 if media_id:
                     media_ids.append(media_id)
 
-        if not str(text_content or "").strip() and not content_blocks and not media_ids:
-            text_content = "[No response content received]"
-        
-        # Store agent response
-        agent_response = {
-            "type": "agent_response",
-            "content": text_content,
-            "content_blocks": content_blocks,
-            "agent_id": agent_id,
-            "thread_id": thread_id,
-            "media_ids": media_ids,
-        }
-        
-        response_id = await db.create_interaction(agent_response)
-        response_interaction = await db.get_interaction(response_id)
-        
-        # Don't fetch link previews for agent responses - they often contain
-        # code snippets, documentation URLs, etc. that don't need previews
-        
-        # Broadcast agent response
-        await broadcast_event("agent_response", {
-            **response_interaction,
-            **agent_profile,
-        })
+        if _has_meaningful_response(text_content, content_blocks, media_ids):
+            # Store agent response
+            agent_response = {
+                "type": "agent_response",
+                "content": text_content,
+                "content_blocks": content_blocks,
+                "agent_id": agent_id,
+                "thread_id": thread_id,
+                "media_ids": media_ids,
+            }
+
+            response_id = await db.create_interaction(agent_response)
+            response_interaction = await db.get_interaction(response_id)
+
+            # Don't fetch link previews for agent responses - they often contain
+            # code snippets, documentation URLs, etc. that don't need previews
+
+            # Broadcast agent response
+            await broadcast_event("agent_response", {
+                **response_interaction,
+                **agent_profile,
+            })
+            logger.info(
+                "Agent response posted for thread %s with %d media items",
+                thread_id,
+                len(media_ids),
+            )
+        else:
+            logger.info("Skipping empty agent response for thread %s", thread_id)
 
         # Broadcast that agent is done (after response is available)
         await broadcast_event("agent_status", {
@@ -333,8 +361,6 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             **agent_profile,
         })
         
-        logger.info(f"Agent response posted for thread {thread_id} with {len(media_ids)} media items")
-
         # Check for queued messages and send the next one
         if agent_mode == "pi":
             from ..pi_client import pop_queued_message

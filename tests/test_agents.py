@@ -70,6 +70,20 @@ def test_extract_text_no_text_blocks():
     assert agents_mod._extract_text_from_blocks(blocks) == ""
 
 
+def test_has_meaningful_response_with_text():
+    assert agents_mod._has_meaningful_response("hello", [], []) is True
+
+
+def test_has_meaningful_response_with_media_or_file_block():
+    assert agents_mod._has_meaningful_response("", [], [1]) is True
+    assert agents_mod._has_meaningful_response("", [{"type": "file", "name": "x.txt"}], []) is True
+
+
+def test_has_meaningful_response_empty():
+    assert agents_mod._has_meaningful_response("", [], []) is False
+    assert agents_mod._has_meaningful_response("", [{"type": "text", "text": "   "}], []) is False
+
+
 # ── send_message steering logic ──────────────────────────
 # These tests mock the database, SSE, and agent clients.
 
