@@ -1022,10 +1022,10 @@ body {
 
 .agent-thinking-body {
     margin: 0;
-    white-space: pre-wrap;
     word-break: break-word;
     font-family: inherit;
     line-height: 1.2;
+    padding-bottom: 0.15em;
 }
 
 .agent-thinking-body,
@@ -1040,23 +1040,45 @@ body {
 }
 
 .agent-thinking-body p {
-    margin: 0;
+    margin: 0 0 0.3em 0;
+    padding: 0;
+}
+
+.agent-thinking-body p:last-child {
+    margin-bottom: 0;
+}
+
+.agent-thinking-body p + p {
+    margin-top: 0;
 }
 
 .agent-thinking-body ul,
 .agent-thinking-body ol {
-    margin: 0;
+    margin: 0.2em 0;
     padding-left: 1.1em;
+    line-height: 1.2;
 }
 
 .agent-thinking-body li {
     margin: 0;
     padding: 0;
-    line-height: 1.1;
+    line-height: 1.2;
 }
 
 .agent-thinking-body li + li {
-    margin-top: 0.15em;
+    margin-top: 0.05em;
+}
+
+.agent-thinking-body li p {
+    margin: 0;
+    padding: 0;
+    line-height: inherit;
+}
+
+.agent-thinking-body li ul,
+.agent-thinking-body li ol {
+    margin: 0;
+    padding-left: 1em;
 }
 
 .agent-thinking-body blockquote {
