@@ -181,14 +181,18 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
     config = get_config()
     agent_profile = {"agent_name": config.agent_name, "agent_avatar": None}
+    latest_draft_text = ""
 
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
+            nonlocal latest_draft_text
             if status.get("type") == "message_chunk":
                 text = status.get("text", "")
                 kind = status.get("kind", "draft")
                 mode = status.get("mode", "append")
+                if kind == "draft" and text:
+                    latest_draft_text = text if mode == "replace" else f"{latest_draft_text}{text}"
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
@@ -278,6 +282,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         # If the agent injected data-uri base64 images into markdown, convert them
         # to stored media and rewrite the markdown to /media/<id>.
         text_content = await _extract_and_store_data_uri_images(db, text_content)
+        if not str(text_content or "").strip() and latest_draft_text.strip():
+            text_content = latest_draft_text
         
         for block in content_blocks:
             block_type = block.get("type")
@@ -287,12 +293,14 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 media_id = await _store_media_block(db, block)
                 if media_id:
                     media_ids.append(media_id)
-                    
             elif block_type == "file":
                 # Store file in media table
                 media_id = await _store_media_block(db, block)
                 if media_id:
                     media_ids.append(media_id)
+
+        if not str(text_content or "").strip() and not content_blocks and not media_ids:
+            text_content = "[No response content received]"
         
         # Store agent response
         agent_response = {

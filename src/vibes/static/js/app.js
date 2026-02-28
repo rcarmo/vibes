@@ -1837,6 +1837,7 @@ function App() {
 
         // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
+        const responseFallback = eventType === 'agent_response' ? (draftBufferRef.current || '').trim() : '';
         if (eventType === 'agent_response') {
             removeStalledPost();
             clearAgentRunState();
@@ -1850,13 +1851,12 @@ function App() {
             if (eventType === 'agent_response') {
                 const content = data?.data?.content;
                 if (!content || !String(content).trim()) {
-                    const fallback = (draftBufferRef.current || '').trim();
-                    if (fallback) {
+                    if (responseFallback) {
                         data = {
                             ...data,
                             data: {
                                 ...data.data,
-                                content: fallback,
+                                content: responseFallback,
                             },
                         };
                     }
