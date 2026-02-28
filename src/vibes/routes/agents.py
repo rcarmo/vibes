@@ -97,7 +97,11 @@ def _extract_text_from_blocks(blocks) -> str:
 # Set up callback for agent requests
 async def _handle_agent_request(request_data):
     """Broadcast agent requests to UI."""
-    await broadcast_event("agent_request", request_data)
+    config = get_config()
+    payload = dict(request_data or {})
+    payload["agent_name"] = config.agent_name
+    payload["agent_avatar"] = None
+    await broadcast_event("agent_request", payload)
 
 set_acp_request_callback(_handle_agent_request)
 set_pi_request_callback(_handle_agent_request)
@@ -175,20 +179,36 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     import time
 
     turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    config = get_config()
+    agent_profile = {"agent_name": config.agent_name, "agent_avatar": None}
 
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
             if status.get("type") == "message_chunk":
+                text = status.get("text", "")
+                kind = status.get("kind", "draft")
+                mode = status.get("mode", "append")
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
                     "turn_id": turn_id,
-                    "text": status.get("text", ""),
+                    "text": text,
                     "total_lines": status.get("total_lines"),
-                    "kind": status.get("kind", "draft"),
-                    "mode": status.get("mode", "append"),
+                    "kind": kind,
+                    "mode": mode,
+                    **agent_profile,
                 })
+                if kind != "plan":
+                    delta_payload = {
+                        "thread_id": thread_id,
+                        "agent_id": agent_id,
+                        "turn_id": turn_id,
+                        "delta": text if mode == "replace" else text,
+                        "reset": mode == "replace",
+                        **agent_profile,
+                    }
+                    await broadcast_event("agent_draft_delta", delta_payload)
                 return
             if status.get("type") == "thought_chunk":
                 await broadcast_event("agent_thought", {
@@ -197,13 +217,15 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                     "turn_id": turn_id,
                     "text": status.get("text", ""),
                     "total_lines": status.get("total_lines"),
+                    **agent_profile,
                 })
                 return
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
                 "agent_id": agent_id,
                 "turn_id": turn_id,
-                **status
+                **status,
+                **agent_profile,
             })
         
         # Broadcast that agent is thinking
@@ -212,7 +234,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "agent_id": agent_id,
             "turn_id": turn_id,
             "type": "thinking",
-            "title": "Thinking..."
+            "title": "Thinking...",
+            **agent_profile,
         })
         
         agent_mode = _resolve_agent_mode(agent_id)
@@ -227,6 +250,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 "thread_id": thread_id,
                 "agent_id": agent_id,
                 "turn_id": turn_id,
+                **agent_profile,
             })
             response = {
                 "text": "[Cancelled: permission request timed out]",
@@ -240,7 +264,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 "agent_id": agent_id,
                 "turn_id": turn_id,
                 "type": "cancelled",
-                "title": "Cancelled"
+                "title": "Cancelled",
+                **agent_profile,
             })
             # Don't overwrite with generic message — keep the specific one from the client.
 
@@ -286,14 +311,18 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         # code snippets, documentation URLs, etc. that don't need previews
         
         # Broadcast agent response
-        await broadcast_event("agent_response", response_interaction)
+        await broadcast_event("agent_response", {
+            **response_interaction,
+            **agent_profile,
+        })
 
         # Broadcast that agent is done (after response is available)
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
             "agent_id": agent_id,
             "turn_id": turn_id,
-            "type": "done"
+            "type": "done",
+            **agent_profile,
         })
         
         logger.info(f"Agent response posted for thread {thread_id} with {len(media_ids)} media items")
@@ -315,7 +344,8 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "agent_id": agent_id,
             "turn_id": turn_id,
             "type": "error",
-            "title": str(e)
+            "title": str(e),
+            **agent_profile,
         })
         
         # Post error message

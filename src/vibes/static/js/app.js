@@ -1193,6 +1193,7 @@ function AgentStatus({ status, draft, plan, thought, pendingRequest, turnId }) {
         <div class="agent-status-panel">
             ${pendingRequest && html`
                 <div class="agent-status agent-status-request" aria-live="polite" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
                     <div class="agent-status-spinner"></div>
                     <span class="agent-status-text">${pendingMessage}</span>
                 </div>
@@ -1402,6 +1403,21 @@ function App() {
         if (options.clearSilence) {
             lastSilenceNoticeRef.current = 0;
         }
+    }, []);
+
+    const updateAgentProfile = useCallback((payload) => {
+        const agentId = payload?.agent_id;
+        if (!agentId) return;
+        const next = {};
+        if (payload.agent_name) next.name = payload.agent_name;
+        if (Object.prototype.hasOwnProperty.call(payload, 'agent_avatar')) next.avatar = payload.agent_avatar;
+        if (Object.keys(next).length === 0) return;
+        setAgents((prev) => {
+            const current = prev?.[agentId] || { id: agentId };
+            const merged = { ...current, ...next, id: agentId };
+            if (current.name === merged.name && current.avatar === merged.avatar) return prev;
+            return { ...(prev || {}), [agentId]: merged };
+        });
     }, []);
 
     const clearAgentRunState = useCallback(() => {
@@ -1709,6 +1725,8 @@ function App() {
             return;
         }
 
+        updateAgentProfile(data);
+
         if (eventType === 'agent_status') {
             console.log('Agent status:', data);
             if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
@@ -1874,7 +1892,7 @@ function App() {
                 })
                 .catch((e) => console.warn('Failed to reload agents:', e));
         }
-    }, [clearAgentRunState, setActiveTurn, noteAgentActivity, removeStalledPost]);
+    }, [clearAgentRunState, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile]);
 
     // Set up SSE connection
     useEffect(() => {
