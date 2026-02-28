@@ -209,6 +209,8 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
             model_data = resp.get("data", {})
             name = model_data.get("name", model_str) if isinstance(model_data, dict) else model_str
             config.pi_model = model_str
+            from .config import save_setting
+            save_setting("pi_model", model_str)
             thinking_note = f" Thinking level: {config.pi_thinking}." if config.pi_thinking else ""
             return SlashCommandResult(
                 status="success",
@@ -369,6 +371,8 @@ async def _handle_thinking(args: str, agent_mode: str) -> SlashCommandResult:
         resp = await send_rpc_command({"type": "set_thinking_level", "level": level})
         if resp and resp.get("success"):
             config.pi_thinking = level if level != "off" else None
+            from .config import save_setting
+            save_setting("pi_thinking", config.pi_thinking)
             return SlashCommandResult(
                 status="success",
                 message=f"Thinking level set to `{level}`.",
@@ -443,12 +447,16 @@ def _handle_prompt(args: str) -> SlashCommandResult:
 
     if args.strip().lower() == "clear":
         config.prompt = ""
+        from .config import save_setting
+        save_setting("prompt", None)
         return SlashCommandResult(
             status="success",
             message="User prompt cleared. Restart the agent for changes to take effect.",
         )
 
     config.prompt = args
+    from .config import save_setting
+    save_setting("prompt", args)
     return SlashCommandResult(
         status="success",
         message=f"User prompt set. Restart the agent for changes to take effect.\n```\n{args}\n```",

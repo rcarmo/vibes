@@ -41,6 +41,43 @@ def _find_settings_file() -> Optional[Path]:
     return None
 
 
+def _settings_write_path() -> Path:
+    """Return the path to write settings to (creates .vibes/ if needed)."""
+    existing = _find_settings_file()
+    if existing is not None:
+        return existing
+    # Default to .vibes/settings.json in cwd
+    d = Path(SETTINGS_DIR)
+    d.mkdir(exist_ok=True)
+    return d / SETTINGS_FILENAME
+
+
+def save_setting(key: str, value) -> None:
+    """Persist a single setting to the settings file.
+
+    Reads the current file, updates the key, and writes back.
+    Creates .vibes/settings.json if it doesn't exist yet.
+    """
+    path = _settings_write_path()
+    data: dict = {}
+    if path.is_file():
+        try:
+            with open(path) as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                data = {}
+        except (json.JSONDecodeError, IOError):
+            data = {}
+    if value is None or value == "":
+        data.pop(key, None)
+    else:
+        data[key] = value
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
+
+
 def _load_settings_file() -> dict:
     """Load and return settings from the settings file, or empty dict."""
     path = _find_settings_file()
@@ -92,10 +129,8 @@ def _resolve(settings: dict, key: str, env_key: str, default, type_name: str):
 def _default_pi_agent_command() -> str:
     extension_path = Path(__file__).parent / "extensions" / "pi-vibes-tools.ts"
     quoted_extension = shlex.quote(str(extension_path))
-    quoted_prompt = shlex.quote(PI_PROMPT_PREFIX)
     return (
         "pi --mode rpc --no-session "
-        f"--append-system-prompt {quoted_prompt} "
         f"-e {quoted_extension}"
     )
 
@@ -180,8 +215,11 @@ class Config:
             cmd += f" --model {shlex.quote(self.pi_model)}"
         if self.pi_thinking:
             cmd += f" --thinking {shlex.quote(self.pi_thinking)}"
+        # Build combined system prompt: base + user prompt
+        full_prompt = PI_PROMPT_PREFIX
         if self.prompt:
-            cmd += f" --append-system-prompt {shlex.quote(self.prompt)}"
+            full_prompt += "\n\n" + self.prompt
+        cmd += f" --append-system-prompt {shlex.quote(full_prompt)}"
         return cmd
 
 

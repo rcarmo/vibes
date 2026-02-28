@@ -1,5 +1,4 @@
 import json
-import shlex
 import sys
 import importlib
 from pathlib import Path
@@ -18,15 +17,14 @@ _default_pi_agent_command = config_mod._default_pi_agent_command
 _find_settings_file = config_mod._find_settings_file
 _load_settings_file = config_mod._load_settings_file
 _resolve = config_mod._resolve
+save_setting = config_mod.save_setting
 PI_PROMPT_PREFIX = importlib.import_module("vibes.pi_prompt").PI_PROMPT_PREFIX
 Config = config_mod.Config
 
 
 def test_default_pi_agent_command_includes_prompt_and_extension():
     cmd = _default_pi_agent_command()
-    assert "--append-system-prompt" in cmd
     assert "pi-vibes-tools.ts" in cmd
-    assert shlex.quote(PI_PROMPT_PREFIX) in cmd
     ext_path = Path(__file__).resolve().parents[1] / "src" / "vibes" / "extensions" / "pi-vibes-tools.ts"
     assert str(ext_path) in cmd
 
@@ -35,7 +33,12 @@ def test_effective_pi_command_no_overrides():
     config = Config()
     config.pi_model = None
     config.pi_thinking = None
-    assert config.effective_pi_command() == config.pi_agent
+    config.prompt = ""
+    cmd = config.effective_pi_command()
+    assert "--append-system-prompt" in cmd
+    assert "Vibes" in cmd
+    assert "--model" not in cmd
+    assert "--thinking" not in cmd
 
 
 def test_effective_pi_command_with_model():
@@ -210,6 +213,7 @@ def test_effective_pi_command_with_prompt():
     cmd = config.effective_pi_command()
     assert "--append-system-prompt" in cmd
     assert "Be terse" in cmd
+    assert "Vibes" in cmd  # base prompt still included
 
 
 def test_effective_pi_command_no_prompt():
@@ -217,8 +221,9 @@ def test_effective_pi_command_no_prompt():
     config.pi_model = None
     config.pi_thinking = None
     config.prompt = ""
-    base = config.pi_agent
-    assert config.effective_pi_command() == base
+    cmd = config.effective_pi_command()
+    assert "Vibes" in cmd
+    assert "Be terse" not in cmd
 
 
 def test_settings_file_cwd_over_xdg(tmp_path, monkeypatch):
@@ -272,3 +277,69 @@ def test_settings_file_diagnostics(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
     config = Config()
     assert config.settings_file is None
+
+
+# --- save_setting tests ---
+
+def test_save_setting_creates_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "nonexistent"))
+    save_setting("pi_model", "openai/gpt-4")
+    data = json.loads((tmp_path / ".vibes" / "settings.json").read_text())
+    assert data["pi_model"] == "openai/gpt-4"
+
+
+def test_save_setting_preserves_existing(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({"port": 3000}))
+    monkeypatch.chdir(tmp_path)
+    save_setting("pi_model", "test/model")
+    data = json.loads((settings_dir / "settings.json").read_text())
+    assert data["port"] == 3000
+    assert data["pi_model"] == "test/model"
+
+
+def test_save_setting_removes_on_none(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({"pi_model": "old", "port": 3000}))
+    monkeypatch.chdir(tmp_path)
+    save_setting("pi_model", None)
+    data = json.loads((settings_dir / "settings.json").read_text())
+    assert "pi_model" not in data
+    assert data["port"] == 3000
+
+
+def test_save_setting_removes_on_empty_string(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({"prompt": "hello"}))
+    monkeypatch.chdir(tmp_path)
+    save_setting("prompt", "")
+    data = json.loads((settings_dir / "settings.json").read_text())
+    assert "prompt" not in data
+
+
+def test_save_setting_updates_existing_key(tmp_path, monkeypatch):
+    settings_dir = tmp_path / ".vibes"
+    settings_dir.mkdir()
+    (settings_dir / "settings.json").write_text(json.dumps({"pi_model": "old"}))
+    monkeypatch.chdir(tmp_path)
+    save_setting("pi_model", "new/model")
+    data = json.loads((settings_dir / "settings.json").read_text())
+    assert data["pi_model"] == "new/model"
+
+
+def test_save_setting_writes_to_existing_file_location(tmp_path, monkeypatch):
+    """save_setting writes to an existing XDG file rather than creating .vibes/ in cwd."""
+    xdg_dir = tmp_path / "xdg" / "vibes"
+    xdg_dir.mkdir(parents=True)
+    (xdg_dir / "settings.json").write_text(json.dumps({"port": 5000}))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "xdg"))
+    save_setting("pi_thinking", "high")
+    data = json.loads((xdg_dir / "settings.json").read_text())
+    assert data["pi_thinking"] == "high"
+    assert data["port"] == 5000
+    assert not (tmp_path / ".vibes").exists()
