@@ -1,0 +1,207 @@
+"""Tests for agent route handlers — steering, queue, resolve mode."""
+
+import importlib
+import json
+import sys
+from pathlib import Path
+from unittest.mock import AsyncMock, patch
+
+import pytest
+from aiohttp.test_utils import make_mocked_request
+
+SRC_PATH = Path(__file__).resolve().parents[1] / "src"
+if str(SRC_PATH) in sys.path:
+    sys.path.remove(str(SRC_PATH))
+sys.path.insert(0, str(SRC_PATH))
+
+for module_name in list(sys.modules.keys()):
+    if module_name == "vibes" or module_name.startswith("vibes."):
+        sys.modules.pop(module_name, None)
+
+agents_mod = importlib.import_module("vibes.routes.agents")
+
+
+# ── _resolve_agent_mode ──────────────────────────────────
+
+
+def test_resolve_default_returns_config_default():
+    with patch.object(agents_mod, "get_config") as mock:
+        mock.return_value.default_agent = "pi"
+        assert agents_mod._resolve_agent_mode("default") == "pi"
+
+
+def test_resolve_explicit_pi():
+    with patch.object(agents_mod, "get_config") as mock:
+        mock.return_value.default_agent = "acp"
+        assert agents_mod._resolve_agent_mode("pi") == "pi"
+
+
+def test_resolve_explicit_acp():
+    with patch.object(agents_mod, "get_config") as mock:
+        mock.return_value.default_agent = "pi"
+        assert agents_mod._resolve_agent_mode("acp") == "acp"
+
+
+def test_resolve_unknown_falls_back():
+    with patch.object(agents_mod, "get_config") as mock:
+        mock.return_value.default_agent = "acp"
+        assert agents_mod._resolve_agent_mode("unknown-agent") == "acp"
+
+
+# ── _extract_text_from_blocks ─────────────────────────────
+
+
+def test_extract_text_from_blocks():
+    blocks = [
+        {"type": "text", "text": "Hello"},
+        {"type": "image", "data": "..."},
+        {"type": "text", "text": " World"},
+    ]
+    result = agents_mod._extract_text_from_blocks(blocks)
+    assert result == "Hello World"
+
+
+def test_extract_text_empty_blocks():
+    assert agents_mod._extract_text_from_blocks([]) == ""
+
+
+def test_extract_text_no_text_blocks():
+    blocks = [{"type": "image", "data": "..."}]
+    assert agents_mod._extract_text_from_blocks(blocks) == ""
+
+
+# ── send_message steering logic ──────────────────────────
+# These tests mock the database, SSE, and agent clients.
+
+
+class FakeDB:
+    """Minimal mock for the database."""
+    def __init__(self):
+        self._counter = 0
+        self._interactions = {}
+
+    async def create_interaction(self, data):
+        self._counter += 1
+        self._interactions[self._counter] = {
+            "id": self._counter,
+            "timestamp": "2026-01-01T00:00:00Z",
+            "data": data,
+        }
+        return self._counter
+
+    async def get_interaction(self, msg_id):
+        return self._interactions.get(msg_id)
+
+
+def _make_send_request(content, agent_id="default"):
+    """Create a mock aiohttp request for send_message."""
+    req = make_mocked_request("POST", f"/agents/{agent_id}/message",
+                               match_info={"agent_id": agent_id})
+    req.json = AsyncMock(return_value={"content": content})
+    return req
+
+
+@pytest.fixture
+def mock_deps():
+    """Patch all external dependencies of send_message."""
+    fake_db = FakeDB()
+    with patch.object(agents_mod, "get_db", new_callable=AsyncMock, return_value=fake_db), \
+         patch.object(agents_mod, "broadcast_event", new_callable=AsyncMock) as mock_broadcast, \
+         patch.object(agents_mod, "queue_link_preview_fetch"), \
+         patch.object(agents_mod, "enqueue") as mock_enqueue:
+        yield {
+            "db": fake_db,
+            "broadcast": mock_broadcast,
+            "enqueue": mock_enqueue,
+        }
+
+
+@pytest.mark.asyncio
+async def test_send_message_normal_path(mock_deps):
+    """Normal message when agent is idle goes to enqueue."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "pi"
+        with patch.object(agents_mod, "is_pi_busy", return_value=False):
+            req = _make_send_request("hello world")
+            resp = await agents_mod.send_message(req)
+            assert resp.status == 201
+            body = json.loads(resp.body)
+            assert "user_message" in body
+            mock_deps["enqueue"].assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_send_message_steering_when_busy(mock_deps):
+    """Message sent while agent is busy should auto-steer."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "pi"
+        with patch.object(agents_mod, "is_pi_busy", return_value=True), \
+             patch.object(agents_mod, "send_pi_rpc_fire_and_forget",
+                          new_callable=AsyncMock, return_value=True) as mock_steer:
+            req = _make_send_request("focus on tests")
+            resp = await agents_mod.send_message(req)
+            assert resp.status == 201
+            body = json.loads(resp.body)
+            assert body["steered"] is True
+            assert "steering" in body["status"].lower()
+            mock_steer.assert_called_once_with({"type": "steer", "message": "focus on tests"})
+            # Should NOT enqueue a new turn
+            mock_deps["enqueue"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_message_steering_failure(mock_deps):
+    """Steering failure still returns 201 with steered=False."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "pi"
+        with patch.object(agents_mod, "is_pi_busy", return_value=True), \
+             patch.object(agents_mod, "send_pi_rpc_fire_and_forget",
+                          new_callable=AsyncMock, return_value=False):
+            req = _make_send_request("steer me")
+            resp = await agents_mod.send_message(req)
+            body = json.loads(resp.body)
+            assert body["steered"] is False
+
+
+@pytest.mark.asyncio
+async def test_send_message_slash_command(mock_deps):
+    """Slash commands are handled and not forwarded."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "pi"
+        req = _make_send_request("/commands")
+        resp = await agents_mod.send_message(req)
+        body = json.loads(resp.body)
+        assert "command" in body
+        assert body["command"]["status"] == "success"
+        mock_deps["enqueue"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_message_acp_no_steering(mock_deps):
+    """ACP mode should not steer, just enqueue normally."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "acp"
+        req = _make_send_request("hello")
+        resp = await agents_mod.send_message(req)
+        assert resp.status == 201
+        mock_deps["enqueue"].assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_send_message_invalid_json():
+    """Invalid JSON body returns 400."""
+    req = make_mocked_request("POST", "/agents/default/message",
+                               match_info={"agent_id": "default"})
+    req.json = AsyncMock(side_effect=json.JSONDecodeError("bad", "", 0))
+    resp = await agents_mod.send_message(req)
+    assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_send_message_missing_content():
+    """Missing content field returns 400."""
+    req = make_mocked_request("POST", "/agents/default/message",
+                               match_info={"agent_id": "default"})
+    req.json = AsyncMock(return_value={"not_content": "x"})
+    resp = await agents_mod.send_message(req)
+    assert resp.status == 400

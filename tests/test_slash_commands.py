@@ -160,18 +160,23 @@ async def test_model_show_pi_with_list(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
     monkeypatch.setattr(config, "pi_model", "anthropic/claude-sonnet")
     monkeypatch.setattr(config, "pi_thinking", None)
-    sc = importlib.import_module("vibes.slash_commands")
-    monkeypatch.setattr(sc, "_query_pi_models_rpc", AsyncMock(return_value=[
+    # Patch on _mod (the module object that execute_command was imported from)
+    monkeypatch.setattr(_mod, "_query_pi_models_rpc", AsyncMock(return_value=[
         "anthropic/claude-sonnet", "anthropic/claude-haiku", "openai/gpt-4",
     ]))
-    monkeypatch.setattr(sc, "_query_pi_models_cli", AsyncMock(return_value=[]))
-    with patch("vibes.pi_client.is_pi_running", return_value=False):
-        cmd = SlashCommand(name="model", args="", raw="/model")
-        result = await execute_command(cmd, "pi")
-        assert result.status == "success"
-        assert "Available models:" in result.message
-        assert "`anthropic/claude-sonnet` *(current)*" in result.message
-        assert "openai/gpt-4" in result.message
+    monkeypatch.setattr(_mod, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    # Also need to patch is_pi_running where _show_pi_model_info imports it
+    # _show_pi_model_info does: from .pi_client import is_pi_running
+    # This resolves to the pi_client that vibes.slash_commands originally imported
+    pi_client_mod = sys.modules.get("vibes.pi_client")
+    if pi_client_mod:
+        monkeypatch.setattr(pi_client_mod, "is_pi_running", lambda: False)
+    cmd = SlashCommand(name="model", args="", raw="/model")
+    result = await execute_command(cmd, "pi")
+    assert result.status == "success"
+    assert "Available models:" in result.message
+    assert "`anthropic/claude-sonnet` *(current)*" in result.message
+    assert "openai/gpt-4" in result.message
 
 
 @pytest.mark.asyncio

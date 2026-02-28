@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test coverage check clean bump-patch push serve lint-frontend
+.PHONY: help install install-dev lint format test coverage check check-all clean bump-patch push serve lint-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -38,6 +38,8 @@ coverage: ## Run pytest with coverage
 	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
 
 check: lint test ## Run lint + tests
+
+check-all: lint lint-frontend coverage ## Run all lints + tests with coverage
 
 serve: ## Run the web server
 	PYTHONPATH=src VIBES_HOST=$(VIBES_HOST) VIBES_PORT=$(VIBES_PORT) $(PYTHON) -m vibes.app
