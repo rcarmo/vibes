@@ -703,6 +703,8 @@ body {
     width: 28px;
     height: 28px;
     min-width: 28px;
+    min-height: 28px;
+    flex: 0 0 28px;
     font-size: 0.65rem;
 }
 
@@ -720,6 +722,9 @@ body {
 .post-avatar {
     width: 36px;
     height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    aspect-ratio: 1 / 1;
     border-radius: var(--radius-md);
     background-color: var(--accent-color);
     display: flex;
@@ -728,7 +733,7 @@ body {
     color: white;
     font-weight: 700;
     font-size: var(--font-size-sm);
-    flex-shrink: 0;
+    flex: 0 0 auto;
 }
 
 .post-avatar.has-image {
