@@ -1,5 +1,9 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
+import { ComposeBox } from './components/compose-box.js';
+import { Timeline } from './components/timeline.js';
+import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
+import { WorkspaceExplorer } from './components/workspace-explorer.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -23,6 +27,14 @@ function readSilenceOverride(key, fallback) {
 const SILENCE_WARNING_MS = readSilenceOverride('warning', 30_000);
 const SILENCE_FINALIZE_MS = readSilenceOverride('finalize', 120_000);
 const SILENCE_REFRESH_MS = readSilenceOverride('refresh', 30_000);
+
+function buildAgentsMap(data) {
+    const map = {};
+    (data?.agents || []).forEach((agent) => {
+        map[agent.id] = agent;
+    });
+    return map;
+}
 
 function getTurnColor(turnId) {
     if (!turnId) return null;
@@ -181,8 +193,8 @@ function renderMath(html_content) {
         }
     });
     
-    // Process inline math ($...$) - avoid matching $$ or currency like $100
-    html_content = html_content.replace(/(?<!\$)\$(?!\$)([^\$\n]+?)\$(?!\$)/g, (match, tex) => {
+    // Process inline math ($...$) - avoid matching $$, shell expansions, or currency
+    html_content = html_content.replace(/(?<!\$)\$(?!\$|\(|\{|\[)([^\$\n]+?)\$(?!\$)/g, (match, tex) => {
         // Skip if it looks like currency ($ followed by number)
         if (/^\d/.test(tex.trim())) return match;
         try {
@@ -348,14 +360,35 @@ function linkifyContent(text, onHashtagClick) {
  */
 function formatTime(timestamp) {
     const date = new Date(timestamp);
+    if (Number.isNaN(date.getTime())) return timestamp;
     const now = new Date();
-    const diff = (now - date) / 1000;
-    
-    if (diff < 60) return 'just now';
-    if (diff < 3600) return `${Math.floor(diff / 60)}m`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)}h`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)}d`;
-    return date.toLocaleDateString();
+    const diffMs = now - date;
+    const diffSec = diffMs / 1000;
+    const dayMs = 24 * 60 * 60 * 1000;
+
+    if (diffMs < dayMs) {
+        if (diffSec < 60) return 'just now';
+        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
+        return `${Math.floor(diffSec / 3600)}h`;
+    }
+
+    if (diffMs < 5 * dayMs) {
+        const weekday = date.toLocaleDateString(undefined, { weekday: 'short' });
+        const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+        return `${weekday} ${time}`;
+    }
+
+    const datePart = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    const timePart = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return `${datePart} ${timePart}`;
+}
+
+/**
+ * Format count values for display.
+ */
+function formatCount(value) {
+    if (!Number.isFinite(value)) return '0';
+    return Math.round(value).toLocaleString();
 }
 
 /**
@@ -382,10 +415,10 @@ function useTimestampRefresh(intervalMs = 30000) {
 }
 
 /**
- * Get avatar letter and color from name
- * Returns object with { letter, color }
+ * Get avatar display info from name and optional image URL.
+ * Returns object with { letter, color, image }
  */
-function getAvatarInfo(name) {
+function getAvatarInfo(name, avatarUrl = null) {
     if (!name) name = 'Agent';
     const letter = name.charAt(0).toUpperCase();
     
@@ -423,13 +456,18 @@ function getAvatarInfo(name) {
     const index = letter.charCodeAt(0) % colors.length;
     const color = colors[index];
     
-    return { letter, color };
+    return { letter, color, image: avatarUrl || null };
 }
 
 function getAgentName(agentId, agents) {
     if (!agentId) return 'Agent';
     const name = agents[agentId]?.name || agentId;
     return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Agent';
+}
+
+function getAgentAvatar(agentId, agents) {
+    if (!agentId) return null;
+    return agents[agentId]?.avatar || null;
 }
 
 /**
@@ -442,916 +480,6 @@ function updateThemeColor(dark) {
         meta.setAttribute('content', color);
     }
 }
-
-/**
- * Compose box component
- */
-function ComposeBox({ onPost, onFocus, searchMode, onSearch, onEnterSearch, onExitSearch }) {
-    const [content, setContent] = useState('');
-    const [searchText, setSearchText] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [mediaFiles, setMediaFiles] = useState([]);
-    const textareaRef = useRef(null);
-    
-    const handleSubmit = async () => {
-        if (!content.trim() && mediaFiles.length === 0) return;
-        
-        setLoading(true);
-        try {
-            // Upload media files first
-            const mediaIds = [];
-            for (const file of mediaFiles) {
-                const result = await uploadMedia(file);
-                mediaIds.push(result.id);
-            }
-            
-            // Send to agent by default
-            await sendAgentMessage('default', content, null, mediaIds);
-            
-            setContent('');
-            setMediaFiles([]);
-            onPost?.();
-        } catch (error) {
-            console.error('Failed to post:', error);
-            alert('Failed to post: ' + error.message);
-        } finally {
-            setLoading(false);
-        }
-    };
-    
-    const handleKeyDown = (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            if (searchMode) {
-                if (searchText.trim()) {
-                    onSearch?.(searchText.trim());
-                }
-            } else {
-                handleSubmit();
-            }
-        }
-    };
-    
-    const handleFileChange = (e) => {
-        setMediaFiles([...e.target.files]);
-    };
-    
-    // Auto-resize textarea
-    const handleInput = (e) => {
-        const value = e.target.value;
-        if (searchMode) {
-            setSearchText(value);
-        } else {
-            setContent(value);
-        }
-        const textarea = textareaRef.current;
-        if (textarea) {
-            textarea.style.height = 'auto';
-            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
-        }
-    };
-    
-    return html`
-        <div class="compose-box">
-            <div class="compose-input-wrapper">
-                <textarea
-                    ref=${textareaRef}
-                    placeholder=${searchMode ? "Search (Enter to run)..." : "Message (Enter to send, Shift+Enter for newline)..."}
-                    value=${searchMode ? searchText : content}
-                    onInput=${handleInput}
-                    onKeyDown=${handleKeyDown}
-                    onFocus=${onFocus}
-                    onClick=${onFocus}
-                    disabled=${loading}
-                    rows="1"
-                />
-                <div class="compose-actions ${searchMode ? 'search-mode' : ''}">
-                    <button
-                        class="icon-btn search-toggle"
-                        onClick=${searchMode ? onExitSearch : onEnterSearch}
-                        title=${searchMode ? "Close search" : "Search"}
-                    >
-                        ${searchMode ? html`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M18 6L6 18M6 6l12 12"/>
-                            </svg>
-                        ` : html`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <circle cx="11" cy="11" r="8"/>
-                                <path d="M21 21l-4.35-4.35"/>
-                            </svg>
-                        `}
-                    </button>
-                    ${!searchMode && html`
-                        <label class="icon-btn" title="Attach image">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            <input type="file" accept="image/*" multiple hidden onChange=${handleFileChange} />
-                        </label>
-                        <button 
-                            class="icon-btn send-btn" 
-                            onClick=${handleSubmit}
-                            disabled=${loading || (!content.trim() && mediaFiles.length === 0)}
-                            title="Send (Ctrl+Enter)"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                        </button>
-                    `}
-                </div>
-            </div>
-            ${mediaFiles.length > 0 && html`
-                <div class="media-files-preview">
-                    ${mediaFiles.map(f => html`<span key=${f.name} class="media-file-tag">${f.name}</span>`)}
-                </div>
-            `}
-        </div>
-    `;
-}
-
-/**
- * Image modal for zooming
- */
-function ImageModal({ src, onClose }) {
-    useEffect(() => {
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') onClose();
-        };
-        document.addEventListener('keydown', handleEsc);
-        return () => document.removeEventListener('keydown', handleEsc);
-    }, [onClose]);
-    
-    return html`
-        <div class="image-modal" onClick=${onClose}>
-            <img src=${src} alt="Full size" />
-        </div>
-    `;
-}
-
-/**
- * File attachment component - displays downloadable file with icon
- */
-function FileAttachment({ mediaId }) {
-    const [info, setInfo] = useState(null);
-    
-    useEffect(() => {
-        getMediaInfo(mediaId).then(setInfo).catch(() => {});
-    }, [mediaId]);
-    
-    if (!info) return null;
-    
-    const filename = info.filename || 'file';
-    const size = info.metadata?.size;
-    const sizeStr = size ? formatFileSize(size) : '';
-    
-    return html`
-        <a href=${getMediaUrl(mediaId)} download=${filename} class="file-attachment" onClick=${(e) => e.stopPropagation()}>
-            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <div class="file-info">
-                <span class="file-name">${filename}</span>
-                ${sizeStr && html`<span class="file-size">${sizeStr}</span>`}
-            </div>
-            <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-        </a>
-    `;
-}
-
-function formatFileSize(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
-}
-
-function formatTimestamp(value) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString();
-}
-
-/**
- * Render annotations (audience/priority/lastModified)
- */
-function AnnotationsBadge({ annotations }) {
-    if (!annotations) return null;
-    const { audience, priority, lastModified } = annotations;
-    const formattedLastModified = lastModified ? formatTimestamp(lastModified) : null;
-    return html`
-        <div class="content-annotations">
-            ${audience && audience.length > 0 && html`
-                <span class="content-annotation">Audience: ${audience.join(', ')}</span>
-            `}
-            ${typeof priority === 'number' && html`
-                <span class="content-annotation">Priority: ${priority}</span>
-            `}
-            ${formattedLastModified && html`
-                <span class="content-annotation">Updated: ${formattedLastModified}</span>
-            `}
-        </div>
-    `;
-}
-
-/**
- * Resource link block (MCP/ACP)
- */
-function ResourceLinkBlock({ block }) {
-    const name = block.title || block.name || block.uri;
-    const description = block.description;
-    const sizeStr = block.size ? formatFileSize(block.size) : '';
-    const mimeType = block.mime_type || '';
-    const icon = getMimeIcon(mimeType);
-    return html`
-        <a href=${block.uri} class="resource-link" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()}>
-            <div class="resource-link-main">
-                <div class="resource-link-header">
-                    <span class="resource-link-icon-inline">${icon}</span>
-                    <div class="resource-link-title">${name}</div>
-                </div>
-                ${description && html`<div class="resource-link-description">${description}</div>`}
-                <div class="resource-link-meta">
-                    ${mimeType && html`<span>${mimeType}</span>`}
-                    ${sizeStr && html`<span>${sizeStr}</span>`}
-                </div>
-            </div>
-            <div class="resource-link-icon">↗</div>
-        </a>
-    `;
-}
-
-/**
- * Embedded resource block (MCP/ACP)
- */
-function ResourceBlock({ block }) {
-    const [open, setOpen] = useState(false);
-    const title = block.uri || 'Embedded resource';
-    const contentText = block.text || '';
-    const hasBlob = Boolean(block.data);
-    const mimeType = block.mime_type || '';
-    return html`
-        <div class="resource-embed">
-            <button class="resource-embed-toggle" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>
-                ${open ? '▼' : '▶'} ${title}
-            </button>
-            ${open && html`
-                ${contentText && html`<pre class="resource-embed-content">${contentText}</pre>`}
-                ${hasBlob && html`
-                    <div class="resource-embed-blob">
-                        <span class="resource-embed-blob-label">Embedded blob</span>
-                        ${mimeType && html`<span class="resource-embed-blob-meta">${mimeType}</span>`}
-                        <button class="resource-embed-blob-btn" onClick=${(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            const blob = new Blob([Uint8Array.from(atob(block.data), c => c.charCodeAt(0))], { type: mimeType || 'application/octet-stream' });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = title.split('/').pop() || 'resource';
-                            a.click();
-                            URL.revokeObjectURL(url);
-                        }}>Download</button>
-                    </div>
-                `}
-            `}
-        </div>
-    `;
-}
-
-function getMimeIcon(mimeType) {
-    if (!mimeType) return '📎';
-    if (mimeType.startsWith('image/')) return '🖼️';
-    if (mimeType.startsWith('audio/')) return '🎵';
-    if (mimeType.startsWith('video/')) return '🎬';
-    if (mimeType.includes('pdf')) return '📄';
-    if (mimeType.includes('zip') || mimeType.includes('gzip')) return '🗜️';
-    if (mimeType.startsWith('text/')) return '📄';
-    return '📎';
-}
-
-/**
- * Link preview component - card with image background
- */
-function LinkPreview({ preview }) {
-    const bgStyle = preview.image 
-        ? `background-image: url('${preview.image}')`
-        : '';
-    
-    return html`
-        <a href=${preview.url} class="link-preview ${preview.image ? 'has-image' : ''}" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()} style=${bgStyle}>
-            <div class="link-preview-overlay">
-                <div class="link-preview-site">${preview.site_name || new URL(preview.url).hostname}</div>
-                <div class="link-preview-title">${preview.title}</div>
-                ${preview.description && html`
-                    <div class="link-preview-description">${preview.description}</div>
-                `}
-            </div>
-        </a>
-    `;
-}
-
-/**
- * Remove URLs from text that have previews, but only if at the end
- */
-function removePreviewedUrls(text, linkPreviews) {
-    if (!linkPreviews?.length) return text;
-    
-    let result = text;
-    for (const preview of linkPreviews) {
-        const escapedUrl = preview.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        // Only remove URL if it's at the end of the text (with optional trailing whitespace)
-        result = result.replace(new RegExp(escapedUrl + '\\s*$', ''), '');
-    }
-    return result.trim();
-}
-
-/**
- * Single post component
- */
-function Post({ post, onClick, onHashtagClick, agentName, onDelete }) {
-    const [zoomedImage, setZoomedImage] = useState(null);
-    const contentRef = useRef(null);
-    
-    const data = post.data;
-    const isAgent = data.type === 'agent_response';
-    const displayName = isAgent ? (agentName || 'Agent') : 'You';
-    
-    // Get avatar info based on the name
-    const avatarInfo = isAgent ? getAvatarInfo(agentName) : getAvatarInfo('You');
-    
-    // Remove URLs that have previews from the displayed content
-    let displayContent = removePreviewedUrls(data.content, data.link_previews);
-
-    const handleImageClick = (e, mediaId) => {
-        e.stopPropagation();
-        setZoomedImage(getMediaUrl(mediaId));
-    };
-
-    const handleDeleteClick = (e) => {
-        e.stopPropagation();
-        onDelete?.(post);
-    };
-
-    const resolveInlineAttachments = (content, attachments) => {
-        const usedIds = new Set();
-        if (!content || attachments.length === 0) {
-            return { content, usedIds };
-        }
-
-        const replaced = content.replace(/attachment:([^\s)"']+)/g, (match, rawRef) => {
-            const ref = rawRef.replace(/^\/+/, '');
-            const byName = attachments.find(
-                (entry) => entry.name && entry.name.toLowerCase() === ref.toLowerCase() && !usedIds.has(entry.id)
-            );
-            const entry = byName || attachments.find((item) => !usedIds.has(item.id));
-            if (!entry) return match;
-            usedIds.add(entry.id);
-            return `/media/${entry.id}`;
-        });
-
-        return { content: replaced, usedIds };
-    };
-
-    // Separate images from files using content_blocks info
-    const imageItems = [];
-    const fileIds = [];
-    const attachmentEntries = [];
-    const resourceLinks = [];
-    const resources = [];
-    const textAnnotations = [];
-    const blocks = data.content_blocks || [];
-    const mediaIds = data.media_ids || [];
-    let mediaIndex = 0;
-    
-    if (blocks.length > 0) {
-        blocks.forEach((block) => {
-            if (block?.type === 'text' && block.annotations) {
-                textAnnotations.push(block.annotations);
-            }
-            if (block?.type === 'resource_link') {
-                resourceLinks.push(block);
-            } else if (block?.type === 'resource') {
-                resources.push(block);
-            } else if (block?.type === 'file') {
-                const id = mediaIds[mediaIndex++];
-                if (id) {
-                    fileIds.push(id);
-                    attachmentEntries.push({ id, name: block?.name || block?.filename || block?.title });
-                }
-            } else if (block?.type === 'image' || !block?.type) {
-                const id = mediaIds[mediaIndex++];
-                if (id) {
-                    imageItems.push({ id, annotations: block?.annotations });
-                    attachmentEntries.push({ id, name: block?.name || block?.filename || block?.title });
-                }
-            }
-        });
-    } else if (mediaIds.length > 0) {
-        mediaIds.forEach((id) => {
-            imageItems.push({ id, annotations: null });
-            attachmentEntries.push({ id, name: null });
-        });
-    }
-
-    if ((!displayContent || !displayContent.trim()) && blocks.length > 0) {
-        const textParts = [];
-        const stack = [...blocks];
-        while (stack.length > 0) {
-            const item = stack.shift();
-            if (!item || typeof item !== 'object') continue;
-            if (item.type === 'text' && typeof item.text === 'string') {
-                textParts.push(item.text);
-            }
-            if (Array.isArray(item.content)) {
-                stack.push(...item.content);
-            } else if (item.content && typeof item.content === 'object') {
-                stack.push(item.content);
-            }
-        }
-        const fallbackContent = textParts.join('');
-        if (fallbackContent.trim()) {
-            displayContent = fallbackContent;
-        }
-    }
-
-    const { content: resolvedContent, usedIds } = resolveInlineAttachments(displayContent, attachmentEntries);
-    displayContent = resolvedContent;
-    const filteredImageItems = imageItems.filter(({ id }) => !usedIds.has(id));
-    const filteredFileIds = fileIds.filter((id) => !usedIds.has(id));
-
-    // Render mermaid diagrams after content is mounted
-    useEffect(() => {
-        if (contentRef.current) {
-            renderMermaidDiagrams(contentRef.current);
-        }
-    }, [displayContent]);
-    
-    return html`
-        <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''}" onClick=${onClick}>
-            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''}" style="background-color: ${avatarInfo.color}">
-                ${avatarInfo.letter}
-            </div>
-            <div class="post-body">
-                <button
-                    class="post-delete-btn"
-                    type="button"
-                    title="Delete message"
-                    aria-label="Delete message"
-                    onClick=${handleDeleteClick}
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                </button>
-                <div class="post-meta">
-                    <span class="post-author">${displayName}</span>
-                    <span class="post-time">${formatTime(post.timestamp)}</span>
-                </div>
-                ${displayContent && html`
-                    <div 
-                        ref=${contentRef}
-                        class="post-content"
-                        dangerouslySetInnerHTML=${{ __html: renderMarkdown(displayContent, onHashtagClick) }}
-                        onClick=${(e) => {
-                            if (e.target.classList.contains('hashtag')) {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                const tag = e.target.dataset.hashtag;
-                                if (tag) onHashtagClick?.(tag);
-                            } else if (e.target.tagName === 'IMG') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                setZoomedImage(e.target.src);
-                            }
-                        }}
-                    />
-                `}
-                ${textAnnotations.length > 0 && html`
-                    ${textAnnotations.map((annotations, idx) => html`
-                        <${AnnotationsBadge} key=${idx} annotations=${annotations} />
-                    `)}
-                `}
-                ${filteredImageItems.length > 0 && html`
-                    <div class="media-preview">
-                        ${filteredImageItems.map(({ id }) => html`
-                            <img 
-                                key=${id} 
-                                src=${getThumbnailUrl(id)} 
-                                alt="Media" 
-                                loading="lazy"
-                                onClick=${(e) => handleImageClick(e, id)}
-                            />
-                        `)}
-                    </div>
-                `}
-                ${filteredImageItems.length > 0 && html`
-                    ${filteredImageItems.map(({ annotations }, idx) => html`
-                        ${annotations && html`<${AnnotationsBadge} key=${idx} annotations=${annotations} />`}
-                    `)}
-                `}
-                ${filteredFileIds.length > 0 && html`
-                    <div class="file-attachments">
-                        ${filteredFileIds.map(id => html`
-                            <${FileAttachment} key=${id} mediaId=${id} />
-                        `)}
-                    </div>
-                `}
-                ${resourceLinks.length > 0 && html`
-                    <div class="resource-links">
-                        ${resourceLinks.map((block, idx) => html`
-                            <div key=${idx}>
-                                <${ResourceLinkBlock} block=${block} />
-                                <${AnnotationsBadge} annotations=${block.annotations} />
-                            </div>
-                        `)}
-                    </div>
-                `}
-                ${resources.length > 0 && html`
-                    <div class="resource-embeds">
-                        ${resources.map((block, idx) => html`
-                            <div key=${idx}>
-                                <${ResourceBlock} block=${block} />
-                                <${AnnotationsBadge} annotations=${block.annotations} />
-                            </div>
-                        `)}
-                    </div>
-                `}
-                ${data.link_previews?.length > 0 && html`
-                    <div class="link-previews">
-                        ${data.link_previews.map((preview, i) => html`
-                            <${LinkPreview} key=${i} preview=${preview} />
-                        `)}
-                    </div>
-                `}
-            </div>
-        </div>
-        ${zoomedImage && html`<${ImageModal} src=${zoomedImage} onClose=${() => setZoomedImage(null)} />`}
-    `;
-}
-
-/**
- * Timeline component
- */
-function Timeline({ posts, hasMore, onLoadMore, onPostClick, onHashtagClick, emptyMessage, timelineRef, agents, onDeletePost, reverse = true }) {
-    const [loadingMore, setLoadingMore] = useState(false);
-    const sentinelRef = useRef(null);
-    const hasIntersectionObserver = typeof IntersectionObserver !== 'undefined';
-
-    const triggerLoadMore = useCallback(async () => {
-        if (!onLoadMore || !hasMore || loadingMore) return;
-        setLoadingMore(true);
-        try {
-            await onLoadMore();
-        } finally {
-            setLoadingMore(false);
-        }
-    }, [hasMore, loadingMore, onLoadMore]);
-
-    const handleScroll = useCallback((e) => {
-        const { scrollTop, scrollHeight, clientHeight } = e.target;
-        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
-        const prefetchThreshold = Math.max(300, clientHeight);
-
-        if (distanceFromTop < prefetchThreshold) {
-            triggerLoadMore();
-        }
-    }, [reverse, triggerLoadMore]);
-
-    useEffect(() => {
-        if (!hasIntersectionObserver) return;
-        if (!hasMore || !onLoadMore) return;
-        const root = timelineRef?.current;
-        const sentinel = sentinelRef.current;
-        if (!root || !sentinel) return;
-
-        const prefetchThreshold = Math.max(300, root.clientHeight || 0);
-        const observer = new IntersectionObserver(
-            (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
-                    triggerLoadMore();
-                }
-            },
-            {
-                root,
-                rootMargin: `${prefetchThreshold}px 0px ${prefetchThreshold}px 0px`,
-                threshold: 0,
-            }
-        );
-
-        observer.observe(sentinel);
-        return () => observer.disconnect();
-    }, [hasIntersectionObserver, hasMore, onLoadMore, timelineRef, triggerLoadMore]);
-
-    useEffect(() => {
-        if (hasIntersectionObserver) return;
-        if (!timelineRef?.current) return;
-        const { scrollTop, scrollHeight, clientHeight } = timelineRef.current;
-        const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
-        const prefetchThreshold = Math.max(300, clientHeight);
-
-        if (distanceFromTop < prefetchThreshold) {
-            triggerLoadMore();
-        }
-    }, [hasIntersectionObserver, posts, hasMore, reverse, timelineRef, triggerLoadMore]);
-    
-    if (!posts) {
-        return html`<div class="loading"><div class="spinner"></div></div>`;
-    }
-    
-    if (posts.length === 0) {
-        return html`
-            <div class="timeline" ref=${timelineRef}>
-                <div class="timeline-content">
-                    <div style="padding: var(--spacing-xl); text-align: center; color: var(--text-secondary)">
-                        ${emptyMessage || 'No messages yet. Start a conversation!'}
-                    </div>
-                </div>
-            </div>
-        `;
-    }
-    
-    // Sort posts by id (oldest first)
-    const displayPosts = posts.slice().sort((a, b) => a.id - b.id);
-    
-    return html`
-        <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${hasIntersectionObserver ? undefined : handleScroll}>
-            <div class="timeline-content">
-                <div class="timeline-sentinel" ref=${sentinelRef}></div>
-                ${displayPosts.map(post => html`
-                    <${Post}
-                        key=${post.id}
-                        post=${post}
-                        agentName=${getAgentName(post.data?.agent_id, agents)}
-                        onClick=${() => onPostClick?.(post)}
-                        onHashtagClick=${onHashtagClick}
-                        onDelete=${onDeletePost}
-                    />
-                `)}
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Agent status indicator
- */
-function AgentStatus({ status, draft, plan, thought, pendingRequest, turnId }) {
-    const THOUGHT_MAX_LINES = 8;
-    const DRAFT_MAX_LINES = 8;
-    const PREVIEW_MAX_CHARS_PER_LINE = 160;
-
-    const normalizePreview = (value) => {
-        if (!value) return { text: '', totalLines: 0 };
-        if (typeof value === 'string') {
-            const totalLines = value ? value.replace(/\r\n/g, '\n').split('\n').length : 0;
-            return { text: value, totalLines };
-        }
-        const text = value.text || '';
-        const totalLines = Number.isFinite(value.totalLines)
-            ? value.totalLines
-            : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
-        return { text, totalLines };
-    };
-
-    const countSoftLines = (line) => {
-        if (!line) return 1;
-        return Math.max(1, Math.ceil(line.length / PREVIEW_MAX_CHARS_PER_LINE));
-    };
-
-    const truncateLines = (text, maxLines, totalLinesOverride) => {
-        const value = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-        if (!value) {
-            const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : 0;
-            return { text: '', omitted: 0, totalLines, visibleLines: 0 };
-        }
-        const lines = value.split('\n');
-        const clipped = lines.length > maxLines ? lines.slice(0, maxLines).join('\n') : value;
-        const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : lines.reduce((acc, line) => acc + countSoftLines(line), 0);
-        const visibleLines = clipped
-            ? clipped.split('\n').reduce((acc, line) => acc + countSoftLines(line), 0)
-            : 0;
-        const omitted = Math.max(totalLines - visibleLines, 0);
-        return { text: clipped, omitted, totalLines, visibleLines };
-    };
-
-    const planInfo = normalizePreview(plan);
-    const thoughtInfo = normalizePreview(thought);
-    const draftInfo = normalizePreview(draft);
-    const hasPlan = Boolean(planInfo.text) || planInfo.totalLines > 0;
-    const hasThought = Boolean(thoughtInfo.text) || thoughtInfo.totalLines > 0;
-    const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
-
-    if (!status && !hasDraft && !hasPlan && !hasThought && !pendingRequest) return null;
-
-    let content = '';
-    const title = status?.title;
-    const statusText = status?.status;
-    if (status?.type === 'plan') {
-        content = title ? `Planning: ${title}` : 'Planning...';
-    } else if (status?.type === 'tool_call') {
-        content = title ? `Running: ${title}` : 'Running tool...';
-    } else if (status?.type === 'tool_status') {
-        content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
-    } else {
-        content = title || statusText || 'Working...';
-    }
-
-    const activeTurn = status?.turn_id || turnId;
-    const turnColor = getTurnColor(activeTurn);
-
-    const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass }) => {
-        const truncated = typeof maxLines === 'number'
-            ? truncateLines(text, maxLines, totalLines)
-            : { text: text || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
-        if (!truncated.text && !(Number.isFinite(truncated.totalLines) && truncated.totalLines > 0)) return null;
-        return html`
-            <div class="agent-thinking" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                <div class="agent-thinking-title ${titleClass || ''}">
-                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
-                    ${panelTitle}
-                </div>
-                <div
-                    class="agent-thinking-body"
-                    dangerouslySetInnerHTML=${{ __html: renderThinkingMarkdown(truncated.text) }}
-                />
-                ${truncated.omitted > 0 && html`
-                    <div class="agent-thinking-truncation">(${truncated.omitted} more lines)</div>
-                `}
-            </div>
-        `;
-    };
-
-    const pendingTitle = pendingRequest?.tool_call?.title;
-    const pendingMessage = pendingTitle ? `Awaiting approval: ${pendingTitle}` : 'Awaiting approval';
-
-    return html`
-        <div class="agent-status-panel">
-            ${pendingRequest && html`
-                <div class="agent-status agent-status-request" aria-live="polite" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
-                    <div class="agent-status-spinner"></div>
-                    <span class="agent-status-text">${pendingMessage}</span>
-                </div>
-            `}
-            ${hasPlan && renderThinkingPanel({
-                panelTitle: 'Planning',
-                text: planInfo.text,
-                totalLines: planInfo.totalLines,
-            })}
-            ${hasThought && renderThinkingPanel({
-                panelTitle: 'Thoughts',
-                text: thoughtInfo.text,
-                totalLines: thoughtInfo.totalLines,
-                maxLines: THOUGHT_MAX_LINES,
-                titleClass: 'thought',
-            })}
-            ${hasDraft && renderThinkingPanel({
-                panelTitle: 'Draft',
-                text: draftInfo.text,
-                totalLines: draftInfo.totalLines,
-                maxLines: DRAFT_MAX_LINES,
-                titleClass: 'thought',
-            })}
-            ${status && html`
-                <div class="agent-status" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
-                    <div class="agent-status-spinner"></div>
-                    <span class="agent-status-text">${content}</span>
-                </div>
-            `}
-        </div>
-    `;
-}
-
-/**
- * Agent request modal - shows permission/choice requests from agent
- */
-function AgentRequestModal({ request, onRespond }) {
-    if (!request) return null;
-    
-    const { request_id, tool_call, options } = request;
-    const title = tool_call?.title || 'Agent Request';
-    const kind = tool_call?.kind || 'other';
-    
-    // Extract command and explanation from tool call metadata
-    const rawInput = tool_call?.rawInput || {};
-    const command = rawInput.command || (rawInput.commands && rawInput.commands[0]) || null;
-    const diff = rawInput.diff || null;
-    const fileName = rawInput.fileName || rawInput.path || null;
-    const explanation = tool_call?.description || rawInput.description || rawInput.explanation || null;
-    const locations = Array.isArray(tool_call?.locations) ? tool_call.locations : [];
-    const locationPaths = locations
-        .map((loc) => loc?.path)
-        .filter((path) => Boolean(path));
-    const uniquePaths = Array.from(new Set([fileName, ...locationPaths].filter(Boolean)));
-    
-    console.log('AgentRequestModal:', { request_id, tool_call, options });
-    
-    const handleResponse = async (outcome) => {
-        try {
-            await respondToAgentRequest(request_id, outcome);
-            onRespond();
-        } catch (e) {
-            console.error('Failed to respond to agent request:', e);
-        }
-    };
-    
-    const handleAlwaysAllow = async () => {
-        try {
-            // Add to whitelist with the exact title
-            await addToWhitelist(title, `Auto-approved: ${title}`);
-            // Then approve this request
-            await respondToAgentRequest(request_id, 'approved');
-            onRespond();
-        } catch (e) {
-            console.error('Failed to add to whitelist:', e);
-        }
-    };
-    
-    // ACP options format: { optionId, name, kind }
-    const hasOptions = options && options.length > 0;
-    
-    return html`
-        <div class="agent-request-modal">
-            <div class="agent-request-content">
-                <div class="agent-request-header">
-                    <div class="agent-request-icon">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-                        </svg>
-                    </div>
-                    <div class="agent-request-title">${title}</div>
-                </div>
-                ${(explanation || command || diff || uniquePaths.length > 0) && html`
-                    <div class="agent-request-body">
-                        ${explanation && html`
-                            <div class="agent-request-description">${explanation}</div>
-                        `}
-                        ${uniquePaths.length > 0 && html`
-                            <div class="agent-request-files">
-                                <div class="agent-request-subtitle">Files</div>
-                                <ul>
-                                    ${uniquePaths.map((path, idx) => html`<li key=${idx}>${path}</li>`)}
-                                </ul>
-                            </div>
-                        `}
-                        ${command && html`
-                            <pre class="agent-request-command">${command}</pre>
-                        `}
-                        ${diff && html`
-                            <details class="agent-request-diff">
-                                <summary>Proposed diff</summary>
-                                <pre>${diff}</pre>
-                            </details>
-                        `}
-                    </div>
-                `}
-                <div class="agent-request-actions">
-                    ${hasOptions ? (
-                        options.map(opt => html`
-                            <button 
-                                key=${opt.optionId || opt.id || String(opt)}
-                                class="agent-request-btn ${opt.kind === 'allow_once' || opt.kind === 'allow_always' ? 'primary' : ''}"
-                                onClick=${() => handleResponse(opt.optionId || opt.id || opt)}
-                            >
-                                ${opt.name || opt.label || opt.optionId || opt.id || String(opt)}
-                            </button>
-                        `)
-                    ) : html`
-                        <button class="agent-request-btn primary" onClick=${() => handleResponse('approved')}>
-                            Allow
-                        </button>
-                        <button class="agent-request-btn" onClick=${() => handleResponse('denied')}>
-                            Deny
-                        </button>
-                        <button class="agent-request-btn always-allow" onClick=${handleAlwaysAllow}>
-                            Always Allow This
-                        </button>
-                    `}
-                </div>
-            </div>
-        </div>
-    `;
-}
-
-/**
- * Connection status indicator
- */
-function ConnectionStatus({ status }) {
-    if (status === 'connected') return null;
-    
-    return html`
-        <div class="connection-status ${status}">
-            ${status === 'disconnected' ? 'Reconnecting...' : status}
-        </div>
-    `;
-}
-
 
 const dedupePosts = (items) => {
     const seen = new Set();
@@ -1372,6 +500,7 @@ function App() {
     const [currentHashtag, setCurrentHashtag] = useState(null);
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
+    const [fileRefs, setFileRefs] = useState([]);
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState({ text: '', totalLines: 0 });
     const [agentPlan, setAgentPlan] = useState('');
@@ -1379,6 +508,7 @@ function App() {
     const [pendingRequest, setPendingRequest] = useState(null);
     const [currentTurnId, setCurrentTurnId] = useState(null);
     const [agents, setAgents] = useState({});
+    const [activeModel, setActiveModel] = useState(null);
     const hasConnectedOnceRef = useRef(false);
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
     const hasMoreRef = useRef(false);
@@ -1391,9 +521,24 @@ function App() {
     const pendingRequestRef = useRef(null);
     const stalledPostIdRef = useRef(null);
     const currentTurnIdRef = useRef(null);
+    const appShellRef = useRef(null);
+    const sidebarWidthRef = useRef(0);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
+
+    const addFileRef = useCallback((path) => {
+        if (!path) return;
+        setFileRefs((prev) => (prev.includes(path) ? prev : [...prev, path]));
+    }, []);
+
+    const removeFileRef = useCallback((path) => {
+        setFileRefs((prev) => prev.filter((item) => item !== path));
+    }, []);
+
+    const clearFileRefs = useCallback(() => {
+        setFileRefs([]);
+    }, []);
 
     const noteAgentActivity = useCallback((options = {}) => {
         lastAgentEventRef.current = Date.now();
@@ -1671,13 +816,18 @@ function App() {
     useEffect(() => {
         getAgents()
             .then((data) => {
-                const map = {};
-                (data.agents || []).forEach((agent) => {
-                    map[agent.id] = agent;
-                });
-                setAgents(map);
+                setAgents(buildAgentsMap(data));
+                const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
+                setActiveModel(defaultAgent?.model || null);
             })
             .catch((e) => console.warn('Failed to load agents:', e));
+
+        const saved = parseInt(localStorage.getItem('sidebarWidth') || '', 10);
+        const width = Number.isFinite(saved) ? Math.min(Math.max(saved, 160), 600) : 280;
+        sidebarWidthRef.current = width;
+        if (appShellRef.current) {
+            appShellRef.current.style.setProperty('--sidebar-width', `${width}px`);
+        }
     }, []);
 
     // Silence detection timer
@@ -1835,6 +985,13 @@ function App() {
             return;
         }
 
+        if (eventType === 'workspace_update') {
+            if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('workspace-update', { detail: data }));
+            }
+            return;
+        }
+
         // Add new posts/replies to timeline (only when on main timeline) - append at end for chat style
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
         const responseFallback = eventType === 'agent_response' ? (draftBufferRef.current || '').trim() : '';
@@ -1898,9 +1055,9 @@ function App() {
         if (eventType === 'agents_changed') {
             getAgents()
                 .then((data) => {
-                    const map = {};
-                    (data.agents || []).forEach((agent) => { map[agent.id] = agent; });
-                    setAgents(map);
+                    setAgents(buildAgentsMap(data));
+                    const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
+                    setActiveModel(defaultAgent?.model || null);
                 })
                 .catch((e) => console.warn('Failed to reload agents:', e));
         }
@@ -1914,60 +1071,149 @@ function App() {
         
         sse.connect();
 
+        let reconnectTimer = null;
         const handleWindowFocus = () => {
-            sse.reconnectIfNeeded();
+            if (document.visibilityState === 'hidden') return;
+            if (reconnectTimer) clearTimeout(reconnectTimer);
+            reconnectTimer = setTimeout(() => {
+                reconnectTimer = null;
+                sse.reconnectIfNeeded();
+            }, 150);
         };
         window.addEventListener('focus', handleWindowFocus);
         document.addEventListener('visibilitychange', handleWindowFocus);
         
         return () => {
+            if (reconnectTimer) clearTimeout(reconnectTimer);
             window.removeEventListener('focus', handleWindowFocus);
             document.removeEventListener('visibilitychange', handleWindowFocus);
             sse.disconnect();
         };
     }, [loadPosts, handleSseEvent]);
+
+    const handleSplitterMouseDown = useRef((e) => {
+        e.preventDefault();
+        const shell = appShellRef.current;
+        if (!shell) return;
+        const startX = e.clientX;
+        const startW = sidebarWidthRef.current || 280;
+        const splitter = e.currentTarget;
+        splitter.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        let lastX = startX;
+        const onMove = (me) => {
+            lastX = me.clientX;
+            const width = Math.min(Math.max(startW + (me.clientX - startX), 160), 600);
+            shell.style.setProperty('--sidebar-width', `${width}px`);
+            sidebarWidthRef.current = width;
+        };
+        const onUp = () => {
+            const width = Math.min(Math.max(startW + (lastX - startX), 160), 600);
+            sidebarWidthRef.current = width;
+            splitter.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem('sidebarWidth', String(Math.round(width)));
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }).current;
+
+    const handleSplitterTouchStart = useRef((e) => {
+        e.preventDefault();
+        const shell = appShellRef.current;
+        if (!shell) return;
+        const touch = e.touches[0];
+        if (!touch) return;
+        const startX = touch.clientX;
+        const startW = sidebarWidthRef.current || 280;
+        const splitter = e.currentTarget;
+        splitter.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+
+        const onMove = (te) => {
+            const t = te.touches[0];
+            if (!t) return;
+            te.preventDefault();
+            const width = Math.min(Math.max(startW + (t.clientX - startX), 160), 600);
+            shell.style.setProperty('--sidebar-width', `${width}px`);
+            sidebarWidthRef.current = width;
+        };
+        const onUp = () => {
+            splitter.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            localStorage.setItem('sidebarWidth', String(Math.round(sidebarWidthRef.current || startW)));
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+            document.removeEventListener('touchcancel', onUp);
+        };
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        document.addEventListener('touchcancel', onUp);
+    }).current;
     
     return html`
-        <div class="container">
-            ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
-            ${(currentHashtag || searchQuery) && html`
-                <div class="hashtag-header">
-                    <button class="back-btn" onClick=${handleBackToTimeline}>
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
-                    </button>
-                    <span>${currentHashtag ? `#${currentHashtag}` : `Search: ${searchQuery}`}</span>
-                </div>
-            `}
-            <${Timeline} 
-                posts=${posts}
-                hasMore=${hasMore}
-                onLoadMore=${loadMore}
-                timelineRef=${timelineRef}
-                onHashtagClick=${handleHashtagClick}
-                onPostClick=${undefined}
-                onDeletePost=${handleDeletePost}
-                emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
-                agents=${agents}
-                reverse=${!(searchQuery && !currentHashtag)}
-            />
-            <${AgentStatus}
-                status=${agentStatus}
-                draft=${agentDraft}
-                plan=${agentPlan}
-                thought=${agentThought}
-                pendingRequest=${pendingRequest}
-                turnId=${currentTurnId}
-            />
-            <${ComposeBox} 
-                onPost=${() => { loadPosts(); scrollToBottom(); }}
-                onFocus=${scrollToBottom}
-                searchMode=${searchOpen}
-                onSearch=${handleSearch}
-                onEnterSearch=${enterSearchMode}
-                onExitSearch=${exitSearchMode}
-            />
-            <${ConnectionStatus} status=${connectionStatus} />
-            <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
+        <div class="app-shell" ref=${appShellRef}>
+            <${WorkspaceExplorer} onFileSelect=${addFileRef} renderMarkdown=${renderMarkdown} />
+            <div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>
+            <div class="container">
+                ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
+                ${(currentHashtag || searchQuery) && html`
+                    <div class="hashtag-header">
+                        <button class="back-btn" onClick=${handleBackToTimeline}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+                        </button>
+                        <span>${currentHashtag ? `#${currentHashtag}` : `Search: ${searchQuery}`}</span>
+                    </div>
+                `}
+                <${Timeline} 
+                    posts=${posts}
+                    hasMore=${hasMore}
+                    onLoadMore=${loadMore}
+                    timelineRef=${timelineRef}
+                    onHashtagClick=${handleHashtagClick}
+                    onPostClick=${undefined}
+                    onDeletePost=${handleDeletePost}
+                    emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
+                    agents=${agents}
+                    reverse=${!(searchQuery && !currentHashtag)}
+                    renderMarkdown=${renderMarkdown}
+                    renderMermaidDiagrams=${renderMermaidDiagrams}
+                    getAgentName=${getAgentName}
+                    getAgentAvatar=${getAgentAvatar}
+                    getAvatarInfo=${getAvatarInfo}
+                    formatTime=${formatTime}
+                    formatCount=${formatCount}
+                />
+                <${AgentStatus}
+                    status=${agentStatus}
+                    draft=${agentDraft}
+                    plan=${agentPlan}
+                    thought=${agentThought}
+                    pendingRequest=${pendingRequest}
+                    turnId=${currentTurnId}
+                    renderThinkingMarkdown=${renderThinkingMarkdown}
+                    getTurnColor=${getTurnColor}
+                />
+                <${ComposeBox} 
+                    onPost=${() => { loadPosts(); scrollToBottom(); }}
+                    onFocus=${scrollToBottom}
+                    searchMode=${searchOpen}
+                    onSearch=${handleSearch}
+                    onEnterSearch=${enterSearchMode}
+                    onExitSearch=${exitSearchMode}
+                    fileRefs=${fileRefs}
+                    onRemoveFileRef=${removeFileRef}
+                    onClearFileRefs=${clearFileRefs}
+                    activeModel=${activeModel}
+                />
+                <${ConnectionStatus} status=${connectionStatus} />
+                <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
+            </div>
         </div>
     `;
 }

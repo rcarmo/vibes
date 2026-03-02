@@ -181,6 +181,47 @@ export async function getMediaInfo(mediaId) {
 }
 
 /**
+ * Get workspace tree.
+ */
+export async function getWorkspaceTree(path = '', depth = 2, showHidden = false) {
+    return request(`/workspace/tree?path=${encodeURIComponent(path)}&depth=${depth}&show_hidden=${showHidden ? '1' : '0'}`);
+}
+
+/**
+ * Get workspace file preview.
+ */
+export async function getWorkspaceFile(path, maxBytes = 20_000) {
+    return request(`/workspace/file?path=${encodeURIComponent(path)}&max=${maxBytes}`);
+}
+
+/**
+ * Attach workspace file to conversation as media.
+ */
+export async function attachWorkspaceFile(path) {
+    return request('/workspace/attach', {
+        method: 'POST',
+        body: JSON.stringify({ path }),
+    });
+}
+
+/**
+ * Toggle workspace visibility state.
+ */
+export async function setWorkspaceVisibility(visible, showHidden = false) {
+    return request('/workspace/visibility', {
+        method: 'POST',
+        body: JSON.stringify({ visible: Boolean(visible), show_hidden: Boolean(showHidden) }),
+    });
+}
+
+/**
+ * Get raw workspace file URL.
+ */
+export function getWorkspaceRawUrl(path) {
+    return `${API_BASE}/workspace/raw?path=${encodeURIComponent(path)}`;
+}
+
+/**
  * SSE client for live updates
  */
 export class SSEClient {
@@ -191,6 +232,8 @@ export class SSEClient {
         this.reconnectTimeout = null;
         this.reconnectDelay = 1000;
         this.status = 'disconnected';
+        this.reconnectAttempts = 0;
+        this.cooldownUntil = 0;
     }
     
     connect() {
@@ -202,6 +245,8 @@ export class SSEClient {
         
         this.eventSource.onopen = () => {
             this.reconnectDelay = 1000;
+            this.reconnectAttempts = 0;
+            this.cooldownUntil = 0;
             this.status = 'connected';
             this.onStatusChange('connected');
         };
@@ -209,6 +254,7 @@ export class SSEClient {
         this.eventSource.onerror = () => {
             this.status = 'disconnected';
             this.onStatusChange('disconnected');
+            this.reconnectAttempts += 1;
             this.scheduleReconnect();
         };
         
@@ -265,17 +311,31 @@ export class SSEClient {
         this.eventSource.addEventListener('agents_changed', (e) => {
             this.onEvent('agents_changed', JSON.parse(e.data));
         });
+
+        this.eventSource.addEventListener('workspace_update', (e) => {
+            this.onEvent('workspace_update', JSON.parse(e.data));
+        });
     }
     
     scheduleReconnect() {
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
         }
+
+        const MAX_ATTEMPTS = 10;
+        const COOLDOWN_MS = 60_000;
+        const now = Date.now();
+        if (this.reconnectAttempts >= MAX_ATTEMPTS) {
+            this.cooldownUntil = Math.max(this.cooldownUntil, now + COOLDOWN_MS);
+            this.reconnectAttempts = 0;
+        }
+        const cooldownDelay = Math.max(this.cooldownUntil - now, 0);
+        const delay = Math.max(this.reconnectDelay, cooldownDelay);
         
         this.reconnectTimeout = setTimeout(() => {
             console.log('Reconnecting SSE...');
             this.connect();
-        }, this.reconnectDelay);
+        }, delay);
         
         // Exponential backoff, max 30 seconds
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
@@ -283,6 +343,8 @@ export class SSEClient {
 
     reconnectIfNeeded() {
         if (this.status === 'connected') return;
+        const now = Date.now();
+        if (this.cooldownUntil && now < this.cooldownUntil) return;
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = null;
