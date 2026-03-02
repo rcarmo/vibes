@@ -4,6 +4,7 @@ import importlib
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -46,6 +47,44 @@ def test_resolve_unknown_falls_back():
     with patch.object(agents_mod, "get_config") as mock:
         mock.return_value.default_agent = "acp"
         assert agents_mod._resolve_agent_mode("unknown-agent") == "acp"
+
+
+@pytest.mark.asyncio
+async def test_list_agents_includes_default_model_for_acp():
+    req = make_mocked_request("GET", "/agents")
+    cfg = SimpleNamespace(
+        default_agent="acp",
+        pi_enabled=False,
+        acp_agent="claude-sonnet",
+        pi_agent="pi-rpc",
+        agent_name="Agent",
+    )
+    with patch.object(agents_mod, "get_config", return_value=cfg), \
+         patch.object(agents_mod, "is_acp_running", return_value=True):
+        resp = await agents_mod.list_agents(req)
+    body = json.loads(resp.body)
+    default_agent = body["agents"][0]
+    assert default_agent["id"] == "default"
+    assert default_agent["model"] == "claude-sonnet"
+
+
+@pytest.mark.asyncio
+async def test_list_agents_includes_default_model_for_pi():
+    req = make_mocked_request("GET", "/agents")
+    cfg = SimpleNamespace(
+        default_agent="pi",
+        pi_enabled=False,
+        acp_agent="claude-sonnet",
+        pi_agent="pi-rpc",
+        agent_name="Agent",
+    )
+    with patch.object(agents_mod, "get_config", return_value=cfg), \
+         patch.object(agents_mod, "is_pi_running", return_value=True):
+        resp = await agents_mod.list_agents(req)
+    body = json.loads(resp.body)
+    default_agent = body["agents"][0]
+    assert default_agent["id"] == "default"
+    assert default_agent["model"] == "pi-rpc"
 
 
 # ── _extract_text_from_blocks ─────────────────────────────

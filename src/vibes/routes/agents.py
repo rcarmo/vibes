@@ -152,6 +152,7 @@ async def list_agents(request: web.Request) -> web.Response:
             "id": "default",
             "name": "Pi",
             "description": f"Pi agent ({config.pi_agent})",
+            "model": config.pi_agent,
             "status": "running" if is_pi_running() else "stopped",
             "actions": []
         })
@@ -160,6 +161,7 @@ async def list_agents(request: web.Request) -> web.Response:
             "id": "default",
             "name": config.agent_name,
             "description": f"ACP agent ({config.acp_agent})",
+            "model": config.acp_agent,
             "status": "running" if is_acp_running() else "stopped",
             "actions": []
         })
@@ -169,6 +171,7 @@ async def list_agents(request: web.Request) -> web.Response:
             "id": "pi",
             "name": "Pi",
             "description": f"Pi agent ({config.pi_agent})",
+            "model": config.pi_agent,
             "status": "running" if is_pi_running() else "stopped",
             "actions": []
         })
@@ -178,6 +181,7 @@ async def list_agents(request: web.Request) -> web.Response:
             "id": "acp",
             "name": config.agent_name,
             "description": f"ACP agent ({config.acp_agent})",
+            "model": config.acp_agent,
             "status": "running" if is_acp_running() else "stopped",
             "actions": []
         })

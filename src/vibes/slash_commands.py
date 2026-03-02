@@ -213,14 +213,25 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
         })
         if resp and resp.get("success"):
             model_data = resp.get("data", {})
-            name = model_data.get("name", model_str) if isinstance(model_data, dict) else model_str
-            config.pi_model = model_str
+            resolved = None
+            if isinstance(model_data, dict):
+                response_provider = str(model_data.get("provider", "") or "").strip()
+                response_model_id = str(model_data.get("modelId") or model_data.get("id") or "").strip()
+                if response_model_id:
+                    resolved = (
+                        f"{response_provider}/{response_model_id}"
+                        if response_provider
+                        else response_model_id
+                    )
+            if not resolved:
+                resolved = f"{provider}/{model_id}" if provider else model_id
+            config.pi_model = resolved
             from .config import save_setting
-            save_setting("pi_model", model_str)
+            save_setting("pi_model", resolved)
             thinking_note = f" Thinking level: {config.pi_thinking}." if config.pi_thinking else ""
             return SlashCommandResult(
                 status="success",
-                message=f"Model set to `{name}`.{thinking_note}",
+                message=f"Model set to `{resolved}`.{thinking_note}",
             )
         error = resp.get("error", "Unknown error") if resp else "No response"
         return SlashCommandResult(status="error", message=f"Failed to set model: {error}")
@@ -244,12 +255,9 @@ async def _show_pi_model_info(config) -> SlashCommandResult:
                 data = state_resp.get("data", {})
                 model = data.get("model")
                 if isinstance(model, dict):
-                    name = model.get("name") or model.get("modelId", "")
-                    provider = model.get("provider", "")
-                    if provider and name:
-                        lines[0] = f"Current model: {provider}/{name}"
-                    elif name:
-                        lines[0] = f"Current model: {name}"
+                    current_model = _format_model_identifier(model)
+                    if current_model:
+                        lines[0] = f"Current model: {current_model}"
                 tl = data.get("thinkingLevel", "off")
                 lines[1] = f"Thinking level: {tl}"
         except Exception:
@@ -290,16 +298,21 @@ async def _query_pi_models_rpc() -> list[str]:
         models = []
         for m in raw_models:
             if isinstance(m, dict):
-                provider = m.get("provider", "")
-                name = m.get("name") or m.get("modelId", "")
-                if provider and name:
-                    models.append(f"{provider}/{name}")
-                elif name:
+                name = _format_model_identifier(m)
+                if name:
                     models.append(name)
         return sorted(models)
     except Exception:
         logger.debug("Failed to query models via RPC", exc_info=True)
         return []
+
+
+def _format_model_identifier(model: dict) -> str:
+    provider = str(model.get("provider", "") or "").strip()
+    model_id = str(model.get("modelId") or model.get("id") or model.get("name") or "").strip()
+    if provider and model_id:
+        return f"{provider}/{model_id}"
+    return model_id
 
 
 async def _query_pi_models_cli(config) -> list[str]:

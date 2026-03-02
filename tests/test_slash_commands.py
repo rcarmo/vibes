@@ -180,6 +180,28 @@ async def test_model_show_pi_with_list(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_model_show_pi_prefers_model_id_from_state(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    monkeypatch.setattr(config, "pi_thinking", None)
+    monkeypatch.setattr(_mod, "_query_pi_models_rpc", AsyncMock(return_value=[]))
+    monkeypatch.setattr(_mod, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {
+                 "model": {"provider": "openai", "name": "GPT-4.1", "modelId": "gpt-4.1"},
+                 "thinkingLevel": "low",
+             },
+         }):
+        cmd = SlashCommand(name="model", args="", raw="/model")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Current model: openai/gpt-4.1" in result.message
+        assert "Thinking level: low" in result.message
+
+
+@pytest.mark.asyncio
 async def test_model_show_acp():
     cmd = SlashCommand(name="model", args="", raw="/model")
     result = await execute_command(cmd, "acp")
@@ -619,6 +641,22 @@ async def test_query_models_rpc_success():
         assert "openai/gpt-4" in result
         assert "local-model" in result
         assert result == sorted(result)
+
+
+@pytest.mark.asyncio
+async def test_query_models_rpc_prefers_model_id_over_name():
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {
+                 "models": [
+                     {"provider": "openai", "name": "GPT-4.1 label", "modelId": "gpt-4.1"},
+                 ]
+             }
+         }):
+        result = await _mod._query_pi_models_rpc()
+        assert "openai/gpt-4.1" in result
+        assert "openai/GPT-4.1 label" not in result
 
 
 @pytest.mark.asyncio

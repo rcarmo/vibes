@@ -164,12 +164,13 @@ async def delete_post(request: web.Request) -> web.Response:
     post = await db.get_interaction(post_id)
     if not post:
         return web.json_response({"error": "Post not found"}, status=404)
-    
-    reply_ids = await db.get_reply_ids(post_id)
+
+    root_id = post["data"].get("thread_id") or post_id
+    reply_ids = await db.get_reply_ids(root_id)
     if reply_ids and not cascade:
         return web.json_response({"error": "Replies exist", "reply_count": len(reply_ids)}, status=409)
-    
-    delete_ids = [post_id]
+
+    delete_ids = [root_id]
     if cascade and reply_ids:
         delete_ids.extend(reply_ids)
     

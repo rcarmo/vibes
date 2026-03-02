@@ -36,6 +36,14 @@ function buildAgentsMap(data) {
     return map;
 }
 
+function resolveAgentModel(agent) {
+    const direct = String(agent?.model || '').trim();
+    if (direct) return direct;
+    const description = String(agent?.description || '');
+    const match = description.match(/\(([^()]+)\)\s*$/);
+    return match?.[1]?.trim() || null;
+}
+
 function getTurnColor(turnId) {
     if (!turnId) return null;
     const palette = [
@@ -813,14 +821,19 @@ function App() {
         }
     }, [hasMore, loadMore, posts]);
 
+    const loadAgents = useCallback(async () => {
+        try {
+            const data = await getAgents();
+            setAgents(buildAgentsMap(data));
+            const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
+            setActiveModel(resolveAgentModel(defaultAgent));
+        } catch (e) {
+            console.warn('Failed to load agents:', e);
+        }
+    }, []);
+
     useEffect(() => {
-        getAgents()
-            .then((data) => {
-                setAgents(buildAgentsMap(data));
-                const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
-                setActiveModel(defaultAgent?.model || null);
-            })
-            .catch((e) => console.warn('Failed to load agents:', e));
+        loadAgents();
 
         const saved = parseInt(localStorage.getItem('sidebarWidth') || '', 10);
         const width = Number.isFinite(saved) ? Math.min(Math.max(saved, 160), 600) : 280;
@@ -828,7 +841,7 @@ function App() {
         if (appShellRef.current) {
             appShellRef.current.style.setProperty('--sidebar-width', `${width}px`);
         }
-    }, []);
+    }, [loadAgents]);
 
     // Silence detection timer
     useEffect(() => {
@@ -1053,15 +1066,9 @@ function App() {
             }
         }
         if (eventType === 'agents_changed') {
-            getAgents()
-                .then((data) => {
-                    setAgents(buildAgentsMap(data));
-                    const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
-                    setActiveModel(defaultAgent?.model || null);
-                })
-                .catch((e) => console.warn('Failed to reload agents:', e));
+            loadAgents();
         }
-    }, [clearAgentRunState, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile]);
+    }, [clearAgentRunState, loadAgents, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile]);
 
     // Set up SSE connection
     useEffect(() => {
