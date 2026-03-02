@@ -1,7 +1,18 @@
 import { html, useEffect, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 
-export function AgentStatus({ status, draft, plan, thought, pendingRequest, turnId, renderThinkingMarkdown, getTurnColor }) {
+export function AgentStatus({
+    status,
+    draft,
+    plan,
+    thought,
+    pendingRequest,
+    turnId,
+    renderThinkingMarkdown,
+    getTurnColor,
+    onExpandPanel,
+    onPanelExpandedChange,
+}) {
     const THOUGHT_MAX_LINES = 8;
     const DRAFT_MAX_LINES = 8;
     const PREVIEW_MAX_CHARS_PER_LINE = 160;
@@ -58,7 +69,11 @@ export function AgentStatus({ status, draft, plan, thought, pendingRequest, turn
     };
     useEffect(() => {
         setExpandedPanels(new Set());
-    }, [turnId]);
+        if (onPanelExpandedChange) {
+            onPanelExpandedChange('draft', false);
+            onPanelExpandedChange('thought', false);
+        }
+    }, [turnId, onPanelExpandedChange]);
 
     if (!status && !hasDraft && !hasPlan && !hasThought && !pendingRequest) return null;
 
@@ -81,6 +96,15 @@ export function AgentStatus({ status, draft, plan, thought, pendingRequest, turn
 
     const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass, panelKey }) => {
         const isExpanded = expandedPanels.has(panelKey);
+        const handleExpand = async () => {
+            if (!isExpanded && onExpandPanel && (panelKey === 'draft' || panelKey === 'thought')) {
+                await onExpandPanel(panelKey, activeTurn);
+            }
+            if (onPanelExpandedChange && (panelKey === 'draft' || panelKey === 'thought')) {
+                onPanelExpandedChange(panelKey, !isExpanded);
+            }
+            toggleExpand(panelKey);
+        };
         const effectiveMax = (typeof maxLines === 'number' && !isExpanded) ? maxLines : undefined;
         const truncated = typeof effectiveMax === 'number'
             ? truncateLines(text, effectiveMax, totalLines)
@@ -97,7 +121,7 @@ export function AgentStatus({ status, draft, plan, thought, pendingRequest, turn
                     dangerouslySetInnerHTML=${{ __html: renderThinking(truncated.text) }}
                 />
                 ${truncated.omitted > 0 && html`
-                    <button class="agent-thinking-truncation" onClick=${() => toggleExpand(panelKey)}>
+                    <button class="agent-thinking-truncation" onClick=${handleExpand}>
                         ▸ ${truncated.omitted} more lines
                     </button>
                 `}

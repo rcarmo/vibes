@@ -893,6 +893,7 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     if delta_type == "text_delta":
                         chunk = delta.get("delta", "")
                         if chunk:
+                            delta_reset = not draft_text
                             draft_text += chunk
                             if status_callback:
                                 preview = _build_preview(draft_text, max_lines=8)
@@ -902,10 +903,13 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                                     "total_lines": preview["total_lines"],
                                     "kind": "draft",
                                     "mode": "replace",
+                                    "delta": chunk,
+                                    "delta_reset": delta_reset,
                                 })
                     elif delta_type == "thinking_delta":
                         chunk = delta.get("delta", "")
                         if chunk:
+                            delta_reset = not thought_text
                             thought_text += chunk
                             if status_callback:
                                 preview = _build_preview(thought_text, max_lines=8)
@@ -913,6 +917,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                                     "type": "thought_chunk",
                                     "text": preview["text"],
                                     "total_lines": preview["total_lines"],
+                                    "delta": chunk,
+                                    "delta_reset": delta_reset,
                                 })
                     continue
 

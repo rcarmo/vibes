@@ -75,6 +75,38 @@ async def _extract_and_store_data_uri_images(db, text: str) -> str:
     return "".join(out)
 
 logger = logging.getLogger(__name__)
+_PREVIEW_MAX_CHARS_PER_LINE = 160
+_MAX_TURN_PREVIEWS = 128
+_turn_previews: dict[str, dict] = {}
+
+
+def _estimate_total_lines(text: str, max_chars_per_line: int = _PREVIEW_MAX_CHARS_PER_LINE) -> int:
+    value = (text or "").replace("\r\n", "\n")
+    if not value:
+        return 0
+    return sum(max(1, (len(line) + max_chars_per_line - 1) // max_chars_per_line) for line in value.split("\n"))
+
+
+def _register_turn_preview(turn_id: str, thread_id: int, agent_id: str) -> None:
+    _turn_previews[turn_id] = {
+        "thread_id": thread_id,
+        "agent_id": agent_id,
+        "draft": "",
+        "thought": "",
+    }
+    while len(_turn_previews) > _MAX_TURN_PREVIEWS:
+        oldest = next(iter(_turn_previews))
+        _turn_previews.pop(oldest, None)
+
+
+def _update_turn_preview(turn_id: str, *, draft: str | None = None, thought: str | None = None) -> None:
+    preview = _turn_previews.get(turn_id)
+    if preview is None:
+        return
+    if draft is not None:
+        preview["draft"] = draft
+    if thought is not None:
+        preview["thought"] = thought
 
 
 def _extract_text_from_blocks(blocks) -> str:
@@ -191,6 +223,24 @@ async def list_agents(request: web.Request) -> web.Response:
     return web.json_response({"agents": agents})
 
 
+async def get_turn_preview(request: web.Request) -> web.Response:
+    """Return full draft/thought text captured for a live agent turn."""
+    turn_id = request.match_info.get("turn_id", "")
+    preview = _turn_previews.get(turn_id)
+    if not preview:
+        return web.json_response({"error": "Turn not found"}, status=404)
+
+    draft = str(preview.get("draft", "") or "")
+    thought = str(preview.get("thought", "") or "")
+    return web.json_response({
+        "turn_id": turn_id,
+        "draft": draft,
+        "thought": thought,
+        "draft_total_lines": _estimate_total_lines(draft),
+        "thought_total_lines": _estimate_total_lines(thought),
+    })
+
+
 def _format_model_identifier(model: dict) -> str:
     provider = str(model.get("provider", "") or "").strip()
     model_id = str(model.get("modelId") or model.get("id") or model.get("name") or "").strip()
@@ -249,17 +299,25 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     config = get_config()
     agent_profile = {"agent_name": config.agent_name, "agent_avatar": None}
     latest_draft_text = ""
+    latest_thought_text = ""
+    _register_turn_preview(turn_id, thread_id, agent_id)
 
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
-            nonlocal latest_draft_text
+            nonlocal latest_draft_text, latest_thought_text
             if status.get("type") == "message_chunk":
                 text = status.get("text", "")
                 kind = status.get("kind", "draft")
                 mode = status.get("mode", "append")
-                if kind == "draft" and text:
-                    latest_draft_text = text if mode == "replace" else f"{latest_draft_text}{text}"
+                if kind == "draft":
+                    delta = status.get("delta")
+                    delta_reset = bool(status.get("delta_reset"))
+                    if isinstance(delta, str) and delta:
+                        latest_draft_text = delta if delta_reset else f"{latest_draft_text}{delta}"
+                    elif text:
+                        latest_draft_text = text if mode == "replace" else f"{latest_draft_text}{text}"
+                    _update_turn_preview(turn_id, draft=latest_draft_text)
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
@@ -271,25 +329,56 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                     **agent_profile,
                 })
                 if kind != "plan":
+                    delta = status.get("delta")
+                    if isinstance(delta, str):
+                        delta_text = delta
+                        delta_reset = bool(status.get("delta_reset"))
+                    else:
+                        delta_text = text
+                        delta_reset = mode == "replace"
                     delta_payload = {
                         "thread_id": thread_id,
                         "agent_id": agent_id,
                         "turn_id": turn_id,
-                        "delta": text if mode == "replace" else text,
-                        "reset": mode == "replace",
+                        "delta": delta_text,
+                        "reset": delta_reset,
                         **agent_profile,
                     }
-                    await broadcast_event("agent_draft_delta", delta_payload)
+                    if delta_text:
+                        await broadcast_event("agent_draft_delta", delta_payload)
                 return
             if status.get("type") == "thought_chunk":
+                text = status.get("text", "")
+                mode = status.get("mode", "append")
+                delta = status.get("delta")
+                delta_reset = bool(status.get("delta_reset"))
+                if isinstance(delta, str) and delta:
+                    latest_thought_text = delta if delta_reset else f"{latest_thought_text}{delta}"
+                elif text:
+                    latest_thought_text = text if mode == "replace" else f"{latest_thought_text}{text}"
+                _update_turn_preview(turn_id, thought=latest_thought_text)
                 await broadcast_event("agent_thought", {
                     "thread_id": thread_id,
                     "agent_id": agent_id,
                     "turn_id": turn_id,
-                    "text": status.get("text", ""),
+                    "text": text,
                     "total_lines": status.get("total_lines"),
                     **agent_profile,
                 })
+                if isinstance(delta, str):
+                    delta_text = delta
+                else:
+                    delta_text = text
+                    delta_reset = mode == "replace"
+                if delta_text or delta_reset:
+                    await broadcast_event("agent_thought_delta", {
+                        "thread_id": thread_id,
+                        "agent_id": agent_id,
+                        "turn_id": turn_id,
+                        "delta": delta_text,
+                        "reset": delta_reset,
+                        **agent_profile,
+                    })
                 return
             await broadcast_event("agent_status", {
                 "thread_id": thread_id,
@@ -680,6 +769,7 @@ async def remove_from_whitelist(request: web.Request) -> web.Response:
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
+    app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/respond", respond_to_agent_request)

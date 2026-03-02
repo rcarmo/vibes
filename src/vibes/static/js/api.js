@@ -102,6 +102,13 @@ export async function getAgents() {
 }
 
 /**
+ * Get full draft/thought text for a live agent turn.
+ */
+export async function getAgentTurnPreview(turnId) {
+    return request(`/agent/turn/${encodeURIComponent(turnId)}`);
+}
+
+/**
  * Upload media file
  */
 export async function uploadMedia(file) {
@@ -306,6 +313,10 @@ export class SSEClient {
 
         this.eventSource.addEventListener('agent_draft_delta', (e) => {
             this.onEvent('agent_draft_delta', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_thought_delta', (e) => {
+            this.onEvent('agent_thought_delta', JSON.parse(e.data));
         });
 
         this.eventSource.addEventListener('agents_changed', (e) => {

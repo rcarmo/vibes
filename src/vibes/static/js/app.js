@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -43,6 +43,14 @@ function resolveAgentModel(agent) {
     const match = description.match(/\(([^()]+)\)\s*$/);
     const fallback = match?.[1]?.trim() || '';
     return fallback && !/\s/.test(fallback) ? fallback : null;
+}
+
+function estimatePreviewLines(text, maxCharsPerLine = 160) {
+    const value = String(text || '').replace(/\r\n/g, '\n');
+    if (!value) return 0;
+    return value
+        .split('\n')
+        .reduce((acc, line) => acc + Math.max(1, Math.ceil(line.length / maxCharsPerLine)), 0);
 }
 
 function getTurnColor(turnId) {
@@ -527,6 +535,8 @@ function App() {
     const lastSilenceNoticeRef = useRef(0);
     const isAgentRunningRef = useRef(false);
     const draftBufferRef = useRef('');
+    const thoughtBufferRef = useRef('');
+    const expandedPanelsRef = useRef({ draft: false, thought: false });
     const pendingRequestRef = useRef(null);
     const stalledPostIdRef = useRef(null);
     const currentTurnIdRef = useRef(null);
@@ -579,6 +589,8 @@ function App() {
         lastAgentEventRef.current = null;
         lastSilenceNoticeRef.current = 0;
         draftBufferRef.current = '';
+        thoughtBufferRef.current = '';
+        expandedPanelsRef.current = { draft: false, thought: false };
         pendingRequestRef.current = null;
         currentTurnIdRef.current = null;
         setCurrentTurnId(null);
@@ -590,6 +602,8 @@ function App() {
         currentTurnIdRef.current = turnId;
         setCurrentTurnId(turnId);
         draftBufferRef.current = '';
+        thoughtBufferRef.current = '';
+        expandedPanelsRef.current = { draft: false, thought: false };
         setAgentDraft({ text: '', totalLines: 0 });
         setAgentPlan('');
         setAgentThought({ text: '', totalLines: 0 });
@@ -631,6 +645,8 @@ function App() {
 
         const partial = (draftBufferRef.current || '').trim();
         draftBufferRef.current = '';
+        thoughtBufferRef.current = '';
+        expandedPanelsRef.current = { draft: false, thought: false };
         setAgentDraft({ text: '', totalLines: 0 });
         setAgentPlan('');
         setAgentThought({ text: '', totalLines: 0 });
@@ -833,6 +849,35 @@ function App() {
         }
     }, []);
 
+    const expandAgentPanel = useCallback(async (panelKey, turnId) => {
+        if (!turnId || (panelKey !== 'draft' && panelKey !== 'thought')) return;
+        try {
+            const data = await getAgentTurnPreview(turnId);
+            if (panelKey === 'draft') {
+                const text = String(data?.draft || '');
+                const totalLines = Number.isFinite(data?.draft_total_lines)
+                    ? data.draft_total_lines
+                    : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
+                draftBufferRef.current = text;
+                setAgentDraft({ text, totalLines });
+                return;
+            }
+            const text = String(data?.thought || '');
+            const totalLines = Number.isFinite(data?.thought_total_lines)
+                ? data.thought_total_lines
+                : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
+            thoughtBufferRef.current = text;
+            setAgentThought({ text, totalLines });
+        } catch (e) {
+            console.warn('Failed to load full agent preview:', e);
+        }
+    }, []);
+
+    const handlePanelExpandedChange = useCallback((panelKey, expanded) => {
+        if (panelKey !== 'draft' && panelKey !== 'thought') return;
+        expandedPanelsRef.current = { ...expandedPanelsRef.current, [panelKey]: Boolean(expanded) };
+    }, []);
+
     useEffect(() => {
         loadAgents();
 
@@ -908,6 +953,8 @@ function App() {
                 noteAgentActivity({ running: true, clearSilence: true });
                 if (data.type === 'thinking') {
                     draftBufferRef.current = '';
+                    thoughtBufferRef.current = '';
+                    expandedPanelsRef.current = { draft: false, thought: false };
                     setAgentDraft({ text: '', totalLines: 0 });
                     setAgentPlan('');
                     setAgentThought({ text: '', totalLines: 0 });
@@ -931,6 +978,10 @@ function App() {
             if (data?.delta) {
                 draftBufferRef.current += data.delta;
             }
+            if (expandedPanelsRef.current.draft) {
+                const fullText = draftBufferRef.current;
+                setAgentDraft({ text: fullText, totalLines: estimatePreviewLines(fullText) });
+            }
             return;
         }
 
@@ -952,8 +1003,31 @@ function App() {
                 if (mode === 'replace') setAgentPlan(text);
                 else setAgentPlan((prev) => (prev || '') + text);
             } else {
-                draftBufferRef.current = text;
-                setAgentDraft({ text, totalLines: inferredTotal });
+                if (!expandedPanelsRef.current.draft) {
+                    draftBufferRef.current = text;
+                    setAgentDraft({ text, totalLines: inferredTotal });
+                }
+            }
+            return;
+        }
+
+        if (eventType === 'agent_thought_delta') {
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            if (turnId && !currentTurnIdRef.current) {
+                setActiveTurn(turnId);
+            }
+            noteAgentActivity({ running: true, clearSilence: true });
+            if (data?.reset) {
+                thoughtBufferRef.current = '';
+            }
+            if (data?.delta) {
+                thoughtBufferRef.current += data.delta;
+            }
+            if (expandedPanelsRef.current.thought) {
+                const fullText = thoughtBufferRef.current;
+                setAgentThought({ text: fullText, totalLines: estimatePreviewLines(fullText) });
             }
             return;
         }
@@ -970,7 +1044,10 @@ function App() {
             const inferredTotal = Number.isFinite(data.total_lines)
                 ? data.total_lines
                 : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
-            setAgentThought({ text, totalLines: inferredTotal });
+            if (!expandedPanelsRef.current.thought) {
+                thoughtBufferRef.current = text;
+                setAgentThought({ text, totalLines: inferredTotal });
+            }
             return;
         }
 
@@ -1206,6 +1283,8 @@ function App() {
                     turnId=${currentTurnId}
                     renderThinkingMarkdown=${renderThinkingMarkdown}
                     getTurnColor=${getTurnColor}
+                    onExpandPanel=${expandAgentPanel}
+                    onPanelExpandedChange=${handlePanelExpandedChange}
                 />
                 <${ComposeBox} 
                     onPost=${() => { loadPosts(); scrollToBottom(); }}

@@ -112,6 +112,36 @@ async def test_list_agents_prefers_runtime_pi_model():
     assert default_agent["model"] == "openai/gpt-5.2"
 
 
+@pytest.mark.asyncio
+async def test_get_turn_preview_returns_full_draft_and_thought():
+    turn_id = "turn-test"
+    agents_mod._turn_previews[turn_id] = {
+        "thread_id": 1,
+        "agent_id": "default",
+        "draft": "line1\nline2",
+        "thought": "thinking line",
+    }
+    req = make_mocked_request("GET", f"/agent/turn/{turn_id}", match_info={"turn_id": turn_id})
+    resp = await agents_mod.get_turn_preview(req)
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["turn_id"] == turn_id
+    assert body["draft"] == "line1\nline2"
+    assert body["thought"] == "thinking line"
+    assert body["draft_total_lines"] == agents_mod._estimate_total_lines("line1\nline2")
+    assert body["thought_total_lines"] == agents_mod._estimate_total_lines("thinking line")
+    agents_mod._turn_previews.pop(turn_id, None)
+
+
+@pytest.mark.asyncio
+async def test_get_turn_preview_not_found():
+    req = make_mocked_request("GET", "/agent/turn/unknown", match_info={"turn_id": "unknown"})
+    resp = await agents_mod.get_turn_preview(req)
+    body = json.loads(resp.body)
+    assert resp.status == 404
+    assert body["error"] == "Turn not found"
+
+
 # ── _extract_text_from_blocks ─────────────────────────────
 
 

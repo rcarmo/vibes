@@ -23,7 +23,7 @@ async def start_agent() -> None:
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
 _restart_task: asyncio.Task | None = None
-_LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_draft_delta", "agent_thought"}
+_LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_draft_delta", "agent_thought", "agent_thought_delta"}
 
 
 async def broadcast_event(event_type: str, data: Any) -> None:

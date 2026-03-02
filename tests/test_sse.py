@@ -92,6 +92,15 @@ async def test_broadcast_lossy_thought_dropped_when_full():
 
 
 @pytest.mark.asyncio
+async def test_broadcast_lossy_thought_delta_dropped_when_full():
+    queue = asyncio.Queue(maxsize=1)
+    sse._clients.add(queue)
+    queue.put_nowait("filler")
+    await sse.broadcast_event("agent_thought_delta", {"delta": "h"})
+    assert queue.qsize() == 1
+
+
+@pytest.mark.asyncio
 async def test_broadcast_critical_event_evicts_stale():
     queue = asyncio.Queue(maxsize=2)
     sse._clients.add(queue)
@@ -158,5 +167,6 @@ def test_lossy_event_types():
     assert "agent_status" in sse._LOSSY_EVENT_TYPES
     assert "agent_draft" in sse._LOSSY_EVENT_TYPES
     assert "agent_thought" in sse._LOSSY_EVENT_TYPES
+    assert "agent_thought_delta" in sse._LOSSY_EVENT_TYPES
     assert "new_post" not in sse._LOSSY_EVENT_TYPES
     assert "agent_response" not in sse._LOSSY_EVENT_TYPES
