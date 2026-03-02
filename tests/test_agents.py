@@ -76,15 +76,40 @@ async def test_list_agents_includes_default_model_for_pi():
         pi_enabled=False,
         acp_agent="claude-sonnet",
         pi_agent="pi-rpc",
+        pi_model="anthropic/claude-sonnet",
         agent_name="Agent",
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
-         patch.object(agents_mod, "is_pi_running", return_value=True):
+         patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=None):
         resp = await agents_mod.list_agents(req)
     body = json.loads(resp.body)
     default_agent = body["agents"][0]
     assert default_agent["id"] == "default"
-    assert default_agent["model"] == "pi-rpc"
+    assert default_agent["model"] == "anthropic/claude-sonnet"
+
+
+@pytest.mark.asyncio
+async def test_list_agents_prefers_runtime_pi_model():
+    req = make_mocked_request("GET", "/agents")
+    cfg = SimpleNamespace(
+        default_agent="pi",
+        pi_enabled=False,
+        acp_agent="claude-sonnet",
+        pi_agent="pi-rpc",
+        pi_model="anthropic/claude-sonnet",
+        agent_name="Agent",
+    )
+    with patch.object(agents_mod, "get_config", return_value=cfg), \
+         patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {"model": {"provider": "openai", "modelId": "gpt-5.2"}},
+         }):
+        resp = await agents_mod.list_agents(req)
+    body = json.loads(resp.body)
+    default_agent = body["agents"][0]
+    assert default_agent["model"] == "openai/gpt-5.2"
 
 
 # ── _extract_text_from_blocks ─────────────────────────────
@@ -267,9 +292,11 @@ async def test_send_message_missing_content():
 async def test_list_agents_pi_default():
     with patch.object(agents_mod, "get_config") as mc, \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "is_acp_running", return_value=False):
+         patch.object(agents_mod, "is_acp_running", return_value=False), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=None):
         mc.return_value.default_agent = "pi"
         mc.return_value.pi_agent = "pi-binary"
+        mc.return_value.pi_model = "anthropic/claude-sonnet"
         mc.return_value.pi_enabled = True
         mc.return_value.acp_agent = "copilot --acp"
         mc.return_value.agent_name = "TestBot"
@@ -277,7 +304,7 @@ async def test_list_agents_pi_default():
         resp = await agents_mod.list_agents(req)
         body = json.loads(resp.body)
         agents = body["agents"]
-        assert any(a["id"] == "default" and a["name"] == "Pi" for a in agents)
+        assert any(a["id"] == "default" and a["name"] == "TestBot" for a in agents)
         assert any(a["id"] == "acp" for a in agents)
 
 

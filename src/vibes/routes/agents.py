@@ -20,6 +20,7 @@ from ..pi_client import (
     send_message_multimodal as send_pi_message_multimodal,
     is_pi_running,
     is_busy as is_pi_busy,
+    send_rpc_command,
     send_rpc_fire_and_forget as send_pi_rpc_fire_and_forget,
     set_request_callback as set_pi_request_callback,
     respond_to_request as respond_to_pi_request,
@@ -146,13 +147,14 @@ async def list_agents(request: web.Request) -> web.Response:
     config = get_config()
     default_mode = config.default_agent.lower()
     agents = []
+    pi_model = await _resolve_pi_model(config)
 
     if default_mode == "pi":
         agents.append({
             "id": "default",
-            "name": "Pi",
+            "name": config.agent_name,
             "description": f"Pi agent ({config.pi_agent})",
-            "model": config.pi_agent,
+            "model": pi_model,
             "status": "running" if is_pi_running() else "stopped",
             "actions": []
         })
@@ -171,7 +173,7 @@ async def list_agents(request: web.Request) -> web.Response:
             "id": "pi",
             "name": "Pi",
             "description": f"Pi agent ({config.pi_agent})",
-            "model": config.pi_agent,
+            "model": pi_model,
             "status": "running" if is_pi_running() else "stopped",
             "actions": []
         })
@@ -187,6 +189,44 @@ async def list_agents(request: web.Request) -> web.Response:
         })
 
     return web.json_response({"agents": agents})
+
+
+def _format_model_identifier(model: dict) -> str:
+    provider = str(model.get("provider", "") or "").strip()
+    model_id = str(model.get("modelId") or model.get("id") or model.get("name") or "").strip()
+    if provider and model_id:
+        return f"{provider}/{model_id}"
+    return model_id
+
+
+def _get_configured_pi_model(config) -> str | None:
+    model = getattr(config, "pi_model", None)
+    if isinstance(model, str):
+        model = model.strip()
+        return model or None
+    return None
+
+
+async def _resolve_pi_model(config) -> str | None:
+    configured = _get_configured_pi_model(config)
+    if not is_pi_running():
+        return configured
+    try:
+        resp = await send_rpc_command({"type": "get_state"}, timeout=1.0)
+        if resp and resp.get("success"):
+            data = resp.get("data", {})
+            model = data.get("model")
+            if isinstance(model, dict):
+                resolved = _format_model_identifier(model)
+                if resolved:
+                    return resolved
+            elif isinstance(model, str):
+                model = model.strip()
+                if model:
+                    return model
+    except Exception:
+        logger.debug("Failed to query Pi model state for /agents", exc_info=True)
+    return configured
 
 
 def _resolve_agent_mode(agent_id: str) -> str:

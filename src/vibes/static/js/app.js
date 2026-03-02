@@ -41,7 +41,8 @@ function resolveAgentModel(agent) {
     if (direct) return direct;
     const description = String(agent?.description || '');
     const match = description.match(/\(([^()]+)\)\s*$/);
-    return match?.[1]?.trim() || null;
+    const fallback = match?.[1]?.trim() || '';
+    return fallback && !/\s/.test(fallback) ? fallback : null;
 }
 
 function getTurnColor(turnId) {
