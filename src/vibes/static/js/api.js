@@ -109,6 +109,16 @@ export async function getAgentTurnPreview(turnId) {
 }
 
 /**
+ * Set expanded state for a live draft/thought panel.
+ */
+export async function setAgentTurnPanelExpanded(turnId, panel, expanded) {
+    return request(`/agent/turn/${encodeURIComponent(turnId)}/panel`, {
+        method: 'POST',
+        body: JSON.stringify({ panel, expanded: Boolean(expanded) }),
+    });
+}
+
+/**
  * Upload media file
  */
 export async function uploadMedia(file) {

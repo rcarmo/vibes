@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -873,9 +873,14 @@ function App() {
         }
     }, []);
 
-    const handlePanelExpandedChange = useCallback((panelKey, expanded) => {
+    const handlePanelExpandedChange = useCallback((panelKey, expanded, turnId = null) => {
         if (panelKey !== 'draft' && panelKey !== 'thought') return;
         expandedPanelsRef.current = { ...expandedPanelsRef.current, [panelKey]: Boolean(expanded) };
+        const activeTurn = turnId || currentTurnIdRef.current;
+        if (!activeTurn) return;
+        setAgentTurnPanelExpanded(activeTurn, panelKey, expanded).catch((e) => {
+            console.warn('Failed to set panel state:', e);
+        });
     }, []);
 
     useEffect(() => {

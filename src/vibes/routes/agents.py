@@ -93,6 +93,7 @@ def _register_turn_preview(turn_id: str, thread_id: int, agent_id: str) -> None:
         "agent_id": agent_id,
         "draft": "",
         "thought": "",
+        "expanded": {"draft": False, "thought": False},
     }
     while len(_turn_previews) > _MAX_TURN_PREVIEWS:
         oldest = next(iter(_turn_previews))
@@ -107,6 +108,28 @@ def _update_turn_preview(turn_id: str, *, draft: str | None = None, thought: str
         preview["draft"] = draft
     if thought is not None:
         preview["thought"] = thought
+
+
+def _is_panel_expanded(turn_id: str, panel: str) -> bool:
+    preview = _turn_previews.get(turn_id)
+    if preview is None:
+        return False
+    expanded = preview.get("expanded")
+    if not isinstance(expanded, dict):
+        return False
+    return bool(expanded.get(panel))
+
+
+def _set_panel_expanded(turn_id: str, panel: str, expanded: bool) -> bool:
+    preview = _turn_previews.get(turn_id)
+    if preview is None:
+        return False
+    state = preview.get("expanded")
+    if not isinstance(state, dict):
+        state = {"draft": False, "thought": False}
+        preview["expanded"] = state
+    state[panel] = bool(expanded)
+    return True
 
 
 def _extract_text_from_blocks(blocks) -> str:
@@ -241,6 +264,24 @@ async def get_turn_preview(request: web.Request) -> web.Response:
     })
 
 
+async def set_turn_panel_state(request: web.Request) -> web.Response:
+    """Set expanded/collapsed state for draft/thought panel of a turn."""
+    turn_id = request.match_info.get("turn_id", "")
+    if turn_id not in _turn_previews:
+        return web.json_response({"error": "Turn not found"}, status=404)
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    panel = str(data.get("panel", "")).strip().lower()
+    if panel not in {"draft", "thought"}:
+        return web.json_response({"error": "Invalid panel"}, status=400)
+    expanded = bool(data.get("expanded"))
+    _set_panel_expanded(turn_id, panel, expanded)
+    return web.json_response({"turn_id": turn_id, "panel": panel, "expanded": expanded})
+
+
 def _format_model_identifier(model: dict) -> str:
     provider = str(model.get("provider", "") or "").strip()
     model_id = str(model.get("modelId") or model.get("id") or model.get("name") or "").strip()
@@ -344,7 +385,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                         "reset": delta_reset,
                         **agent_profile,
                     }
-                    if delta_text:
+                    if _is_panel_expanded(turn_id, "draft") and delta_text:
                         await broadcast_event("agent_draft_delta", delta_payload)
                 return
             if status.get("type") == "thought_chunk":
@@ -370,7 +411,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 else:
                     delta_text = text
                     delta_reset = mode == "replace"
-                if delta_text or delta_reset:
+                if _is_panel_expanded(turn_id, "thought") and (delta_text or delta_reset):
                     await broadcast_event("agent_thought_delta", {
                         "thread_id": thread_id,
                         "agent_id": agent_id,
@@ -770,6 +811,7 @@ def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
+    app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/respond", respond_to_agent_request)

@@ -142,6 +142,52 @@ async def test_get_turn_preview_not_found():
     assert body["error"] == "Turn not found"
 
 
+@pytest.mark.asyncio
+async def test_set_turn_panel_state_updates_expanded_flag():
+    turn_id = "turn-panel"
+    agents_mod._turn_previews[turn_id] = {
+        "thread_id": 1,
+        "agent_id": "default",
+        "draft": "",
+        "thought": "",
+        "expanded": {"draft": False, "thought": False},
+    }
+    req = make_mocked_request("POST", f"/agent/turn/{turn_id}/panel", match_info={"turn_id": turn_id})
+    req.json = AsyncMock(return_value={"panel": "thought", "expanded": True})
+    resp = await agents_mod.set_turn_panel_state(req)
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["panel"] == "thought"
+    assert body["expanded"] is True
+    assert agents_mod._is_panel_expanded(turn_id, "thought") is True
+    agents_mod._turn_previews.pop(turn_id, None)
+
+
+@pytest.mark.asyncio
+async def test_set_turn_panel_state_invalid_panel():
+    turn_id = "turn-panel-invalid"
+    agents_mod._turn_previews[turn_id] = {
+        "thread_id": 1,
+        "agent_id": "default",
+        "draft": "",
+        "thought": "",
+        "expanded": {"draft": False, "thought": False},
+    }
+    req = make_mocked_request("POST", f"/agent/turn/{turn_id}/panel", match_info={"turn_id": turn_id})
+    req.json = AsyncMock(return_value={"panel": "plan", "expanded": True})
+    resp = await agents_mod.set_turn_panel_state(req)
+    assert resp.status == 400
+    agents_mod._turn_previews.pop(turn_id, None)
+
+
+@pytest.mark.asyncio
+async def test_set_turn_panel_state_not_found():
+    req = make_mocked_request("POST", "/agent/turn/missing/panel", match_info={"turn_id": "missing"})
+    req.json = AsyncMock(return_value={"panel": "draft", "expanded": True})
+    resp = await agents_mod.set_turn_panel_state(req)
+    assert resp.status == 404
+
+
 # ── _extract_text_from_blocks ─────────────────────────────
 
 

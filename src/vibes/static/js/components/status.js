@@ -70,8 +70,8 @@ export function AgentStatus({
     useEffect(() => {
         setExpandedPanels(new Set());
         if (onPanelExpandedChange) {
-            onPanelExpandedChange('draft', false);
-            onPanelExpandedChange('thought', false);
+            onPanelExpandedChange('draft', false, turnId);
+            onPanelExpandedChange('thought', false, turnId);
         }
     }, [turnId, onPanelExpandedChange]);
 
@@ -101,7 +101,7 @@ export function AgentStatus({
                 await onExpandPanel(panelKey, activeTurn);
             }
             if (onPanelExpandedChange && (panelKey === 'draft' || panelKey === 'thought')) {
-                onPanelExpandedChange(panelKey, !isExpanded);
+                onPanelExpandedChange(panelKey, !isExpanded, activeTurn);
             }
             toggleExpand(panelKey);
         };
@@ -126,7 +126,7 @@ export function AgentStatus({
                     </button>
                 `}
                 ${isExpanded && truncated.omitted === 0 && html`
-                    <button class="agent-thinking-truncation" onClick=${() => toggleExpand(panelKey)}>
+                    <button class="agent-thinking-truncation" onClick=${handleExpand}>
                         ▴ show less
                     </button>
                 `}
