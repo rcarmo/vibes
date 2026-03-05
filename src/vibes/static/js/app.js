@@ -571,6 +571,7 @@ function App() {
     const [agentThought, setAgentThought] = useState({ text: '', totalLines: 0 });
     const [pendingRequest, setPendingRequest] = useState(null);
     const [currentTurnId, setCurrentTurnId] = useState(null);
+    const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [agents, setAgents] = useState({});
     const [activeModel, setActiveModel] = useState(null);
     const hasConnectedOnceRef = useRef(false);
@@ -587,6 +588,7 @@ function App() {
     const pendingRequestRef = useRef(null);
     const stalledPostIdRef = useRef(null);
     const currentTurnIdRef = useRef(null);
+    const steerQueuedTurnIdRef = useRef(null);
     const appShellRef = useRef(null);
     const sidebarWidthRef = useRef(0);
     
@@ -640,8 +642,10 @@ function App() {
         expandedPanelsRef.current = { draft: false, thought: false };
         pendingRequestRef.current = null;
         currentTurnIdRef.current = null;
+        steerQueuedTurnIdRef.current = null;
         setCurrentTurnId(null);
-    }, [setCurrentTurnId]);
+        setSteerQueuedTurnId(null);
+    }, [setCurrentTurnId, setSteerQueuedTurnId]);
 
     const setActiveTurn = useCallback((turnId) => {
         if (!turnId) return;
@@ -1125,6 +1129,22 @@ function App() {
             pendingRequestRef.current = null;
             clearAgentRunState();
             setAgentStatus({ type: 'error', title: 'Permission request timed out' });
+            return;
+        }
+
+        if (eventType === 'agent_steer_queued') {
+            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
+                return;
+            }
+            const targetTurn = turnId || currentTurnIdRef.current;
+            if (!targetTurn) return;
+            steerQueuedTurnIdRef.current = targetTurn;
+            setSteerQueuedTurnId(targetTurn);
+            return;
+        }
+
+        if (eventType === 'model_changed') {
+            if (data?.model) setActiveModel(data.model);
             return;
         }
 

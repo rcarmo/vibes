@@ -329,6 +329,14 @@ export class SSEClient {
             this.onEvent('agent_thought_delta', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('agent_steer_queued', (e) => {
+            this.onEvent('agent_steer_queued', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('model_changed', (e) => {
+            this.onEvent('model_changed', JSON.parse(e.data));
+        });
+
         this.eventSource.addEventListener('agents_changed', (e) => {
             this.onEvent('agents_changed', JSON.parse(e.data));
         });
