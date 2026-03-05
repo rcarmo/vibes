@@ -269,6 +269,9 @@ function Post({
     onHashtagClick,
     agentName,
     agentAvatarUrl,
+    userName,
+    userAvatarUrl,
+    userAvatarBackground,
     onDelete,
     isThreadReply,
     isRemoving,
@@ -284,11 +287,16 @@ function Post({
 
     const data = post.data;
     const isAgent = data.type === 'agent_response';
-    const displayName = isAgent ? (agentName || 'Agent') : 'You';
+    const resolvedUserName = userName || 'You';
+    const displayName = isAgent ? (agentName || 'Agent') : resolvedUserName;
 
     const avatarInfo = isAgent
         ? (getAvatarInfo?.(agentName, agentAvatarUrl) || fallbackAvatarInfo(agentName, agentAvatarUrl))
-        : (getAvatarInfo?.('You') || fallbackAvatarInfo('You'));
+        : (getAvatarInfo?.(resolvedUserName, userAvatarUrl) || fallbackAvatarInfo(resolvedUserName, userAvatarUrl));
+    const normalizedUserBackground = typeof userAvatarBackground === 'string'
+        ? userAvatarBackground.trim().toLowerCase() : '';
+    const clearUserBackground = !isAgent && avatarInfo.image
+        && (normalizedUserBackground === 'clear' || normalizedUserBackground === 'transparent');
     const formatTimeLabel = formatTime || ((value) => String(value || ''));
     const formatCountLabel = formatCount || ((value) => String(value ?? 0));
     const contentMeta = data.content_meta;
@@ -417,7 +425,7 @@ function Post({
 
     return html`
         <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''} ${isThreadReply ? 'thread-reply' : ''} ${isRemoving ? 'removing' : ''}" onClick=${onClick}>
-            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${avatarInfo.color}">
+            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${clearUserBackground ? 'transparent' : avatarInfo.color}">
                 ${avatarInfo.image ? html`<img src=${avatarInfo.image} alt=${displayName} />` : avatarInfo.letter}
             </div>
             <div class="post-body">
@@ -564,6 +572,7 @@ export function Timeline({
     emptyMessage,
     timelineRef,
     agents,
+    user,
     onDeletePost,
     reverse = true,
     removingPostIds,
@@ -667,6 +676,9 @@ export function Timeline({
                         post=${post}
                         agentName=${getAgentName ? getAgentName(post.data?.agent_id, agents) : 'Agent'}
                         agentAvatarUrl=${getAgentAvatar ? getAgentAvatar(post.data?.agent_id, agents) : null}
+                        userName=${user?.name || user?.user_name}
+                        userAvatarUrl=${user?.avatar_url || user?.avatarUrl || user?.avatar}
+                        userAvatarBackground=${user?.avatar_background || user?.avatarBackground}
                         isThreadReply=${isThreadReply}
                         isRemoving=${removingPostIds?.has(post.id)}
                         highlightQuery=${searchQuery}

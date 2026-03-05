@@ -587,6 +587,7 @@ function App() {
     const [editorSaving, setEditorSaving] = useState(false);
     const [editorSaveError, setEditorSaveError] = useState(null);
     const [editorSavedAt, setEditorSavedAt] = useState(null);
+    const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
     const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
@@ -1078,6 +1079,15 @@ function App() {
             setAgents(buildAgentsMap(data));
             const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
             setActiveModel(resolveAgentModel(defaultAgent));
+            const nextUser = data?.user || {};
+            setUserProfile((prev) => {
+                const nextName = typeof nextUser.name === 'string' && nextUser.name.trim() ? nextUser.name.trim() : 'You';
+                const nextAvatar = typeof nextUser.avatar_url === 'string' ? nextUser.avatar_url.trim() : null;
+                const nextBg = typeof nextUser.avatar_background === 'string' && nextUser.avatar_background.trim()
+                    ? nextUser.avatar_background.trim() : null;
+                if (prev.name === nextName && prev.avatar_url === nextAvatar && prev.avatar_background === nextBg) return prev;
+                return { name: nextName, avatar_url: nextAvatar, avatar_background: nextBg };
+            });
         } catch (e) {
             console.warn('Failed to load agents:', e);
         }
@@ -1623,6 +1633,7 @@ function App() {
                     onDeletePost=${handleDeletePost}
                     emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                     agents=${agents}
+                    user=${userProfile}
                     reverse=${!(searchQuery && !currentHashtag)}
                     removingPostIds=${removingPostIds}
                     searchQuery=${searchQuery}
