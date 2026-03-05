@@ -574,7 +574,10 @@ function App() {
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [agents, setAgents] = useState({});
     const [activeModel, setActiveModel] = useState(null);
+    const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+    const [notificationPermission, setNotificationPermission] = useState('default');
     const hasConnectedOnceRef = useRef(false);
+    const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
     const hasMoreRef = useRef(false);
     const loadMoreRef = useRef(null);
@@ -589,11 +592,29 @@ function App() {
     const stalledPostIdRef = useRef(null);
     const currentTurnIdRef = useRef(null);
     const steerQueuedTurnIdRef = useRef(null);
+    const notificationsEnabledRef = useRef(false);
+    const lastNotifiedIdRef = useRef(null);
+    const lastAgentResponseRef = useRef(null);
     const appShellRef = useRef(null);
     const sidebarWidthRef = useRef(0);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        const stored = localStorage.getItem('notificationsEnabled');
+        const enabled = stored === 'true';
+        notificationsEnabledRef.current = enabled;
+        setNotificationsEnabled(enabled);
+        if (typeof Notification !== 'undefined') {
+            setNotificationPermission(Notification.permission);
+        }
+    }, []);
+
+    useEffect(() => {
+        notificationsEnabledRef.current = notificationsEnabled;
+    }, [notificationsEnabled]);
 
     const addFileRef = useCallback((path) => {
         if (!path) return;
@@ -631,6 +652,65 @@ function App() {
             if (current.name === merged.name && current.avatar === merged.avatar) return prev;
             return { ...(prev || {}), [agentId]: merged };
         });
+    }, []);
+
+    useEffect(() => {
+        agentsRef.current = agents;
+    }, [agents]);
+
+    const handleToggleNotifications = useCallback(async () => {
+        if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
+        if (!window.isSecureContext) {
+            alert('Notifications require a secure context (HTTPS or installed app).');
+            return;
+        }
+        if (Notification.permission === 'denied') {
+            setNotificationPermission('denied');
+            alert('Browser notifications are blocked. Enable them in your browser settings.');
+            return;
+        }
+        if (Notification.permission === 'default') {
+            const result = await (typeof Notification.requestPermission === 'function'
+                ? Notification.requestPermission()
+                : Promise.resolve('default'));
+            setNotificationPermission(result || 'default');
+            if (result !== 'granted') {
+                notificationsEnabledRef.current = false;
+                setNotificationsEnabled(false);
+                localStorage.setItem('notificationsEnabled', 'false');
+                return;
+            }
+        }
+        const next = !notificationsEnabledRef.current;
+        notificationsEnabledRef.current = next;
+        setNotificationsEnabled(next);
+        localStorage.setItem('notificationsEnabled', String(next));
+    }, []);
+
+    const notifyForFinalResponse = useCallback(() => {
+        if (!notificationsEnabledRef.current) return;
+        if (typeof Notification === 'undefined') return;
+        if (Notification.permission !== 'granted') return;
+        if (typeof document !== 'undefined') {
+            const hasFocus = typeof document.hasFocus === 'function' ? document.hasFocus() : true;
+            if (!document.hidden && hasFocus) return;
+        }
+        const entry = lastAgentResponseRef.current;
+        if (!entry || !entry.post) return;
+        const post = entry.post;
+        if (post.id && lastNotifiedIdRef.current === post.id) return;
+        const content = String(post?.data?.content || '').trim();
+        if (!content) return;
+        lastNotifiedIdRef.current = post.id || lastNotifiedIdRef.current;
+        lastAgentResponseRef.current = null;
+        const body = content.replace(/\s+/g, ' ').slice(0, 200);
+        const agentsMap = agentsRef.current || {};
+        const agent = post?.data?.agent_id ? agentsMap[post.data.agent_id] : null;
+        const title = agent?.name || 'Agent';
+        try {
+            const notification = new Notification(title, { body });
+            notification.onclick = () => { try { window.focus(); } catch { /* ignore */ } };
+        } catch { /* ignore */ }
     }, []);
 
     const clearAgentRunState = useCallback(() => {
@@ -1160,12 +1240,17 @@ function App() {
         const responseFallback = eventType === 'agent_response' ? (draftBufferRef.current || '').trim() : '';
         if (eventType === 'agent_response') {
             removeStalledPost();
+            lastAgentResponseRef.current = {
+                post: data,
+                turnId: currentTurnIdRef.current,
+            };
             clearAgentRunState();
             setAgentStatus(null);
             setAgentDraft({ text: '', totalLines: 0 });
             setAgentPlan('');
             setAgentThought({ text: '', totalLines: 0 });
             setPendingRequest(null);
+            notifyForFinalResponse();
         }
         if (!activeHashtag && !activeSearch && (eventType === 'new_post' || eventType === 'agent_response')) {
             if (eventType === 'agent_response') {
@@ -1370,6 +1455,9 @@ function App() {
                     onClearFileRefs=${clearFileRefs}
                     activeModel=${activeModel}
                     onModelChange=${setActiveModel}
+                    notificationsEnabled=${notificationsEnabled}
+                    notificationPermission=${notificationPermission}
+                    onToggleNotifications=${handleToggleNotifications}
                 />
                 <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />

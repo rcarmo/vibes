@@ -622,6 +622,10 @@ body {
     color: var(--text-secondary);
 }
 
+.notification-btn.active {
+    color: var(--success-color);
+}
+
 .media-files-preview {
     display: flex;
     flex-wrap: wrap;

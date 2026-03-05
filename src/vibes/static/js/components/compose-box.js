@@ -13,6 +13,9 @@ export function ComposeBox({
     onClearFileRefs,
     activeModel = null,
     onModelChange,
+    notificationsEnabled = false,
+    notificationPermission = 'default',
+    onToggleNotifications,
 }) {
     const [content, setContent] = useState('');
     const [searchText, setSearchText] = useState('');
@@ -24,6 +27,12 @@ export function ComposeBox({
         && typeof navigator !== 'undefined'
         && Boolean(navigator.geolocation)
         && Boolean(window.isSecureContext);
+    const notificationsSupported = typeof window !== 'undefined' && typeof Notification !== 'undefined';
+    const notificationsSecure = typeof window !== 'undefined' ? Boolean(window.isSecureContext) : false;
+    const notificationDenied = notificationPermission === 'denied';
+    const notificationsAvailable = notificationsSupported && notificationsSecure && !notificationDenied;
+    const notificationActive = notificationPermission === 'granted' && notificationsEnabled;
+    const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
 
     const resizeTextarea = () => {
         const textarea = textareaRef.current;
@@ -198,7 +207,7 @@ export function ComposeBox({
                             </svg>
                         `}
                     </button>
-                    ${canShareLocation && html`
+                    ${canShareLocation && !searchMode && html`
                         <button
                             class="icon-btn location-btn"
                             onClick=${handleLocation}
@@ -210,6 +219,19 @@ export function ComposeBox({
                                 <circle cx="12" cy="12" r="10" />
                                 <path d="M12 2a14 14 0 0 1 0 20a14 14 0 0 1 0-20" />
                                 <path d="M2 12h20" />
+                            </svg>
+                        </button>
+                    `}
+                    ${notificationsAvailable && !searchMode && html`
+                        <button
+                            class=${`icon-btn notification-btn${notificationActive ? ' active' : ''}`}
+                            onClick=${onToggleNotifications}
+                            title=${notificationTitle}
+                            type="button"
+                        >
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
                         </button>
                     `}
