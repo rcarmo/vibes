@@ -1349,6 +1349,7 @@ function App() {
                     onRemoveFileRef=${removeFileRef}
                     onClearFileRefs=${clearFileRefs}
                     activeModel=${activeModel}
+                    onModelChange=${setActiveModel}
                 />
                 <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
