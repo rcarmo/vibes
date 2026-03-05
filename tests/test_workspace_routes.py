@@ -388,3 +388,64 @@ class TestUploadWorkspaceFile:
         assert result["path"] == "escape.txt"
         assert (workspace_dir / "escape.txt").read_bytes() == b"escape"
         assert not (workspace_dir.parent / "escape.txt").exists()
+
+    @pytest.mark.asyncio
+    async def test_upload_invalid_filename(self, workspace_test_client):
+        """Upload with filename of '.' or '..' returns 400."""
+        client = workspace_test_client
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"bad", filename="..", content_type="text/plain")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 400
+        result = await resp.json()
+        assert "Invalid filename" in result["error"]
+
+    @pytest.mark.asyncio
+    async def test_upload_too_large(self, workspace_test_client, workspace_dir):
+        """Upload exceeding MAX_FILE_WRITE_BYTES returns 413."""
+        client = workspace_test_client
+        import aiohttp
+        original = workspace_mod.MAX_FILE_WRITE_BYTES
+        workspace_mod.MAX_FILE_WRITE_BYTES = 16
+        try:
+            data = aiohttp.FormData()
+            data.add_field("file", b"x" * 32, filename="big.bin", content_type="application/octet-stream")
+            resp = await client.post("/workspace/upload", data=data)
+            assert resp.status == 413
+            result = await resp.json()
+            assert "too large" in result["error"].lower()
+            assert not (workspace_dir / "big.bin").exists()
+        finally:
+            workspace_mod.MAX_FILE_WRITE_BYTES = original
+
+    @pytest.mark.asyncio
+    async def test_put_file_content_too_large(self, workspace_test_client):
+        """PUT /workspace/file with content exceeding limit returns 413."""
+        client = workspace_test_client
+        original = workspace_mod.MAX_FILE_WRITE_BYTES
+        workspace_mod.MAX_FILE_WRITE_BYTES = 16
+        try:
+            resp = await client.put(
+                "/workspace/file",
+                json={"path": "large.txt", "content": "x" * 32},
+            )
+            assert resp.status == 413
+            result = await resp.json()
+            assert "too large" in result["error"].lower()
+        finally:
+            workspace_mod.MAX_FILE_WRITE_BYTES = original
+
+    @pytest.mark.asyncio
+    async def test_upload_to_nonexistent_subdir(self, workspace_test_client, workspace_dir):
+        """Upload to a path that doesn't exist yet creates the parent directory."""
+        client = workspace_test_client
+        import aiohttp
+        # Create a/b so that a/b/c is treated as a non-dir, falling back to parent a/b
+        (workspace_dir / "a" / "b").mkdir(parents=True)
+        data = aiohttp.FormData()
+        data.add_field("file", b"deep", filename="deep.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload?path=a/b/c", data=data)
+        assert resp.status == 200
+        # c is not a dir so file lands in parent dir a/b
+        assert (workspace_dir / "a" / "b" / "deep.txt").read_bytes() == b"deep"
