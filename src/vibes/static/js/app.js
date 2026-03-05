@@ -224,13 +224,59 @@ function renderMath(html_content) {
     return html_content;
 }
 
+function normalizeMathFences(text) {
+    if (!text) return text;
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    const output = [];
+    let inMath = false;
+
+    for (const line of lines) {
+        if (!inMath && line.trim().match(/^```(?:math|katex|latex)\s*$/i)) {
+            inMath = true;
+            output.push('$$');
+            continue;
+        }
+        if (inMath && line.trim().match(/^```\s*$/)) {
+            inMath = false;
+            output.push('$$');
+            continue;
+        }
+        output.push(line);
+    }
+
+    return output.join('\n');
+}
+
+function decodeTextEntities(html) {
+    if (!html) return html;
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const decode = (value) => value
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&amp;/g, '&');
+    let node;
+    while ((node = walker.nextNode())) {
+        if (!node.nodeValue) continue;
+        const next = decode(node.nodeValue);
+        if (next !== node.nodeValue) {
+            node.nodeValue = next;
+        }
+    }
+    return doc.body.innerHTML;
+}
+
 /**
  * Render markdown and then linkify hashtags
  */
 function renderMarkdown(text, onHashtagClick) {
     if (!text) return '';
 
-    const { text: stripped, blocks: mermaidBlocks } = extractMermaidBlocks(text);
+    const normalizedMath = normalizeMathFences(text);
+    const { text: stripped, blocks: mermaidBlocks } = extractMermaidBlocks(normalizedMath);
 
     // Decode HTML entities first (in case content has encoded entities)
     const decoded = decodeEntitiesDeep(stripped, 2);
@@ -246,6 +292,7 @@ function renderMarkdown(text, onHashtagClick) {
         : safeHtml.replace(/\n/g, '<br>');
 
     html_content = decodeCodeEntities(html_content);
+    html_content = decodeTextEntities(html_content);
 
     // Render math expressions
     html_content = renderMath(html_content);
@@ -313,7 +360,7 @@ function renderThinkingMarkdown(text) {
     const safeHtml = restoreAllowedHtmlTags(escaped);
     let html_content = window.marked ? marked.parse(safeHtml) : safeHtml.replace(/\n/g, '<br>');
     html_content = decodeCodeEntities(html_content);
-    html_content = renderMath(html_content);
+    html_content = decodeTextEntities(html_content);
     return html_content;
 }
 
