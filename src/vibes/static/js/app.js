@@ -1,9 +1,10 @@
-import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, SSEClient } from './api.js';
+import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
+import { WorkspaceEditor } from './components/editor.js';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -582,6 +583,10 @@ function App() {
         const stored = localStorage.getItem('workspaceOpen');
         return stored === null ? true : stored === 'true';
     });
+    const [editorState, setEditorState] = useState({ open: false, path: null, content: '', loading: false, error: null });
+    const [editorSaving, setEditorSaving] = useState(false);
+    const [editorSaveError, setEditorSaveError] = useState(null);
+    const [editorSavedAt, setEditorSavedAt] = useState(null);
     const hasConnectedOnceRef = useRef(false);
     const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
@@ -605,6 +610,7 @@ function App() {
     const lastActivityTokenRef = useRef(0);
     const appShellRef = useRef(null);
     const sidebarWidthRef = useRef(0);
+    const editorWidthRef = useRef(0);
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
@@ -632,6 +638,45 @@ function App() {
     const toggleWorkspace = useCallback(() => {
         setWorkspaceOpen((prev) => !prev);
     }, []);
+
+    const openEditor = useCallback(async (path) => {
+        if (!path) return;
+        setEditorSaveError(null);
+        setEditorSavedAt(null);
+        setEditorState({ open: true, path, content: '', loading: true, error: null });
+        try {
+            const data = await getWorkspaceFile(path, 5_000_000);
+            if (data?.kind === 'text') {
+                setEditorState({ open: true, path, content: data.text || '', loading: false, error: null });
+            } else {
+                setEditorState({ open: true, path, content: '', loading: false, error: 'File is not a text file' });
+            }
+        } catch (err) {
+            setEditorState({ open: true, path, content: '', loading: false, error: err?.message || 'Failed to load file' });
+        }
+    }, []);
+
+    const closeEditor = useCallback(() => {
+        setEditorState({ open: false, path: null, content: '', loading: false, error: null });
+        setEditorSaving(false);
+        setEditorSaveError(null);
+        setEditorSavedAt(null);
+    }, []);
+
+    const handleEditorSave = useCallback(async (content) => {
+        const path = editorState.path;
+        if (!path) return;
+        setEditorSaving(true);
+        setEditorSaveError(null);
+        try {
+            await updateWorkspaceFile(path, content);
+            setEditorSavedAt(Date.now());
+        } catch (err) {
+            setEditorSaveError(err?.message || 'Save failed');
+        } finally {
+            setEditorSaving(false);
+        }
+    }, [editorState.path]);
 
     const addFileRef = useCallback((path) => {
         if (!path) return;
@@ -1081,6 +1126,13 @@ function App() {
         if (appShellRef.current) {
             appShellRef.current.style.setProperty('--sidebar-width', `${width}px`);
         }
+
+        const savedEditor = parseInt(localStorage.getItem('editorWidth') || '', 10);
+        const editorW = Number.isFinite(savedEditor) ? Math.min(Math.max(savedEditor, 200), window.innerWidth * 0.7) : 280;
+        editorWidthRef.current = editorW;
+        if (appShellRef.current) {
+            appShellRef.current.style.setProperty('--editor-width', `${editorW}px`);
+        }
     }, [loadAgents]);
 
     // Silence detection timer
@@ -1455,10 +1507,77 @@ function App() {
         document.addEventListener('touchend', onUp);
         document.addEventListener('touchcancel', onUp);
     }).current;
+
+    const handleEditorSplitterMouseDown = useRef((e) => {
+        e.preventDefault();
+        const shell = appShellRef.current;
+        if (!shell) return;
+        const startX = e.clientX;
+        const startW = editorWidthRef.current || 280;
+        const splitter = e.currentTarget;
+        splitter.classList.add('dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+
+        let lastX = startX;
+        const onMove = (me) => {
+            lastX = me.clientX;
+            const width = Math.min(Math.max(startW - (me.clientX - startX), 200), window.innerWidth * 0.7);
+            shell.style.setProperty('--editor-width', `${width}px`);
+            editorWidthRef.current = width;
+        };
+        const onUp = () => {
+            const width = Math.min(Math.max(startW - (lastX - startX), 200), window.innerWidth * 0.7);
+            editorWidthRef.current = width;
+            splitter.classList.remove('dragging');
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+            localStorage.setItem('editorWidth', String(Math.round(width)));
+            document.removeEventListener('mousemove', onMove);
+            document.removeEventListener('mouseup', onUp);
+        };
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+    }).current;
+
+    const handleEditorSplitterTouchStart = useRef((e) => {
+        e.preventDefault();
+        const shell = appShellRef.current;
+        if (!shell) return;
+        const touch = e.touches[0];
+        if (!touch) return;
+        const startX = touch.clientX;
+        const startW = editorWidthRef.current || 280;
+        const splitter = e.currentTarget;
+        splitter.classList.add('dragging');
+        document.body.style.userSelect = 'none';
+
+        const onMove = (te) => {
+            const t = te.touches[0];
+            if (!t) return;
+            te.preventDefault();
+            const width = Math.min(Math.max(startW - (t.clientX - startX), 200), window.innerWidth * 0.7);
+            shell.style.setProperty('--editor-width', `${width}px`);
+            editorWidthRef.current = width;
+        };
+        const onUp = () => {
+            splitter.classList.remove('dragging');
+            document.body.style.userSelect = '';
+            localStorage.setItem('editorWidth', String(Math.round(editorWidthRef.current || startW)));
+            document.removeEventListener('touchmove', onMove);
+            document.removeEventListener('touchend', onUp);
+            document.removeEventListener('touchcancel', onUp);
+        };
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onUp);
+        document.addEventListener('touchcancel', onUp);
+    }).current;
+
+    const editorOpen = editorState.open;
     
     return html`
-        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}`} ref=${appShellRef}>
-            <${WorkspaceExplorer} onFileSelect=${addFileRef} renderMarkdown=${renderMarkdown} />
+        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}`} ref=${appShellRef}>
+            <${WorkspaceExplorer} onFileSelect=${addFileRef} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
             <button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
@@ -1470,6 +1589,20 @@ function App() {
                 </svg>
             </button>
             <div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>
+            ${editorOpen && html`
+                <${WorkspaceEditor}
+                    path=${editorState.path}
+                    content=${editorState.content}
+                    loading=${editorState.loading}
+                    error=${editorState.error}
+                    saving=${editorSaving}
+                    saveError=${editorSaveError}
+                    savedAt=${editorSavedAt}
+                    onSave=${handleEditorSave}
+                    onClose=${closeEditor}
+                />
+                <div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>
+            `}
             <div class="container">
                 ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
                 ${(currentHashtag || searchQuery) && html`
