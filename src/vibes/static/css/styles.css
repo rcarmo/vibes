@@ -1355,17 +1355,6 @@ body {
     text-decoration: underline;
 }
 
-.post-content .task-list-text,
-.post-content .task-list-text a,
-.post-content .task-list-text a:hover,
-.post-content li.task-list-item,
-.post-content li.task-list-item *,
-.post-content li input[type="checkbox"] ~ *,
-.post-content li input[type="checkbox"] ~ * *,
-.post-content li input[type="checkbox"] + * {
-    text-decoration: none !important;
-}
-
 .post-content table {
     border-collapse: collapse;
     margin: 0.5em 0;

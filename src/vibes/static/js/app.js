@@ -271,28 +271,6 @@ function decodeTextEntities(html) {
     return doc.body.innerHTML;
 }
 
-function wrapTaskListItems(html) {
-    if (!html) return html;
-    const doc = new DOMParser().parseFromString(html, 'text/html');
-    const inputs = doc.querySelectorAll('li input[type="checkbox"]');
-    inputs.forEach((input) => {
-        const container = input.parentElement;
-        if (!container) return;
-        const listItem = input.closest('li');
-        if (listItem) listItem.classList.add('task-list-item');
-        if (container.querySelector(':scope > .task-list-text')) return;
-        const span = doc.createElement('span');
-        span.className = 'task-list-text';
-        let node = input.nextSibling;
-        while (node) {
-            const next = node.nextSibling;
-            span.appendChild(node);
-            node = next;
-        }
-        container.appendChild(span);
-    });
-    return doc.body.innerHTML;
-}
 
 /**
  * Render markdown and then linkify hashtags
@@ -318,7 +296,6 @@ function renderMarkdown(text, onHashtagClick) {
 
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
-    html_content = wrapTaskListItems(html_content);
     html_content = renderMath(html_content);
 
     // Process hashtags without breaking links
