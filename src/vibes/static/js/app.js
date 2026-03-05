@@ -671,7 +671,7 @@ function App() {
         setEditorSavedAt(null);
         setEditorState({ open: true, path, content: '', loading: true, error: null });
         try {
-            const data = await getWorkspaceFile(path, 5_000_000);
+            const data = await getWorkspaceFile(path, 5_000_000, 'edit');
             if (data?.kind === 'text') {
                 setEditorState({ open: true, path, content: data.text || '', loading: false, error: null });
             } else {

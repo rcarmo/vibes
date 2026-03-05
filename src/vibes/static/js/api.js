@@ -207,8 +207,9 @@ export async function getWorkspaceTree(path = '', depth = 2, showHidden = false)
 /**
  * Get workspace file preview.
  */
-export async function getWorkspaceFile(path, maxBytes = 20_000) {
-    return request(`/workspace/file?path=${encodeURIComponent(path)}&max=${maxBytes}`);
+export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
+    const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
+    return request(`/workspace/file?path=${encodeURIComponent(path)}&max=${maxBytes}${modeParam}`);
 }
 
 /**
