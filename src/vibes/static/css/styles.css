@@ -949,6 +949,12 @@ body {
     animation: searchHighlightFade 2s ease-out;
 }
 
+.search-highlight-term {
+    background-color: var(--search-highlight-color);
+    border-radius: 2px;
+    padding: 0 1px;
+}
+
 .post-content {
     margin-top: var(--spacing-xs);
     word-wrap: break-word;

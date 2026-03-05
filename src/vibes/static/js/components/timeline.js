@@ -1,6 +1,51 @@
 import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { getMediaInfo, getMediaUrl, getThumbnailUrl } from '../api.js';
 
+function escapeRegex(value) {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function highlightHtml(htmlStr, query) {
+    if (!htmlStr || !query) return htmlStr;
+    const terms = String(query).trim().split(/\s+/).filter(Boolean);
+    if (terms.length === 0) return htmlStr;
+
+    const escapedTerms = terms.map(escapeRegex).sort((a, b) => b.length - a.length);
+    const pattern = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
+    const matcher = new RegExp(`^(${escapedTerms.join('|')})$`, 'i');
+
+    const doc = new DOMParser().parseFromString(htmlStr, 'text/html');
+    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+
+    for (const textNode of nodes) {
+        const value = textNode.nodeValue;
+        if (!value || !pattern.test(value)) { pattern.lastIndex = 0; continue; }
+        pattern.lastIndex = 0;
+        const parent = textNode.parentElement;
+        if (parent && parent.closest('code, pre, script, style')) continue;
+
+        const parts = value.split(pattern).filter((part) => part !== '');
+        if (parts.length === 0) continue;
+        const frag = doc.createDocumentFragment();
+        for (const part of parts) {
+            if (matcher.test(part)) {
+                const mark = doc.createElement('mark');
+                mark.className = 'search-highlight-term';
+                mark.textContent = part;
+                frag.appendChild(mark);
+            } else {
+                frag.appendChild(doc.createTextNode(part));
+            }
+        }
+        textNode.parentNode.replaceChild(frag, textNode);
+    }
+
+    return doc.body.innerHTML;
+}
+
 function ImageModal({ src, onClose }) {
     useEffect(() => {
         const handleEsc = (e) => {
@@ -227,6 +272,7 @@ function Post({
     onDelete,
     isThreadReply,
     isRemoving,
+    highlightQuery,
     renderMarkdown,
     renderMermaidDiagrams,
     getAvatarInfo,
@@ -427,7 +473,11 @@ function Post({
                     <div
                         ref=${contentRef}
                         class="post-content"
-                        dangerouslySetInnerHTML=${{ __html: renderMarkdown ? renderMarkdown(displayContent, onHashtagClick) : displayContent }}
+                        dangerouslySetInnerHTML=${{ __html: (() => {
+                            const rendered = renderMarkdown ? renderMarkdown(displayContent, onHashtagClick) : displayContent;
+                            const q = typeof highlightQuery === 'string' ? highlightQuery.trim() : '';
+                            return q ? highlightHtml(rendered, q) : rendered;
+                        })() }}
                         onClick=${(e) => {
                             if (e.target.classList.contains('hashtag')) {
                                 e.preventDefault();
@@ -517,6 +567,7 @@ export function Timeline({
     onDeletePost,
     reverse = true,
     removingPostIds,
+    searchQuery,
     renderMarkdown,
     renderMermaidDiagrams,
     getAgentName,
@@ -618,6 +669,7 @@ export function Timeline({
                         agentAvatarUrl=${getAgentAvatar ? getAgentAvatar(post.data?.agent_id, agents) : null}
                         isThreadReply=${isThreadReply}
                         isRemoving=${removingPostIds?.has(post.id)}
+                        highlightQuery=${searchQuery}
                         onClick=${() => onPostClick?.(post)}
                         onHashtagClick=${onHashtagClick}
                         onDelete=${onDeletePost}

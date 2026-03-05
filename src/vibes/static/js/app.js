@@ -1492,6 +1492,7 @@ function App() {
                     agents=${agents}
                     reverse=${!(searchQuery && !currentHashtag)}
                     removingPostIds=${removingPostIds}
+                    searchQuery=${searchQuery}
                     renderMarkdown=${renderMarkdown}
                     renderMermaidDiagrams=${renderMermaidDiagrams}
                     getAgentName=${getAgentName}
