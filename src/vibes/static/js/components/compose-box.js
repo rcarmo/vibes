@@ -22,6 +22,10 @@ export function ComposeBox({
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
     const textareaRef = useRef(null);
+    const historyRef = useRef([]);
+    const historyIndexRef = useRef(-1);
+    const historyDraftRef = useRef('');
+    const historyMax = 200;
     const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
         && typeof navigator !== 'undefined'
@@ -79,6 +83,16 @@ export function ComposeBox({
                 onModelChange(response.command.model_label);
             }
 
+            if (baseContent) {
+                const history = historyRef.current;
+                if (!history.length || history[history.length - 1] !== baseContent) {
+                    history.push(baseContent);
+                    if (history.length > historyMax) history.shift();
+                }
+                historyIndexRef.current = -1;
+                historyDraftRef.current = '';
+            }
+
             setContent('');
             setMediaFiles([]);
             onClearFileRefs?.();
@@ -97,6 +111,48 @@ export function ComposeBox({
             setSearchText('');
             onExitSearch?.();
             return;
+        }
+        if (!searchMode && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            const value = textarea.value || '';
+            const atStart = textarea.selectionStart === 0 && textarea.selectionEnd === 0;
+            const atEnd = textarea.selectionStart === value.length && textarea.selectionEnd === value.length;
+            if ((e.key === 'ArrowUp' && atStart) || (e.key === 'ArrowDown' && atEnd)) {
+                const history = historyRef.current;
+                if (!history.length) return;
+                e.preventDefault();
+                let idx = historyIndexRef.current;
+                if (e.key === 'ArrowUp') {
+                    if (idx === -1) {
+                        historyDraftRef.current = value;
+                        idx = history.length - 1;
+                    } else if (idx > 0) {
+                        idx -= 1;
+                    }
+                    historyIndexRef.current = idx;
+                    updateValue(history[idx] || '');
+                } else {
+                    if (idx === -1) return;
+                    if (idx < history.length - 1) {
+                        idx += 1;
+                        historyIndexRef.current = idx;
+                        updateValue(history[idx] || '');
+                    } else {
+                        historyIndexRef.current = -1;
+                        updateValue(historyDraftRef.current || '');
+                        historyDraftRef.current = '';
+                    }
+                }
+                requestAnimationFrame(() => {
+                    const target = textareaRef.current;
+                    if (!target) return;
+                    const len = target.value.length;
+                    target.selectionStart = len;
+                    target.selectionEnd = len;
+                });
+                return;
+            }
         }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();

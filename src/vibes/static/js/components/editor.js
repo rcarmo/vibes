@@ -7,7 +7,7 @@ import {
     lineNumbers,
     highlightActiveLine,
     highlightActiveLineGutter,
-    highlightSpecialChars,
+    highlightWhitespace,
     scrollPastEnd,
     showPanel,
     javascript,
@@ -133,6 +133,7 @@ export function WorkspaceEditor({
 
     const vimCompartment = useMemo(() => new Compartment(), []);
     const themeCompartment = useMemo(() => new Compartment(), []);
+    const whitespaceCompartment = useMemo(() => new Compartment(), []);
 
     const [vimEnabled, setVimEnabled] = useState(() => {
         try {
@@ -142,6 +143,16 @@ export function WorkspaceEditor({
         }
     });
     const vimEnabledRef = useRef(vimEnabled);
+
+    const [showWhitespace, setShowWhitespace] = useState(() => {
+        try {
+            const stored = localStorage.getItem('vibes_show_whitespace');
+            if (stored === null) return true;
+            return stored === 'true';
+        } catch {
+            return true;
+        }
+    });
 
     const [isDark, setIsDark] = useState(() => {
         try {
@@ -177,6 +188,19 @@ export function WorkspaceEditor({
             effects: vimCompartment.reconfigure(vimEnabled ? vim() : []),
         });
     }, [vimEnabled, vimCompartment]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('vibes_show_whitespace', showWhitespace ? 'true' : 'false');
+        } catch {
+            // ignore
+        }
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({
+            effects: whitespaceCompartment.reconfigure(showWhitespace ? highlightWhitespace() : []),
+        });
+    }, [showWhitespace, whitespaceCompartment]);
 
     useEffect(() => {
         const view = viewRef.current;
@@ -228,7 +252,7 @@ export function WorkspaceEditor({
             lineNumbers(),
             highlightActiveLine(),
             highlightActiveLineGutter(),
-            highlightSpecialChars(),
+            whitespaceCompartment.of(showWhitespace ? highlightWhitespace() : []),
             EditorView.lineWrapping,
             scrollPastEnd(),
             indentOnInput(),
@@ -306,6 +330,10 @@ export function WorkspaceEditor({
         setVimEnabled((prev) => !prev);
     }, []);
 
+    const handleToggleWhitespace = useCallback(() => {
+        setShowWhitespace((prev) => !prev);
+    }, []);
+
     // Escape to close when clean. Cmd/Ctrl+S to save (intercepts browser dialog).
     useEffect(() => {
         const onKeyDown = (e) => {
@@ -314,13 +342,25 @@ export function WorkspaceEditor({
                 handleSave();
                 return;
             }
+            if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleToggleWhitespace();
+                return;
+            }
+            if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === 'v' || e.key === 'V')) {
+                e.preventDefault();
+                e.stopPropagation();
+                handleToggleVim();
+                return;
+            }
             if (e.key === 'Escape' && !e.defaultPrevented && !dirty) {
                 onClose?.();
             }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
-    }, [dirty, onClose, handleSave]);
+    }, [dirty, onClose, handleSave, handleToggleVim, handleToggleWhitespace]);
 
     return html`
         <div class="editor-pane" ref=${paneRef}>
@@ -342,19 +382,31 @@ export function WorkspaceEditor({
             ${error && html`<div class="editor-error">${error}</div>`}
             <div class="editor-body${loading || error ? ' disabled' : ''}">
                 <div class="editor-codemirror" ref=${hostRef}></div>
-                <button
-                    class=${`editor-vim-toggle${vimEnabled ? ' active' : ''}`}
-                    onClick=${handleToggleVim}
-                    title="Toggle Vim mode"
-                    aria-pressed=${vimEnabled ? 'true' : 'false'}
-                >
-                    Vim
-                </button>
             </div>
             ${saveError && html`<div class="editor-error">${saveError}</div>`}
             ${!saveError && !error && html`
-                <div class="editor-status">
-                    ${dirty ? 'Unsaved changes' : savedAt ? 'All changes saved' : 'Ready'}
+                <div class="editor-status editor-status-row">
+                    <span class="editor-status-text">
+                        ${dirty ? 'Unsaved changes' : savedAt ? 'All changes saved' : 'Ready'}
+                    </span>
+                    <div class="editor-status-actions">
+                        <button
+                            class=${`editor-status-button${showWhitespace ? ' active' : ''}`}
+                            onClick=${handleToggleWhitespace}
+                            title="Toggle whitespace (Alt+W)"
+                            aria-pressed=${showWhitespace ? 'true' : 'false'}
+                        >
+                            Whitespace
+                        </button>
+                        <button
+                            class=${`editor-status-button${vimEnabled ? ' active' : ''}`}
+                            onClick=${handleToggleVim}
+                            title="Toggle Vim mode (Alt+V)"
+                            aria-pressed=${vimEnabled ? 'true' : 'false'}
+                        >
+                            Vim
+                        </button>
+                    </div>
                 </div>
             `}
         </div>
