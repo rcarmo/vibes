@@ -212,6 +212,16 @@ export async function getWorkspaceFile(path, maxBytes = 20_000) {
 }
 
 /**
+ * Update workspace file contents.
+ */
+export async function updateWorkspaceFile(path, content) {
+    return request('/workspace/file', {
+        method: 'PUT',
+        body: JSON.stringify({ path, content }),
+    });
+}
+
+/**
  * Attach workspace file to conversation as media.
  */
 export async function attachWorkspaceFile(path) {

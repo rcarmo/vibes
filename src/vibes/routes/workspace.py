@@ -23,6 +23,7 @@ DEFAULT_TREE_DEPTH = 2
 MAX_TREE_DEPTH = 6
 DEFAULT_PREVIEW_BYTES = 20_000
 MAX_PREVIEW_BYTES = 500_000
+MAX_FILE_WRITE_BYTES = 5_000_000
 MAX_TREE_ENTRIES = 2_000
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".py", ".js", ".ts", ".tsx", ".jsx", ".json",
@@ -391,6 +392,40 @@ async def get_workspace_file(request: web.Request) -> web.Response:
     })
 
 
+async def update_workspace_file(request: web.Request) -> web.Response:
+    """PUT /workspace/file – write content to a workspace file."""
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    path_value = data.get("path")
+    if not path_value:
+        return web.json_response({"error": "Missing path"}, status=400)
+
+    content = data.get("content")
+    if content is None:
+        return web.json_response({"error": "Missing content"}, status=400)
+
+    content_str = str(content)
+    if len(content_str.encode("utf-8")) > MAX_FILE_WRITE_BYTES:
+        return web.json_response({"error": "Content too large"}, status=413)
+
+    target = _resolve_workspace_path(path_value)
+    if target.is_dir():
+        return web.json_response({"error": "Path is a directory"}, status=400)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content_str, encoding="utf-8")
+
+    stat = target.stat()
+    return web.json_response({
+        "path": _to_workspace_relative(target),
+        "size": stat.st_size,
+        "mtime": _format_mtime(target),
+    })
+
+
 async def get_workspace_raw(request: web.Request) -> web.StreamResponse:
     path_value = request.query.get("path")
     if not path_value:
@@ -452,6 +487,7 @@ async def shutdown_workspace_manager() -> None:
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/workspace/tree", get_workspace_tree)
     app.router.add_get("/workspace/file", get_workspace_file)
+    app.router.add_put("/workspace/file", update_workspace_file)
     app.router.add_get("/workspace/raw", get_workspace_raw)
     app.router.add_post("/workspace/attach", attach_workspace_file)
     app.router.add_post("/workspace/visibility", set_workspace_visibility_handler)

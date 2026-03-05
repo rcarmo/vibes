@@ -285,3 +285,56 @@ class TestWorkspaceVisibilityRoute:
 
         resp = await client.post("/workspace/visibility", json={"visible": False, "show_hidden": False})
         assert resp.status == 200
+
+
+class TestUpdateWorkspaceFile:
+    @pytest.mark.asyncio
+    async def test_update_creates_and_overwrites(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        # Create a new file
+        resp = await client.put("/workspace/file", json={"path": "new.txt", "content": "hello"})
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["path"] == "new.txt"
+        assert data["size"] == 5
+        assert (workspace_dir / "new.txt").read_text(encoding="utf-8") == "hello"
+
+        # Overwrite the file
+        resp = await client.put("/workspace/file", json={"path": "new.txt", "content": "goodbye"})
+        assert resp.status == 200
+        assert (workspace_dir / "new.txt").read_text(encoding="utf-8") == "goodbye"
+
+    @pytest.mark.asyncio
+    async def test_update_creates_parent_dirs(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        resp = await client.put("/workspace/file", json={"path": "sub/dir/file.txt", "content": "nested"})
+        assert resp.status == 200
+        assert (workspace_dir / "sub" / "dir" / "file.txt").read_text(encoding="utf-8") == "nested"
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_missing_fields(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.put("/workspace/file", json={})
+        assert resp.status == 400
+
+        resp = await client.put("/workspace/file", json={"path": "x.txt"})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_directory_path(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "mydir").mkdir()
+        resp = await client.put("/workspace/file", json={"path": "mydir", "content": "nope"})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_path_traversal(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.put("/workspace/file", json={"path": "../escape.txt", "content": "nope"})
+        assert resp.status == 403
+
+    @pytest.mark.asyncio
+    async def test_update_rejects_invalid_json(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.put("/workspace/file", data="not json", headers={"Content-Type": "application/json"})
+        assert resp.status == 400
