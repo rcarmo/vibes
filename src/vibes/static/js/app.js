@@ -1240,7 +1240,6 @@ function App() {
         updateUserProfile(data);
 
         if (eventType === 'agent_status') {
-            console.log('Agent status:', data);
             if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
                 if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                     return;

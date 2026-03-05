@@ -2,10 +2,14 @@ import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vend
 import {
     EditorState,
     EditorView,
+    Compartment,
     minimalSetup,
     lineNumbers,
     highlightActiveLine,
+    highlightActiveLineGutter,
     highlightSpecialChars,
+    scrollPastEnd,
+    showPanel,
     javascript,
     python,
     markdown,
@@ -18,14 +22,25 @@ import {
     xml,
     StreamLanguage,
     HighlightStyle,
-    classHighlighter,
     syntaxHighlighting,
+    indentOnInput,
+    indentUnit,
     tags,
+    classHighlighter,
     shell,
     keymap,
     indentWithTab,
     search,
     searchKeymap,
+    highlightSelectionMatches,
+    autocompletion,
+    completionKeymap,
+    closeBrackets,
+    closeBracketsKeymap,
+    vim,
+    indentationMarkers,
+    githubLight,
+    githubDark,
 } from '../vendor/codemirror.js';
 
 const MONO_STACK = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
@@ -39,6 +54,45 @@ const headingStyle = HighlightStyle.define([
     { tag: tags.heading5, fontWeight: 'bold', textDecoration: 'none' },
     { tag: tags.heading6, fontWeight: 'bold', textDecoration: 'none' },
 ]);
+
+const createStatusPanel = (vimEnabledRef) => {
+    return (view) => {
+        const dom = document.createElement('div');
+        dom.className = 'cm-statusbar';
+
+        const left = document.createElement('div');
+        left.className = 'cm-statusbar-left';
+
+        const right = document.createElement('div');
+        right.className = 'cm-statusbar-right';
+
+        dom.append(left, right);
+
+        const update = () => {
+            const state = view.state;
+            const pos = state.selection.main.head;
+            const line = state.doc.lineAt(pos);
+            const col = pos - line.from + 1;
+            const unit = state.facet(indentUnit) || '  ';
+            const indentLabel = unit === '\t' ? 'Tabs' : `Spaces:${unit.length}`;
+            left.textContent = `Ln ${line.number}, Col ${col}`;
+            const vimLabel = vimEnabledRef.current ? 'Vim' : 'Insert';
+            right.textContent = `${indentLabel} • ${vimLabel}`;
+        };
+
+        update();
+
+        return {
+            dom,
+            update: (updateEvent) => {
+                if (updateEvent.docChanged || updateEvent.selectionSet || updateEvent.viewportChanged) {
+                    update();
+                }
+            },
+            destroy: () => {},
+        };
+    };
+};
 
 const languageForPath = (path) => {
     const lower = String(path || '').toLowerCase();
@@ -73,8 +127,64 @@ export function WorkspaceEditor({
 }) {
     const hostRef = useRef(null);
     const viewRef = useRef(null);
+    const paneRef = useRef(null);
     const initialContentRef = useRef(content || '');
     const [dirty, setDirty] = useState(false);
+
+    const vimCompartment = useMemo(() => new Compartment(), []);
+    const themeCompartment = useMemo(() => new Compartment(), []);
+
+    const [vimEnabled, setVimEnabled] = useState(() => {
+        try {
+            return localStorage.getItem('vibes_vim_mode') === 'true';
+        } catch {
+            return false;
+        }
+    });
+    const vimEnabledRef = useRef(vimEnabled);
+
+    const [isDark, setIsDark] = useState(() => {
+        try {
+            return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        } catch {
+            return false;
+        }
+    });
+
+    useEffect(() => {
+        if (!window.matchMedia) return;
+        const media = window.matchMedia('(prefers-color-scheme: dark)');
+        const onChange = () => setIsDark(media.matches);
+        onChange();
+        if (media.addEventListener) {
+            media.addEventListener('change', onChange);
+            return () => media.removeEventListener('change', onChange);
+        }
+        media.addListener(onChange);
+        return () => media.removeListener(onChange);
+    }, []);
+
+    useEffect(() => {
+        vimEnabledRef.current = vimEnabled;
+        try {
+            localStorage.setItem('vibes_vim_mode', vimEnabled ? 'true' : 'false');
+        } catch {
+            // ignore
+        }
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({
+            effects: vimCompartment.reconfigure(vimEnabled ? vim() : []),
+        });
+    }, [vimEnabled, vimCompartment]);
+
+    useEffect(() => {
+        const view = viewRef.current;
+        if (!view) return;
+        view.dispatch({
+            effects: themeCompartment.reconfigure(isDark ? githubDark : githubLight),
+        });
+    }, [isDark, themeCompartment]);
 
     const languageExtension = useMemo(() => languageForPath(path), [path]);
 
@@ -117,12 +227,28 @@ export function WorkspaceEditor({
             minimalSetup,
             lineNumbers(),
             highlightActiveLine(),
+            highlightActiveLineGutter(),
             highlightSpecialChars(),
             EditorView.lineWrapping,
+            scrollPastEnd(),
+            indentOnInput(),
+            closeBrackets(),
+            autocompletion(),
+            highlightSelectionMatches(),
+            indentationMarkers(),
             syntaxHighlighting(headingStyle),
             syntaxHighlighting(classHighlighter),
             search(),
-            keymap.of([...searchKeymap, indentWithTab, { key: 'Mod-s', run: () => { handleSave(); return true; } }]),
+            vimCompartment.of(vimEnabled ? vim() : []),
+            themeCompartment.of(isDark ? githubDark : githubLight),
+            showPanel.of(createStatusPanel(vimEnabledRef)),
+            keymap.of([
+                ...searchKeymap,
+                ...completionKeymap,
+                ...closeBracketsKeymap,
+                indentWithTab,
+                { key: 'Mod-s', run: () => { handleSave(); return true; } },
+            ]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged) updateDirty();
             }),
@@ -146,7 +272,18 @@ export function WorkspaceEditor({
         initialContentRef.current = content || '';
         setDirty(false);
 
+        const updateGutterWidth = () => {
+            const pane = paneRef.current;
+            const gutters = view.dom.querySelector('.cm-gutters');
+            if (!pane || !gutters) return;
+            const width = Math.max(32, Math.round(gutters.getBoundingClientRect().width));
+            pane.style.setProperty('--cm-gutter-width', `${width}px`);
+        };
+        updateGutterWidth();
+        window.addEventListener('resize', updateGutterWidth);
+
         return () => {
+            window.removeEventListener('resize', updateGutterWidth);
             view.destroy();
             viewRef.current = null;
         };
@@ -165,6 +302,10 @@ export function WorkspaceEditor({
         setDirty(false);
     }, [savedAt]);
 
+    const handleToggleVim = useCallback(() => {
+        setVimEnabled((prev) => !prev);
+    }, []);
+
     // Escape to close when clean. Cmd/Ctrl+S to save (intercepts browser dialog).
     useEffect(() => {
         const onKeyDown = (e) => {
@@ -181,60 +322,8 @@ export function WorkspaceEditor({
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [dirty, onClose, handleSave]);
 
-    // Drag-to-resize: right edge handle (mouse + touch)
-    const resizeRef = useRef(null);
-    useEffect(() => {
-        const handle = resizeRef.current;
-        if (!handle) return;
-        let startX = 0;
-        let startW = 0;
-        const clamp = (v) => Math.max(280, Math.min(window.innerWidth * 0.7, v));
-        const applyWidth = (clientX) => {
-            const newW = clamp(startW + (clientX - startX));
-            handle.parentElement.style.width = newW + 'px';
-            handle.parentElement.style.minWidth = newW + 'px';
-        };
-        const onMouseMove = (e) => applyWidth(e.clientX);
-        const onMouseUp = () => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-            document.body.style.cursor = '';
-            document.body.style.userSelect = '';
-        };
-        const onMouseDown = (e) => {
-            e.preventDefault();
-            startX = e.clientX;
-            startW = handle.parentElement.getBoundingClientRect().width;
-            document.body.style.cursor = 'col-resize';
-            document.body.style.userSelect = 'none';
-            document.addEventListener('mousemove', onMouseMove);
-            document.addEventListener('mouseup', onMouseUp);
-        };
-        const onTouchMove = (e) => {
-            if (e.touches.length === 1) applyWidth(e.touches[0].clientX);
-        };
-        const onTouchEnd = () => {
-            document.removeEventListener('touchmove', onTouchMove);
-            document.removeEventListener('touchend', onTouchEnd);
-        };
-        const onTouchStart = (e) => {
-            if (e.touches.length !== 1) return;
-            startX = e.touches[0].clientX;
-            startW = handle.parentElement.getBoundingClientRect().width;
-            document.addEventListener('touchmove', onTouchMove, { passive: true });
-            document.addEventListener('touchend', onTouchEnd);
-        };
-        handle.addEventListener('mousedown', onMouseDown);
-        handle.addEventListener('touchstart', onTouchStart, { passive: true });
-        return () => {
-            handle.removeEventListener('mousedown', onMouseDown);
-            handle.removeEventListener('touchstart', onTouchStart);
-        };
-    }, []);
-
     return html`
-        <div class="editor-pane">
-            <div class="editor-resize-handle" ref=${resizeRef}></div>
+        <div class="editor-pane" ref=${paneRef}>
             <div class="editor-header">
                 <div class="editor-title" title=${path || ''}>${path || 'Untitled file'}</div>
                 <div class="editor-actions">
@@ -253,6 +342,14 @@ export function WorkspaceEditor({
             ${error && html`<div class="editor-error">${error}</div>`}
             <div class="editor-body${loading || error ? ' disabled' : ''}">
                 <div class="editor-codemirror" ref=${hostRef}></div>
+                <button
+                    class=${`editor-vim-toggle${vimEnabled ? ' active' : ''}`}
+                    onClick=${handleToggleVim}
+                    title="Toggle Vim mode"
+                    aria-pressed=${vimEnabled ? 'true' : 'false'}
+                >
+                    Vim
+                </button>
             </div>
             ${saveError && html`<div class="editor-error">${saveError}</div>`}
             ${!saveError && !error && html`

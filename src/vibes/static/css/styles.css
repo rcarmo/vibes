@@ -571,6 +571,7 @@ body {
     min-height: 0;
     padding: var(--spacing-sm) var(--spacing-md);
     background: var(--bg-primary);
+    position: relative;
 }
 
 .editor-body.disabled {
@@ -617,6 +618,50 @@ body {
     padding: 6px var(--spacing-md);
     font-size: 11px;
     color: var(--danger-color);
+}
+
+.editor-vim-toggle {
+    position: absolute;
+    bottom: 6px;
+    left: calc(var(--cm-gutter-width, 40px) - 26px);
+    padding: 2px 6px;
+    font-size: 11px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    cursor: pointer;
+    z-index: 5;
+}
+
+.editor-vim-toggle.active {
+    border-color: var(--accent-color);
+    color: var(--text-primary);
+}
+
+.editor-vim-toggle:hover {
+    border-color: var(--accent-color);
+}
+
+.cm-statusbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-size: 11px;
+    padding: 2px 8px;
+    border-top: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+}
+
+.cm-statusbar-left,
+.cm-statusbar-right {
+    white-space: nowrap;
+}
+
+.cm-statusbar-right {
+    text-align: right;
 }
 
 .editor-splitter {
