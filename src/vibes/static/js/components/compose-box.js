@@ -79,6 +79,12 @@ export function ComposeBox({
     };
 
     const handleKeyDown = (e) => {
+        if (searchMode && e.key === 'Escape') {
+            e.preventDefault();
+            setSearchText('');
+            onExitSearch?.();
+            return;
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             if (searchMode) {
