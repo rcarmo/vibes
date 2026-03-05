@@ -22,10 +22,42 @@ export function ComposeBox({
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
     const textareaRef = useRef(null);
-    const historyRef = useRef([]);
+    const historyMax = 200;
+    const normaliseHistory = (items) => {
+        const seen = new Set();
+        const cleaned = [];
+        for (const item of items || []) {
+            if (typeof item !== 'string') continue;
+            const trimmed = item.trim();
+            if (!trimmed || seen.has(trimmed)) continue;
+            seen.add(trimmed);
+            cleaned.push(trimmed);
+        }
+        return cleaned;
+    };
+    const loadHistory = () => {
+        if (typeof window === 'undefined') return [];
+        try {
+            const raw = localStorage.getItem('vibes_compose_history');
+            if (!raw) return [];
+            const parsed = JSON.parse(raw);
+            if (!Array.isArray(parsed)) return [];
+            return normaliseHistory(parsed);
+        } catch {
+            return [];
+        }
+    };
+    const saveHistory = (history) => {
+        if (typeof window === 'undefined') return;
+        try {
+            localStorage.setItem('vibes_compose_history', JSON.stringify(history));
+        } catch {
+            // ignore
+        }
+    };
+    const historyRef = useRef(loadHistory());
     const historyIndexRef = useRef(-1);
     const historyDraftRef = useRef('');
-    const historyMax = 200;
     const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
         && typeof navigator !== 'undefined'
@@ -84,11 +116,14 @@ export function ComposeBox({
             }
 
             if (baseContent) {
-                const history = historyRef.current;
-                if (!history.length || history[history.length - 1] !== baseContent) {
-                    history.push(baseContent);
-                    if (history.length > historyMax) history.shift();
+                const current = historyRef.current;
+                const deduped = normaliseHistory(current.filter((item) => item !== baseContent));
+                deduped.push(baseContent);
+                if (deduped.length > historyMax) {
+                    deduped.splice(0, deduped.length - historyMax);
                 }
+                historyRef.current = deduped;
+                saveHistory(deduped);
                 historyIndexRef.current = -1;
                 historyDraftRef.current = '';
             }
