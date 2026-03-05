@@ -577,6 +577,11 @@ function App() {
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
     const [removingPostIds, setRemovingPostIds] = useState(() => new Set());
+    const [workspaceOpen, setWorkspaceOpen] = useState(() => {
+        if (typeof window === 'undefined') return true;
+        const stored = localStorage.getItem('workspaceOpen');
+        return stored === null ? true : stored === 'true';
+    });
     const hasConnectedOnceRef = useRef(false);
     const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
@@ -618,6 +623,15 @@ function App() {
     useEffect(() => {
         notificationsEnabledRef.current = notificationsEnabled;
     }, [notificationsEnabled]);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        localStorage.setItem('workspaceOpen', String(workspaceOpen));
+    }, [workspaceOpen]);
+
+    const toggleWorkspace = useCallback(() => {
+        setWorkspaceOpen((prev) => !prev);
+    }, []);
 
     const addFileRef = useCallback((path) => {
         if (!path) return;
@@ -1443,8 +1457,18 @@ function App() {
     }).current;
     
     return html`
-        <div class="app-shell" ref=${appShellRef}>
+        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}`} ref=${appShellRef}>
             <${WorkspaceExplorer} onFileSelect=${addFileRef} renderMarkdown=${renderMarkdown} />
+            <button
+                class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
+                onClick=${toggleWorkspace}
+                title=${workspaceOpen ? 'Hide workspace' : 'Show workspace'}
+                aria-label=${workspaceOpen ? 'Hide workspace' : 'Show workspace'}
+            >
+                <svg class="workspace-toggle-tab-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="6 3 11 8 6 13" />
+                </svg>
+            </button>
             <div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>
             <div class="container">
                 ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
