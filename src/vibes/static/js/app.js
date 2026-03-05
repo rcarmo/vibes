@@ -28,6 +28,7 @@ function readSilenceOverride(key, fallback) {
 const SILENCE_WARNING_MS = readSilenceOverride('warning', 30_000);
 const SILENCE_FINALIZE_MS = readSilenceOverride('finalize', 120_000);
 const SILENCE_REFRESH_MS = readSilenceOverride('refresh', 30_000);
+const LAST_ACTIVITY_TTL_MS = 30_000;
 
 function buildAgentsMap(data) {
     const map = {};
@@ -858,7 +859,7 @@ function App() {
                 return null;
             });
             lastActivityTimerRef.current = null;
-        }, 8000);
+        }, LAST_ACTIVITY_TTL_MS);
     }, [setCurrentTurnId, setSteerQueuedTurnId]);
 
     const setActiveTurn = useCallback((turnId) => {
