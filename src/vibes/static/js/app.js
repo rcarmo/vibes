@@ -717,6 +717,23 @@ function App() {
         });
     }, []);
 
+    const updateUserProfile = useCallback((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        const nextName = payload.user_name ?? payload.userName;
+        const nextAvatar = payload.user_avatar ?? payload.userAvatar;
+        const nextBg = payload.user_avatar_background ?? payload.userAvatarBackground;
+        if (nextName === undefined && nextAvatar === undefined && nextBg === undefined) return;
+        setUserProfile((prev) => {
+            const resolvedName = typeof nextName === 'string' && nextName.trim() ? nextName.trim() : prev.name || 'You';
+            const resolvedAvatar = nextAvatar === undefined ? prev.avatar_url
+                : (typeof nextAvatar === 'string' && nextAvatar.trim() ? nextAvatar.trim() : null);
+            const resolvedBg = nextBg === undefined ? prev.avatar_background
+                : (typeof nextBg === 'string' && nextBg.trim() ? nextBg.trim() : null);
+            if (prev.name === resolvedName && prev.avatar_url === resolvedAvatar && prev.avatar_background === resolvedBg) return prev;
+            return { name: resolvedName, avatar_url: resolvedAvatar, avatar_background: resolvedBg };
+        });
+    }, []);
+
     useEffect(() => {
         agentsRef.current = agents;
     }, [agents]);
@@ -1191,6 +1208,7 @@ function App() {
         }
 
         updateAgentProfile(data);
+        updateUserProfile(data);
 
         if (eventType === 'agent_status') {
             console.log('Agent status:', data);
@@ -1423,7 +1441,7 @@ function App() {
         if (eventType === 'agents_changed') {
             loadAgents();
         }
-    }, [clearAgentRunState, loadAgents, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile]);
+    }, [clearAgentRunState, loadAgents, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile, updateUserProfile]);
 
     // Set up SSE connection
     useEffect(() => {
