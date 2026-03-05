@@ -423,8 +423,8 @@ body {
 
 /* Editor pane */
 .editor-pane {
-    width: var(--editor-width, 280px);
-    min-width: var(--editor-width, 280px);
+    width: var(--editor-width, 40vw);
+    min-width: 280px;
     max-width: 70vw;
     display: flex;
     flex-direction: column;
@@ -434,6 +434,31 @@ body {
     flex-shrink: 0;
     border-left: 1px solid var(--border-color);
     border-right: 1px solid var(--border-color);
+    position: relative;
+}
+
+.editor-resize-handle {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 10;
+    touch-action: none;
+}
+
+@media (pointer: coarse) {
+    .editor-resize-handle {
+        width: 16px;
+        right: -8px;
+    }
+}
+
+.editor-resize-handle:hover,
+.editor-resize-handle:active {
+    background: var(--accent-color);
+    opacity: 0.4;
 }
 
 .app-shell.editor-open > .container {

@@ -18,6 +18,7 @@ import {
     xml,
     StreamLanguage,
     HighlightStyle,
+    classHighlighter,
     syntaxHighlighting,
     tags,
     shell,
@@ -119,6 +120,7 @@ export function WorkspaceEditor({
             highlightSpecialChars(),
             EditorView.lineWrapping,
             syntaxHighlighting(headingStyle),
+            syntaxHighlighting(classHighlighter),
             search(),
             keymap.of([...searchKeymap, indentWithTab, { key: 'Mod-s', run: () => { handleSave(); return true; } }]),
             EditorView.updateListener.of((update) => {
@@ -163,8 +165,76 @@ export function WorkspaceEditor({
         setDirty(false);
     }, [savedAt]);
 
+    // Escape to close when clean. Cmd/Ctrl+S to save (intercepts browser dialog).
+    useEffect(() => {
+        const onKeyDown = (e) => {
+            if ((e.metaKey || e.ctrlKey) && e.key === 's') {
+                e.preventDefault();
+                handleSave();
+                return;
+            }
+            if (e.key === 'Escape' && !e.defaultPrevented && !dirty) {
+                onClose?.();
+            }
+        };
+        document.addEventListener('keydown', onKeyDown);
+        return () => document.removeEventListener('keydown', onKeyDown);
+    }, [dirty, onClose, handleSave]);
+
+    // Drag-to-resize: right edge handle (mouse + touch)
+    const resizeRef = useRef(null);
+    useEffect(() => {
+        const handle = resizeRef.current;
+        if (!handle) return;
+        let startX = 0;
+        let startW = 0;
+        const clamp = (v) => Math.max(280, Math.min(window.innerWidth * 0.7, v));
+        const applyWidth = (clientX) => {
+            const newW = clamp(startW + (clientX - startX));
+            handle.parentElement.style.width = newW + 'px';
+            handle.parentElement.style.minWidth = newW + 'px';
+        };
+        const onMouseMove = (e) => applyWidth(e.clientX);
+        const onMouseUp = () => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        };
+        const onMouseDown = (e) => {
+            e.preventDefault();
+            startX = e.clientX;
+            startW = handle.parentElement.getBoundingClientRect().width;
+            document.body.style.cursor = 'col-resize';
+            document.body.style.userSelect = 'none';
+            document.addEventListener('mousemove', onMouseMove);
+            document.addEventListener('mouseup', onMouseUp);
+        };
+        const onTouchMove = (e) => {
+            if (e.touches.length === 1) applyWidth(e.touches[0].clientX);
+        };
+        const onTouchEnd = () => {
+            document.removeEventListener('touchmove', onTouchMove);
+            document.removeEventListener('touchend', onTouchEnd);
+        };
+        const onTouchStart = (e) => {
+            if (e.touches.length !== 1) return;
+            startX = e.touches[0].clientX;
+            startW = handle.parentElement.getBoundingClientRect().width;
+            document.addEventListener('touchmove', onTouchMove, { passive: true });
+            document.addEventListener('touchend', onTouchEnd);
+        };
+        handle.addEventListener('mousedown', onMouseDown);
+        handle.addEventListener('touchstart', onTouchStart, { passive: true });
+        return () => {
+            handle.removeEventListener('mousedown', onMouseDown);
+            handle.removeEventListener('touchstart', onTouchStart);
+        };
+    }, []);
+
     return html`
         <div class="editor-pane">
+            <div class="editor-resize-handle" ref=${resizeRef}></div>
             <div class="editor-header">
                 <div class="editor-title" title=${path || ''}>${path || 'Untitled file'}</div>
                 <div class="editor-actions">
