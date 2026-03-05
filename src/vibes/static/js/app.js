@@ -1467,6 +1467,7 @@ function App() {
                     thought=${agentThought}
                     pendingRequest=${pendingRequest}
                     turnId=${currentTurnId}
+                    steerQueued=${Boolean(steerQueuedTurnId && (steerQueuedTurnId === (agentStatus?.turn_id || currentTurnId)))}
                     renderThinkingMarkdown=${renderThinkingMarkdown}
                     getTurnColor=${getTurnColor}
                     onExpandPanel=${expandAgentPanel}

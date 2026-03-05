@@ -1388,6 +1388,25 @@ body {
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.08);
 }
 
+.turn-dot.turn-dot-queued {
+    position: relative;
+    z-index: 0;
+}
+
+.turn-dot.turn-dot-queued::after {
+    content: '';
+    position: absolute;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--turn-color);
+    opacity: 0.35;
+    left: 5px;
+    top: -2px;
+    z-index: -1;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+}
+
 .agent-status.agent-status-request {
     background: rgba(29, 155, 240, 0.12);
     border-bottom-color: rgba(29, 155, 240, 0.35);

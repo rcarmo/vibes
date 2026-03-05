@@ -8,6 +8,7 @@ export function AgentStatus({
     thought,
     pendingRequest,
     turnId,
+    steerQueued,
     renderThinkingMarkdown,
     getTurnColor,
     onExpandPanel,
@@ -96,6 +97,7 @@ export function AgentStatus({
 
     const activeTurn = status?.turn_id || turnId;
     const turnColor = getTurnColor ? getTurnColor(activeTurn) : null;
+    const dotClass = steerQueued ? 'turn-dot turn-dot-queued' : 'turn-dot';
     const renderThinking = renderThinkingMarkdown || ((value) => value || '');
 
     const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass, panelKey }) => {
@@ -117,7 +119,7 @@ export function AgentStatus({
         return html`
             <div class="agent-thinking" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                 <div class="agent-thinking-title ${titleClass || ''}">
-                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
+                    ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
                     ${panelTitle}
                 </div>
                 <div
@@ -145,7 +147,7 @@ export function AgentStatus({
         <div class="agent-status-panel">
             ${pendingRequest && html`
                 <div class="agent-status agent-status-request" aria-live="polite" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                    <span class="turn-dot" aria-hidden="true"></span>
+                    <span class=${dotClass} aria-hidden="true"></span>
                     <div class="agent-status-spinner"></div>
                     <span class="agent-status-text">${pendingMessage}</span>
                 </div>
@@ -174,7 +176,7 @@ export function AgentStatus({
             })}
             ${status && html`
                 <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                    ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
+                    ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
                     ${!isLastActivity && html`<div class="agent-status-spinner"></div>`}
                     <span class="agent-status-text">${content}</span>
                 </div>
