@@ -691,6 +691,13 @@ body {
     gap: var(--spacing-sm);
     align-items: flex-start;
     animation: fadeSlideIn 0.3s ease-out backwards;
+    transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.post.removing {
+    opacity: 0;
+    transform: translateX(-20px);
+    pointer-events: none;
 }
 
 .post:hover {

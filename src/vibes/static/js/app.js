@@ -576,6 +576,7 @@ function App() {
     const [activeModel, setActiveModel] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
+    const [removingPostIds, setRemovingPostIds] = useState(() => new Set());
     const hasConnectedOnceRef = useRef(false);
     const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
@@ -963,6 +964,20 @@ function App() {
 
     const navigateToSearchResult = useCallback(() => {}, []);
 
+    const animateAndRemovePosts = useCallback((ids) => {
+        if (!ids?.length) return;
+        const idSet = new Set(ids);
+        setRemovingPostIds((prev) => new Set([...prev, ...idSet]));
+        setTimeout(() => {
+            setPosts((prev) => prev ? prev.filter((item) => !idSet.has(item.id)) : prev);
+            setRemovingPostIds((prev) => {
+                const next = new Set(prev);
+                ids.forEach((id) => next.delete(id));
+                return next;
+            });
+        }, 200);
+    }, []);
+
     const handleDeletePost = useCallback(async (post) => {
         if (!post) return;
         const postId = post.id;
@@ -974,7 +989,7 @@ function App() {
         try {
             const result = await deletePost(postId, replyCount > 0);
             if (result?.ids?.length) {
-                setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+                animateAndRemovePosts(result.ids);
                 if (hasMore) {
                     await loadMore();
                 }
@@ -986,7 +1001,7 @@ function App() {
                 if (!confirmed) return;
                 const result = await deletePost(postId, true);
                 if (result?.ids?.length) {
-                    setPosts((prev) => prev ? prev.filter((item) => !result.ids.includes(item.id)) : prev);
+                    animateAndRemovePosts(result.ids);
                     if (hasMore) {
                         await loadMore();
                     }
@@ -996,7 +1011,7 @@ function App() {
             console.error('Failed to delete post:', error);
             alert(`Failed to delete message: ${errorMessage}`);
         }
-    }, [hasMore, loadMore, posts]);
+    }, [hasMore, loadMore, posts, animateAndRemovePosts]);
 
     const loadAgents = useCallback(async () => {
         try {
@@ -1452,6 +1467,7 @@ function App() {
                     emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                     agents=${agents}
                     reverse=${!(searchQuery && !currentHashtag)}
+                    removingPostIds=${removingPostIds}
                     renderMarkdown=${renderMarkdown}
                     renderMermaidDiagrams=${renderMermaidDiagrams}
                     getAgentName=${getAgentName}

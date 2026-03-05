@@ -226,6 +226,7 @@ function Post({
     agentAvatarUrl,
     onDelete,
     isThreadReply,
+    isRemoving,
     renderMarkdown,
     renderMermaidDiagrams,
     getAvatarInfo,
@@ -369,7 +370,7 @@ function Post({
     }, [displayContent, renderMermaidDiagrams]);
 
     return html`
-        <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''} ${isThreadReply ? 'thread-reply' : ''}" onClick=${onClick}>
+        <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''} ${isThreadReply ? 'thread-reply' : ''} ${isRemoving ? 'removing' : ''}" onClick=${onClick}>
             <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${avatarInfo.color}">
                 ${avatarInfo.image ? html`<img src=${avatarInfo.image} alt=${displayName} />` : avatarInfo.letter}
             </div>
@@ -515,6 +516,7 @@ export function Timeline({
     agents,
     onDeletePost,
     reverse = true,
+    removingPostIds,
     renderMarkdown,
     renderMermaidDiagrams,
     getAgentName,
@@ -615,6 +617,7 @@ export function Timeline({
                         agentName=${getAgentName ? getAgentName(post.data?.agent_id, agents) : 'Agent'}
                         agentAvatarUrl=${getAgentAvatar ? getAgentAvatar(post.data?.agent_id, agents) : null}
                         isThreadReply=${isThreadReply}
+                        isRemoving=${removingPostIds?.has(post.id)}
                         onClick=${() => onPostClick?.(post)}
                         onHashtagClick=${onHashtagClick}
                         onDelete=${onDeletePost}
