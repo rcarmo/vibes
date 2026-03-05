@@ -612,9 +612,33 @@ function App() {
     const appShellRef = useRef(null);
     const sidebarWidthRef = useRef(0);
     const editorWidthRef = useRef(0);
+    const brandingRef = useRef({ title: null, avatarBase: null });
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
+
+    const applyBranding = useCallback((name, avatarUrl, avatarVersion = null) => {
+        if (typeof document === 'undefined') return;
+        const title = (name || '').trim() || 'Vibes';
+        if (brandingRef.current.title !== title) {
+            document.title = title;
+            const titleMeta = document.querySelector('meta[name="apple-mobile-web-app-title"]');
+            if (titleMeta && titleMeta.getAttribute('content') !== title) {
+                titleMeta.setAttribute('content', title);
+            }
+            brandingRef.current.title = title;
+        }
+        const favicon = document.getElementById('dynamic-favicon');
+        if (!favicon) return;
+        const defaultHref = favicon.getAttribute('data-default') || favicon.getAttribute('href') || '/favicon.ico';
+        const baseHref = avatarUrl || defaultHref;
+        const avatarKey = avatarUrl ? `${baseHref}|${avatarVersion || ''}` : baseHref;
+        if (brandingRef.current.avatarBase !== avatarKey) {
+            const cacheBust = avatarUrl ? `${baseHref}${baseHref.includes('?') ? '&' : '?'}v=${avatarVersion || Date.now()}` : baseHref;
+            favicon.setAttribute('href', cacheBust);
+            brandingRef.current.avatarBase = avatarKey;
+        }
+    }, []);
 
     useEffect(() => {
         if (typeof window === 'undefined') return;
@@ -715,7 +739,10 @@ function App() {
             if (current.name === merged.name && current.avatar === merged.avatar) return prev;
             return { ...(prev || {}), [agentId]: merged };
         });
-    }, []);
+        if (agentId === 'default') {
+            applyBranding(next.name || null, next.avatar || null);
+        }
+    }, [applyBranding]);
 
     const updateUserProfile = useCallback((payload) => {
         if (!payload || typeof payload !== 'object') return;
@@ -1096,6 +1123,7 @@ function App() {
             setAgents(buildAgentsMap(data));
             const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
             setActiveModel(resolveAgentModel(defaultAgent));
+            applyBranding(defaultAgent?.name, defaultAgent?.avatar_url);
             const nextUser = data?.user || {};
             setUserProfile((prev) => {
                 const nextName = typeof nextUser.name === 'string' && nextUser.name.trim() ? nextUser.name.trim() : 'You';
@@ -1108,7 +1136,7 @@ function App() {
         } catch (e) {
             console.warn('Failed to load agents:', e);
         }
-    }, []);
+    }, [applyBranding]);
 
     const expandAgentPanel = useCallback(async (panelKey, turnId) => {
         if (!turnId || (panelKey !== 'draft' && panelKey !== 'thought')) return;
