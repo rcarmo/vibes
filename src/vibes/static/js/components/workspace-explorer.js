@@ -1,4 +1,4 @@
-import { html, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
+import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
 import {
     attachWorkspaceFile,
     getMediaInfo,
@@ -7,6 +7,7 @@ import {
     getWorkspaceRawUrl,
     getWorkspaceTree,
     setWorkspaceVisibility,
+    uploadWorkspaceFile,
 } from '../api.js';
 
 const INDENT = 16;
@@ -114,6 +115,9 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
     const [initialLoad, setInitialLoad] = useState(true);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [error, setError] = useState(null);
+    const [dragActive, setDragActive] = useState(false);
+    const [dropTarget, setDropTarget] = useState(null);
+    const [uploading, setUploading] = useState(false);
     const [showHidden, setShowHidden] = useState(() => {
         if (typeof window === 'undefined') return false;
         return localStorage.getItem('workspaceShowHidden') === 'true';
@@ -127,9 +131,14 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
     const loadTreeRef = useRef(null);
     const loadPreviewRef = useRef(null);
     const loadSubtreeRef = useRef(null);
+    const dragDepthRef = useRef(0);
+    const dropTargetRef = useRef(dropTarget);
+    const dragActiveRef = useRef(dragActive);
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
+    useEffect(() => { dropTargetRef.current = dropTarget; }, [dropTarget]);
+    useEffect(() => { dragActiveRef.current = dragActive; }, [dragActive]);
 
     const loadTree = async () => {
         try {
@@ -371,8 +380,85 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
 
     const renderPreviewMarkdown = renderMarkdown || ((value) => value || '');
 
+    const resolveDropTargetPath = useCallback(() => {
+        const selected = selectedPath;
+        if (!selected) return '.';
+        const node = nodeMapRef.current?.get(selected);
+        if (node && node.type === 'dir') return node.path;
+        if (selected === '.' || !selected.includes('/')) return '.';
+        const parts = selected.split('/');
+        parts.pop();
+        return parts.join('/') || '.';
+    }, [selectedPath]);
+
+    const isFileDrag = (event) => {
+        const types = Array.from(event?.dataTransfer?.types || []);
+        return types.includes('Files');
+    };
+
+    const handleDragEnter = useCallback((event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepthRef.current += 1;
+        if (!dragActiveRef.current) setDragActive(true);
+        setDropTarget(resolveDropTargetPath());
+    }, [resolveDropTargetPath]);
+
+    const handleDragOver = useCallback((event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+        if (!dragActiveRef.current) setDragActive(true);
+        const target = resolveDropTargetPath();
+        if (dropTargetRef.current !== target) setDropTarget(target);
+    }, [resolveDropTargetPath]);
+
+    const handleDragLeave = useCallback((event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+        if (dragDepthRef.current === 0) {
+            setDragActive(false);
+            setDropTarget(null);
+        }
+    }, []);
+
+    const handleDrop = useCallback(async (event) => {
+        if (!isFileDrag(event)) return;
+        event.preventDefault();
+        dragDepthRef.current = 0;
+        setDragActive(false);
+        setDropTarget(null);
+        const files = Array.from(event?.dataTransfer?.files || []);
+        if (files.length === 0) return;
+        const target = resolveDropTargetPath();
+        setUploading(true);
+        try {
+            let lastResult = null;
+            for (const file of files) {
+                lastResult = await uploadWorkspaceFile(file, target);
+            }
+            if (lastResult?.path) {
+                setSelectedPath(lastResult.path);
+                loadPreviewRef.current?.(lastResult.path);
+            }
+            loadSubtreeRef.current?.(target);
+        } catch (err) {
+            setError(err?.message || 'Failed to upload file');
+        } finally {
+            setUploading(false);
+        }
+    }, [resolveDropTargetPath]);
+
     return html`
-        <aside class="workspace-sidebar" ref=${sidebarRef}>
+        <aside
+            class=${`workspace-sidebar${dragActive ? ' workspace-drop-active' : ''}`}
+            ref=${sidebarRef}
+            onDragEnter=${handleDragEnter}
+            onDragOver=${handleDragOver}
+            onDragLeave=${handleDragLeave}
+            onDrop=${handleDrop}
+        >
             <div class="workspace-header">
                 <span>Workspace</span>
                 <div class="workspace-header-actions">
@@ -396,6 +482,8 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
                 </div>
             </div>
             <div class="workspace-tree" onClick=${handleBackgroundClick}>
+                ${dragActive && html`<div class="workspace-drop-hint">Drop to upload to ${dropTarget || '.'}</div>`}
+                ${uploading && html`<div class="workspace-loading">Uploading…</div>`}
                 ${initialLoad && html`<div class="workspace-loading">Loading…</div>`}
                 ${error && html`<div class="workspace-error">${error}</div>`}
                 ${tree && html`

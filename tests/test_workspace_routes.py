@@ -338,3 +338,53 @@ class TestUpdateWorkspaceFile:
         client = workspace_test_client
         resp = await client.put("/workspace/file", data="not json", headers={"Content-Type": "application/json"})
         assert resp.status == 400
+
+
+class TestUploadWorkspaceFile:
+    @pytest.mark.asyncio
+    async def test_upload_creates_file(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"hello upload", filename="uploaded.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 200
+        result = await resp.json()
+        assert result["path"] == "uploaded.txt"
+        assert (workspace_dir / "uploaded.txt").read_bytes() == b"hello upload"
+
+    @pytest.mark.asyncio
+    async def test_upload_to_subdir(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "subdir").mkdir()
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"nested file", filename="test.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload?path=subdir", data=data)
+        assert resp.status == 200
+        result = await resp.json()
+        assert result["path"] == "subdir/test.txt"
+        assert (workspace_dir / "subdir" / "test.txt").read_bytes() == b"nested file"
+
+    @pytest.mark.asyncio
+    async def test_upload_missing_file_field(self, workspace_test_client):
+        client = workspace_test_client
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("other", b"not a file", filename="x.txt")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_upload_sanitizes_path_traversal(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"escape", filename="../escape.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 200
+        result = await resp.json()
+        # Filename is sanitized: "../escape.txt" -> "escape.txt"
+        assert result["path"] == "escape.txt"
+        assert (workspace_dir / "escape.txt").read_bytes() == b"escape"
+        assert not (workspace_dir.parent / "escape.txt").exists()

@@ -426,6 +426,58 @@ async def update_workspace_file(request: web.Request) -> web.Response:
     })
 
 
+async def upload_workspace_file(request: web.Request) -> web.Response:
+    """POST /workspace/upload – upload a file via multipart form data."""
+    target_dir = request.query.get("path", "")
+    try:
+        reader = await request.multipart()
+    except Exception:
+        return web.json_response({"error": "Invalid form data"}, status=400)
+
+    field = await reader.next()
+    if field is None or field.name != "file":
+        return web.json_response({"error": "Missing file"}, status=400)
+
+    filename = field.filename or "upload"
+    # Strip any directory components from filename for safety
+    from urllib.parse import unquote
+    filename = unquote(filename).replace("\\", "/").split("/")[-1]
+    if not filename or filename in (".", ".."):
+        return web.json_response({"error": "Invalid filename"}, status=400)
+    # Resolve target directory
+    dest_dir = _resolve_workspace_path(target_dir) if target_dir else _workspace_root()
+    if not dest_dir.is_dir():
+        dest_dir = dest_dir.parent
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    dest = dest_dir / filename
+    # Prevent overwriting outside workspace
+    resolved = dest.resolve()
+    root = _workspace_root()
+    if resolved != root and root not in resolved.parents:
+        return web.json_response({"error": "Path is outside workspace"}, status=403)
+
+    total = 0
+    with open(resolved, "wb") as f:
+        while True:
+            chunk = await field.read_chunk(8192)
+            if not chunk:
+                break
+            total += len(chunk)
+            if total > MAX_FILE_WRITE_BYTES:
+                f.close()
+                resolved.unlink(missing_ok=True)
+                return web.json_response({"error": "File too large"}, status=413)
+            f.write(chunk)
+
+    stat = resolved.stat()
+    return web.json_response({
+        "path": _to_workspace_relative(resolved),
+        "size": stat.st_size,
+        "mtime": _format_mtime(resolved),
+    })
+
+
 async def get_workspace_raw(request: web.Request) -> web.StreamResponse:
     path_value = request.query.get("path")
     if not path_value:
@@ -490,4 +542,5 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_put("/workspace/file", update_workspace_file)
     app.router.add_get("/workspace/raw", get_workspace_raw)
     app.router.add_post("/workspace/attach", attach_workspace_file)
+    app.router.add_post("/workspace/upload", upload_workspace_file)
     app.router.add_post("/workspace/visibility", set_workspace_visibility_handler)

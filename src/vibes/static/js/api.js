@@ -222,6 +222,24 @@ export async function updateWorkspaceFile(path, content) {
 }
 
 /**
+ * Upload a file to the workspace via multipart form data.
+ */
+export async function uploadWorkspaceFile(file, targetPath = '') {
+    const formData = new FormData();
+    formData.append('file', file);
+    const url = `/workspace/upload?path=${encodeURIComponent(targetPath || '')}`;
+    const response = await fetch(API_BASE + url, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(error.error || `HTTP ${response.status}`);
+    }
+    return response.json();
+}
+
+/**
  * Attach workspace file to conversation as media.
  */
 export async function attachWorkspaceFile(path) {
