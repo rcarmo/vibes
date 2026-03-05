@@ -595,6 +595,8 @@ function App() {
     const notificationsEnabledRef = useRef(false);
     const lastNotifiedIdRef = useRef(null);
     const lastAgentResponseRef = useRef(null);
+    const lastActivityTimerRef = useRef(null);
+    const lastActivityTokenRef = useRef(0);
     const appShellRef = useRef(null);
     const sidebarWidthRef = useRef(0);
     
@@ -725,6 +727,33 @@ function App() {
         steerQueuedTurnIdRef.current = null;
         setCurrentTurnId(null);
         setSteerQueuedTurnId(null);
+
+        // Show "Last activity" briefly then auto-clear
+        if (lastActivityTimerRef.current) {
+            clearTimeout(lastActivityTimerRef.current);
+            lastActivityTimerRef.current = null;
+        }
+        lastActivityTokenRef.current = 0;
+        setAgentStatus((prev) => {
+            if (!prev) return prev;
+            if (!(prev.last_activity || prev.lastActivity)) return prev;
+            const { last_activity, lastActivity, ...rest } = prev;
+            return Object.keys(rest).length ? rest : null;
+        });
+        const token = Date.now();
+        lastActivityTokenRef.current = token;
+        setAgentStatus((prev) => {
+            if (prev && prev.type && prev.type !== 'done' && prev.type !== 'error' && prev.type !== 'cancelled') return prev;
+            return { type: 'last_activity', last_activity: true, title: 'Last activity just now' };
+        });
+        lastActivityTimerRef.current = setTimeout(() => {
+            if (lastActivityTokenRef.current !== token) return;
+            setAgentStatus((prev) => {
+                if (!prev || !(prev.last_activity || prev.lastActivity)) return prev;
+                return null;
+            });
+            lastActivityTimerRef.current = null;
+        }, 8000);
     }, [setCurrentTurnId, setSteerQueuedTurnId]);
 
     const setActiveTurn = useCallback((turnId) => {

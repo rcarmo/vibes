@@ -1394,6 +1394,10 @@ body {
     color: var(--text-primary);
 }
 
+.agent-status.agent-status-last-activity {
+    opacity: 0.85;
+}
+
 @keyframes fadeIn {
     from { opacity: 0; }
     to { opacity: 1; }

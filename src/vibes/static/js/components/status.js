@@ -80,6 +80,7 @@ export function AgentStatus({
     let content = '';
     const title = status?.title;
     const statusText = status?.status;
+    const isLastActivity = Boolean(status?.last_activity || status?.lastActivity);
     if (status?.type === 'plan') {
         content = title ? `Planning: ${title}` : 'Planning...';
     } else if (status?.type === 'tool_call') {
@@ -88,6 +89,9 @@ export function AgentStatus({
         content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
     } else {
         content = title || statusText || 'Working...';
+    }
+    if (isLastActivity) {
+        content = 'Last activity just now';
     }
 
     const activeTurn = status?.turn_id || turnId;
@@ -169,9 +173,9 @@ export function AgentStatus({
                 panelKey: 'draft',
             })}
             ${status && html`
-                <div class="agent-status" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+                <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                     ${turnColor && html`<span class="turn-dot" aria-hidden="true"></span>`}
-                    <div class="agent-status-spinner"></div>
+                    ${!isLastActivity && html`<div class="agent-status-spinner"></div>`}
                     <span class="agent-status-text">${content}</span>
                 </div>
             `}
