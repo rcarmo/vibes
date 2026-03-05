@@ -267,6 +267,14 @@ export function getWorkspaceRawUrl(path) {
 }
 
 /**
+ * Get workspace folder download URL (zip)
+ */
+export function getWorkspaceDownloadUrl(path, showHidden = false) {
+    const query = `path=${encodeURIComponent(path || '')}&show_hidden=${showHidden ? '1' : '0'}`;
+    return `${API_BASE}/workspace/download?${query}`;
+}
+
+/**
  * SSE client for live updates
  */
 export class SSEClient {

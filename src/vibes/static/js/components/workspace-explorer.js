@@ -106,7 +106,7 @@ function FileAttachmentCard({ mediaId }) {
     `;
 }
 
-export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }) {
+export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
     const [selectedPath, setSelectedPath] = useState(null);
@@ -134,11 +134,13 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
     const dragDepthRef = useRef(0);
     const dropTargetRef = useRef(dropTarget);
     const dragActiveRef = useRef(dragActive);
+    const visibleRef = useRef(visible);
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
     useEffect(() => { dropTargetRef.current = dropTarget; }, [dropTarget]);
     useEffect(() => { dragActiveRef.current = dragActive; }, [dragActive]);
+    useEffect(() => { visibleRef.current = visible; }, [visible]);
 
     const loadTree = async () => {
         try {
@@ -200,7 +202,7 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
     const updateVisibility = useRef(() => {
         if (typeof window === 'undefined') return;
         const media = window.matchMedia('(min-width: 1024px) and (orientation: landscape)');
-        const visible = media.matches && document.visibilityState !== 'hidden';
+        const visible = media.matches && document.visibilityState !== 'hidden' && visibleRef.current;
         setWorkspaceVisibility(visible, showHiddenRef.current).catch(() => {});
     }).current;
 
@@ -212,6 +214,13 @@ export function WorkspaceExplorer({ onFileSelect, onOpenEditor, renderMarkdown }
             updateVisibility();
         }, 250);
     }).current;
+
+    useEffect(() => {
+        if (visibleRef.current) {
+            loadTreeRef.current?.();
+        }
+        scheduleVisibilityUpdate();
+    }, [visible]);
 
     useEffect(() => {
         loadTreeRef.current?.();

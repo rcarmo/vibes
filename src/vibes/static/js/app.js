@@ -1577,7 +1577,7 @@ function App() {
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}`} ref=${appShellRef}>
-            <${WorkspaceExplorer} onFileSelect=${addFileRef} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
+            <${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
             <button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
