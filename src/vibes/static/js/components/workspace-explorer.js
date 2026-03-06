@@ -230,7 +230,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
                 let next = prev;
                 for (const update of updates) {
                     if (!update?.root) continue;
-                    if (!next || !update.path || update.path === '.') next = update.root;
+                    if (!next || !update.path || update.path === '.') next = mergeTree(next, update.root);
                     else next = replaceNodeAtPath(next, update.path, update.root);
                 }
                 if (next) {
