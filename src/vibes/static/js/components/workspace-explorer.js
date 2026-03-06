@@ -42,24 +42,43 @@ function flattenTree(node, expanded, showHidden, depth = 0, rows = []) {
     return rows;
 }
 
+/**
+ * Signature of *visible* structure only: path + type for expanded nodes.
+ */
+function treeSignature(node, expanded, showHidden) {
+    if (!node) return '';
+    const parts = [];
+    const walk = (item) => {
+        if (!item) return;
+        if (!showHidden && isHiddenNode(item)) return;
+        parts.push(item.path, item.type);
+        if (item.children && expanded?.has(item.path)) {
+            for (const child of item.children) walk(child);
+        }
+    };
+    walk(node);
+    return parts.join('|');
+}
+
 function mergeTree(prev, next) {
-    if (!next) return prev;
+    if (!next) return null;
     if (!prev) return next;
     if (prev.path !== next.path || prev.type !== next.type) return next;
 
-    const prevChildren = Array.isArray(prev.children) ? prev.children : [];
-    const nextChildren = Array.isArray(next.children) ? next.children : [];
-    if (prevChildren.length !== nextChildren.length) return next;
+    const prevKids = Array.isArray(prev.children) ? prev.children : null;
+    const nextKids = Array.isArray(next.children) ? next.children : null;
 
-    const prevMap = new Map(prevChildren.map((child) => [child.path, child]));
-    let changed = false;
-    const mergedChildren = nextChildren.map((child) => {
-        const merged = mergeTree(prevMap.get(child.path), child);
-        if (merged !== prevMap.get(child.path)) changed = true;
-        return merged;
+    // Server hit depth limit and returned no children – keep what we had.
+    if (!nextKids) return prev;
+
+    const prevMap = prevKids ? new Map(prevKids.map((c) => [c?.path, c])) : new Map();
+    let changed = !prevKids || prevKids.length !== nextKids.length;
+    const merged = nextKids.map((child) => {
+        const m = mergeTree(prevMap.get(child.path), child);
+        if (m !== prevMap.get(child.path)) changed = true;
+        return m;
     });
-    if (changed) return { ...next, children: mergedChildren };
-    return prev;
+    return changed ? { ...next, children: merged } : prev;
 }
 
 function replaceNodeAtPath(node, targetPath, nextNode) {
@@ -131,6 +150,10 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     const loadTreeRef = useRef(null);
     const loadPreviewRef = useRef(null);
     const loadSubtreeRef = useRef(null);
+    const pendingSubtreeRef = useRef(new Set());
+    const lastSigRef = useRef('');
+    const pendingRootRef = useRef(null);
+    const rafRef = useRef(0);
     const dragDepthRef = useRef(0);
     const dropTargetRef = useRef(dropTarget);
     const dragActiveRef = useRef(dragActive);
@@ -143,10 +166,23 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     useEffect(() => { visibleRef.current = visible; }, [visible]);
 
     const loadTree = async () => {
+        if (!visibleRef.current) return;
         try {
             const data = await getWorkspaceTree('', 4, showHiddenRef.current);
-            setTree((prev) => mergeTree(prev, data.root));
-            setInitialLoad(false);
+            const sig = treeSignature(data.root, expandedRef.current, showHiddenRef.current);
+            if (sig === lastSigRef.current) {
+                setInitialLoad(false);
+                return;
+            }
+            lastSigRef.current = sig;
+            pendingRootRef.current = data.root;
+            if (!rafRef.current) {
+                rafRef.current = requestAnimationFrame(() => {
+                    rafRef.current = 0;
+                    setTree((prev) => mergeTree(prev, pendingRootRef.current));
+                    setInitialLoad(false);
+                });
+            }
             setError(null);
         } catch (err) {
             setError(err?.message || 'Failed to load workspace');
@@ -156,11 +192,16 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     loadTreeRef.current = loadTree;
 
     const loadSubtree = async (path) => {
+        if (!path) return;
+        if (pendingSubtreeRef.current.has(path)) return;
+        pendingSubtreeRef.current.add(path);
         try {
             const data = await getWorkspaceTree(path, 3, showHiddenRef.current);
             setTree((prev) => replaceNodeAtPath(prev, path, data.root));
         } catch (err) {
             setError(err?.message || 'Failed to load workspace');
+        } finally {
+            pendingSubtreeRef.current.delete(path);
         }
     };
     loadSubtreeRef.current = loadSubtree;
@@ -192,6 +233,10 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
                     if (!next || !update.path || update.path === '.') next = update.root;
                     else next = replaceNodeAtPath(next, update.path, update.root);
                 }
+                if (next) {
+                    lastSigRef.current = treeSignature(next, expandedRef.current, showHiddenRef.current);
+                }
+                setInitialLoad(false);
                 return next;
             });
         };
@@ -260,8 +305,12 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
         const path = rowEl.dataset.path;
         const type = rowEl.dataset.type;
         if (type === 'dir') {
-            const isOpen = expandedRef.current.has(path);
-            if (!isOpen) loadSubtreeRef.current?.(path);
+            setSelectedPath(path);
+            setPreview(null);
+            setDownloadId(null);
+            setLoadingPreview(false);
+            const wasExpanded = expandedRef.current.has(path);
+            if (!wasExpanded) loadSubtreeRef.current?.(path);
             setExpanded((prev) => {
                 const next = new Set(prev);
                 if (next.has(path)) next.delete(path);
@@ -277,6 +326,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     }).current;
 
     const handleRefresh = useRef(() => {
+        lastSigRef.current = '';
         loadTreeRef.current?.();
         const openPaths = Array.from(expandedRef.current || []).filter((p) => p && p !== '.');
         openPaths.forEach((p) => loadSubtreeRef.current?.(p));
@@ -297,6 +347,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
             }
             showHiddenRef.current = next;
             setWorkspaceVisibility(true, next).catch(() => {});
+            lastSigRef.current = '';
             loadTreeRef.current?.();
             const openPaths = Array.from(expandedRef.current || []).filter((p) => p && p !== '.');
             openPaths.forEach((p) => loadSubtreeRef.current?.(p));
