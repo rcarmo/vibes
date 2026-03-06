@@ -1568,7 +1568,7 @@ function App() {
         const shell = appShellRef.current;
         if (!shell) return;
         const startX = e.clientX;
-        const startW = editorWidthRef.current || 280;
+        const startW = editorWidthRef.current || sidebarWidthRef.current || 280;
         const splitter = e.currentTarget;
         splitter.classList.add('dragging');
         document.body.style.cursor = 'col-resize';
@@ -1577,12 +1577,12 @@ function App() {
         let lastX = startX;
         const onMove = (me) => {
             lastX = me.clientX;
-            const width = Math.min(Math.max(startW - (me.clientX - startX), 200), window.innerWidth * 0.7);
+            const width = Math.min(Math.max(startW + (me.clientX - startX), 200), 800);
             shell.style.setProperty('--editor-width', `${width}px`);
             editorWidthRef.current = width;
         };
         const onUp = () => {
-            const width = Math.min(Math.max(startW - (lastX - startX), 200), window.innerWidth * 0.7);
+            const width = Math.min(Math.max(startW + (lastX - startX), 200), 800);
             editorWidthRef.current = width;
             splitter.classList.remove('dragging');
             document.body.style.cursor = '';
@@ -1602,7 +1602,7 @@ function App() {
         const touch = e.touches[0];
         if (!touch) return;
         const startX = touch.clientX;
-        const startW = editorWidthRef.current || 280;
+        const startW = editorWidthRef.current || sidebarWidthRef.current || 280;
         const splitter = e.currentTarget;
         splitter.classList.add('dragging');
         document.body.style.userSelect = 'none';
@@ -1611,7 +1611,7 @@ function App() {
             const t = te.touches[0];
             if (!t) return;
             te.preventDefault();
-            const width = Math.min(Math.max(startW - (t.clientX - startX), 200), window.innerWidth * 0.7);
+            const width = Math.min(Math.max(startW + (t.clientX - startX), 200), 800);
             shell.style.setProperty('--editor-width', `${width}px`);
             editorWidthRef.current = width;
         };

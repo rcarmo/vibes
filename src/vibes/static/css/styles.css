@@ -685,6 +685,8 @@ body {
     position: relative;
     z-index: 10;
     touch-action: none;
+    opacity: 1;
+    transition: width var(--ui-transition-fast), opacity var(--ui-transition-fast);
 }
 
 .editor-splitter::after {
