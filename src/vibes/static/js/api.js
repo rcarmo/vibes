@@ -288,9 +288,13 @@ export class SSEClient {
         this.status = 'disconnected';
         this.reconnectAttempts = 0;
         this.cooldownUntil = 0;
+        this.connecting = false;
     }
     
     connect() {
+        if (this.connecting) return;
+        if (this.eventSource && this.status === 'connected') return;
+        this.connecting = true;
         if (this.eventSource) {
             this.eventSource.close();
         }
@@ -298,6 +302,7 @@ export class SSEClient {
         this.eventSource = new EventSource(API_BASE + '/sse/stream');
         
         this.eventSource.onopen = () => {
+            this.connecting = false;
             this.reconnectDelay = 1000;
             this.reconnectAttempts = 0;
             this.cooldownUntil = 0;
@@ -306,6 +311,7 @@ export class SSEClient {
         };
         
         this.eventSource.onerror = () => {
+            this.connecting = false;
             this.status = 'disconnected';
             this.onStatusChange('disconnected');
             this.reconnectAttempts += 1;
@@ -419,6 +425,7 @@ export class SSEClient {
     }
     
     disconnect() {
+        this.connecting = false;
         if (this.eventSource) {
             this.eventSource.close();
             this.eventSource = null;

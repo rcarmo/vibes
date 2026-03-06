@@ -958,6 +958,53 @@ body {
     letter-spacing: 0.01em;
 }
 
+/* Slash command autocomplete dropdown */
+.slash-autocomplete {
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    right: 0;
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.25);
+    z-index: 100;
+    margin-bottom: 4px;
+    scrollbar-width: thin;
+}
+
+.slash-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 10px;
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.slash-item:hover,
+.slash-item.active {
+    background: var(--bg-hover);
+}
+
+.slash-name {
+    font-family: var(--font-mono, monospace);
+    font-size: var(--font-size-sm);
+    color: var(--accent-color);
+    white-space: nowrap;
+    font-weight: 600;
+}
+
+.slash-desc {
+    font-size: var(--font-size-sm);
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .compose-actions {
     display: flex;
     align-items: center;

@@ -1,6 +1,21 @@
 import { html, useRef, useState } from '../vendor/preact-htm.js';
 import { sendAgentMessage, uploadMedia } from '../api.js';
 
+/**
+ * Slash command definitions for autocomplete.
+ */
+const SLASH_COMMANDS = [
+    { name: '/model', description: 'Show or set the model' },
+    { name: '/thinking', description: 'Show or set thinking level' },
+    { name: '/prompt', description: 'Show or set the user system prompt' },
+    { name: '/name', description: 'Show or set the agent display name' },
+    { name: '/queue', description: 'Queue a message for after the current turn' },
+    { name: '/abort', description: 'Cancel the current agent operation' },
+    { name: '/restart', description: 'Restart the active agent' },
+    { name: '/shell', description: 'Run a shell command' },
+    { name: '/commands', description: 'List available commands' },
+];
+
 export function ComposeBox({
     onPost,
     onFocus,
@@ -22,7 +37,11 @@ export function ComposeBox({
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
     const [isDragActive, setIsDragActive] = useState(false);
+    const [slashMatches, setSlashMatches] = useState([]);
+    const [slashIndex, setSlashIndex] = useState(0);
+    const [showSlash, setShowSlash] = useState(false);
     const textareaRef = useRef(null);
+    const slashRef = useRef(null);
     const dragCounterRef = useRef(0);
     const historyMax = 200;
     const normaliseHistory = (items) => {
@@ -79,11 +98,58 @@ export function ComposeBox({
         textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
     };
 
+    /** Update slash autocomplete matches based on current input. */
+    const updateSlashAutocomplete = (value) => {
+        if (!value.startsWith('/') || value.includes('\n')) {
+            setShowSlash(false);
+            setSlashMatches([]);
+            return;
+        }
+        const prefix = value.toLowerCase().split(' ')[0];
+        if (prefix.length < 1) {
+            setShowSlash(false);
+            setSlashMatches([]);
+            return;
+        }
+        const matches = SLASH_COMMANDS.filter((cmd) =>
+            cmd.name.startsWith(prefix) || cmd.name.replace(/-/g, '').startsWith(prefix.replace(/-/g, ''))
+        );
+        if (matches.length > 0 && !(matches.length === 1 && matches[0].name === prefix)) {
+            setSlashMatches(matches);
+            setSlashIndex(0);
+            setShowSlash(true);
+        } else {
+            setShowSlash(false);
+            setSlashMatches([]);
+        }
+    };
+
+    /** Accept the currently highlighted slash command. */
+    const acceptSlashCommand = (cmd) => {
+        const current = content;
+        const spaceIdx = current.indexOf(' ');
+        const args = spaceIdx >= 0 ? current.slice(spaceIdx) : '';
+        const newVal = cmd.name + args;
+        setContent(newVal);
+        setShowSlash(false);
+        setSlashMatches([]);
+        requestAnimationFrame(() => {
+            const textarea = textareaRef.current;
+            if (!textarea) return;
+            const len = newVal.length;
+            textarea.selectionStart = len;
+            textarea.selectionEnd = len;
+            textarea.focus();
+            resizeTextarea();
+        });
+    };
+
     const updateValue = (value) => {
         if (searchMode) {
             setSearchText(value);
         } else {
             setContent(value);
+            updateSlashAutocomplete(value);
         }
         requestAnimationFrame(resizeTextarea);
     };
@@ -155,6 +221,30 @@ export function ComposeBox({
             setSearchText('');
             onExitSearch?.();
             return;
+        }
+        // Slash autocomplete navigation
+        if (showSlash && slashMatches.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setSlashIndex((i) => (i + 1) % slashMatches.length);
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                return;
+            }
+            if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
+                e.preventDefault();
+                acceptSlashCommand(slashMatches[slashIndex]);
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                setShowSlash(false);
+                setSlashMatches([]);
+                return;
+            }
         }
         if (!searchMode && (e.key === 'ArrowUp' || e.key === 'ArrowDown') && !e.metaKey && !e.ctrlKey && !e.altKey && !e.shiftKey) {
             const textarea = textareaRef.current;
@@ -362,6 +452,21 @@ export function ComposeBox({
                         disabled=${loading}
                         rows="1"
                     />
+                    ${showSlash && slashMatches.length > 0 && html`
+                        <div class="slash-autocomplete" ref=${slashRef}>
+                            ${slashMatches.map((cmd, i) => html`
+                                <div
+                                    key=${cmd.name}
+                                    class=${`slash-item${i === slashIndex ? ' active' : ''}`}
+                                    onMouseDown=${(e) => { e.preventDefault(); acceptSlashCommand(cmd); }}
+                                    onMouseEnter=${() => setSlashIndex(i)}
+                                >
+                                    <span class="slash-name">${cmd.name}</span>
+                                    <span class="slash-desc">${cmd.description}</span>
+                                </div>
+                            `)}
+                        </div>
+                    `}
                     ${!searchMode && activeModel && html`
                         <span class="compose-model-hint" title=${activeModel}>${activeModel}</span>
                     `}
