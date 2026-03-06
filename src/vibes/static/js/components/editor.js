@@ -342,16 +342,25 @@ export function WorkspaceEditor({
                 handleSave();
                 return;
             }
-            if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === 'w' || e.key === 'W')) {
+            const isAltOnly = e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
+            const code = e.code;
+            const key = e.key;
+            if (isAltOnly && (key === 'w' || key === 'W' || code === 'KeyW')) {
                 e.preventDefault();
                 e.stopPropagation();
                 handleToggleWhitespace();
                 return;
             }
-            if (e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey && (e.key === 'v' || e.key === 'V')) {
+            if (isAltOnly && (key === 'v' || key === 'V' || code === 'KeyV')) {
                 e.preventDefault();
                 e.stopPropagation();
                 handleToggleVim();
+                return;
+            }
+            if (isAltOnly && (key === 'q' || key === 'Q' || code === 'KeyQ')) {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose?.();
                 return;
             }
             if (e.key === 'Escape' && !e.defaultPrevented && !dirty) {

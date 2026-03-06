@@ -21,7 +21,9 @@ export function ComposeBox({
     const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [mediaFiles, setMediaFiles] = useState([]);
+    const [isDragActive, setIsDragActive] = useState(false);
     const textareaRef = useRef(null);
+    const dragCounterRef = useRef(0);
     const historyMax = 200;
     const normaliseHistory = (items) => {
         const seen = new Set();
@@ -108,7 +110,14 @@ export function ComposeBox({
             const fileBlock = fileRefs.length
                 ? `Files:\n${fileRefs.map((path) => `- ${path}`).join('\n')}`
                 : '';
-            const message = [baseContent, fileBlock].filter(Boolean).join('\n\n');
+            const mediaBlock = mediaIds.length
+                ? `Images:\n${mediaIds.map((id, index) => {
+                    const file = mediaFiles[index];
+                    const label = file?.name || `image-${index + 1}`;
+                    return `- attachment:${id} (${label})`;
+                }).join('\n')}`
+                : '';
+            const message = [baseContent, fileBlock, mediaBlock].filter(Boolean).join('\n\n');
 
             const response = await sendAgentMessage('default', message, null, mediaIds);
             if (response?.command?.model_label && typeof onModelChange === 'function') {
@@ -201,8 +210,52 @@ export function ComposeBox({
         }
     };
 
+    const addMediaFiles = (files) => {
+        const list = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+        if (!list.length) return;
+        setMediaFiles((current) => [...current, ...list]);
+    };
+
     const handleFileChange = (e) => {
-        setMediaFiles([...e.target.files]);
+        addMediaFiles(e.target.files);
+        e.target.value = '';
+    };
+
+    const removeMediaFile = (index) => {
+        setMediaFiles((current) => current.filter((_, idx) => idx !== index));
+    };
+
+    const handleDragEnter = (e) => {
+        if (searchMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current += 1;
+        setIsDragActive(true);
+    };
+
+    const handleDragLeave = (e) => {
+        if (searchMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current = Math.max(0, dragCounterRef.current - 1);
+        if (dragCounterRef.current === 0) setIsDragActive(false);
+    };
+
+    const handleDragOver = (e) => {
+        if (searchMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+        setIsDragActive(true);
+    };
+
+    const handleComposeDrop = (e) => {
+        if (searchMode) return;
+        e.preventDefault();
+        e.stopPropagation();
+        dragCounterRef.current = 0;
+        setIsDragActive(false);
+        addMediaFiles(e.dataTransfer?.files || []);
     };
 
     const handleInput = (e) => {
@@ -234,9 +287,15 @@ export function ComposeBox({
 
     return html`
         <div class="compose-box">
-            <div class="compose-input-wrapper">
+            <div
+                class=${`compose-input-wrapper${isDragActive ? ' drag-active' : ''}`}
+                onDragEnter=${handleDragEnter}
+                onDragOver=${handleDragOver}
+                onDragLeave=${handleDragLeave}
+                onDrop=${handleComposeDrop}
+            >
                 <div class="compose-input-main">
-                    ${!searchMode && fileRefs.length > 0 && html`
+                    ${!searchMode && (fileRefs.length > 0 || mediaFiles.length > 0) && html`
                         <div class="compose-file-refs">
                             ${fileRefs.map((path) => {
                                 const label = path.split('/').pop() || path;
@@ -255,6 +314,32 @@ export function ComposeBox({
                                                 onRemoveFileRef?.(path);
                                             }}
                                             title="Remove file"
+                                            type="button"
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M18 6L6 18M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </span>
+                                `;
+                            })}
+                            ${mediaFiles.map((file, index) => {
+                                const label = file?.name || `image-${index + 1}`;
+                                return html`
+                                    <span key=${label + index} class="compose-file-pill" title=${label}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                            <polyline points="14 2 14 8 20 8"/>
+                                        </svg>
+                                        <span class="compose-file-name">${label}</span>
+                                        <button
+                                            class="compose-file-remove"
+                                            onClick=${(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                removeMediaFile(index);
+                                            }}
+                                            title="Remove image"
                                             type="button"
                                         >
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -342,11 +427,6 @@ export function ComposeBox({
                     `}
                 </div>
             </div>
-            ${mediaFiles.length > 0 && html`
-                <div class="media-files-preview">
-                    ${mediaFiles.map((f) => html`<span key=${f.name} class="media-file-tag">${f.name}</span>`)}
-                </div>
-            `}
         </div>
     `;
 }

@@ -860,6 +860,12 @@ body {
     border-color: var(--accent-color);
 }
 
+.compose-input-wrapper.drag-active {
+    border-color: var(--accent-color);
+    background-color: var(--bg-hover);
+    box-shadow: 0 0 0 2px rgba(29, 155, 240, 0.2);
+}
+
 .compose-input-main {
     flex: 1;
     display: flex;
@@ -1023,15 +1029,8 @@ body {
     display: flex;
     flex-wrap: wrap;
     gap: var(--spacing-xs);
+    padding: 2px var(--spacing-xs) 0 var(--spacing-xs);
     margin-top: var(--spacing-xs);
-}
-
-.media-file-tag {
-    font-size: var(--font-size-sm);
-    background-color: var(--bg-secondary);
-    padding: 2px 8px;
-    border-radius: var(--radius-sm);
-    color: var(--text-secondary);
 }
 
 /* Timeline - uses column-reverse for natural scroll anchoring when prepending */
@@ -1864,7 +1863,10 @@ body {
     animation: fadeIn 0.2s ease-out;
     --turn-color: var(--accent-color);
     max-width: 100%;
+    min-width: 0;
     box-sizing: border-box;
+    overflow: hidden;
+    transition: background-color var(--ui-transition-fast), border-color var(--ui-transition-fast);
 }
 
 .agent-thinking-title {
@@ -1886,6 +1888,7 @@ body {
 
 .agent-thinking-body {
     margin: 0;
+    min-width: 0;
     word-break: break-word;
     overflow-wrap: anywhere;
     font-family: inherit;

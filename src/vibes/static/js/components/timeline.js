@@ -257,6 +257,45 @@ function extractFileRefs(content) {
     return { content: cleaned, fileRefs: refs };
 }
 
+function extractAttachmentRefs(content) {
+    if (!content) return { content, attachments: [] };
+    const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    const lines = normalized.split('\n');
+    let start = -1;
+    for (let i = 0; i < lines.length; i += 1) {
+        if (lines[i].trim() === 'Images:' && lines[i + 1] && /^\s*-\s+/.test(lines[i + 1])) {
+            start = i;
+            break;
+        }
+    }
+    if (start === -1) return { content, attachments: [] };
+    const refs = [];
+    let end = start + 1;
+    for (; end < lines.length; end += 1) {
+        const line = lines[end];
+        if (/^\s*-\s+/.test(line)) {
+            const raw = line.replace(/^\s*-\s+/, '').trim();
+            const match = raw.match(/^attachment:([^\s)]+)\s*(?:\((.+)\))?$/i) ||
+                raw.match(/^attachment:([^\s]+)\s+(.+)$/i);
+            if (match) {
+                refs.push({ id: match[1], label: (match[2] || '').trim() || match[1], raw });
+            } else {
+                refs.push({ id: null, label: raw, raw });
+            }
+        } else if (!line.trim()) {
+            break;
+        } else {
+            break;
+        }
+    }
+    if (refs.length === 0) return { content, attachments: [] };
+    const before = lines.slice(0, start);
+    const after = lines.slice(end);
+    let cleaned = [...before, ...after].join('\n');
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+    return { content: cleaned, attachments: refs };
+}
+
 function fallbackAvatarInfo(name, avatarUrl = null) {
     const label = name || 'Agent';
     const letter = label.charAt(0).toUpperCase() || 'A';
@@ -410,11 +449,34 @@ function Post({
     }
 
     const { content: cleanedContent, fileRefs } = extractFileRefs(displayContent);
-    displayContent = cleanedContent;
+    const { content: cleanedWithAttachments, attachments } = extractAttachmentRefs(cleanedContent);
+    displayContent = cleanedWithAttachments;
+
+    if (attachments.length > 0) {
+        attachments.forEach((ref) => {
+            if (!ref?.id) return;
+            const match = attachmentEntries.find((entry) => String(entry.id) === String(ref.id));
+            if (match && !match.name) {
+                match.name = ref.label;
+            }
+        });
+    }
+
     const { content: resolvedContent, usedIds } = resolveInlineAttachments(displayContent, attachmentEntries);
     displayContent = resolvedContent;
     const filteredImageItems = imageItems.filter(({ id }) => !usedIds.has(id));
     const filteredFileIds = fileIds.filter((id) => !usedIds.has(id));
+
+    const attachmentPills = attachments.length > 0
+        ? attachments.map((ref, idx) => ({
+            id: ref.id || `attachment-${idx + 1}`,
+            label: ref.label || `attachment-${idx + 1}`,
+        }))
+        : attachmentEntries.map((entry, idx) => ({
+            id: entry.id,
+            label: entry.name || `attachment-${idx + 1}`,
+        }));
+
     const shouldRenderContent = Boolean(displayContent?.trim()) && !isHardTruncated;
 
     useEffect(() => {
@@ -461,7 +523,7 @@ function Post({
                         </div>
                     </div>
                 `}
-                ${fileRefs.length > 0 && html`
+                ${(fileRefs.length > 0 || attachmentPills.length > 0) && html`
                     <div class="post-file-refs">
                         ${fileRefs.map((ref) => {
                             const label = ref.split('/').pop() || ref;
@@ -475,6 +537,15 @@ function Post({
                                 </span>
                             `;
                         })}
+                        ${attachmentPills.map((attachment) => html`
+                            <span class="post-file-pill" title=${attachment.label}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                </svg>
+                                <span class="post-file-name">${attachment.label}</span>
+                            </span>
+                        `)}
                     </div>
                 `}
                 ${shouldRenderContent && html`

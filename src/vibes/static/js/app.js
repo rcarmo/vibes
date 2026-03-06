@@ -589,6 +589,7 @@ function App() {
     const [editorSavedAt, setEditorSavedAt] = useState(null);
     const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
+    const wasAgentActiveRef = useRef(false);
     const agentsRef = useRef({});
     const viewStateRef = useRef({ currentHashtag: null, searchQuery: null });
     const hasMoreRef = useRef(false);
@@ -1243,6 +1244,11 @@ function App() {
                 if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                     return;
                 }
+                // Refresh timeline to surface any final response that arrived
+                // during an SSE gap (agent_response event may have been missed).
+                const { currentHashtag: ah, searchQuery: sq } = viewStateRef.current || {};
+                if (!ah && !sq) loadPosts();
+                wasAgentActiveRef.current = false;
                 clearAgentRunState();
                 setAgentStatus(null);
                 setAgentDraft({ text: '', totalLines: 0 });
@@ -1250,6 +1256,7 @@ function App() {
                 setAgentThought({ text: '', totalLines: 0 });
                 setPendingRequest(null);
             } else {
+                wasAgentActiveRef.current = true;
                 if (turnId) setActiveTurn(turnId);
                 noteAgentActivity({ running: true, clearSilence: true });
                 if (data.type === 'thinking') {
@@ -1497,6 +1504,23 @@ function App() {
             sse.disconnect();
         };
     }, [loadPosts, handleSseEvent]);
+
+    // Adaptive backstop poller — SSE is the primary event source; this is
+    // a safety net only. 15 s when a turn is active, 60 s when idle.
+    const isAgentActive = agentStatus !== null;
+    useEffect(() => {
+        if (connectionStatus !== 'connected') return;
+        const intervalMs = isAgentActive ? 15000 : 60000;
+        const interval = setInterval(() => {
+            if (!isAgentActive) {
+                const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current || {};
+                if (!activeHashtag && !activeSearch) {
+                    loadPosts();
+                }
+            }
+        }, intervalMs);
+        return () => clearInterval(interval);
+    }, [connectionStatus, isAgentActive, loadPosts]);
 
     const handleSplitterMouseDown = useRef((e) => {
         e.preventDefault();
