@@ -19,12 +19,12 @@ try:
 except ImportError:  # pragma: no cover - fallback path for constrained installs
     awatch = None
 
-DEFAULT_TREE_DEPTH = 2
-MAX_TREE_DEPTH = 6
+DEFAULT_TREE_DEPTH = 1
+MAX_TREE_DEPTH = 20
 DEFAULT_PREVIEW_BYTES = 20_000
 MAX_PREVIEW_BYTES = 500_000
 MAX_FILE_WRITE_BYTES = 5_000_000
-MAX_TREE_ENTRIES = 2_000
+MAX_TREE_ENTRIES = 5_000
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".py", ".js", ".ts", ".tsx", ".jsx", ".json",
     ".yaml", ".yml", ".toml", ".ini", ".cfg", ".html", ".css", ".xml", ".sh",
@@ -99,7 +99,6 @@ def _build_tree(path: Path, depth: int, show_hidden: bool, state: dict[str, int 
             "name": "." if path == _workspace_root() else path.name,
             "path": _to_workspace_relative(path),
             "type": "dir" if path.is_dir() else "file",
-            "children": [],
         }
 
     rel_path = _to_workspace_relative(path)
@@ -113,7 +112,6 @@ def _build_tree(path: Path, depth: int, show_hidden: bool, state: dict[str, int 
         return node
 
     if depth <= 0:
-        node["children"] = []
         return node
 
     children: list[dict] = []
@@ -151,7 +149,7 @@ async def _broadcast_workspace_tree_if_changed(force: bool = False) -> None:
     global _workspace_last_signature, _workspace_last_emit_at
     root = _workspace_root()
     state: dict[str, int | bool] = {"count": 0, "truncated": False}
-    tree = _build_tree(root, depth=4, show_hidden=_workspace_show_hidden, state=state)
+    tree = _build_tree(root, depth=2, show_hidden=_workspace_show_hidden, state=state)
     update = {
         "path": ".",
         "root": tree,
@@ -200,7 +198,7 @@ def _build_workspace_update(path_value: str) -> dict | None:
         return None
     if not target.exists():
         return None
-    depth = 4 if path_value == "." else 3
+    depth = 2 if path_value == "." else 2
     state: dict[str, int | bool] = {"count": 0, "truncated": False}
     tree = _build_tree(target, depth=depth, show_hidden=_workspace_show_hidden, state=state)
     return {

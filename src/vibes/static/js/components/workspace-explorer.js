@@ -168,7 +168,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     const loadTree = async () => {
         if (!visibleRef.current) return;
         try {
-            const data = await getWorkspaceTree('', 4, showHiddenRef.current);
+            const data = await getWorkspaceTree('', 2, showHiddenRef.current);
             const sig = treeSignature(data.root, expandedRef.current, showHiddenRef.current);
             if (sig === lastSigRef.current) {
                 setInitialLoad(false);
@@ -196,7 +196,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
         if (pendingSubtreeRef.current.has(path)) return;
         pendingSubtreeRef.current.add(path);
         try {
-            const data = await getWorkspaceTree(path, 3, showHiddenRef.current);
+            const data = await getWorkspaceTree(path, 1, showHiddenRef.current);
             setTree((prev) => replaceNodeAtPath(prev, path, data.root));
         } catch (err) {
             setError(err?.message || 'Failed to load workspace');

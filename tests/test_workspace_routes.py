@@ -73,7 +73,8 @@ class TestWorkspaceTreeRoutes:
         assert "visible.txt" in names
         assert ".hidden.txt" not in names
         folder_node = next(node for node in root["children"] if node["name"] == "folder")
-        assert folder_node["children"] == []
+        # At depth=1, subdirectories have no children key (not yet loaded)
+        assert "children" not in folder_node
 
         resp = await client.get("/workspace/tree?depth=2&show_hidden=1")
         assert resp.status == 200
