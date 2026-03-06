@@ -440,16 +440,22 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
 
     const renderPreviewMarkdown = renderMarkdown || ((value) => value || '');
 
-    const resolveDropTargetPath = useCallback(() => {
-        const selected = selectedPath;
-        if (!selected) return '.';
-        const node = nodeMapRef.current?.get(selected);
-        if (node && node.type === 'dir') return node.path;
-        if (selected === '.' || !selected.includes('/')) return '.';
-        const parts = selected.split('/');
-        parts.pop();
-        return parts.join('/') || '.';
-    }, [selectedPath]);
+    /** Resolve which directory a drop should target based on the hovered row. */
+    const resolveDropTargetFromEvent = (event) => {
+        const rowEl = event.target?.closest?.('[data-path]');
+        if (rowEl) {
+            const path = rowEl.dataset.path;
+            const type = rowEl.dataset.type;
+            if (type === 'dir') return path;
+            // Hovering over a file → use its parent directory
+            if (path && path.includes('/')) {
+                const parts = path.split('/');
+                parts.pop();
+                return parts.join('/') || '.';
+            }
+        }
+        return '.';
+    };
 
     const isFileDrag = (event) => {
         const types = Array.from(event?.dataTransfer?.types || []);
@@ -461,17 +467,18 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
         event.preventDefault();
         dragDepthRef.current += 1;
         if (!dragActiveRef.current) setDragActive(true);
-        setDropTarget(resolveDropTargetPath());
-    }, [resolveDropTargetPath]);
+        const target = resolveDropTargetFromEvent(event);
+        setDropTarget(target);
+    }, []);
 
     const handleDragOver = useCallback((event) => {
         if (!isFileDrag(event)) return;
         event.preventDefault();
         if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
         if (!dragActiveRef.current) setDragActive(true);
-        const target = resolveDropTargetPath();
+        const target = resolveDropTargetFromEvent(event);
         if (dropTargetRef.current !== target) setDropTarget(target);
-    }, [resolveDropTargetPath]);
+    }, []);
 
     const handleDragLeave = useCallback((event) => {
         if (!isFileDrag(event)) return;
@@ -486,12 +493,12 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     const handleDrop = useCallback(async (event) => {
         if (!isFileDrag(event)) return;
         event.preventDefault();
+        const target = dropTargetRef.current || resolveDropTargetFromEvent(event);
         dragDepthRef.current = 0;
         setDragActive(false);
         setDropTarget(null);
         const files = Array.from(event?.dataTransfer?.files || []);
         if (files.length === 0) return;
-        const target = resolveDropTargetPath();
         setUploading(true);
         try {
             let lastResult = null;
@@ -508,7 +515,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
         } finally {
             setUploading(false);
         }
-    }, [resolveDropTargetPath]);
+    }, []);
 
     return html`
         <aside
@@ -552,10 +559,11 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
                             const isDir = node.type === 'dir';
                             const isSelected = node.path === selectedPath;
                             const isOpen = isDir && expanded.has(node.path);
+                            const isDropTarget = dropTarget && node.path === dropTarget;
                             return html`
                                 <div
                                     key=${node.path}
-                                    class=${`workspace-row${isSelected ? ' selected' : ''}`}
+                                    class=${`workspace-row${isSelected ? ' selected' : ''}${isDropTarget ? ' drop-target' : ''}`}
                                     style=${{ paddingLeft: `${8 + depth * INDENT}px` }}
                                     data-path=${node.path}
                                     data-type=${node.type}
