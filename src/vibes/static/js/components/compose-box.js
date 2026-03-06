@@ -1,5 +1,5 @@
-import { html, useRef, useState } from '../vendor/preact-htm.js';
-import { sendAgentMessage, uploadMedia } from '../api.js';
+import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
+import { getAgentModels, sendAgentMessage, uploadMedia } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -87,8 +87,14 @@ export function ComposeBox({
     const [slashMatches, setSlashMatches] = useState([]);
     const [slashIndex, setSlashIndex] = useState(0);
     const [showSlash, setShowSlash] = useState(false);
+    const [switchingModel, setSwitchingModel] = useState(false);
+    const [showModelPopup, setShowModelPopup] = useState(false);
+    const [modelOptions, setModelOptions] = useState([]);
+    const [loadingModels, setLoadingModels] = useState(false);
     const textareaRef = useRef(null);
     const slashRef = useRef(null);
+    const modelPopupRef = useRef(null);
+    const modelHintRef = useRef(null);
     const dragCounterRef = useRef(0);
     const historyMax = 200;
     const normaliseHistory = (items) => {
@@ -206,6 +212,53 @@ export function ComposeBox({
         const prefix = current && !current.endsWith('\n') ? '\n' : '';
         const next = `${current}${prefix}${snippet}`.trimStart();
         updateValue(next);
+    };
+
+    const extractCurrentModel = (response) => {
+        const fromLabel = response?.command?.model_label;
+        if (fromLabel) return fromLabel;
+        const message = response?.command?.message;
+        if (typeof message === 'string') {
+            const currentMatch = message.match(/•\s+([^\n]+?)\s+\(current\)/);
+            if (currentMatch?.[1]) return currentMatch[1].trim();
+        }
+        return null;
+    };
+
+    const runModelCommand = async (commandText) => {
+        if (searchMode || loading || switchingModel) return;
+        setSwitchingModel(true);
+        try {
+            const response = await sendAgentMessage('default', commandText, null, []);
+            const nextModel = extractCurrentModel(response);
+            if (nextModel && typeof onModelChange === 'function') {
+                onModelChange(nextModel);
+            }
+            onPost?.();
+            return true;
+        } catch (error) {
+            console.error('Failed to switch model:', error);
+            alert('Failed to switch model: ' + error.message);
+            return false;
+        } finally {
+            setSwitchingModel(false);
+        }
+    };
+
+    const handleCycleModel = async () => {
+        await runModelCommand('/cycle-model');
+    };
+
+    const handleSelectModel = async (modelLabel) => {
+        if (!modelLabel || switchingModel) return;
+        const ok = await runModelCommand(`/model ${modelLabel}`);
+        if (ok) setShowModelPopup(false);
+    };
+
+    const toggleModelPopup = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        setShowModelPopup((prev) => !prev);
     };
 
     const handleSubmit = async () => {
@@ -422,6 +475,44 @@ export function ComposeBox({
         );
     };
 
+    useEffect(() => {
+        if (!showModelPopup) return;
+        setLoadingModels(true);
+        getAgentModels()
+            .then((payload) => {
+                const models = Array.isArray(payload?.models)
+                    ? payload.models.filter((m) => typeof m === 'string' && m.trim().length > 0)
+                    : [];
+                setModelOptions(models);
+                if (payload?.current && typeof payload.current === 'string') {
+                    if (typeof onModelChange === 'function') onModelChange(payload.current);
+                }
+            })
+            .catch((error) => {
+                console.warn('Failed to load model list:', error);
+                setModelOptions([]);
+            })
+            .finally(() => setLoadingModels(false));
+    }, [showModelPopup, activeModel]);
+
+    useEffect(() => {
+        if (searchMode) setShowModelPopup(false);
+    }, [searchMode]);
+
+    useEffect(() => {
+        if (!showModelPopup) return;
+        const onPointerDown = (event) => {
+            const popup = modelPopupRef.current;
+            const hint = modelHintRef.current;
+            const target = event.target;
+            if (popup && popup.contains(target)) return;
+            if (hint && hint.contains(target)) return;
+            setShowModelPopup(false);
+        };
+        document.addEventListener('pointerdown', onPointerDown);
+        return () => document.removeEventListener('pointerdown', onPointerDown);
+    }, [showModelPopup]);
+
     return html`
         <div class="compose-box">
             <div
@@ -514,11 +605,60 @@ export function ComposeBox({
                             `)}
                         </div>
                     `}
-                    ${!searchMode && activeModel && html`
-                        <span class="compose-model-hint" title=${activeModel}>${activeModel}</span>
+                    ${!searchMode && (activeModel || (contextUsage && contextUsage.percent != null)) && html`
+                        <div class="compose-meta-row">
+                            ${activeModel && html`
+                                <button
+                                    ref=${modelHintRef}
+                                    type="button"
+                                    class="compose-model-hint compose-model-hint-btn"
+                                    title=${switchingModel ? 'Switching model…' : `Current model: ${activeModel} (tap to open model picker)`}
+                                    aria-label="Open model picker"
+                                    onClick=${toggleModelPopup}
+                                    disabled=${loading || switchingModel}
+                                >
+                                    ${switchingModel ? 'Switching…' : activeModel}
+                                </button>
+                            `}
+                            ${contextUsage && contextUsage.percent != null && html`
+                                <${ContextPie} usage=${contextUsage} />
+                            `}
+                        </div>
                     `}
-                    ${!searchMode && contextUsage && contextUsage.percent != null && html`
-                        <${ContextPie} usage=${contextUsage} />
+                    ${showModelPopup && !searchMode && html`
+                        <div class="compose-model-popup" ref=${modelPopupRef}>
+                            <div class="compose-model-popup-title">Select model</div>
+                            <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
+                                ${loadingModels && html`
+                                    <div class="compose-model-popup-empty">Loading models…</div>
+                                `}
+                                ${!loadingModels && modelOptions.length === 0 && html`
+                                    <div class="compose-model-popup-empty">No models available.</div>
+                                `}
+                                ${!loadingModels && modelOptions.map((modelLabel) => html`
+                                    <button
+                                        key=${modelLabel}
+                                        type="button"
+                                        role="menuitem"
+                                        class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}
+                                        onClick=${() => { void handleSelectModel(modelLabel); }}
+                                        disabled=${switchingModel}
+                                    >
+                                        ${modelLabel}
+                                    </button>
+                                `)}
+                            </div>
+                            <div class="compose-model-popup-actions">
+                                <button
+                                    type="button"
+                                    class="compose-model-popup-btn"
+                                    onClick=${() => { void handleCycleModel(); }}
+                                    disabled=${switchingModel}
+                                >
+                                    Next model
+                                </button>
+                            </div>
+                        </div>
                     `}
                 </div>
                 <div class="compose-actions ${searchMode ? 'search-mode' : ''}">

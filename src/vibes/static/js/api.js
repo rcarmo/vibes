@@ -109,6 +109,13 @@ export async function getAgentContext() {
 }
 
 /**
+ * Get available models and current selection.
+ */
+export async function getAgentModels() {
+    return request('/agent/models');
+}
+
+/**
  * Get full draft/thought text for a live agent turn.
  */
 export async function getAgentTurnPreview(turnId) {

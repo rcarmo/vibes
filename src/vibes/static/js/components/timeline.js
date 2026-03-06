@@ -216,15 +216,11 @@ function LinkPreview({ preview }) {
     `;
 }
 
-function removePreviewedUrls(text, linkPreviews) {
-    if (!linkPreviews?.length) return text;
-
-    let result = text;
-    for (const preview of linkPreviews) {
-        const escapedUrl = preview.url.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        result = result.replace(new RegExp(escapedUrl + '\\s*$', ''), '');
-    }
-    return result.trim();
+/**
+ * Preserve message text exactly as-authored, even when link previews exist.
+ */
+function getDisplayContent(content, _linkPreviews) {
+    return typeof content === 'string' ? content : '';
 }
 
 function extractFileRefs(content) {
@@ -351,7 +347,7 @@ function Post({
         }
         : null;
 
-    let displayContent = removePreviewedUrls(data.content, data.link_previews);
+    let displayContent = getDisplayContent(data.content, data.link_previews);
 
     const handleImageClick = (e, mediaId) => {
         e.stopPropagation();

@@ -656,6 +656,47 @@ async def get_agent_context(request: web.Request) -> web.Response:
         return web.json_response(null_resp)
 
 
+async def get_agent_models(request: web.Request) -> web.Response:
+    """GET /agent/models — return available models and current selection."""
+    empty = {"current": None, "models": []}
+    if not is_pi_running():
+        return web.json_response(empty)
+    try:
+        resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        if not resp or not resp.get("success"):
+            return web.json_response(empty)
+        data = resp.get("data", {})
+        # Extract current model label
+        model = data.get("model")
+        current = None
+        if isinstance(model, dict):
+            provider = model.get("provider", "")
+            model_id = model.get("id", "")
+            if provider and model_id:
+                current = f"{provider}/{model_id}"
+            elif model_id:
+                current = model_id
+        elif isinstance(model, str):
+            current = model
+        # Extract available models list
+        models = []
+        available = data.get("availableModels") or data.get("available_models") or []
+        if isinstance(available, list):
+            for m in available:
+                if isinstance(m, dict):
+                    p = m.get("provider", "")
+                    i = m.get("id", "")
+                    label = f"{p}/{i}" if p and i else i or ""
+                    if label:
+                        models.append(label)
+                elif isinstance(m, str) and m:
+                    models.append(m)
+        return web.json_response({"current": current, "models": models})
+    except Exception:
+        logger.debug("Failed to get agent models", exc_info=True)
+        return web.json_response(empty)
+
+
 async def send_message(request: web.Request) -> web.Response:
     """Send a message to an agent."""
     agent_id = request.match_info["agent_id"]
@@ -846,6 +887,7 @@ def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
     app.router.add_get("/agent/context", get_agent_context)
+    app.router.add_get("/agent/models", get_agent_models)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)

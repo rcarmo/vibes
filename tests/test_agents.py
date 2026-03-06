@@ -501,3 +501,49 @@ async def test_get_agent_context_rpc_failure():
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
     assert body == {"tokens": None, "contextWindow": None, "percent": None}
+
+
+# --- Models endpoint tests ---
+
+@pytest.mark.asyncio
+async def test_get_agent_models_pi_not_running():
+    """Returns empty when Pi is not running."""
+    req = make_mocked_request("GET", "/agent/models")
+    with patch.object(agents_mod, "is_pi_running", return_value=False):
+        resp = await agents_mod.get_agent_models(req)
+    body = json.loads(resp.body)
+    assert body == {"current": None, "models": []}
+
+
+@pytest.mark.asyncio
+async def test_get_agent_models_with_data():
+    """Returns current model and available models from Pi state."""
+    req = make_mocked_request("GET", "/agent/models")
+    state_resp = {
+        "success": True,
+        "data": {
+            "model": {"provider": "anthropic", "id": "claude-sonnet-4"},
+            "availableModels": [
+                {"provider": "anthropic", "id": "claude-sonnet-4"},
+                {"provider": "anthropic", "id": "claude-opus-4"},
+            ],
+        },
+    }
+    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=state_resp):
+        resp = await agents_mod.get_agent_models(req)
+    body = json.loads(resp.body)
+    assert body["current"] == "anthropic/claude-sonnet-4"
+    assert "anthropic/claude-sonnet-4" in body["models"]
+    assert "anthropic/claude-opus-4" in body["models"]
+
+
+@pytest.mark.asyncio
+async def test_get_agent_models_rpc_failure():
+    """Returns empty when RPC fails."""
+    req = make_mocked_request("GET", "/agent/models")
+    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=Exception("timeout")):
+        resp = await agents_mod.get_agent_models(req)
+    body = json.loads(resp.body)
+    assert body == {"current": None, "models": []}
