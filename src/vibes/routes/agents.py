@@ -621,6 +621,41 @@ async def _store_media_block(db, block: dict) -> int | None:
         return None
 
 
+async def get_agent_context(request: web.Request) -> web.Response:
+    """GET /agent/context — return context window usage for the compose box indicator."""
+    null_resp = {"tokens": None, "contextWindow": None, "percent": None}
+    if not is_pi_running():
+        return web.json_response(null_resp)
+    try:
+        resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        if not resp or not resp.get("success"):
+            return web.json_response(null_resp)
+        data = resp.get("data", {})
+        # Try extracting context usage from state — Pi may include it.
+        context = data.get("context") or data.get("context_usage") or {}
+        tokens = context.get("tokens")
+        context_window = context.get("contextWindow") or context.get("context_window")
+        # Also try model-level contextWindow
+        if not context_window:
+            model = data.get("model")
+            if isinstance(model, dict):
+                context_window = model.get("contextWindow") or model.get("context_window")
+        percent = None
+        if tokens is not None and context_window:
+            try:
+                percent = round(100.0 * tokens / context_window, 1)
+            except (TypeError, ZeroDivisionError):
+                pass
+        return web.json_response({
+            "tokens": tokens,
+            "contextWindow": context_window,
+            "percent": percent,
+        })
+    except Exception:
+        logger.debug("Failed to get agent context usage", exc_info=True)
+        return web.json_response(null_resp)
+
+
 async def send_message(request: web.Request) -> web.Response:
     """Send a message to an agent."""
     agent_id = request.match_info["agent_id"]
@@ -810,6 +845,7 @@ async def remove_from_whitelist(request: web.Request) -> web.Response:
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
+    app.router.add_get("/agent/context", get_agent_context)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)

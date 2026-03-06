@@ -102,6 +102,13 @@ export async function getAgents() {
 }
 
 /**
+ * Get context window usage (tokens, contextWindow, percent).
+ */
+export async function getAgentContext() {
+    return request('/agent/context');
+}
+
+/**
  * Get full draft/thought text for a live agent turn.
  */
 export async function getAgentTurnPreview(turnId) {

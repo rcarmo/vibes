@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -575,6 +575,7 @@ function App() {
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [agents, setAgents] = useState({});
     const [activeModel, setActiveModel] = useState(null);
+    const [contextUsage, setContextUsage] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
     const [removingPostIds, setRemovingPostIds] = useState(() => new Set());
@@ -1255,6 +1256,8 @@ function App() {
                 setAgentPlan('');
                 setAgentThought({ text: '', totalLines: 0 });
                 setPendingRequest(null);
+                // Refresh context usage after turn completes
+                getAgentContext().then(ctx => { if (ctx && ctx.percent != null) setContextUsage(ctx); }).catch(() => {});
             } else {
                 wasAgentActiveRef.current = true;
                 if (turnId) setActiveTurn(turnId);
@@ -1738,6 +1741,7 @@ function App() {
                     onRemoveFileRef=${removeFileRef}
                     onClearFileRefs=${clearFileRefs}
                     activeModel=${activeModel}
+                    contextUsage=${contextUsage}
                     onModelChange=${setActiveModel}
                     notificationsEnabled=${notificationsEnabled}
                     notificationPermission=${notificationPermission}

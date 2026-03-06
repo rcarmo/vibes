@@ -459,3 +459,45 @@ async def test_check_whitelist_delegates_to_db():
         result = await agents_mod._check_whitelist("some_tool")
         assert result is False
         mock_db.is_whitelisted.assert_called_once_with("some_tool")
+
+
+# --- Context endpoint tests ---
+
+@pytest.mark.asyncio
+async def test_get_agent_context_pi_not_running():
+    """Returns null usage when Pi is not running."""
+    req = make_mocked_request("GET", "/agent/context")
+    with patch.object(agents_mod, "is_pi_running", return_value=False):
+        resp = await agents_mod.get_agent_context(req)
+    body = json.loads(resp.body)
+    assert body == {"tokens": None, "contextWindow": None, "percent": None}
+
+
+@pytest.mark.asyncio
+async def test_get_agent_context_with_usage():
+    """Returns context usage from Pi state."""
+    req = make_mocked_request("GET", "/agent/context")
+    state_resp = {
+        "success": True,
+        "data": {
+            "context": {"tokens": 15000, "contextWindow": 200000},
+        },
+    }
+    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=state_resp):
+        resp = await agents_mod.get_agent_context(req)
+    body = json.loads(resp.body)
+    assert body["tokens"] == 15000
+    assert body["contextWindow"] == 200000
+    assert body["percent"] == 7.5
+
+
+@pytest.mark.asyncio
+async def test_get_agent_context_rpc_failure():
+    """Returns null usage when RPC fails."""
+    req = make_mocked_request("GET", "/agent/context")
+    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=Exception("timeout")):
+        resp = await agents_mod.get_agent_context(req)
+    body = json.loads(resp.body)
+    assert body == {"tokens": None, "contextWindow": None, "percent": None}
