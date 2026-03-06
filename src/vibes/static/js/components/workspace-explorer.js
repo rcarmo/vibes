@@ -499,6 +499,21 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
         setDropTarget(null);
         const files = Array.from(event?.dataTransfer?.files || []);
         if (files.length === 0) return;
+
+        // Check for existing files and prompt before overwriting
+        const existing = [];
+        const map = nodeMapRef.current;
+        for (const file of files) {
+            const filePath = target === '.' ? file.name : `${target}/${file.name}`;
+            if (map.has(filePath)) existing.push(file.name);
+        }
+        if (existing.length > 0) {
+            const names = existing.length <= 5
+                ? existing.join(', ')
+                : `${existing.slice(0, 5).join(', ')} and ${existing.length - 5} more`;
+            if (!confirm(`Overwrite existing file${existing.length > 1 ? 's' : ''}: ${names}?`)) return;
+        }
+
         setUploading(true);
         try {
             let lastResult = null;
