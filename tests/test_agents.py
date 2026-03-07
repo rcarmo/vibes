@@ -258,6 +258,15 @@ class FakeDB:
     async def get_interaction(self, msg_id):
         return self._interactions.get(msg_id)
 
+    async def set_interaction_thread_id(self, interaction_id, thread_id):
+        if interaction_id in self._interactions:
+            self._interactions[interaction_id]["data"]["thread_id"] = thread_id
+            return True
+        return False
+
+    async def get_inflight_thread_id(self):
+        return None
+
 
 def _make_send_request(content, agent_id="default"):
     """Create a mock aiohttp request for send_message."""

@@ -797,14 +797,16 @@ async def send_message(request: web.Request) -> web.Response:
         user_msg["thread_id"] = thread_id
     
     msg_id = await db.create_interaction(user_msg)
+
+    # Default new user messages to be their own thread root
+    if not thread_id:
+        thread_id = msg_id
+        await db.set_interaction_thread_id(msg_id, msg_id)
+
     user_interaction = await db.get_interaction(msg_id)
     
     # Queue background task to fetch link previews
     queue_link_preview_fetch(msg_id, data["content"])
-    
-    # Use the message ID as thread_id if this is a new thread
-    if not thread_id:
-        thread_id = msg_id
     
     # Broadcast user message
     await broadcast_event("new_post" if not data.get("thread_id") else "new_reply", user_interaction)
@@ -838,10 +840,20 @@ async def send_message(request: web.Request) -> web.Response:
     agent_mode = _resolve_agent_mode(agent_id)
     if agent_mode == "pi" and is_pi_busy():
         ok = await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]})
+        # Re-parent this steering message to the inflight turn's thread
+        inflight_thread = await db.get_inflight_thread_id()
+        if ok and inflight_thread:
+            await db.set_interaction_thread_id(msg_id, inflight_thread)
+            updated = await db.get_interaction(msg_id)
+            await broadcast_event("interaction_updated", updated)
+            await broadcast_event("agent_steer_queued", {
+                "thread_id": inflight_thread,
+                "message_id": msg_id,
+            })
         status_msg = "Sent as steering to active turn" if ok else "Agent is busy (steering failed)"
         return web.json_response({
-            "user_message": user_interaction,
-            "thread_id": thread_id,
+            "user_message": await db.get_interaction(msg_id),
+            "thread_id": inflight_thread or thread_id,
             "steered": ok,
             "status": status_msg,
         }, status=201)

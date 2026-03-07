@@ -216,6 +216,24 @@ class Database:
                 }
             return None
 
+    async def set_interaction_thread_id(self, interaction_id: int, thread_id: int) -> bool:
+        """Update the thread_id inside an interaction's JSON data."""
+        async with self.transaction():
+            async with self._connection.execute(
+                "SELECT data FROM interactions WHERE id = ?",
+                (interaction_id,)
+            ) as cursor:
+                row = await cursor.fetchone()
+                if not row:
+                    return False
+            data = json.loads(row["data"])
+            data["thread_id"] = thread_id
+            await self._connection.execute(
+                "UPDATE interactions SET data = ? WHERE id = ?",
+                (json.dumps(data), interaction_id),
+            )
+            return True
+
     async def get_reply_ids(self, thread_id: int) -> list[int]:
         """Get reply IDs for a thread."""
         async with self._connection.execute(
@@ -626,6 +644,14 @@ class Database:
                         pass
                 result.append(entry)
             return result
+
+    async def get_inflight_thread_id(self) -> Optional[int]:
+        """Return thread_id of the most recent active turn, or None."""
+        async with self._connection.execute(
+            "SELECT thread_id FROM active_turns ORDER BY started_at DESC LIMIT 1"
+        ) as cursor:
+            row = await cursor.fetchone()
+            return row["thread_id"] if row else None
 
     async def clear_all_turns(self) -> int:
         """Remove all active turns (used on startup recovery). Returns count."""
