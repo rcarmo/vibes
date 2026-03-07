@@ -505,7 +505,6 @@ function useTimestampRefresh(intervalMs = 30000) {
     }, [intervalMs]);
 }
 
-/**
 const DEFAULT_AGENT_NAME = 'Vibes';
 const AGENT_AVATAR_URL = '/static/icon-192.png';
 
