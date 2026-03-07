@@ -160,6 +160,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const dragActiveRef = useRef(dragActive);
     const visibleRef = useRef(visible);
     const activeRef = useRef(active ?? visible);
+    const selectedPathRef = useRef(selectedPath);
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
@@ -167,6 +168,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     useEffect(() => { dragActiveRef.current = dragActive; }, [dragActive]);
     useEffect(() => { visibleRef.current = visible; }, [visible]);
     useEffect(() => { activeRef.current = active ?? visible; }, [active, visible]);
+    useEffect(() => { selectedPathRef.current = selectedPath; }, [selectedPath]);
 
     const loadTree = async () => {
         if (!activeRef.current) return;
@@ -242,6 +244,15 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                 setInitialLoad(false);
                 return next;
             });
+            // Re-fetch preview if the selected file's parent was updated
+            const sel = selectedPathRef.current;
+            if (sel && loadPreviewRef.current) {
+                const selParent = sel.includes('/') ? sel.slice(0, sel.lastIndexOf('/')) : '.';
+                const affected = updates.some(u =>
+                    u?.path === '.' || u?.path === selParent || sel.startsWith((u?.path || '') + '/')
+                );
+                if (affected) loadPreviewRef.current(sel);
+            }
         };
         window.addEventListener('workspace-update', handler);
         return () => window.removeEventListener('workspace-update', handler);
@@ -655,7 +666,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                         </div>
                         ${preview.kind === 'image' && html`
                             <div class="workspace-preview-image">
-                                <img src=${preview.url || getWorkspaceRawUrl(preview.path)} alt="preview" />
+                                <img src=${`${preview.url || getWorkspaceRawUrl(preview.path)}${preview.mtime ? '&t=' + encodeURIComponent(preview.mtime) : ''}`} alt="preview" />
                             </div>
                         `}
                         ${preview.kind === 'text' && html`
