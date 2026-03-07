@@ -14,6 +14,23 @@ import {
 const INDENT = 16;
 const REFRESH_INTERVAL_MS = 60_000;
 
+/**
+ * Rewrite relative src/href attributes in rendered HTML so images and links
+ * inside markdown previews resolve against the workspace raw endpoint.
+ */
+function rewriteRelativeUrls(htmlStr, filePath) {
+    if (!filePath) return htmlStr;
+    const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '.';
+    return htmlStr.replace(
+        /(<(?:img|source)\s[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi,
+        (match, pre, url, post) => {
+            if (/^(?:https?:|data:|\/)/i.test(url)) return match;
+            const resolved = dir === '.' ? url : `${dir}/${url}`;
+            return `${pre}${getWorkspaceRawUrl(resolved)}${post}`;
+        }
+    );
+}
+
 function formatFileSize(bytes) {
     if (!Number.isFinite(bytes)) return '';
     if (bytes < 1024) return `${bytes} B`;
@@ -671,7 +688,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                         `}
                         ${preview.kind === 'text' && html`
                             ${preview.content_type === 'text/markdown'
-                                ? html`<div class="workspace-preview-text" dangerouslySetInnerHTML=${{ __html: renderPreviewMarkdown(preview.text || '') }} />`
+                                ? html`<div class="workspace-preview-text" dangerouslySetInnerHTML=${{ __html: rewriteRelativeUrls(renderPreviewMarkdown(preview.text || ''), preview.path) }} />`
                                 : html`<pre class="workspace-preview-text"><code>${preview.text || ''}</code></pre>`}
                         `}
                         ${preview.kind === 'binary' && html`
