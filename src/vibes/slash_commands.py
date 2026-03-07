@@ -85,8 +85,20 @@ async def execute_command(
     if command.name == "prompt":
         return _handle_prompt(command.args)
 
-    if command.name == "name":
-        return _handle_name(command.args)
+    if command.name == "name" or command.name == "agent-name":
+        return _handle_agent_name(command.args)
+
+    if command.name == "agent-avatar":
+        return _handle_agent_avatar(command.args)
+
+    if command.name == "user-name":
+        return _handle_user_name(command.args)
+
+    if command.name == "user-avatar":
+        return _handle_user_avatar(command.args)
+
+    if command.name == "user-github":
+        return await _handle_user_github(command.args)
 
     # Unknown command — tell caller to forward to agent
     return SlashCommandResult(
@@ -104,6 +116,11 @@ def _list_commands() -> SlashCommandResult:
         "- `/thinking [level]` - Show or set thinking level",
         "- `/prompt [text]` - Show or set the user system prompt",
         "- `/name [name]` - Show or set the agent display name",
+        "- `/agent-name [name]` - Show or set the agent display name",
+        "- `/agent-avatar [url|clear]` - Show or set the agent avatar URL",
+        "- `/user-name [name|clear]` - Show or set your display name",
+        "- `/user-avatar [url|clear]` - Show or set your avatar URL",
+        "- `/user-github <username>` - Set name/avatar from GitHub profile",
         "- `/queue <message>` - Queue a message for after the current turn",
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
@@ -489,7 +506,7 @@ def _handle_prompt(args: str) -> SlashCommandResult:
     )
 
 
-def _handle_name(args: str) -> SlashCommandResult:
+def _handle_agent_name(args: str) -> SlashCommandResult:
     """Show or set the agent display name."""
     from .config import get_config
 
@@ -518,6 +535,160 @@ def _handle_name(args: str) -> SlashCommandResult:
     return SlashCommandResult(
         status="success",
         message=f"Agent name set to **{args.strip()}**",
+        refresh_agents=True,
+    )
+
+
+def _handle_agent_avatar(args: str) -> SlashCommandResult:
+    """Show or set the agent avatar URL."""
+    from .config import get_config
+
+    config = get_config()
+
+    if not args:
+        if config.agent_avatar:
+            return SlashCommandResult(
+                status="success",
+                message=f"Agent avatar: {config.agent_avatar}",
+            )
+        return SlashCommandResult(
+            status="success",
+            message="No agent avatar set. Use `/agent-avatar <url>` to set one.",
+        )
+
+    if args.strip().lower() == "clear":
+        config.agent_avatar = ""
+        from .config import save_setting
+        save_setting("agent_avatar", None)
+        return SlashCommandResult(
+            status="success",
+            message="Agent avatar cleared.",
+            refresh_agents=True,
+        )
+
+    config.agent_avatar = args.strip()
+    from .config import save_setting
+    save_setting("agent_avatar", args.strip())
+    return SlashCommandResult(
+        status="success",
+        message=f"Agent avatar set to {args.strip()}",
+        refresh_agents=True,
+    )
+
+
+def _handle_user_name(args: str) -> SlashCommandResult:
+    """Show or set the user display name."""
+    from .config import get_config
+
+    config = get_config()
+
+    if not args:
+        name = config.user_name or "(not set — defaults to 'You')"
+        return SlashCommandResult(
+            status="success",
+            message=f"User name: **{name}**",
+        )
+
+    if args.strip().lower() == "clear":
+        config.user_name = ""
+        from .config import save_setting
+        save_setting("user_name", None)
+        return SlashCommandResult(
+            status="success",
+            message="User name cleared (will show as 'You').",
+            refresh_agents=True,
+        )
+
+    config.user_name = args.strip()
+    from .config import save_setting
+    save_setting("user_name", args.strip())
+    return SlashCommandResult(
+        status="success",
+        message=f"User name set to **{args.strip()}**",
+        refresh_agents=True,
+    )
+
+
+def _handle_user_avatar(args: str) -> SlashCommandResult:
+    """Show or set the user avatar URL."""
+    from .config import get_config
+
+    config = get_config()
+
+    if not args:
+        if config.user_avatar:
+            return SlashCommandResult(
+                status="success",
+                message=f"User avatar: {config.user_avatar}",
+            )
+        return SlashCommandResult(
+            status="success",
+            message="No user avatar set. Use `/user-avatar <url>` to set one.",
+        )
+
+    if args.strip().lower() == "clear":
+        config.user_avatar = ""
+        config.user_avatar_background = ""
+        from .config import save_setting
+        save_setting("user_avatar", None)
+        save_setting("user_avatar_background", None)
+        return SlashCommandResult(
+            status="success",
+            message="User avatar cleared.",
+            refresh_agents=True,
+        )
+
+    config.user_avatar = args.strip()
+    from .config import save_setting
+    save_setting("user_avatar", args.strip())
+    return SlashCommandResult(
+        status="success",
+        message=f"User avatar set to {args.strip()}",
+        refresh_agents=True,
+    )
+
+
+async def _handle_user_github(args: str) -> SlashCommandResult:
+    """Set user name and avatar from a GitHub profile."""
+    import json
+    import urllib.request
+
+    if not args:
+        return SlashCommandResult(
+            status="error",
+            message="Usage: `/user-github <username>`",
+        )
+
+    username = args.strip().lstrip("@")
+    url = f"https://api.github.com/users/{username}"
+
+    try:
+        loop = asyncio.get_event_loop()
+        req = urllib.request.Request(url, headers={"User-Agent": "vibes"})
+        resp = await loop.run_in_executor(None, lambda: urllib.request.urlopen(req, timeout=10))
+        data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return SlashCommandResult(
+            status="error",
+            message=f"Failed to fetch GitHub profile for `{username}`: {e}",
+        )
+
+    gh_name = data.get("name") or username
+    gh_avatar = data.get("avatar_url") or ""
+
+    from .config import get_config, save_setting
+
+    config = get_config()
+    config.user_name = gh_name
+    config.user_avatar = gh_avatar
+    config.user_avatar_background = "transparent"
+    save_setting("user_name", gh_name)
+    save_setting("user_avatar", gh_avatar)
+    save_setting("user_avatar_background", "transparent")
+
+    return SlashCommandResult(
+        status="success",
+        message=f"User profile set from GitHub:\n- Name: **{gh_name}**\n- Avatar: {gh_avatar}",
         refresh_agents=True,
     )
 

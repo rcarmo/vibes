@@ -150,6 +150,10 @@ class Config:
         # ACP agent configuration
         self.acp_agent: str = _resolve(s, "acp_agent", "VIBES_ACP_AGENT", "vibe-acp", "str")
         self.agent_name: str = _resolve(s, "agent_name", "VIBES_AGENT_NAME", socket.gethostname(), "str")
+        self.agent_avatar: str = _resolve(s, "agent_avatar", "VIBES_AGENT_AVATAR", "", "str")
+        self.user_name: str = _resolve(s, "user_name", "VIBES_USER_NAME", "", "str")
+        self.user_avatar: str = _resolve(s, "user_avatar", "VIBES_USER_AVATAR", "", "str")
+        self.user_avatar_background: str = _resolve(s, "user_avatar_background", "VIBES_USER_AVATAR_BACKGROUND", "", "str")
         self.permission_timeout: int = _resolve(s, "permission_timeout", "VIBES_PERMISSION_TIMEOUT", 30, "int")
         self.permission_auto_approve: bool = _resolve(s, "permission_auto_approve", "VIBES_PERMISSION_AUTO_APPROVE", False, "bool")
         self.disconnect_timeout: int = _resolve(s, "disconnect_timeout", "VIBES_DISCONNECT_TIMEOUT", 300, "int")

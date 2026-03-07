@@ -179,7 +179,7 @@ async def _handle_agent_request(request_data):
     config = get_config()
     payload = dict(request_data or {})
     payload["agent_name"] = config.agent_name
-    payload["agent_avatar"] = None
+    payload["agent_avatar"] = config.agent_avatar or None
     await broadcast_event("agent_request", payload)
 
 set_acp_request_callback(_handle_agent_request)
@@ -208,6 +208,7 @@ async def list_agents(request: web.Request) -> web.Response:
         agents.append({
             "id": "default",
             "name": config.agent_name,
+            "avatar_url": config.agent_avatar or None,
             "description": f"Pi agent ({config.pi_agent})",
             "model": pi_model,
             "status": "running" if is_pi_running() else "stopped",
@@ -217,6 +218,7 @@ async def list_agents(request: web.Request) -> web.Response:
         agents.append({
             "id": "default",
             "name": config.agent_name,
+            "avatar_url": config.agent_avatar or None,
             "description": f"ACP agent ({config.acp_agent})",
             "model": config.acp_agent,
             "status": "running" if is_acp_running() else "stopped",
@@ -243,7 +245,15 @@ async def list_agents(request: web.Request) -> web.Response:
             "actions": []
         })
 
-    return web.json_response({"agents": agents})
+    user = {}
+    if config.user_name:
+        user["name"] = config.user_name
+    if config.user_avatar:
+        user["avatar_url"] = config.user_avatar
+    if config.user_avatar_background:
+        user["avatar_background"] = config.user_avatar_background
+
+    return web.json_response({"agents": agents, "user": user or None})
 
 
 async def get_turn_preview(request: web.Request) -> web.Response:
@@ -338,7 +348,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
 
     turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
     config = get_config()
-    agent_profile = {"agent_name": config.agent_name, "agent_avatar": None}
+    agent_profile = {"agent_name": config.agent_name, "agent_avatar": config.agent_avatar or None}
     latest_draft_text = ""
     latest_thought_text = ""
     _register_turn_preview(turn_id, thread_id, agent_id)

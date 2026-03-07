@@ -58,6 +58,10 @@ async def test_list_agents_includes_default_model_for_acp():
         acp_agent="claude-sonnet",
         pi_agent="pi-rpc",
         agent_name="Agent",
+        agent_avatar="",
+        user_name="",
+        user_avatar="",
+        user_avatar_background="",
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
          patch.object(agents_mod, "is_acp_running", return_value=True):
@@ -78,6 +82,10 @@ async def test_list_agents_includes_default_model_for_pi():
         pi_agent="pi-rpc",
         pi_model="anthropic/claude-sonnet",
         agent_name="Agent",
+        agent_avatar="",
+        user_name="",
+        user_avatar="",
+        user_avatar_background="",
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
@@ -99,6 +107,10 @@ async def test_list_agents_prefers_runtime_pi_model():
         pi_agent="pi-rpc",
         pi_model="anthropic/claude-sonnet",
         agent_name="Agent",
+        agent_avatar="",
+        user_name="",
+        user_avatar="",
+        user_avatar_background="",
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
@@ -376,6 +388,10 @@ async def test_list_agents_pi_default():
         mc.return_value.pi_enabled = True
         mc.return_value.acp_agent = "copilot --acp"
         mc.return_value.agent_name = "TestBot"
+        mc.return_value.agent_avatar = ""
+        mc.return_value.user_name = ""
+        mc.return_value.user_avatar = ""
+        mc.return_value.user_avatar_background = ""
         req = make_mocked_request("GET", "/agents")
         resp = await agents_mod.list_agents(req)
         body = json.loads(resp.body)
@@ -394,6 +410,10 @@ async def test_list_agents_acp_default():
         mc.return_value.pi_enabled = True
         mc.return_value.acp_agent = "copilot --acp"
         mc.return_value.agent_name = "TestBot"
+        mc.return_value.agent_avatar = ""
+        mc.return_value.user_name = ""
+        mc.return_value.user_avatar = ""
+        mc.return_value.user_avatar_background = ""
         req = make_mocked_request("GET", "/agents")
         resp = await agents_mod.list_agents(req)
         body = json.loads(resp.body)
