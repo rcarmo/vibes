@@ -660,6 +660,11 @@ async def _handle_user_github(args: str) -> SlashCommandResult:
         )
 
     username = args.strip().lstrip("@")
+    # Accept full GitHub URLs like https://github.com/rcarmo
+    for prefix in ("https://github.com/", "http://github.com/", "github.com/"):
+        if username.lower().startswith(prefix):
+            username = username[len(prefix):].strip("/").split("/")[0]
+            break
     url = f"https://api.github.com/users/{username}"
 
     try:
