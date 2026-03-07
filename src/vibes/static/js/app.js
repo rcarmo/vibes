@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -1041,13 +1041,29 @@ function App() {
         }
         if (!hasConnectedOnceRef.current) {
             hasConnectedOnceRef.current = true;
-            return;
         }
+        // On every (re)connect, poll agent status to restore in-flight state
+        getAgentStatus().then((statusData) => {
+            if (!statusData) return;
+            const turns = statusData.active_turns || [];
+            if (turns.length > 0) {
+                const turn = turns[turns.length - 1];
+                setActiveTurn(turn.turn_id);
+                noteAgentActivity({ running: true, clearSilence: true });
+                const lastStatus = turn.last_status || { type: 'thinking', title: 'Thinking...' };
+                setAgentStatus({
+                    thread_id: turn.thread_id,
+                    agent_id: turn.agent_id,
+                    turn_id: turn.turn_id,
+                    ...lastStatus,
+                });
+            }
+        }).catch(() => {});
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
         if (!activeHashtag && !activeSearch) {
             loadPosts();
         }
-    }, [clearAgentRunState, loadPosts]);
+    }, [clearAgentRunState, loadPosts, setActiveTurn, noteAgentActivity]);
     
     // Load older messages (prepend)
     const loadMore = useCallback(async () => {

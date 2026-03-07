@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -73,6 +73,15 @@ CREATE TABLE IF NOT EXISTS permission_whitelist (
 CREATE TABLE IF NOT EXISTS schema_version (
     version INTEGER PRIMARY KEY
 );
+
+-- Active agent turns for crash recovery
+CREATE TABLE IF NOT EXISTS active_turns (
+    turn_id TEXT PRIMARY KEY,
+    thread_id INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_status JSON
+);
 """
 
 # Migration to add FTS to existing databases
@@ -102,6 +111,17 @@ CREATE TRIGGER IF NOT EXISTS interactions_au AFTER UPDATE ON interactions BEGIN
     INSERT INTO interactions_fts(rowid, content)
     VALUES (new.id, json_extract(new.data, '$.content'));
 END;
+"""
+
+MIGRATION_V4 = """
+-- Active agent turns for crash recovery
+CREATE TABLE IF NOT EXISTS active_turns (
+    turn_id TEXT PRIMARY KEY,
+    thread_id INTEGER NOT NULL,
+    agent_id TEXT NOT NULL,
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    last_status JSON
+);
 """
 
 
@@ -151,6 +171,9 @@ class Database:
             # Migration to v3: add FTS
             if current_version < 3:
                 await self._connection.executescript(MIGRATION_V3)
+            # Migration to v4: active_turns table
+            if current_version < 4:
+                await self._connection.executescript(MIGRATION_V4)
             
             await self._connection.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
@@ -549,6 +572,68 @@ class Database:
                 elif pattern == title:
                     return True
             return False
+
+    # ── Active turn tracking ──────────────────────────────────
+
+    async def begin_turn(
+        self, turn_id: str, thread_id: int, agent_id: str
+    ) -> None:
+        """Atomically register an in-flight turn."""
+        async with self.transaction():
+            await self._connection.execute(
+                """INSERT OR REPLACE INTO active_turns
+                   (turn_id, thread_id, agent_id, started_at, last_status)
+                   VALUES (?, ?, ?, datetime('now'), NULL)""",
+                (turn_id, thread_id, agent_id),
+            )
+
+    async def update_turn_status(
+        self, turn_id: str, status: dict
+    ) -> None:
+        """Update the last known status for an active turn."""
+        await self._connection.execute(
+            "UPDATE active_turns SET last_status = ? WHERE turn_id = ?",
+            (json.dumps(status), turn_id),
+        )
+        await self._connection.commit()
+
+    async def end_turn(self, turn_id: str) -> None:
+        """Remove a completed turn."""
+        async with self.transaction():
+            await self._connection.execute(
+                "DELETE FROM active_turns WHERE turn_id = ?",
+                (turn_id,),
+            )
+
+    async def get_active_turns(self) -> list[dict]:
+        """Return all currently in-flight turns."""
+        async with self._connection.execute(
+            "SELECT turn_id, thread_id, agent_id, started_at, last_status FROM active_turns"
+        ) as cursor:
+            rows = await cursor.fetchall()
+            result = []
+            for row in rows:
+                entry = {
+                    "turn_id": row["turn_id"],
+                    "thread_id": row["thread_id"],
+                    "agent_id": row["agent_id"],
+                    "started_at": row["started_at"],
+                }
+                if row["last_status"]:
+                    try:
+                        entry["last_status"] = json.loads(row["last_status"])
+                    except (json.JSONDecodeError, TypeError):
+                        pass
+                result.append(entry)
+            return result
+
+    async def clear_all_turns(self) -> int:
+        """Remove all active turns (used on startup recovery). Returns count."""
+        async with self.transaction():
+            cursor = await self._connection.execute(
+                "DELETE FROM active_turns"
+            )
+            return cursor.rowcount
 
 
 # Global database instance

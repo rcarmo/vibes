@@ -109,6 +109,13 @@ export async function getAgentContext() {
 }
 
 /**
+ * Get current agent busy state and active turns (for polling on SSE reconnect).
+ */
+export async function getAgentStatus() {
+    return request('/agents/status');
+}
+
+/**
  * Get available models and current selection.
  */
 export async function getAgentModels() {

@@ -9,7 +9,7 @@ from pathlib import Path
 from aiohttp import web
 
 from .config import get_config
-from .db import init_db, close_db, Database
+from .db import init_db, close_db, get_db, Database
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
 from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
@@ -75,6 +75,15 @@ async def on_startup(app: web.Application) -> None:
     
     # Reconcile missing link previews in background
     asyncio.create_task(reconcile_missing_previews())
+
+    # Recover stale in-flight turns from a previous crash
+    try:
+        db_inst = await get_db()
+        stale_count = await db_inst.clear_all_turns()
+        if stale_count:
+            logger.warning("Cleared %d stale in-flight turns from previous run", stale_count)
+    except Exception:
+        logger.warning("Failed to clear stale turns on startup", exc_info=True)
 
 
 async def on_cleanup(app: web.Application) -> None:

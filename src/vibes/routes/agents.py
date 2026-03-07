@@ -261,6 +261,41 @@ async def list_agents(request: web.Request) -> web.Response:
     return web.json_response({"agents": agents, "user": user or None})
 
 
+async def get_agent_status(request: web.Request) -> web.Response:
+    """Return current agent busy state and active turns for polling."""
+    from ..pi_client import is_busy as is_pi_busy
+
+    pi_busy = is_pi_busy()
+    acp_busy = False
+    try:
+        from ..acp_client import _state as acp_state
+        acp_busy = acp_state.request_lock.locked()
+    except Exception:
+        pass
+
+    # Get active turns from DB (persisted) + in-memory previews
+    active_turns = []
+    try:
+        db = await get_db()
+        active_turns = await db.get_active_turns()
+    except Exception:
+        pass
+
+    # Enrich with in-memory draft/thought state
+    for turn in active_turns:
+        preview = _turn_previews.get(turn["turn_id"])
+        if preview:
+            turn["has_draft"] = bool(preview.get("draft"))
+            turn["has_thought"] = bool(preview.get("thought"))
+
+    return web.json_response({
+        "busy": pi_busy or acp_busy,
+        "pi_busy": pi_busy,
+        "acp_busy": acp_busy,
+        "active_turns": active_turns,
+    })
+
+
 async def get_turn_preview(request: web.Request) -> web.Response:
     """Return full draft/thought text captured for a live agent turn."""
     turn_id = request.match_info.get("turn_id", "")
@@ -358,7 +393,15 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     agent_profile = {"agent_name": config.agent_name, "agent_avatar": resolve_avatar_url("agent", config.agent_avatar)}
     latest_draft_text = ""
     latest_thought_text = ""
+    turn_completed = False
     _register_turn_preview(turn_id, thread_id, agent_id)
+
+    # Persist turn start in DB for crash recovery
+    try:
+        db = await get_db()
+        await db.begin_turn(turn_id, thread_id, agent_id)
+    except Exception:
+        logger.warning("Failed to persist turn start for %s", turn_id, exc_info=True)
 
     try:
         # Status callback to broadcast agent activity
@@ -445,6 +488,12 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                 **status,
                 **agent_profile,
             })
+            # Persist last status for polling
+            try:
+                db = await get_db()
+                await db.update_turn_status(turn_id, {**status, **agent_profile})
+            except Exception:
+                pass
         
         # Broadcast that agent is thinking
         await broadcast_event("agent_status", {
@@ -551,6 +600,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             "type": "done",
             **agent_profile,
         })
+        turn_completed = True
         
         # Check for queued messages and send the next one
         if agent_mode == "pi":
@@ -562,6 +612,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         
     except Exception as e:
         logger.error(f"Error processing agent response: {e}", exc_info=True)
+        turn_completed = True
         
         # Broadcast error status
         await broadcast_event("agent_status", {
@@ -584,6 +635,31 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         response_id = await db.create_interaction(error_response)
         response_interaction = await db.get_interaction(response_id)
         await broadcast_event("agent_response", response_interaction)
+    finally:
+        # Always clean up turn state
+        _turn_previews.pop(turn_id, None)
+
+        # Remove turn from DB
+        try:
+            db = await get_db()
+            await db.end_turn(turn_id)
+        except Exception:
+            logger.warning("Failed to clean up turn %s from DB", turn_id, exc_info=True)
+
+        # If neither success nor error handler ran, broadcast an error so the
+        # frontend never gets stuck in a "thinking" state.
+        if not turn_completed:
+            try:
+                await broadcast_event("agent_status", {
+                    "thread_id": thread_id,
+                    "agent_id": agent_id,
+                    "turn_id": turn_id,
+                    "type": "error",
+                    "title": "Turn ended unexpectedly",
+                    **agent_profile,
+                })
+            except Exception:
+                pass
 
 
 async def _store_media_block(db, block: dict) -> int | None:
@@ -903,6 +979,7 @@ async def remove_from_whitelist(request: web.Request) -> web.Response:
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
+    app.router.add_get("/agents/status", get_agent_status)
     app.router.add_get("/agent/context", get_agent_context)
     app.router.add_get("/agent/models", get_agent_models)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
