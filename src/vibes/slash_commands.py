@@ -89,13 +89,13 @@ async def execute_command(
         return _handle_agent_name(command.args)
 
     if command.name == "agent-avatar":
-        return _handle_agent_avatar(command.args)
+        return await _handle_agent_avatar(command.args)
 
     if command.name == "user-name":
         return _handle_user_name(command.args)
 
     if command.name == "user-avatar":
-        return _handle_user_avatar(command.args)
+        return await _handle_user_avatar(command.args)
 
     if command.name == "user-github":
         return await _handle_user_github(command.args)
@@ -539,8 +539,9 @@ def _handle_agent_name(args: str) -> SlashCommandResult:
     )
 
 
-def _handle_agent_avatar(args: str) -> SlashCommandResult:
+async def _handle_agent_avatar(args: str) -> SlashCommandResult:
     """Show or set the agent avatar URL."""
+    from .avatar import clear_avatar_cache, ensure_avatar_cache
     from .config import get_config
 
     config = get_config()
@@ -560,18 +561,28 @@ def _handle_agent_avatar(args: str) -> SlashCommandResult:
         config.agent_avatar = ""
         from .config import save_setting
         save_setting("agent_avatar", None)
+        clear_avatar_cache("agent")
         return SlashCommandResult(
             status="success",
             message="Agent avatar cleared.",
             refresh_agents=True,
         )
 
-    config.agent_avatar = args.strip()
+    url = args.strip()
+    config.agent_avatar = url
     from .config import save_setting
-    save_setting("agent_avatar", args.strip())
+    save_setting("agent_avatar", url)
+
+    meta = await ensure_avatar_cache("agent", url)
+    if meta:
+        return SlashCommandResult(
+            status="success",
+            message=f"Agent avatar set and cached from {url}",
+            refresh_agents=True,
+        )
     return SlashCommandResult(
         status="success",
-        message=f"Agent avatar set to {args.strip()}",
+        message=f"Agent avatar set to {url} (could not cache — will use URL directly)",
         refresh_agents=True,
     )
 
@@ -609,8 +620,9 @@ def _handle_user_name(args: str) -> SlashCommandResult:
     )
 
 
-def _handle_user_avatar(args: str) -> SlashCommandResult:
+async def _handle_user_avatar(args: str) -> SlashCommandResult:
     """Show or set the user avatar URL."""
+    from .avatar import clear_avatar_cache, ensure_avatar_cache
     from .config import get_config
 
     config = get_config()
@@ -632,18 +644,28 @@ def _handle_user_avatar(args: str) -> SlashCommandResult:
         from .config import save_setting
         save_setting("user_avatar", None)
         save_setting("user_avatar_background", None)
+        clear_avatar_cache("user")
         return SlashCommandResult(
             status="success",
             message="User avatar cleared.",
             refresh_agents=True,
         )
 
-    config.user_avatar = args.strip()
+    url = args.strip()
+    config.user_avatar = url
     from .config import save_setting
-    save_setting("user_avatar", args.strip())
+    save_setting("user_avatar", url)
+
+    meta = await ensure_avatar_cache("user", url)
+    if meta:
+        return SlashCommandResult(
+            status="success",
+            message=f"User avatar set and cached from {url}",
+            refresh_agents=True,
+        )
     return SlashCommandResult(
         status="success",
-        message=f"User avatar set to {args.strip()}",
+        message=f"User avatar set to {url} (could not cache — will use URL directly)",
         refresh_agents=True,
     )
 
@@ -681,6 +703,7 @@ async def _handle_user_github(args: str) -> SlashCommandResult:
     gh_name = data.get("name") or username
     gh_avatar = data.get("avatar_url") or ""
 
+    from .avatar import ensure_avatar_cache
     from .config import get_config, save_setting
 
     config = get_config()
@@ -690,6 +713,9 @@ async def _handle_user_github(args: str) -> SlashCommandResult:
     save_setting("user_name", gh_name)
     save_setting("user_avatar", gh_avatar)
     save_setting("user_avatar_background", "transparent")
+
+    if gh_avatar:
+        await ensure_avatar_cache("user", gh_avatar)
 
     return SlashCommandResult(
         status="success",

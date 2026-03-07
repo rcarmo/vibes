@@ -14,7 +14,7 @@ from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
 from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
 from .pi_client import start_pi_agent, stop_pi_agent
-from .routes import posts, media, sse, agents, workspace
+from .routes import posts, media, sse, agents, workspace, avatar
 
 logger = logging.getLogger(__name__)
 
@@ -114,6 +114,7 @@ def create_app() -> web.Application:
     media.setup_routes(app)
     sse.setup_routes(app)
     agents.setup_routes(app)
+    avatar.setup_routes(app)
     workspace.setup_routes(app)
     
     # Static files and SPA fallback

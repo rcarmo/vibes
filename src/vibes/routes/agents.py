@@ -176,10 +176,12 @@ def _has_meaningful_response(text_content: str, content_blocks, media_ids) -> bo
 # Set up callback for agent requests
 async def _handle_agent_request(request_data):
     """Broadcast agent requests to UI."""
+    from ..avatar import resolve_avatar_url
+
     config = get_config()
     payload = dict(request_data or {})
     payload["agent_name"] = config.agent_name
-    payload["agent_avatar"] = config.agent_avatar or None
+    payload["agent_avatar"] = resolve_avatar_url("agent", config.agent_avatar)
     await broadcast_event("agent_request", payload)
 
 set_acp_request_callback(_handle_agent_request)
@@ -199,16 +201,19 @@ set_whitelist_checker(_check_whitelist)
 
 async def list_agents(request: web.Request) -> web.Response:
     """List available agents and their capabilities."""
+    from ..avatar import resolve_avatar_url
+
     config = get_config()
     default_mode = config.default_agent.lower()
     agents = []
     pi_model = await _resolve_pi_model(config)
+    agent_avatar = resolve_avatar_url("agent", config.agent_avatar)
 
     if default_mode == "pi":
         agents.append({
             "id": "default",
             "name": config.agent_name,
-            "avatar_url": config.agent_avatar or None,
+            "avatar_url": agent_avatar,
             "description": f"Pi agent ({config.pi_agent})",
             "model": pi_model,
             "status": "running" if is_pi_running() else "stopped",
@@ -218,7 +223,7 @@ async def list_agents(request: web.Request) -> web.Response:
         agents.append({
             "id": "default",
             "name": config.agent_name,
-            "avatar_url": config.agent_avatar or None,
+            "avatar_url": agent_avatar,
             "description": f"ACP agent ({config.acp_agent})",
             "model": config.acp_agent,
             "status": "running" if is_acp_running() else "stopped",
@@ -249,7 +254,7 @@ async def list_agents(request: web.Request) -> web.Response:
     if config.user_name:
         user["name"] = config.user_name
     if config.user_avatar:
-        user["avatar_url"] = config.user_avatar
+        user["avatar_url"] = resolve_avatar_url("user", config.user_avatar)
     if config.user_avatar_background:
         user["avatar_background"] = config.user_avatar_background
 
@@ -346,9 +351,11 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     import string
     import time
 
+    from ..avatar import resolve_avatar_url
+
     turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
     config = get_config()
-    agent_profile = {"agent_name": config.agent_name, "agent_avatar": config.agent_avatar or None}
+    agent_profile = {"agent_name": config.agent_name, "agent_avatar": resolve_avatar_url("agent", config.agent_avatar)}
     latest_draft_text = ""
     latest_thought_text = ""
     _register_turn_preview(turn_id, thread_id, agent_id)
