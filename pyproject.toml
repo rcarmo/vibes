@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "vibes"
 version = "0.1.125"
-description = "Twitter-like SPA for interacting with coding agents via ACP protocol"
+description = "Slack-like SPA for interacting with coding agents via ACP protocol"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
@@ -19,18 +19,18 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "aiohttp>=3.9.0",
-    "aiosqlite>=0.19.0",
-    "pillow>=10.0.0",
-    "python-dotenv>=1.0.0",
-    "watchfiles>=0.21.0",
+    "aiohttp>=3.13.0",
+    "aiosqlite>=0.22.0",
+    "pillow>=12.0.0",
+    "python-dotenv>=1.2.0",
+    "watchfiles>=1.0.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-aiohttp>=1.0.0",
+    "pytest>=9.0.0",
+    "pytest-asyncio>=1.0.0",
+    "pytest-aiohttp>=1.1.0",
 ]
 
 [project.scripts]
