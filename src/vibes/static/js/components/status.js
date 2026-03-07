@@ -19,16 +19,17 @@ export function AgentStatus({
     const PREVIEW_MAX_CHARS_PER_LINE = 160;
 
     const normalizePreview = (value) => {
-        if (!value) return { text: '', totalLines: 0 };
+        if (!value) return { text: '', totalLines: 0, fullText: '' };
         if (typeof value === 'string') {
             const totalLines = value ? value.replace(/\r\n/g, '\n').split('\n').length : 0;
-            return { text: value, totalLines };
+            return { text: value, totalLines, fullText: value };
         }
         const text = value.text || '';
+        const fullText = value.fullText || value.full_text || text;
         const totalLines = Number.isFinite(value.totalLines)
             ? value.totalLines
-            : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
-        return { text, totalLines };
+            : (fullText ? fullText.replace(/\r\n/g, '\n').split('\n').length : 0);
+        return { text, totalLines, fullText };
     };
 
     const countSoftLines = (line) => {
@@ -88,6 +89,8 @@ export function AgentStatus({
         content = title ? `Running: ${title}` : 'Running tool...';
     } else if (status?.type === 'tool_status') {
         content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
+    } else if (status?.type === 'error') {
+        content = title || 'Agent error';
     } else {
         content = title || statusText || 'Working...';
     }
@@ -111,22 +114,34 @@ export function AgentStatus({
             }
             toggleExpand(panelKey);
         };
-        const effectiveMax = (typeof maxLines === 'number' && !isExpanded) ? maxLines : undefined;
+        const isCollapsible = typeof maxLines === 'number';
+        const effectiveMax = (isCollapsible && !isExpanded) ? maxLines : undefined;
+        // Use fullText for the corresponding info when available
+        const info = panelKey === 'plan' ? planInfo : panelKey === 'thought' ? thoughtInfo : draftInfo;
+        const sourceText = isExpanded ? (info.fullText || text) : text;
         const truncated = typeof effectiveMax === 'number'
-            ? truncateLines(text, effectiveMax, totalLines)
-            : { text: text || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
+            ? truncateLines(sourceText, effectiveMax, totalLines)
+            : { text: sourceText || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
         if (!truncated.text && !(Number.isFinite(truncated.totalLines) && truncated.totalLines > 0)) return null;
+        const bodyClass = `agent-thinking-body${isCollapsible ? ' agent-thinking-body-collapsible' : ''}`;
+        const bodyStyle = isCollapsible ? `--agent-thinking-collapsed-lines: ${maxLines};` : '';
         return html`
-            <div class="agent-thinking" style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+            <div
+                class="agent-thinking"
+                data-expanded=${isExpanded ? 'true' : 'false'}
+                data-collapsible=${isCollapsible ? 'true' : 'false'}
+                style=${turnColor ? `--turn-color: ${turnColor};` : ''}
+            >
                 <div class="agent-thinking-title ${titleClass || ''}">
                     ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
                     ${panelTitle}
                 </div>
                 <div
-                    class="agent-thinking-body"
+                    class=${bodyClass}
+                    style=${bodyStyle}
                     dangerouslySetInnerHTML=${{ __html: renderThinking(truncated.text) }}
                 />
-                ${truncated.omitted > 0 && html`
+                ${!isExpanded && truncated.omitted > 0 && html`
                     <button class="agent-thinking-truncation" onClick=${handleExpand}>
                         ▸ ${truncated.omitted} more lines
                     </button>
@@ -175,9 +190,9 @@ export function AgentStatus({
                 panelKey: 'draft',
             })}
             ${status && html`
-                <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
+                <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}${status?.type === 'error' ? ' agent-status-error' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                     ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
-                    ${!isLastActivity && html`<div class="agent-status-spinner"></div>`}
+                    ${status?.type === 'error' ? html`<span class="agent-status-error-icon" aria-hidden="true">⚠</span>` : (!isLastActivity && html`<div class="agent-status-spinner"></div>`)}
                     <span class="agent-status-text">${content}</span>
                 </div>
             `}

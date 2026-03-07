@@ -3,6 +3,7 @@ import {
     attachWorkspaceFile,
     getMediaInfo,
     getMediaUrl,
+    getWorkspaceDownloadUrl,
     getWorkspaceFile,
     getWorkspaceRawUrl,
     getWorkspaceTree,
@@ -596,6 +597,9 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
                                             : html`<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>`}
                                     </svg>
                                     <span class="workspace-label">${node.name}</span>
+                                    ${isDir && !isOpen && Array.isArray(node.children) && node.children.length > 0 && html`
+                                        <span class="workspace-count">${node.children.length}</span>
+                                    `}
                                 </div>
                             `;
                         })}
@@ -616,18 +620,31 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
                                     </svg>
                                 </button>
                             `}
-                            <button class="workspace-download" onClick=${handleDownload} title="Download">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                                    <polyline points="7 10 12 15 17 10"/>
-                                    <line x1="12" y1="15" x2="12" y2="3"/>
-                                </svg>
-                            </button>
+                            ${nodeMapRef.current.get(selectedPath)?.type === 'dir'
+                                ? html`<a class="workspace-download" href=${getWorkspaceDownloadUrl(selectedPath, showHidden)}
+                                    title="Download folder as zip" onClick=${(e) => e.stopPropagation()}>
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                </a>`
+                                : html`<button class="workspace-download" onClick=${handleDownload} title="Download">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                        <polyline points="7 10 12 15 17 10"/>
+                                        <line x1="12" y1="15" x2="12" y2="3"/>
+                                    </svg>
+                                </button>`}
                         </div>
                     </div>
                     ${loadingPreview && html`<div class="workspace-loading">Loading preview…</div>`}
                     ${preview?.error && html`<div class="workspace-error">${preview.error}</div>`}
-                    ${preview && !preview.error && html`
+                    ${nodeMapRef.current.get(selectedPath)?.type === 'dir' && html`
+                        <div class="workspace-preview-text">Folder selected — download as zip.</div>
+                    `}
+                    ${preview && !preview.error && nodeMapRef.current.get(selectedPath)?.type !== 'dir' && html`
                         <div class="workspace-preview-meta">
                             ${preview.size ? html`<span>${formatFileSize(preview.size)}</span>` : ''}
                             ${preview.mtime ? html`<span>${formatTimestamp(preview.mtime)}</span>` : ''}

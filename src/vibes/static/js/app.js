@@ -200,30 +200,56 @@ function decodeCodeEntities(html) {
  */
 function renderMath(html_content) {
     if (!window.katex) return html_content;
-    
-    const decodeMath = (value) => decodeEntities(value).replace(/&gt;/g, '>').replace(/&lt;/g, '<').replace(/&amp;/g, '&');
 
-    // Process display math first ($$...$$) - must not be inside code blocks
-    html_content = html_content.replace(/\$\$([\s\S]+?)\$\$/g, (match, tex) => {
+    const decodeMath = (value) => decodeEntities(value)
+        .replace(/&gt;/g, '>')
+        .replace(/&lt;/g, '<')
+        .replace(/&amp;/g, '&')
+        .replace(/<br\s*\/?\s*>/gi, '\n');
+
+    const escapeHtmlAttr = (value) => String(value || '')
+        .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+    // Strip code blocks before math processing to avoid $-in-code false positives
+    const codeBlocks = [];
+    let stripped = html_content.replace(/<pre\b[^>]*>\s*<code\b[^>]*>[\s\S]*?<\/code>\s*<\/pre>/gi, (m) => {
+        codeBlocks.push(m);
+        return `@@CODE_BLOCK_${codeBlocks.length - 1}@@`;
+    });
+    stripped = stripped.replace(/<code\b[^>]*>[\s\S]*?<\/code>/gi, (m) => {
+        codeBlocks.push(m);
+        return `@@CODE_INLINE_${codeBlocks.length - 1}@@`;
+    });
+
+    // Process display math ($$...$$) — require block delimiters on their own line
+    stripped = stripped.replace(
+        /(^|\n|<br\s*\/?\s*>|<p>|<\/p>)\s*\$\$([\s\S]+?)\$\$\s*(?=\n|<br\s*\/?\s*>|<\/p>|$)/gi,
+        (match, leading, tex) => {
+            try {
+                return `${leading}${katex.renderToString(decodeMath(tex.trim()), { displayMode: true, throwOnError: false })}`;
+            } catch (e) {
+                return `<span class="math-error" title="${escapeHtmlAttr(e.message)}">${match}</span>`;
+            }
+        },
+    );
+
+    // Process inline math ($...$) — guards against $$, whitespace edges
+    stripped = stripped.replace(/(^|[^\\$])\$(?!\s)([^\n$]+?)\$/g, (match, leading, tex) => {
+        if (/\s$/.test(tex)) return match;
         try {
-            return katex.renderToString(decodeMath(tex.trim()), { displayMode: true, throwOnError: false });
+            return `${leading}${katex.renderToString(decodeMath(tex), { displayMode: false, throwOnError: false })}`;
         } catch (e) {
-            return `<span class="math-error" title="${e.message}">${match}</span>`;
+            return `${leading}<span class="math-error" title="${escapeHtmlAttr(e.message)}">$${tex}$</span>`;
         }
     });
-    
-    // Process inline math ($...$) - avoid matching $$, shell expansions, or currency
-    html_content = html_content.replace(/(?<!\$)\$(?!\$|\(|\{|\[)([^\$\n]+?)\$(?!\$)/g, (match, tex) => {
-        // Skip if it looks like currency ($ followed by number)
-        if (/^\d/.test(tex.trim())) return match;
-        try {
-            return katex.renderToString(decodeMath(tex.trim()), { displayMode: false, throwOnError: false });
-        } catch (e) {
-            return `<span class="math-error" title="${e.message}">${match}</span>`;
-        }
-    });
-    
-    return html_content;
+
+    // Restore code blocks
+    if (codeBlocks.length) {
+        stripped = stripped.replace(/@@CODE_(?:BLOCK|INLINE)_(\d+)@@/g, (_m, idx) => codeBlocks[Number(idx)] ?? '');
+    }
+
+    return stripped;
 }
 
 function normalizeMathFences(text) {

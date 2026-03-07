@@ -293,6 +293,17 @@ body {
     line-height: 22px;
 }
 
+.workspace-count {
+    font-size: 10px;
+    color: var(--text-secondary);
+    background: var(--bg-hover);
+    border-radius: 8px;
+    padding: 0 5px;
+    margin-left: 4px;
+    line-height: 16px;
+    flex-shrink: 0;
+}
+
 .workspace-splitter {
     display: none;
     width: 4px;
@@ -1982,6 +1993,17 @@ body {
 
 .agent-status.agent-status-last-activity {
     opacity: 0.85;
+}
+
+.agent-status.agent-status-error {
+    background: rgba(220, 38, 38, 0.1);
+    border-bottom-color: rgba(220, 38, 38, 0.3);
+    color: var(--danger-color, #dc2626);
+}
+
+.agent-status-error-icon {
+    font-size: 1.1em;
+    line-height: 1;
 }
 
 @keyframes fadeIn {

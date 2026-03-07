@@ -534,11 +534,50 @@ async def shutdown_workspace_manager() -> None:
     await _set_workspace_visibility(False, _workspace_show_hidden)
 
 
+async def download_workspace_folder(request: web.Request) -> web.StreamResponse:
+    """Stream a workspace folder as a ZIP archive."""
+    import zipfile
+    import io
+
+    raw_path = request.query.get("path", ".")
+    show_hidden = request.query.get("show_hidden", "0") == "1"
+    root = _workspace_root()
+    target = (root / raw_path).resolve()
+
+    if not _is_within_workspace(target):
+        return web.json_response({"error": "Path outside workspace"}, status=403)
+    if not target.is_dir():
+        return web.json_response({"error": "Not a directory"}, status=400)
+
+    folder_name = target.name or "workspace"
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        for entry in sorted(target.rglob("*")):
+            if not entry.is_file():
+                continue
+            rel = entry.relative_to(target)
+            if _is_excluded_relative(rel):
+                continue
+            if not show_hidden and _is_hidden_relative(rel):
+                continue
+            zf.write(entry, str(rel))
+
+    buf.seek(0)
+    return web.Response(
+        body=buf.read(),
+        content_type="application/zip",
+        headers={
+            "Content-Disposition": f'attachment; filename="{folder_name}.zip"',
+        },
+    )
+
+
 def setup_routes(app: web.Application) -> None:
     app.router.add_get("/workspace/tree", get_workspace_tree)
     app.router.add_get("/workspace/file", get_workspace_file)
     app.router.add_put("/workspace/file", update_workspace_file)
     app.router.add_get("/workspace/raw", get_workspace_raw)
+    app.router.add_get("/workspace/download", download_workspace_folder)
     app.router.add_post("/workspace/attach", attach_workspace_file)
     app.router.add_post("/workspace/upload", upload_workspace_file)
     app.router.add_post("/workspace/visibility", set_workspace_visibility_handler)
