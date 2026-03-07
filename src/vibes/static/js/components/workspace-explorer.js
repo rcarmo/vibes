@@ -25,7 +25,8 @@ function rewriteRelativeUrls(htmlStr, filePath) {
         /(<(?:img|source)\s[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi,
         (match, pre, url, post) => {
             if (/^(?:https?:|data:|\/)/i.test(url)) return match;
-            const resolved = dir === '.' ? url : `${dir}/${url}`;
+            const clean = url.replace(/^\.\//, '');
+            const resolved = dir === '.' ? clean : `${dir}/${clean}`;
             return `${pre}${getWorkspaceRawUrl(resolved)}${post}`;
         }
     );
