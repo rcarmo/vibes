@@ -601,6 +601,8 @@ function App() {
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [agents, setAgents] = useState({});
     const [activeModel, setActiveModel] = useState(null);
+    const [activeThinkingLevel, setActiveThinkingLevel] = useState(null);
+    const [supportsThinking, setSupportsThinking] = useState(false);
     const [contextUsage, setContextUsage] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
@@ -1200,6 +1202,14 @@ function App() {
         });
     }, []);
 
+    const applyModelState = useCallback((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        const nextModel = payload.model ?? payload.current;
+        if (nextModel !== undefined) setActiveModel(nextModel);
+        if (payload.thinking_level !== undefined) setActiveThinkingLevel(payload.thinking_level ?? null);
+        if (payload.supports_thinking !== undefined) setSupportsThinking(Boolean(payload.supports_thinking));
+    }, []);
+
     useEffect(() => {
         loadAgents();
 
@@ -1425,7 +1435,9 @@ function App() {
         }
 
         if (eventType === 'model_changed') {
-            if (data?.model) setActiveModel(data.model);
+            if (data?.model !== undefined) setActiveModel(data.model);
+            if (data?.thinking_level !== undefined) setActiveThinkingLevel(data.thinking_level ?? null);
+            if (data?.supports_thinking !== undefined) setSupportsThinking(Boolean(data.supports_thinking));
             return;
         }
 
@@ -1685,7 +1697,7 @@ function App() {
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}`} ref=${appShellRef}>
-            <${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
+            <${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
             <button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
@@ -1767,8 +1779,11 @@ function App() {
                     onRemoveFileRef=${removeFileRef}
                     onClearFileRefs=${clearFileRefs}
                     activeModel=${activeModel}
+                    thinkingLevel=${activeThinkingLevel}
+                    supportsThinking=${supportsThinking}
                     contextUsage=${contextUsage}
                     onModelChange=${setActiveModel}
+                    onModelStateChange=${applyModelState}
                     notificationsEnabled=${notificationsEnabled}
                     notificationPermission=${notificationPermission}
                     onToggleNotifications=${handleToggleNotifications}

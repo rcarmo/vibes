@@ -73,8 +73,11 @@ export function ComposeBox({
     onRemoveFileRef,
     onClearFileRefs,
     activeModel = null,
+    thinkingLevel = null,
+    supportsThinking = false,
     contextUsage = null,
     onModelChange,
+    onModelStateChange,
     notificationsEnabled = false,
     notificationPermission = 'default',
     onToggleNotifications,
@@ -143,6 +146,24 @@ export function ComposeBox({
     const notificationsAvailable = notificationsSupported && notificationsSecure && !notificationDenied;
     const notificationActive = notificationPermission === 'granted' && notificationsEnabled;
     const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
+
+    const modelHintSuffix = supportsThinking && thinkingLevel ? ` (${thinkingLevel})` : '';
+    const modelHintLabel = activeModel ? `${activeModel}${modelHintSuffix}` : '';
+
+    const emitModelState = (payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        const modelLabel = payload.model ?? payload.current;
+        if (typeof onModelStateChange === 'function') {
+            onModelStateChange({
+                model: modelLabel ?? null,
+                thinking_level: payload.thinking_level ?? null,
+                supports_thinking: payload.supports_thinking,
+            });
+        }
+        if (modelLabel && typeof onModelChange === 'function') {
+            onModelChange(modelLabel);
+        }
+    };
 
     const resizeTextarea = () => {
         const textarea = textareaRef.current;
@@ -231,9 +252,11 @@ export function ComposeBox({
         try {
             const response = await sendAgentMessage('default', commandText, null, []);
             const nextModel = extractCurrentModel(response);
-            if (nextModel && typeof onModelChange === 'function') {
-                onModelChange(nextModel);
-            }
+            emitModelState({
+                model: nextModel ?? activeModel ?? null,
+                thinking_level: response?.command?.thinking_level,
+                supports_thinking: response?.command?.supports_thinking,
+            });
             onPost?.();
             return true;
         } catch (error) {
@@ -286,8 +309,12 @@ export function ComposeBox({
             const message = [baseContent, fileBlock, mediaBlock].filter(Boolean).join('\n\n');
 
             const response = await sendAgentMessage('default', message, null, mediaIds);
-            if (response?.command?.model_label && typeof onModelChange === 'function') {
-                onModelChange(response.command.model_label);
+            if (response?.command) {
+                emitModelState({
+                    model: response.command.model_label ?? activeModel ?? null,
+                    thinking_level: response.command.thinking_level,
+                    supports_thinking: response.command.supports_thinking,
+                });
             }
 
             if (baseContent) {
@@ -484,9 +511,7 @@ export function ComposeBox({
                     ? payload.models.filter((m) => typeof m === 'string' && m.trim().length > 0)
                     : [];
                 setModelOptions(models);
-                if (payload?.current && typeof payload.current === 'string') {
-                    if (typeof onModelChange === 'function') onModelChange(payload.current);
-                }
+                emitModelState(payload);
             })
             .catch((error) => {
                 console.warn('Failed to load model list:', error);
@@ -612,12 +637,12 @@ export function ComposeBox({
                                     ref=${modelHintRef}
                                     type="button"
                                     class="compose-model-hint compose-model-hint-btn"
-                                    title=${switchingModel ? 'Switching model…' : `Current model: ${activeModel} (tap to open model picker)`}
+                                    title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
                                     aria-label="Open model picker"
                                     onClick=${toggleModelPopup}
                                     disabled=${loading || switchingModel}
                                 >
-                                    ${switchingModel ? 'Switching…' : activeModel}
+                                    ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>
                             `}
                             ${contextUsage && contextUsage.percent != null && html`

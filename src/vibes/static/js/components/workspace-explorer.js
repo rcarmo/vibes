@@ -126,7 +126,7 @@ function FileAttachmentCard({ mediaId }) {
     `;
 }
 
-export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, renderMarkdown }) {
+export function WorkspaceExplorer({ onFileSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
     const [selectedPath, setSelectedPath] = useState(null);
@@ -159,15 +159,17 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     const dropTargetRef = useRef(dropTarget);
     const dragActiveRef = useRef(dragActive);
     const visibleRef = useRef(visible);
+    const activeRef = useRef(active ?? visible);
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
     useEffect(() => { dropTargetRef.current = dropTarget; }, [dropTarget]);
     useEffect(() => { dragActiveRef.current = dragActive; }, [dragActive]);
     useEffect(() => { visibleRef.current = visible; }, [visible]);
+    useEffect(() => { activeRef.current = active ?? visible; }, [active, visible]);
 
     const loadTree = async () => {
-        if (!visibleRef.current) return;
+        if (!activeRef.current) return;
         try {
             const data = await getWorkspaceTree('', 2, showHiddenRef.current);
             const sig = treeSignature(data.root, expandedRef.current, showHiddenRef.current);
@@ -248,7 +250,8 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     const updateVisibility = useRef(() => {
         if (typeof window === 'undefined') return;
         const media = window.matchMedia('(min-width: 1024px) and (orientation: landscape)');
-        const visible = media.matches && document.visibilityState !== 'hidden' && visibleRef.current;
+        const shouldBeActive = activeRef.current ?? visibleRef.current;
+        const visible = media.matches && document.visibilityState !== 'hidden' && shouldBeActive;
         setWorkspaceVisibility(visible, showHiddenRef.current).catch(() => {});
     }).current;
 
@@ -262,11 +265,11 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, onOpenEditor, 
     }).current;
 
     useEffect(() => {
-        if (visibleRef.current) {
+        if (activeRef.current) {
             loadTreeRef.current?.();
         }
         scheduleVisibilityUpdate();
-    }, [visible]);
+    }, [visible, active]);
 
     useEffect(() => {
         loadTreeRef.current?.();
