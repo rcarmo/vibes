@@ -506,12 +506,16 @@ function useTimestampRefresh(intervalMs = 30000) {
 }
 
 /**
+const DEFAULT_AGENT_NAME = 'Vibes';
+const AGENT_AVATAR_URL = '/static/icon-192.png';
+
+/**
  * Get avatar display info from name and optional image URL.
  * Returns object with { letter, color, image }
  */
 function getAvatarInfo(name, avatarUrl = null) {
-    if (!name) name = 'Agent';
-    const letter = name.charAt(0).toUpperCase();
+    const resolvedName = name || DEFAULT_AGENT_NAME;
+    const letter = resolvedName.charAt(0).toUpperCase();
     
     // Generate a consistent color based on the letter
     const colors = [
@@ -546,19 +550,25 @@ function getAvatarInfo(name, avatarUrl = null) {
     // Use char code to pick a color consistently
     const index = letter.charCodeAt(0) % colors.length;
     const color = colors[index];
-    
-    return { letter, color, image: avatarUrl || null };
+
+    const normalized = resolvedName.trim().toLowerCase();
+    const normalizedAvatar = typeof avatarUrl === 'string' ? avatarUrl.trim() : '';
+    const customImage = normalizedAvatar ? normalizedAvatar : null;
+    const image = customImage || ((normalized === DEFAULT_AGENT_NAME.toLowerCase() || normalized === 'agent') ? AGENT_AVATAR_URL : null);
+
+    return { letter, color, image };
 }
 
 function getAgentName(agentId, agents) {
-    if (!agentId) return 'Agent';
+    if (!agentId) return DEFAULT_AGENT_NAME;
     const name = agents[agentId]?.name || agentId;
-    return name ? name.charAt(0).toUpperCase() + name.slice(1) : 'Agent';
+    return name ? name.charAt(0).toUpperCase() + name.slice(1) : DEFAULT_AGENT_NAME;
 }
 
 function getAgentAvatar(agentId, agents) {
     if (!agentId) return null;
-    return agents[agentId]?.avatar || null;
+    const agent = agents[agentId] || {};
+    return agent.avatar_url || agent.avatarUrl || agent.avatar || null;
 }
 
 /**
@@ -757,20 +767,47 @@ function App() {
     }, []);
 
     const updateAgentProfile = useCallback((payload) => {
-        const agentId = payload?.agent_id;
+        if (!payload || typeof payload !== 'object') return;
+        const agentId = payload.agent_id;
         if (!agentId) return;
-        const next = {};
-        if (payload.agent_name) next.name = payload.agent_name;
-        if (Object.prototype.hasOwnProperty.call(payload, 'agent_avatar')) next.avatar = payload.agent_avatar;
-        if (Object.keys(next).length === 0) return;
+        const nextName = payload.agent_name;
+        const nextAvatar = payload.agent_avatar;
+        if (!nextName && nextAvatar === undefined) return;
+
+        const current = agentsRef.current?.[agentId] || { id: agentId };
+        let resolvedName = current.name || null;
+        let resolvedAvatar = current.avatar_url ?? current.avatarUrl ?? current.avatar ?? null;
+        let avatarChanged = false;
+        let nameChanged = false;
+
+        if (nextName && nextName !== current.name) {
+            resolvedName = nextName;
+            nameChanged = true;
+        }
+
+        if (nextAvatar !== undefined) {
+            const normalizedAvatar = typeof nextAvatar === 'string' ? nextAvatar.trim() : null;
+            const normalizedCurrent = typeof resolvedAvatar === 'string' ? resolvedAvatar.trim() : null;
+            const nextValue = normalizedAvatar || null;
+            const currentValue = normalizedCurrent || null;
+            if (nextValue !== currentValue) {
+                resolvedAvatar = nextValue;
+                avatarChanged = true;
+            }
+        }
+
+        if (!nameChanged && !avatarChanged) return;
+
         setAgents((prev) => {
-            const current = prev?.[agentId] || { id: agentId };
-            const merged = { ...current, ...next, id: agentId };
-            if (current.name === merged.name && current.avatar === merged.avatar) return prev;
-            return { ...(prev || {}), [agentId]: merged };
+            const currentEntry = prev[agentId] || { id: agentId };
+            const updated = { ...currentEntry };
+            if (nameChanged) updated.name = resolvedName;
+            if (avatarChanged) updated.avatar_url = resolvedAvatar;
+            return { ...prev, [agentId]: updated };
         });
+
         if (agentId === 'default') {
-            applyBranding(next.name || null, next.avatar || null);
+            applyBranding(resolvedName, resolvedAvatar, avatarChanged ? Date.now() : null);
         }
     }, [applyBranding]);
 
