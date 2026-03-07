@@ -332,6 +332,7 @@ function Post({
         ? userAvatarBackground.trim().toLowerCase() : '';
     const clearUserBackground = !isAgent && avatarInfo.image
         && (normalizedUserBackground === 'clear' || normalizedUserBackground === 'transparent');
+    const avatarBgColor = avatarInfo.image ? 'transparent' : avatarInfo.color;
     const formatTimeLabel = formatTime || ((value) => String(value || ''));
     const formatCountLabel = formatCount || ((value) => String(value ?? 0));
     const contentMeta = data.content_meta;
@@ -483,7 +484,7 @@ function Post({
 
     return html`
         <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''} ${isThreadReply ? 'thread-reply' : ''} ${isRemoving ? 'removing' : ''}" onClick=${onClick}>
-            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${clearUserBackground ? 'transparent' : avatarInfo.color}">
+            <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${avatarBgColor}">
                 ${avatarInfo.image ? html`<img src=${avatarInfo.image} alt=${displayName} />` : avatarInfo.letter}
             </div>
             <div class="post-body">
