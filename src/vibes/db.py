@@ -591,11 +591,11 @@ class Database:
         self, turn_id: str, status: dict
     ) -> None:
         """Update the last known status for an active turn."""
-        await self._connection.execute(
-            "UPDATE active_turns SET last_status = ? WHERE turn_id = ?",
-            (json.dumps(status), turn_id),
-        )
-        await self._connection.commit()
+        async with self.transaction():
+            await self._connection.execute(
+                "UPDATE active_turns SET last_status = ? WHERE turn_id = ?",
+                (json.dumps(status), turn_id),
+            )
 
     async def end_turn(self, turn_id: str) -> None:
         """Remove a completed turn."""

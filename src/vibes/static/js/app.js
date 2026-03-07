@@ -1600,12 +1600,52 @@ function App() {
 
     // Adaptive backstop poller — SSE is the primary event source; this is
     // a safety net only. 15 s when a turn is active, 60 s when idle.
+    // When active, also polls /agents/status to detect long-running agent
+    // activity and update the UI if SSE events are lagging.
     const isAgentActive = agentStatus !== null;
     useEffect(() => {
         if (connectionStatus !== 'connected') return;
         const intervalMs = isAgentActive ? 15000 : 60000;
-        const interval = setInterval(() => {
-            if (!isAgentActive) {
+        const interval = setInterval(async () => {
+            if (isAgentActive) {
+                // Poll server to verify agent is still active and update status
+                try {
+                    const statusData = await getAgentStatus();
+                    if (!statusData) return;
+                    const turns = statusData.active_turns || [];
+                    if (turns.length > 0) {
+                        const turn = turns[turns.length - 1];
+                        const lastStatus = turn.last_status;
+                        if (lastStatus && turn.turn_id === currentTurnIdRef.current) {
+                            noteAgentActivity({ running: true });
+                            // Only update status bar with server state for non-streaming types
+                            const statusType = lastStatus.type;
+                            if (statusType && statusType !== 'done' && statusType !== 'error' && statusType !== 'cancelled') {
+                                setAgentStatus({
+                                    thread_id: turn.thread_id,
+                                    agent_id: turn.agent_id,
+                                    turn_id: turn.turn_id,
+                                    ...lastStatus,
+                                });
+                            }
+                        }
+                    } else if (!statusData.busy) {
+                        // Server says no active turns but UI thinks agent is active —
+                        // the done/error SSE event was likely lost.
+                        if (isAgentRunningRef.current) {
+                            const { currentHashtag: ah, searchQuery: sq } = viewStateRef.current || {};
+                            if (!ah && !sq) loadPosts();
+                            clearAgentRunState();
+                            setAgentStatus(null);
+                            setAgentDraft({ text: '', totalLines: 0 });
+                            setAgentPlan('');
+                            setAgentThought({ text: '', totalLines: 0 });
+                        }
+                    }
+                } catch {
+                    // ignore polling errors
+                }
+            } else {
                 const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current || {};
                 if (!activeHashtag && !activeSearch) {
                     loadPosts();
@@ -1613,7 +1653,7 @@ function App() {
             }
         }, intervalMs);
         return () => clearInterval(interval);
-    }, [connectionStatus, isAgentActive, loadPosts]);
+    }, [connectionStatus, isAgentActive, loadPosts, clearAgentRunState, noteAgentActivity]);
 
     const handleSplitterMouseDown = useRef((e) => {
         e.preventDefault();

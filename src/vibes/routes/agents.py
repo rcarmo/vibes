@@ -403,6 +403,21 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
     except Exception:
         logger.warning("Failed to persist turn start for %s", turn_id, exc_info=True)
 
+    async def _persist_and_broadcast_status(status_data: dict) -> None:
+        """Broadcast an agent_status event and persist it for polling."""
+        await broadcast_event("agent_status", {
+            "thread_id": thread_id,
+            "agent_id": agent_id,
+            "turn_id": turn_id,
+            **status_data,
+            **agent_profile,
+        })
+        try:
+            db = await get_db()
+            await db.update_turn_status(turn_id, status_data)
+        except Exception:
+            pass
+
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
@@ -481,28 +496,12 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
                         **agent_profile,
                     })
                 return
-            await broadcast_event("agent_status", {
-                "thread_id": thread_id,
-                "agent_id": agent_id,
-                "turn_id": turn_id,
-                **status,
-                **agent_profile,
-            })
-            # Persist last status for polling
-            try:
-                db = await get_db()
-                await db.update_turn_status(turn_id, {**status, **agent_profile})
-            except Exception:
-                pass
+            await _persist_and_broadcast_status(status)
         
         # Broadcast that agent is thinking
-        await broadcast_event("agent_status", {
-            "thread_id": thread_id,
-            "agent_id": agent_id,
-            "turn_id": turn_id,
+        await _persist_and_broadcast_status({
             "type": "thinking",
             "title": "Thinking...",
-            **agent_profile,
         })
         
         agent_mode = _resolve_agent_mode(agent_id)
@@ -526,13 +525,9 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             }
         
         if response.get("cancelled"):
-            await broadcast_event("agent_status", {
-                "thread_id": thread_id,
-                "agent_id": agent_id,
-                "turn_id": turn_id,
+            await _persist_and_broadcast_status({
                 "type": "cancelled",
                 "title": "Cancelled",
-                **agent_profile,
             })
             # Don't overwrite with generic message — keep the specific one from the client.
 
@@ -593,13 +588,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
             logger.info("Skipping empty agent response for thread %s", thread_id)
 
         # Broadcast that agent is done (after response is available)
-        await broadcast_event("agent_status", {
-            "thread_id": thread_id,
-            "agent_id": agent_id,
-            "turn_id": turn_id,
-            "type": "done",
-            **agent_profile,
-        })
+        await _persist_and_broadcast_status({"type": "done"})
         turn_completed = True
         
         # Check for queued messages and send the next one
@@ -615,13 +604,9 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         turn_completed = True
         
         # Broadcast error status
-        await broadcast_event("agent_status", {
-            "thread_id": thread_id,
-            "agent_id": agent_id,
-            "turn_id": turn_id,
+        await _persist_and_broadcast_status({
             "type": "error",
             "title": str(e),
-            **agent_profile,
         })
         
         # Post error message
@@ -650,13 +635,9 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         # frontend never gets stuck in a "thinking" state.
         if not turn_completed:
             try:
-                await broadcast_event("agent_status", {
-                    "thread_id": thread_id,
-                    "agent_id": agent_id,
-                    "turn_id": turn_id,
+                await _persist_and_broadcast_status({
                     "type": "error",
                     "title": "Turn ended unexpectedly",
-                    **agent_profile,
                 })
             except Exception:
                 pass
