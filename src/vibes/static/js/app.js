@@ -1059,6 +1059,10 @@ function App() {
                 });
             }
         }).catch(() => {});
+        // Always refresh context usage on reconnect
+        getAgentContext().then(ctx => {
+            if (ctx && ctx.percent != null) setContextUsage(ctx);
+        }).catch(() => {});
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
         if (!activeHashtag && !activeSearch) {
             loadPosts();
@@ -1629,6 +1633,10 @@ function App() {
                                 });
                             }
                         }
+                        // Refresh context usage while agent is working
+                        getAgentContext().then(ctx => {
+                            if (ctx && ctx.percent != null) setContextUsage(ctx);
+                        }).catch(() => {});
                     } else if (!statusData.busy) {
                         // Server says no active turns but UI thinks agent is active —
                         // the done/error SSE event was likely lost.
@@ -1640,6 +1648,10 @@ function App() {
                             setAgentDraft({ text: '', totalLines: 0 });
                             setAgentPlan('');
                             setAgentThought({ text: '', totalLines: 0 });
+                            // Refresh context usage since the turn completed
+                            getAgentContext().then(ctx => {
+                                if (ctx && ctx.percent != null) setContextUsage(ctx);
+                            }).catch(() => {});
                         }
                     }
                 } catch {
