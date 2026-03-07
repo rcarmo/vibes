@@ -112,6 +112,22 @@ def _build_tree(path: Path, depth: int, show_hidden: bool, state: dict[str, int 
         return node
 
     if depth <= 0:
+        try:
+            count = 0
+            for entry in path.iterdir():
+                try:
+                    rel = entry.relative_to(_workspace_root())
+                except ValueError:
+                    continue
+                if _is_excluded_relative(rel):
+                    continue
+                if not show_hidden and _is_hidden_relative(rel):
+                    continue
+                count += 1
+            if count > 0:
+                node["child_count"] = count
+        except OSError:
+            pass
         return node
 
     children: list[dict] = []
