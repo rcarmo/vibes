@@ -2,34 +2,56 @@
 
 A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol (including [`copilot --acp`](https://docs.github.com/en/copilot) and [`codex-acp`](https://github.com/openai/codex)), as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
 
+## Highlights
+
 ![Demo](docs/demo.gif)
 
 > Vibes and [piclaw](https://github.com/rcarmo/piclaw) share the same web UI.
 
-## Features
+- **Streaming web UI** — real-time token-by-token updates over SSE, with Markdown, KaTeX, and Mermaid rendering
+- **Workspace explorer** — file tree sidebar with previews, drag-and-drop upload, keyboard navigation, and downloads
+- **Code editor** — built-in CodeMirror 6 with syntax highlighting for 13 languages, Vim mode, search/replace, and save
+- **Persistent storage** — SQLite-backed messages, media, and full-text search
+- **Rich media** — paste or drag images, attach workspace files, link previews with OpenGraph
+- **Dark/Light themes** — follows system preference automatically
+- **Installable PWA** — standalone webapp manifest with window-controls-overlay support
 
-- Persistent, infinite scrolling conversations with ACP agents and `pi`
-- Accept/Deny tool usage by agents, with command previews
-- Live reasoning/intent updates via Server-Sent Events (SSE)
-- Post text, links, images, and files
-- Rich media previews (downscaled and stored in database)
-- KaTeX maths and SVG image support
-- API endpoints for predefined custom actions/prompts
-- Full-text search using `sqlite` FTS
-- Responsive design for mobile, tablet, and desktop
-- Dark/light mode
+## Web UI
 
-## Non-Features
+The UI is single-user, mobile-friendly, and streams updates over SSE:
 
-- Authentication (use `authelia` or an authenticating reverse proxy)
-- Security (use `traefik` or Tailscale)
-- Multiple users (should be trivial to add)
+- **Thought/Draft panels** — collapsible live reasoning and draft blocks, visible during streaming
+- **Live steering** — inject follow-up guidance while the agent is still responding (`/steer`)
+- **File attachments** — drag, paste, or pick images; attach workspace files as reference pills
+- **Link previews** — server-side OpenGraph fetch with image thumbnails
+- **Multi-turn threading** — subsequent turns are visually threaded under the first
+- **Accept/Deny tool usage** — approve, deny, or always-allow agent operations with command previews
+- **Context window indicator** — colour-coded pie chart showing token usage (green / amber / red)
+- **Compose history** — up/down arrow keys cycle through last 200 messages
+- **Full-text search** — search conversations using SQLite FTS
+- **Mobile-first layout** — responsive design for phone, tablet, and desktop
 
-## Roadmap
+### Workspace explorer
 
-- [ ] Better integration with multimodal models (ACP punts on that right now)
-- [x] Slash commands
-- [x] Switching agents/models
+The sidebar shows a file tree with auto-refresh. Click a file to preview it or add a **file reference pill** to the next prompt. Drag and drop files onto the tree to upload them, with overwrite conflict detection.
+
+- **Keyboard navigation** — arrow keys to browse, Enter to open/edit, Delete to remove, Escape to deselect
+- **Per-folder upload** — hover a folder to reveal its upload button
+- **Touch support** — long-press to delete files on mobile
+- **Hidden files toggle** — show/hide dotfiles (persisted)
+- **Download** — single files or entire folders as ZIP
+
+### Code editor
+
+Click the **pencil icon** on any text file preview (up to 256 KB) to open the built-in editor. It appears as a resizable centre pane between the sidebar and the chat.
+
+- **13 languages** — JS/TS, Python, Go, JSON, CSS, HTML, YAML, SQL, XML, Markdown, Shell, plus auto-detection
+- **Search and replace** — Cmd/Ctrl+F
+- **Save** — Cmd/Ctrl+S or the Save button; dirty state is tracked
+- **Vim mode** — toggle with Alt+V (persisted)
+- **Whitespace visibility** — toggle with Alt+W (persisted)
+- **Line wrapping**, line numbers, active line highlight, and indentation markers
+- **Dark/Light theme** — switches automatically with system preference
 
 ## Slash Commands
 
@@ -46,6 +68,13 @@ Type a `/` command in the message input to control the agent or run utilities wi
 | `/abort` | Cancel the current agent operation |
 | `/restart` | Reset the agent session (or hard restart as fallback) |
 | `/shell <command>` | Run a shell command and display the output |
+| `/prompt` | Show or set the user system prompt |
+| `/user-name` | Set or show your display name |
+| `/user-avatar` | Set or show your avatar URL |
+| `/user-github` | Set name and avatar from a GitHub profile |
+| `/agent-name` | Set or show the agent display name |
+| `/agent-avatar` | Set or show the agent avatar URL |
+| `/queue <message>` | Queue a message for after the current turn |
 
 > **Note:** `/model`, `/thinking`, `/steer`, and `/abort` use Pi's RPC protocol and apply to the Pi agent only. ACP agents do not expose these controls.
 
@@ -106,10 +135,13 @@ See [docs/API.md](docs/API.md).
 pip install -e ".[dev]"
 
 # Run tests
-python -m pytest
+make check           # lint + tests (344 tests)
 
 # Run frontend linting (requires bun)
 make lint-frontend
+
+# Rebuild frontend bundle
+make build-frontend  # bundles JS + CSS via bun
 
 # Run with make
 make serve
