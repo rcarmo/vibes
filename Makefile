@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test coverage check check-all clean bump-patch push serve lint-frontend
+.PHONY: help install install-dev lint format test coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -28,6 +28,9 @@ lint: ## Run ruff linter
 lint-frontend: ## Run frontend lint with bun
 	bun run lint:frontend
 
+build-frontend: ## Bundle frontend JS with bun
+	bun run build:frontend
+
 format: ## Format code with ruff
 	ruff format src tests
 
@@ -54,6 +57,17 @@ clean: ## Remove Python cache files
 # =============================================================================
 # Version management
 # =============================================================================
+
+bump-minor: ## Bump minor version, reset patch, and create git tag
+	@OLD=$$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml); \
+	MAJOR=$$(echo $$OLD | cut -d. -f1); \
+	MINOR=$$(echo $$OLD | cut -d. -f2); \
+	NEW="$$MAJOR.$$((MINOR + 1)).0"; \
+	sed -i "s/^version = \"$$OLD\"/version = \"$$NEW\"/" pyproject.toml; \
+	git add pyproject.toml; \
+	git commit -m "Bump version to $$NEW"; \
+	git tag "v$$NEW"; \
+	echo "Bumped version: $$OLD -> $$NEW (tagged v$$NEW)"
 
 bump-patch: ## Bump patch version and create git tag
 	@OLD=$$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml); \

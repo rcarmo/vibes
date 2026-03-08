@@ -5,6 +5,9 @@ import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
+import katex from 'katex';
+import { marked } from 'marked';
+import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
 
 // URL regex for linkifying text
 const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
@@ -70,12 +73,10 @@ function getTurnColor(turnId) {
 }
 
 // Configure marked for safe rendering
-if (window.marked) {
-    marked.setOptions({
-        breaks: true,  // Convert \n to <br>
-        gfm: true,     // GitHub Flavored Markdown
-    });
-}
+marked.setOptions({
+    breaks: true,  // Convert \n to <br>
+    gfm: true,     // GitHub Flavored Markdown
+});
 
 /**
  * Decode HTML entities
@@ -205,7 +206,6 @@ function decodeCodeEntities(html) {
  * Handles $$...$$ for display math and $...$ for inline math
  */
 function renderMath(html_content) {
-    if (!window.katex) return html_content;
 
     const decodeMath = (value) => decodeEntities(value)
         .replace(/&gt;/g, '>')
@@ -322,9 +322,7 @@ function renderMarkdown(text, onHashtagClick) {
     const safeHtml = restoreAllowedHtmlTags(escaped);
 
     // Render markdown to HTML (preserve escaped HTML)
-    let html_content = window.marked
-        ? marked.parse(safeHtml, { headerIds: false, mangle: false })
-        : safeHtml.replace(/\n/g, '<br>');
+    let html_content = marked.parse(safeHtml, { headerIds: false, mangle: false });
 
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
@@ -391,7 +389,7 @@ function renderThinkingMarkdown(text) {
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
     const safeHtml = restoreAllowedHtmlTags(escaped);
-    let html_content = window.marked ? marked.parse(safeHtml) : safeHtml.replace(/\n/g, '<br>');
+    let html_content = marked.parse(safeHtml);
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
     return html_content;
@@ -399,11 +397,8 @@ function renderThinkingMarkdown(text) {
 
 // Render pending mermaid diagrams in the DOM
 async function renderMermaidDiagrams(container) {
-    if (!window.beautifulMermaid) return;
-    
-    const { renderMermaid, THEMES } = window.beautifulMermaid;
     const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const theme = isDark ? THEMES['tokyo-night'] : THEMES['github-light'];
+    const theme = isDark ? MERMAID_THEMES['tokyo-night'] : MERMAID_THEMES['github-light'];
     
     const pending = container.querySelectorAll('.mermaid-container[data-mermaid]');
     for (const el of pending) {
