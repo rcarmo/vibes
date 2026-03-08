@@ -1,6 +1,6 @@
 # Vibes
 
-A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol, as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
+A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol (including [`copilot --acp`](https://docs.github.com/en/copilot) and [`codex-acp`](https://github.com/openai/codex)), as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
 
 ![Demo](docs/demo.gif)
 
@@ -76,11 +76,14 @@ pip install -e ".[dev]"
 ## Usage
 
 ```bash
-# Run the server
+# Run the server (defaults to copilot --acp)
 vibes
 
 # Or with custom options
 VIBES_DEFAULT_AGENT=pi VIBES_HOST=127.0.0.1 VIBES_PORT=3000 vibes
+
+# Use codex-acp as the agent
+VIBES_ACP_AGENT="codex-acp" vibes
 
 # Manage agent permission whitelist
 vibes whitelist add "Run command"
