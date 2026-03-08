@@ -10,6 +10,7 @@ from aiohttp import web
 
 from .config import get_config
 from .db import init_db, close_db, get_db, Database
+from .middleware import create_auth_middleware, create_cors_middleware, create_security_middleware
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
 from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
@@ -23,23 +24,6 @@ os.environ.setdefault("PYTHONUNBUFFERED", "1")
 
 # Path to static files (bundled with package)
 STATIC_PATH = Path(__file__).parent / "static"
-
-
-def create_cors_middleware():
-    """Create CORS middleware with open policy."""
-    @web.middleware
-    async def cors_middleware(request: web.Request, handler):
-        if request.method == "OPTIONS":
-            response = web.Response()
-        else:
-            response = await handler(request)
-        
-        response.headers["Access-Control-Allow-Origin"] = "*"
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        return response
-    
-    return cors_middleware
 
 
 async def health_check(request: web.Request) -> web.Response:
@@ -109,7 +93,11 @@ async def on_cleanup(app: web.Application) -> None:
 
 def create_app() -> web.Application:
     """Create and configure the aiohttp application."""
-    app = web.Application(middlewares=[create_cors_middleware()])
+    app = web.Application(middlewares=[
+        create_cors_middleware(),
+        create_security_middleware(),
+        create_auth_middleware(),
+    ])
     
     # Lifecycle handlers
     app.on_startup.append(on_startup)
