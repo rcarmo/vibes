@@ -156,6 +156,7 @@ function injectMermaidBlocks(html, blocks) {
 const ALLOWED_HTML_TAGS = new Set([
     'strong', 'em', 'b', 'i', 'u', 's', 'br', 'p',
     'ul', 'ol', 'li', 'blockquote',
+    'ruby', 'rt', 'rp',
 ]);
 
 function normalizeHtmlCodeTags(text) {
@@ -173,11 +174,16 @@ function restoreAllowedHtmlTags(text) {
     return text.replace(/&lt;([\s\S]*?)&gt;/g, (match, content) => {
         const trimmed = content.trim();
         const isClosing = trimmed.startsWith('/');
-        const tagContent = isClosing ? trimmed.slice(1) : trimmed;
+        const rawTag = isClosing ? trimmed.slice(1).trim() : trimmed;
+        const isSelfClosing = rawTag.endsWith('/');
+        const tagContent = isSelfClosing ? rawTag.slice(0, -1).trim() : rawTag;
         const tagName = tagContent.split(/\s+/)[0]?.toLowerCase();
         if (!tagName || !ALLOWED_HTML_TAGS.has(tagName)) return match;
-        const slash = isClosing ? '/' : '';
-        return `<${slash}${tagName}>`;
+        if (tagName === 'br') {
+            return isClosing ? '' : '<br>';
+        }
+        if (isClosing) return `</${tagName}>`;
+        return `<${tagName}>`;
     });
 }
 

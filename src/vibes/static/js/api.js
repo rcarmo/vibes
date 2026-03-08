@@ -272,6 +272,14 @@ export async function attachWorkspaceFile(path) {
 }
 
 /**
+ * Delete a file from the workspace.
+ */
+export async function deleteWorkspaceFile(path) {
+    const url = `/workspace/file?path=${encodeURIComponent(path || '')}`;
+    return request(url, { method: 'DELETE' });
+}
+
+/**
  * Toggle workspace visibility state.
  */
 export async function setWorkspaceVisibility(visible, showHidden = false) {

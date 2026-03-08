@@ -1,6 +1,7 @@
 import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
 import {
     attachWorkspaceFile,
+    deleteWorkspaceFile,
     getMediaInfo,
     getMediaUrl,
     getWorkspaceDownloadUrl,
@@ -331,6 +332,8 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const rows = useMemo(() => flattenTree(tree, expanded, showHidden), [tree, expanded, showHidden]);
     const nodeMap = useMemo(() => new Map(rows.map((row) => [row.node.path, row.node])), [rows]);
     nodeMapRef.current = nodeMap;
+    const selectedNode = selectedPath ? nodeMapRef.current.get(selectedPath) : null;
+    const selectedIsDir = selectedNode?.type === 'dir';
 
     const handleTreeClick = useRef((e) => {
         const rowEl = e.target.closest('[data-path]');
@@ -468,6 +471,22 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
             if (result?.media_id) setDownloadId(result.media_id);
         } catch (err) {
             setPreview((prev) => ({ ...(prev || {}), error: err?.message || 'Failed to attach' }));
+        }
+    };
+
+    const handleDeleteFile = async () => {
+        if (!selectedPath || selectedIsDir) return;
+        const filename = selectedPath.split('/').pop() || selectedPath;
+        const confirmed = window.confirm(`Delete "${filename}"? This cannot be undone.`);
+        if (!confirmed) return;
+        try {
+            await deleteWorkspaceFile(selectedPath);
+            const parent = selectedPath.includes('/') ? (selectedPath.split('/').slice(0, -1).join('/') || '.') : '.';
+            clearSelection();
+            loadSubtreeRef.current?.(parent);
+            setError(null);
+        } catch (err) {
+            setPreview((prev) => ({ ...(prev || {}), error: err?.message || 'Failed to delete file' }));
         }
     };
 
@@ -649,6 +668,18 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                                         <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                                    </svg>
+                                </button>
+                            `}
+                            ${!selectedIsDir && html`
+                                <button class="workspace-download workspace-delete" onClick=${handleDeleteFile} title="Delete file">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <polyline points="3 6 5 6 21 6" />
+                                        <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                                        <line x1="10" y1="11" x2="10" y2="17" />
+                                        <line x1="14" y1="11" x2="14" y2="17" />
                                     </svg>
                                 </button>
                             `}

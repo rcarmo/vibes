@@ -440,6 +440,31 @@ async def update_workspace_file(request: web.Request) -> web.Response:
     })
 
 
+async def delete_workspace_file(request: web.Request) -> web.Response:
+    """DELETE /workspace/file – remove a file from the workspace."""
+    path_value = request.query.get("path", "")
+    if not path_value:
+        return web.json_response({"error": "Missing path"}, status=400)
+
+    try:
+        target = _resolve_workspace_path(path_value)
+    except web.HTTPForbidden:
+        return web.json_response({"error": "Forbidden"}, status=403)
+
+    if not target.exists():
+        return web.json_response({"error": "File not found"}, status=404)
+    if target.is_dir():
+        return web.json_response({"error": "Path is a directory"}, status=400)
+
+    rel_path = _to_workspace_relative(target)
+    target.unlink()
+    return web.json_response({
+        "path": rel_path,
+        "name": target.name,
+        "deleted": True,
+    })
+
+
 async def upload_workspace_file(request: web.Request) -> web.Response:
     """POST /workspace/upload – upload a file via multipart form data."""
     target_dir = request.query.get("path", "")
@@ -592,6 +617,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/workspace/tree", get_workspace_tree)
     app.router.add_get("/workspace/file", get_workspace_file)
     app.router.add_put("/workspace/file", update_workspace_file)
+    app.router.add_delete("/workspace/file", delete_workspace_file)
     app.router.add_get("/workspace/raw", get_workspace_raw)
     app.router.add_get("/workspace/download", download_workspace_folder)
     app.router.add_post("/workspace/attach", attach_workspace_file)

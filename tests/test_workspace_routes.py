@@ -450,3 +450,44 @@ class TestUploadWorkspaceFile:
         assert resp.status == 200
         # c is not a dir so file lands in parent dir a/b
         assert (workspace_dir / "a" / "b" / "deep.txt").read_bytes() == b"deep"
+
+
+class TestDeleteWorkspaceFile:
+    @pytest.mark.asyncio
+    async def test_delete_existing_file(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        target = workspace_dir / "deleteme.txt"
+        target.write_text("goodbye", encoding="utf-8")
+        assert target.exists()
+
+        resp = await client.delete("/workspace/file?path=deleteme.txt")
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["deleted"] is True
+        assert data["name"] == "deleteme.txt"
+        assert not target.exists()
+
+    @pytest.mark.asyncio
+    async def test_delete_not_found(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.delete("/workspace/file?path=no_such_file.txt")
+        assert resp.status == 404
+
+    @pytest.mark.asyncio
+    async def test_delete_directory_rejected(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "mydir").mkdir(exist_ok=True)
+        resp = await client.delete("/workspace/file?path=mydir")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_delete_missing_path(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.delete("/workspace/file?path=")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_delete_path_traversal(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.delete("/workspace/file?path=../escape.txt")
+        assert resp.status == 403
