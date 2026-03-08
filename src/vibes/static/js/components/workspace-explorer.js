@@ -849,7 +849,18 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                                 </button>
                             `}
                             ${nodeMapRef.current.get(selectedPath)?.type === 'dir'
-                                ? html`<a class="workspace-download" href=${getWorkspaceDownloadUrl(selectedPath, showHidden)}
+                                ? html`
+                                    <button class="workspace-edit" data-upload-target=${selectedPath}
+                                        onClick=${handleFolderUploadClick} title="Upload files to this folder"
+                                        disabled=${uploading}>
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                            stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                            <polyline points="17 8 12 3 7 8"/>
+                                            <line x1="12" y1="3" x2="12" y2="15"/>
+                                        </svg>
+                                    </button>
+                                    <a class="workspace-download" href=${getWorkspaceDownloadUrl(selectedPath, showHidden)}
                                     title="Download folder as zip" onClick=${(e) => e.stopPropagation()}>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                                         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -870,7 +881,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                     ${loadingPreview && html`<div class="workspace-loading">Loading preview…</div>`}
                     ${preview?.error && html`<div class="workspace-error">${preview.error}</div>`}
                     ${nodeMapRef.current.get(selectedPath)?.type === 'dir' && html`
-                        <div class="workspace-preview-text">Folder selected — download as zip.</div>
+                        <div class="workspace-preview-text">Folder selected — upload files or download as zip.</div>
                     `}
                     ${preview && !preview.error && nodeMapRef.current.get(selectedPath)?.type !== 'dir' && html`
                         <div class="workspace-preview-meta">
