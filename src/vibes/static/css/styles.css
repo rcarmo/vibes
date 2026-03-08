@@ -232,6 +232,12 @@ body {
 .workspace-tree-list {
     margin: 0;
     padding: 0;
+    outline: none;
+}
+.workspace-tree-list:focus-visible {
+    outline: 1px solid var(--accent-color);
+    outline-offset: -1px;
+    border-radius: 3px;
 }
 
 .workspace-row {
@@ -245,6 +251,7 @@ body {
     border-radius: 3px;
     gap: 2px;
     box-sizing: border-box;
+    touch-action: manipulation;
 }
 
 .workspace-row:hover,

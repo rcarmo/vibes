@@ -182,6 +182,8 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const selectedPathRef = useRef(selectedPath);
     const folderUploadRef = useRef(null);
     const folderUploadTargetRef = useRef('.');
+    const treeListRef = useRef(null);
+    const longPressTimerRef = useRef(null);
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
@@ -397,6 +399,114 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         if (e.target.closest('[data-path]')) return;
         clearSelection();
     }).current;
+
+    const handleTreeKeyDown = useCallback((e) => {
+        const currentRows = rows;
+        if (!currentRows || currentRows.length === 0) return;
+        const curIdx = selectedPath
+            ? currentRows.findIndex((r) => r.node.path === selectedPath)
+            : -1;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const next = Math.min(curIdx + 1, currentRows.length - 1);
+            const row = currentRows[next];
+            setSelectedPath(row.node.path);
+            if (row.node.type !== 'dir') loadPreviewRef.current?.(row.node.path);
+            else { setPreview(null); setLoadingPreview(false); }
+            scrollRowIntoView(row.node.path);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const next = curIdx <= 0 ? 0 : curIdx - 1;
+            const row = currentRows[next];
+            setSelectedPath(row.node.path);
+            if (row.node.type !== 'dir') loadPreviewRef.current?.(row.node.path);
+            else { setPreview(null); setLoadingPreview(false); }
+            scrollRowIntoView(row.node.path);
+        } else if (e.key === 'ArrowRight' && curIdx >= 0) {
+            const row = currentRows[curIdx];
+            if (row.node.type === 'dir' && !expanded.has(row.node.path)) {
+                e.preventDefault();
+                loadSubtreeRef.current?.(row.node.path);
+                setExpanded((prev) => new Set([...prev, row.node.path]));
+            }
+        } else if (e.key === 'ArrowLeft' && curIdx >= 0) {
+            const row = currentRows[curIdx];
+            if (row.node.type === 'dir' && expanded.has(row.node.path)) {
+                e.preventDefault();
+                setExpanded((prev) => { const next = new Set(prev); next.delete(row.node.path); return next; });
+            }
+        } else if (e.key === 'Enter' && curIdx >= 0) {
+            e.preventDefault();
+            const row = currentRows[curIdx];
+            if (row.node.type === 'dir') {
+                loadSubtreeRef.current?.(row.node.path);
+                setExpanded((prev) => {
+                    const next = new Set(prev);
+                    if (next.has(row.node.path)) next.delete(row.node.path);
+                    else next.add(row.node.path);
+                    return next;
+                });
+            } else if (onOpenEditor && preview?.kind === 'text') {
+                onOpenEditor(row.node.path);
+            }
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && curIdx >= 0) {
+            const row = currentRows[curIdx];
+            if (row.node.type !== 'dir') {
+                e.preventDefault();
+                handleDeleteFile();
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            clearSelection();
+        }
+    }, [rows, selectedPath, expanded, preview, onOpenEditor]);
+
+    const scrollRowIntoView = useCallback((path) => {
+        const container = treeListRef.current;
+        if (!container) return;
+        const el = container.querySelector(`[data-path="${CSS.escape(path)}"]`);
+        el?.scrollIntoView({ block: 'nearest' });
+    }, []);
+
+    const handleRowTouchStart = useCallback((e) => {
+        const rowEl = e.target.closest('[data-path]');
+        if (!rowEl) return;
+        const path = rowEl.dataset.path;
+        const type = rowEl.dataset.type;
+        if (type !== 'dir') {
+            longPressTimerRef.current = setTimeout(() => {
+                longPressTimerRef.current = null;
+                const node = nodeMapRef.current.get(path);
+                if (node && node.type !== 'dir') {
+                    const filename = path.split('/').pop() || path;
+                    if (confirm(`Delete "${filename}"? This cannot be undone.`)) {
+                        deleteWorkspaceFile(path).then(() => {
+                            const parent = path.includes('/') ? (path.split('/').slice(0, -1).join('/') || '.') : '.';
+                            clearSelection();
+                            loadSubtreeRef.current?.(parent);
+                        }).catch((err) => {
+                            setPreview((prev) => ({ ...(prev || {}), error: err?.message || 'Failed to delete file' }));
+                        });
+                    }
+                }
+            }, 600);
+        }
+    }, []);
+
+    const handleRowTouchEnd = useCallback(() => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    }, []);
+
+    const handleRowTouchMove = useCallback(() => {
+        if (longPressTimerRef.current) {
+            clearTimeout(longPressTimerRef.current);
+            longPressTimerRef.current = null;
+        }
+    }, []);
 
     const handlePreviewSplitterMouseDown = useRef((e) => {
         e.preventDefault();
@@ -661,7 +771,10 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                 ${initialLoad && html`<div class="workspace-loading">Loading…</div>`}
                 ${error && html`<div class="workspace-error">${error}</div>`}
                 ${tree && html`
-                    <div class="workspace-tree-list" onClick=${handleTreeClick}>
+                    <div class="workspace-tree-list" ref=${treeListRef} tabIndex="0"
+                        onClick=${handleTreeClick} onKeyDown=${handleTreeKeyDown}
+                        onTouchStart=${handleRowTouchStart} onTouchEnd=${handleRowTouchEnd}
+                        onTouchMove=${handleRowTouchMove}>
                         ${rows.map(({ node, depth }) => {
                             const isDir = node.type === 'dir';
                             const isSelected = node.path === selectedPath;
