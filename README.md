@@ -2,7 +2,9 @@
 
 A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol, as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
 
-![Screenshot](docs/screenshot.png)
+![Demo](docs/demo.gif)
+
+> Vibes and [piclaw](https://github.com/rcarmo/piclaw) share the same web UI.
 
 ## Features
 
