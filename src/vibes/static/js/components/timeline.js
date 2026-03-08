@@ -1,6 +1,12 @@
 import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { getMediaInfo, getMediaUrl, getThumbnailUrl } from '../api.js';
 
+const SAFE_URL_RE = /^(https?:|mailto:|blob:|data:)/i;
+function sanitizeUrl(url) {
+    if (!url || typeof url !== 'string') return '';
+    return SAFE_URL_RE.test(url.trim()) ? url.trim() : '';
+}
+
 function escapeRegex(value) {
     return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -145,8 +151,12 @@ function ResourceLinkBlock({ block }) {
     const sizeStr = block.size ? formatFileSize(block.size) : '';
     const mimeType = block.mime_type || '';
     const icon = getMimeIcon(mimeType);
+    const safeUrl = sanitizeUrl(block.uri);
     return html`
-        <a href=${block.uri} class="resource-link" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()}>
+        <a href=${safeUrl || '#'} class="resource-link"
+            target=${safeUrl ? "_blank" : undefined}
+            rel=${safeUrl ? "noopener noreferrer" : undefined}
+            onClick=${(e) => e.stopPropagation()}>
             <div class="resource-link-main">
                 <div class="resource-link-header">
                     <span class="resource-link-icon-inline">${icon}</span>

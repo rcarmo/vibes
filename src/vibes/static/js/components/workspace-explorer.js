@@ -180,6 +180,8 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const visibleRef = useRef(visible);
     const activeRef = useRef(active ?? visible);
     const selectedPathRef = useRef(selectedPath);
+    const folderUploadRef = useRef(null);
+    const folderUploadTargetRef = useRef('.');
 
     useEffect(() => { expandedRef.current = expanded; }, [expanded]);
     useEffect(() => { showHiddenRef.current = showHidden; }, [showHidden]);
@@ -490,6 +492,47 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         }
     };
 
+    const handleFolderUploadClick = useCallback((e) => {
+        e.stopPropagation();
+        const path = e.currentTarget.dataset.uploadTarget || '.';
+        folderUploadTargetRef.current = path;
+        folderUploadRef.current?.click();
+    }, []);
+
+    const handleFolderUploadChange = useCallback(async (e) => {
+        const files = Array.from(e.target.files || []);
+        e.target.value = '';
+        if (files.length === 0) return;
+        const target = folderUploadTargetRef.current;
+        setUploading(true);
+        try {
+            let lastResult = null;
+            for (const file of files) {
+                try {
+                    lastResult = await uploadWorkspaceFile(file, target);
+                } catch (err) {
+                    if (err?.status === 409 || err?.code === 'file_exists') {
+                        const name = file?.name || 'file';
+                        const targetLabel = target === '.' ? 'workspace root' : target;
+                        if (!confirm(`"${name}" already exists in ${targetLabel}. Overwrite?`)) continue;
+                        lastResult = await uploadWorkspaceFile(file, target, { overwrite: true });
+                    } else {
+                        throw err;
+                    }
+                }
+            }
+            if (lastResult?.path) {
+                setSelectedPath(lastResult.path);
+                loadPreviewRef.current?.(lastResult.path);
+            }
+            loadSubtreeRef.current?.(target);
+        } catch (err) {
+            setError(err?.message || 'Failed to upload file');
+        } finally {
+            setUploading(false);
+        }
+    }, []);
+
     const renderPreviewMarkdown = renderMarkdown || ((value) => value || '');
 
     /** Resolve which directory a drop should target based on the hovered row. */
@@ -552,25 +595,22 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         const files = Array.from(event?.dataTransfer?.files || []);
         if (files.length === 0) return;
 
-        // Check for existing files and prompt before overwriting
-        const existing = [];
-        const map = nodeMapRef.current;
-        for (const file of files) {
-            const filePath = target === '.' ? file.name : `${target}/${file.name}`;
-            if (map.has(filePath)) existing.push(file.name);
-        }
-        if (existing.length > 0) {
-            const names = existing.length <= 5
-                ? existing.join(', ')
-                : `${existing.slice(0, 5).join(', ')} and ${existing.length - 5} more`;
-            if (!confirm(`Overwrite existing file${existing.length > 1 ? 's' : ''}: ${names}?`)) return;
-        }
-
         setUploading(true);
         try {
             let lastResult = null;
             for (const file of files) {
-                lastResult = await uploadWorkspaceFile(file, target);
+                try {
+                    lastResult = await uploadWorkspaceFile(file, target);
+                } catch (err) {
+                    if (err?.status === 409 || err?.code === 'file_exists') {
+                        const name = file?.name || 'file';
+                        const targetLabel = target === '.' ? 'workspace root' : target;
+                        if (!confirm(`"${name}" already exists in ${targetLabel}. Overwrite?`)) continue;
+                        lastResult = await uploadWorkspaceFile(file, target, { overwrite: true });
+                    } else {
+                        throw err;
+                    }
+                }
             }
             if (lastResult?.path) {
                 setSelectedPath(lastResult.path);
@@ -650,6 +690,18 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                                     <span class="workspace-label">${node.name}</span>
                                     ${isDir && !isOpen && ((Array.isArray(node.children) && node.children.length > 0) || node.child_count > 0) && html`
                                         <span class="workspace-count">${Array.isArray(node.children) && node.children.length > 0 ? node.children.length : node.child_count}</span>
+                                    `}
+                                    ${isDir && html`
+                                        <button class="workspace-folder-upload" data-upload-target=${node.path}
+                                            onClick=${handleFolderUploadClick} title="Upload files to this folder"
+                                            disabled=${uploading} aria-hidden="true">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                                stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                                                <polyline points="17 8 12 3 7 8"/>
+                                                <line x1="12" y1="3" x2="12" y2="15"/>
+                                            </svg>
+                                        </button>
                                     `}
                                 </div>
                             `;
@@ -734,6 +786,8 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                     `}
                 </div>
             `}
+            <input type="file" multiple ref=${folderUploadRef} onChange=${handleFolderUploadChange}
+                style="display:none" />
         </aside>
     `;
 }

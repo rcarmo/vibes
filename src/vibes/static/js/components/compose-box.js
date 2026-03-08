@@ -480,6 +480,22 @@ export function ComposeBox({
         addMediaFiles(e.dataTransfer?.files || []);
     };
 
+    const handlePaste = (e) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+        const images = [];
+        for (const item of items) {
+            if (item.kind === 'file' && item.type.startsWith('image/')) {
+                const file = item.getAsFile();
+                if (file) images.push(file);
+            }
+        }
+        if (images.length > 0) {
+            e.preventDefault();
+            addMediaFiles(images);
+        }
+    };
+
     const handleInput = (e) => {
         const value = e.target.value;
         updateValue(value);
@@ -615,6 +631,7 @@ export function ComposeBox({
                         value=${searchMode ? searchText : content}
                         onInput=${handleInput}
                         onKeyDown=${handleKeyDown}
+                        onPaste=${handlePaste}
                         onFocus=${onFocus}
                         onClick=${onFocus}
                         disabled=${loading}

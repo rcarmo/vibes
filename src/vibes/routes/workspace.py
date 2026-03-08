@@ -468,6 +468,7 @@ async def delete_workspace_file(request: web.Request) -> web.Response:
 async def upload_workspace_file(request: web.Request) -> web.Response:
     """POST /workspace/upload – upload a file via multipart form data."""
     target_dir = request.query.get("path", "")
+    overwrite = request.query.get("overwrite", "") == "1"
     try:
         reader = await request.multipart()
     except Exception:
@@ -495,6 +496,13 @@ async def upload_workspace_file(request: web.Request) -> web.Response:
     root = _workspace_root()
     if resolved != root and root not in resolved.parents:
         return web.json_response({"error": "Path is outside workspace"}, status=403)
+
+    # Conflict check: return 409 if file exists and overwrite not requested
+    if resolved.exists() and not overwrite:
+        return web.json_response(
+            {"error": "File already exists", "code": "file_exists"},
+            status=409,
+        )
 
     total = 0
     with open(resolved, "wb") as f:

@@ -421,6 +421,43 @@ class TestUploadWorkspaceFile:
             workspace_mod.MAX_FILE_WRITE_BYTES = original
 
     @pytest.mark.asyncio
+    async def test_upload_conflict_returns_409(self, workspace_test_client, workspace_dir):
+        """Upload to existing file without overwrite flag returns 409."""
+        client = workspace_test_client
+        (workspace_dir / "exists.txt").write_text("original", encoding="utf-8")
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"new content", filename="exists.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 409
+        result = await resp.json()
+        assert result["code"] == "file_exists"
+        assert (workspace_dir / "exists.txt").read_text() == "original"
+
+    @pytest.mark.asyncio
+    async def test_upload_overwrite_succeeds(self, workspace_test_client, workspace_dir):
+        """Upload with overwrite=1 replaces existing file."""
+        client = workspace_test_client
+        (workspace_dir / "exists.txt").write_text("original", encoding="utf-8")
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"replaced", filename="exists.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload?overwrite=1", data=data)
+        assert resp.status == 200
+        assert (workspace_dir / "exists.txt").read_bytes() == b"replaced"
+
+    @pytest.mark.asyncio
+    async def test_upload_new_file_no_conflict(self, workspace_test_client, workspace_dir):
+        """Upload a new file (no existing) succeeds without overwrite flag."""
+        client = workspace_test_client
+        import aiohttp
+        data = aiohttp.FormData()
+        data.add_field("file", b"brand new", filename="fresh.txt", content_type="text/plain")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 200
+        assert (workspace_dir / "fresh.txt").read_bytes() == b"brand new"
+
+    @pytest.mark.asyncio
     async def test_put_file_content_too_large(self, workspace_test_client):
         """PUT /workspace/file with content exceeding limit returns 413."""
         client = workspace_test_client

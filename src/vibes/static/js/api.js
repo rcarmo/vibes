@@ -246,17 +246,24 @@ export async function updateWorkspaceFile(path, content) {
 /**
  * Upload a file to the workspace via multipart form data.
  */
-export async function uploadWorkspaceFile(file, targetPath = '') {
+export async function uploadWorkspaceFile(file, targetPath = '', options = {}) {
     const formData = new FormData();
     formData.append('file', file);
-    const url = `/workspace/upload?path=${encodeURIComponent(targetPath || '')}`;
+    const params = new URLSearchParams();
+    if (targetPath) params.set('path', targetPath);
+    if (options.overwrite) params.set('overwrite', '1');
+    const query = params.toString();
+    const url = query ? `/workspace/upload?${query}` : '/workspace/upload';
     const response = await fetch(API_BASE + url, {
         method: 'POST',
         body: formData,
     });
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const body = await response.json().catch(() => ({ error: 'Upload failed' }));
+        const err = new Error(body.error || `HTTP ${response.status}`);
+        err.status = response.status;
+        err.code = body.code;
+        throw err;
     }
     return response.json();
 }
