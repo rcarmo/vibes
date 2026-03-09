@@ -243,6 +243,16 @@ export function WorkspaceEditor({
         onSave?.(value);
     }, [saving, loading, onSave]);
 
+    const handleClose = useCallback(() => {
+        onClose?.();
+    }, [onClose]);
+
+    // Keep stable refs for CodeMirror keymap (avoids stale closures)
+    const handleSaveRef = useRef(handleSave);
+    const handleCloseRef = useRef(handleClose);
+    useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
+    useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
+
     useEffect(() => {
         const host = hostRef.current;
         if (!host) return;
@@ -271,7 +281,7 @@ export function WorkspaceEditor({
                 ...completionKeymap,
                 ...closeBracketsKeymap,
                 indentWithTab,
-                { key: 'Mod-s', run: () => { handleSave(); return true; } },
+                { key: 'Mod-s', run: () => { handleSaveRef.current(); return true; } },
             ]),
             EditorView.updateListener.of((update) => {
                 if (update.docChanged) updateDirty();
@@ -339,7 +349,7 @@ export function WorkspaceEditor({
         const onKeyDown = (e) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
-                handleSave();
+                handleSaveRef.current();
                 return;
             }
             const isAltOnly = e.altKey && !e.metaKey && !e.ctrlKey && !e.shiftKey;
@@ -360,23 +370,23 @@ export function WorkspaceEditor({
             if (isAltOnly && (key === 'q' || key === 'Q' || code === 'KeyQ')) {
                 e.preventDefault();
                 e.stopPropagation();
-                onClose?.();
+                handleCloseRef.current();
                 return;
             }
             if (e.key === 'Escape' && !e.defaultPrevented && !dirty) {
-                onClose?.();
+                handleCloseRef.current();
             }
         };
         document.addEventListener('keydown', onKeyDown);
         return () => document.removeEventListener('keydown', onKeyDown);
-    }, [dirty, onClose, handleSave, handleToggleVim, handleToggleWhitespace]);
+    }, [dirty, handleToggleVim, handleToggleWhitespace]);
 
     return html`
         <div class="editor-pane" ref=${paneRef}>
             <div class="editor-header">
                 <div class="editor-title" title=${path || ''}>${path || 'Untitled file'}</div>
                 <div class="editor-actions">
-                    <button class="editor-button" onClick=${onClose} title="Close editor">Close</button>
+                    <button class="editor-button" onClick=${handleClose} title="Close editor">Close</button>
                     <button
                         class="editor-button primary"
                         onClick=${handleSave}
