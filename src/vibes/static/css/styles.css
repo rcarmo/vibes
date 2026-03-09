@@ -96,7 +96,7 @@
 /* Base styles */
 html, body {
     height: 100%;
-    overflow-x: hidden;
+    overflow: hidden;
 }
 
 body {
@@ -105,7 +105,6 @@ body {
     line-height: var(--line-height);
     color: var(--text-primary);
     background-color: var(--bg-primary);
-    overflow-x: hidden;
 }
 
 #app {
@@ -113,7 +112,7 @@ body {
     height: 100%;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
+    overflow: hidden;
 }
 
 /* Layout */
