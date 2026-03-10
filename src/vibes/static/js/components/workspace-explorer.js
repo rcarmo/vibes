@@ -882,7 +882,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                     ${loadingPreview && html`<div class="workspace-loading">Loading preview…</div>`}
                     ${preview?.error && html`<div class="workspace-error">${preview.error}</div>`}
                     ${nodeMapRef.current.get(selectedPath)?.type === 'dir' && html`
-                        <${DiskUsageSunburst} node=${nodeMapRef.current.get(selectedPath)} nodeMap=${nodeMapRef.current} />
+                        <${DiskUsageSunburst} node=${nodeMapRef.current.get(selectedPath)} showHidden=${showHidden} />
                     `}
                     ${preview && !preview.error && nodeMapRef.current.get(selectedPath)?.type !== 'dir' && html`
                         <div class="workspace-preview-meta">

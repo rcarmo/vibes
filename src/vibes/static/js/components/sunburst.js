@@ -1,4 +1,4 @@
-import { html, useState, useEffect, useCallback, useMemo } from '../vendor/preact-htm.js';
+import { html, useState, useEffect, useCallback, useMemo, useRef } from '../vendor/preact-htm.js';
 import { getWorkspaceTree } from '../api.js';
 
 const PALETTE = [
@@ -6,7 +6,7 @@ const PALETTE = [
     '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
 ];
 
-const FETCH_DEPTH = 5;
+const FETCH_DEPTH = 8;
 const MAX_DEPTH = 4;
 const CX = 100;
 const CY = 100;
@@ -89,9 +89,6 @@ function arcPath(cx, cy, r1, r2, a0, a1) {
     ].join(' ');
 }
 
-/**
- * Find a node by path inside a deep tree (returned by getWorkspaceTree).
- */
 function findNode(root, targetPath) {
     if (!root) return null;
     if (root.path === targetPath) return root;
@@ -103,28 +100,61 @@ function findNode(root, targetPath) {
     return null;
 }
 
-export function DiskUsageSunburst({ node }) {
+// Simple LRU cache for deep tree fetches
+const _treeCache = new Map();
+const CACHE_MAX = 16;
+function cacheGet(key) { return _treeCache.get(key) || null; }
+function cacheSet(key, value) {
+    _treeCache.delete(key); // move to end
+    _treeCache.set(key, value);
+    if (_treeCache.size > CACHE_MAX) {
+        const first = _treeCache.keys().next().value;
+        _treeCache.delete(first);
+    }
+}
+
+export function DiskUsageSunburst({ node, showHidden = false }) {
     const [deepTree, setDeepTree] = useState(null);
     const [loading, setLoading] = useState(false);
     const [drillPath, setDrillPath] = useState(null);
     const [hovered, setHovered] = useState(null);
     const folderPath = node?.path;
+    const fetchIdRef = useRef(0);
 
-    // Fetch a deep tree for the selected folder
+    // Fetch a deep tree for the selected folder (with cache)
     useEffect(() => {
         if (!folderPath) return;
-        let cancelled = false;
-        setLoading(true);
+        const id = ++fetchIdRef.current;
         setDrillPath(null);
         setHovered(null);
-        getWorkspaceTree(folderPath, FETCH_DEPTH)
+
+        const cacheKey = `${folderPath}|${showHidden}`;
+        const cached = cacheGet(cacheKey);
+        if (cached) {
+            setDeepTree(cached);
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        getWorkspaceTree(folderPath, FETCH_DEPTH, showHidden)
             .then((data) => {
-                if (!cancelled && data?.root) setDeepTree(data.root);
+                if (id !== fetchIdRef.current) return;
+                if (data?.root) {
+                    cacheSet(cacheKey, data.root);
+                    setDeepTree(data.root);
+                }
             })
             .catch(() => {})
-            .finally(() => { if (!cancelled) setLoading(false); });
-        return () => { cancelled = true; };
-    }, [folderPath]);
+            .finally(() => { if (id === fetchIdRef.current) setLoading(false); });
+    }, [folderPath, showHidden]);
+
+    // Invalidate cache on workspace updates
+    useEffect(() => {
+        const handler = () => { _treeCache.clear(); };
+        window.addEventListener('workspace-update', handler);
+        return () => window.removeEventListener('workspace-update', handler);
+    }, []);
 
     const root = useMemo(() => {
         if (!deepTree) return null;
@@ -150,12 +180,14 @@ export function DiskUsageSunburst({ node }) {
 
     const handleCenterClick = useCallback(() => {
         if (!drillPath) return;
-        const parent = drillPath.includes('/') ? drillPath.substring(0, drillPath.lastIndexOf('/')) : null;
-        setDrillPath(parent === '' ? null : parent);
+        // Navigate up: find parent path, or null to return to deepTree root
+        const parent = drillPath.includes('/')
+            ? drillPath.substring(0, drillPath.lastIndexOf('/'))
+            : null;
+        setDrillPath(parent || null);
         setHovered(null);
     }, [drillPath]);
 
-    // Top-level legend entries (depth === 0 arcs, deduplicated by path)
     const legendEntries = useMemo(() => {
         const seen = new Set();
         return arcs.filter((a) => a.depth === 0 && !seen.has(a.node.path) && seen.add(a.node.path));
@@ -166,6 +198,7 @@ export function DiskUsageSunburst({ node }) {
     if (!deepTree) return null;
 
     const centerLabel = root.name === '.' ? 'root' : root.name;
+    const canGoUp = Boolean(drillPath);
 
     return html`
         <div style="position:relative;width:100%;max-width:300px;margin:0 auto;">
@@ -195,7 +228,7 @@ export function DiskUsageSunburst({ node }) {
                     fill="var(--bg-primary, #1a1a2e)"
                     stroke="var(--border-color, #333)"
                     stroke-width="0.5"
-                    style="cursor:${drillPath ? 'pointer' : 'default'}"
+                    style="cursor:${canGoUp ? 'pointer' : 'default'}"
                     onClick=${handleCenterClick}
                 />
                 <text
@@ -204,13 +237,24 @@ export function DiskUsageSunburst({ node }) {
                     fill="var(--text-primary, #ccc)"
                     font-size="7"
                     font-weight="bold"
+                    style="pointer-events:none"
                 >${centerLabel.toUpperCase()}</text>
                 <text
                     x=${CX} y=${CY + 6}
                     text-anchor="middle"
                     fill="var(--text-secondary, #888)"
                     font-size="6"
+                    style="pointer-events:none"
                 >${formatSize(totalSize)}</text>
+                ${canGoUp && html`
+                    <text
+                        x=${CX} y=${CY + 14}
+                        text-anchor="middle"
+                        fill="var(--accent-color, #4e79a7)"
+                        font-size="4"
+                        style="pointer-events:none"
+                    >▲ UP</text>
+                `}
             </svg>
             ${hovered != null && arcs[hovered] && html`
                 <div style="
