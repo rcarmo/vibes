@@ -582,6 +582,44 @@ function updateThemeColor(dark) {
     }
 }
 
+/**
+ * Apply a UI theme/tint from a ui_theme SSE event or localStorage.
+ * Persists to localStorage so it survives page reloads.
+ */
+function applyUiTheme(data) {
+    if (typeof document === 'undefined') return;
+    const root = document.documentElement;
+    if (data.theme !== undefined) {
+        const theme = data.theme || '';
+        if (theme && theme !== 'default') {
+            root.setAttribute('data-theme', theme);
+            localStorage.setItem('vibes-theme', theme);
+        } else {
+            root.removeAttribute('data-theme');
+            localStorage.removeItem('vibes-theme');
+        }
+    }
+    if (data.tint !== undefined) {
+        if (data.tint) {
+            root.setAttribute('data-tint', data.tint);
+            root.style.setProperty('--tint-color', data.tint);
+            localStorage.setItem('vibes-tint', data.tint);
+        } else {
+            root.removeAttribute('data-tint');
+            root.style.removeProperty('--tint-color');
+            localStorage.removeItem('vibes-tint');
+        }
+    }
+}
+
+// Restore theme/tint from localStorage on page load
+if (typeof window !== 'undefined') {
+    const savedTheme = localStorage.getItem('vibes-theme');
+    const savedTint = localStorage.getItem('vibes-tint');
+    if (savedTheme) applyUiTheme({ theme: savedTheme });
+    if (savedTint) applyUiTheme({ tint: savedTint });
+}
+
 const dedupePosts = (items) => {
     const seen = new Set();
     return (items || []).filter((post) => {
@@ -1502,6 +1540,11 @@ function App() {
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('workspace-update', { detail: data }));
             }
+            return;
+        }
+
+        if (eventType === 'ui_theme') {
+            applyUiTheme(data);
             return;
         }
 

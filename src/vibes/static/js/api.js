@@ -311,6 +311,10 @@ export function getWorkspaceDownloadUrl(path, showHidden = false) {
     return `${API_BASE}/workspace/download?${query}`;
 }
 
+export async function getAgentCommands() {
+    return request('/agent/commands');
+}
+
 /**
  * SSE client for live updates
  */
@@ -422,6 +426,10 @@ export class SSEClient {
 
         this.eventSource.addEventListener('workspace_update', (e) => {
             this.onEvent('workspace_update', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('ui_theme', (e) => {
+            this.onEvent('ui_theme', JSON.parse(e.data));
         });
     }
     

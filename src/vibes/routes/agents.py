@@ -969,12 +969,59 @@ async def remove_from_whitelist(request: web.Request) -> web.Response:
         return web.json_response({"error": "Pattern not found"}, status=404)
 
 
+async def get_agent_commands(request: web.Request) -> web.Response:
+    """GET /agent/commands — return slash commands for autocomplete."""
+    from ..slash_commands import AVAILABLE_THEMES
+
+    # Base commands that are always available
+    commands = [
+        {"name": "/model", "description": "Show or set the model"},
+        {"name": "/thinking", "description": "Show or set thinking level"},
+        {"name": "/prompt", "description": "Show or set the user system prompt"},
+        {"name": "/theme", "description": "Show or set the UI theme", "options": AVAILABLE_THEMES},
+        {"name": "/tint", "description": "Set or clear a UI colour tint"},
+        {"name": "/name", "description": "Show or set the agent display name"},
+        {"name": "/agent-name", "description": "Show or set the agent display name"},
+        {"name": "/agent-avatar", "description": "Set or show the agent avatar URL"},
+        {"name": "/user-name", "description": "Set or show your display name"},
+        {"name": "/user-avatar", "description": "Set or show your avatar URL"},
+        {"name": "/user-github", "description": "Set name/avatar from GitHub profile"},
+        {"name": "/queue", "description": "Queue a message for after the current turn"},
+        {"name": "/abort", "description": "Cancel the current agent operation"},
+        {"name": "/restart", "description": "Restart the active agent"},
+        {"name": "/shell", "description": "Run a shell command"},
+        {"name": "/commands", "description": "List available commands"},
+    ]
+
+    # Try to query agent-specific commands from the running agent
+    config = get_config()
+    if config.pi_enabled and is_pi_running():
+        try:
+            resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+            if resp and resp.get("success"):
+                data = resp.get("data", {})
+                agent_cmds = data.get("commands") or data.get("available_commands") or []
+                existing = {c["name"] for c in commands}
+                for cmd in agent_cmds:
+                    if isinstance(cmd, dict):
+                        name = cmd.get("name", "")
+                        if name and name not in existing:
+                            commands.append({"name": name, "description": cmd.get("description", "")})
+                    elif isinstance(cmd, str) and cmd not in existing:
+                        commands.append({"name": cmd, "description": ""})
+        except Exception:
+            logger.debug("Failed to query agent commands", exc_info=True)
+
+    return web.json_response({"commands": commands})
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up agent routes."""
     app.router.add_get("/agents", list_agents)
     app.router.add_get("/agents/status", get_agent_status)
     app.router.add_get("/agent/context", get_agent_context)
     app.router.add_get("/agent/models", get_agent_models)
+    app.router.add_get("/agent/commands", get_agent_commands)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)

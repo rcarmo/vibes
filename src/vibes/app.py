@@ -31,6 +31,31 @@ async def health_check(request: web.Request) -> web.Response:
     return web.json_response({"status": "ok"})
 
 
+async def manifest_handler(request: web.Request) -> web.Response:
+    """Dynamic PWA manifest — uses agent name/avatar when configured."""
+    config = get_config()
+    name = config.agent_name or "Vibes"
+    icons = [
+        {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
+        {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
+    ]
+    if config.agent_avatar:
+        icons.insert(0, {"src": config.agent_avatar, "sizes": "192x192", "type": "image/png", "purpose": "any"})
+    manifest = {
+        "name": name,
+        "short_name": name[:12] if len(name) > 12 else name,
+        "description": "Slack-like interface for coding agents",
+        "start_url": "/",
+        "display": "standalone",
+        "display_override": ["window-controls-overlay"],
+        "background_color": "#000000",
+        "theme_color": "#1d9bf0",
+        "color_scheme": "dark light",
+        "icons": icons,
+    }
+    return web.json_response(manifest)
+
+
 async def index_handler(request: web.Request) -> web.FileResponse:
     """Serve the SPA index.html."""
     return web.FileResponse(STATIC_PATH / "index.html")
@@ -113,6 +138,9 @@ def create_app() -> web.Application:
     agents.setup_routes(app)
     avatar.setup_routes(app)
     workspace.setup_routes(app)
+    
+    # Dynamic PWA manifest (before static to take priority over static/manifest.json)
+    app.router.add_get("/manifest.json", manifest_handler)
     
     # Static files and SPA fallback
     app.router.add_static("/static", STATIC_PATH, name="static")

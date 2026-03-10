@@ -1,13 +1,16 @@
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getAgentModels, sendAgentMessage, uploadMedia } from '../api.js';
+import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
+ * Base set — merged with dynamic commands from the server on connect.
  */
 const SLASH_COMMANDS = [
     { name: '/model', description: 'Show or set the model' },
     { name: '/thinking', description: 'Show or set thinking level' },
     { name: '/prompt', description: 'Show or set the user system prompt' },
+    { name: '/theme', description: 'Show or set the UI theme' },
+    { name: '/tint', description: 'Set or clear a UI colour tint' },
     { name: '/name', description: 'Show or set the agent display name' },
     { name: '/agent-name', description: 'Show or set the agent display name' },
     { name: '/agent-avatar', description: 'Set or show the agent avatar URL' },
@@ -99,6 +102,7 @@ export function ComposeBox({
     const [showModelPopup, setShowModelPopup] = useState(false);
     const [modelOptions, setModelOptions] = useState([]);
     const [loadingModels, setLoadingModels] = useState(false);
+    const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
     const slashRef = useRef(null);
     const modelPopupRef = useRef(null);
@@ -140,6 +144,26 @@ export function ComposeBox({
     const historyRef = useRef(loadHistory());
     const historyIndexRef = useRef(-1);
     const historyDraftRef = useRef('');
+
+    // Fetch dynamic slash commands on mount
+    useEffect(() => {
+        getAgentCommands()
+            .then((data) => {
+                if (data?.commands?.length) {
+                    const existing = new Set(SLASH_COMMANDS.map(c => c.name));
+                    const merged = [...SLASH_COMMANDS];
+                    for (const cmd of data.commands) {
+                        if (!existing.has(cmd.name)) {
+                            merged.push({ name: cmd.name, description: cmd.description || '' });
+                            existing.add(cmd.name);
+                        }
+                    }
+                    setSlashCommands(merged);
+                }
+            })
+            .catch(() => {});
+    }, []);
+
     const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
         && typeof navigator !== 'undefined'
@@ -190,7 +214,7 @@ export function ComposeBox({
             setSlashMatches([]);
             return;
         }
-        const matches = SLASH_COMMANDS.filter((cmd) =>
+        const matches = slashCommands.filter((cmd) =>
             cmd.name.startsWith(prefix) || cmd.name.replace(/-/g, '').startsWith(prefix.replace(/-/g, ''))
         );
         if (matches.length > 0 && !(matches.length === 1 && matches[0].name === prefix)) {

@@ -109,6 +109,10 @@ def _build_tree(path: Path, depth: int, show_hidden: bool, state: dict[str, int 
     }
 
     if not path.is_dir():
+        try:
+            node["size"] = path.stat().st_size
+        except OSError:
+            pass
         return node
 
     if depth <= 0:

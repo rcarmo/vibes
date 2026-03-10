@@ -11,6 +11,7 @@ import {
     setWorkspaceVisibility,
     uploadWorkspaceFile,
 } from '../api.js';
+import { DiskUsageSunburst } from './sunburst.js';
 
 const INDENT = 16;
 const REFRESH_INTERVAL_MS = 60_000;
@@ -881,7 +882,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                     ${loadingPreview && html`<div class="workspace-loading">Loading preview…</div>`}
                     ${preview?.error && html`<div class="workspace-error">${preview.error}</div>`}
                     ${nodeMapRef.current.get(selectedPath)?.type === 'dir' && html`
-                        <div class="workspace-preview-text">Folder selected — upload files or download as zip.</div>
+                        <${DiskUsageSunburst} node=${nodeMapRef.current.get(selectedPath)} nodeMap=${nodeMapRef.current} />
                     `}
                     ${preview && !preview.error && nodeMapRef.current.get(selectedPath)?.type !== 'dir' && html`
                         <div class="workspace-preview-meta">

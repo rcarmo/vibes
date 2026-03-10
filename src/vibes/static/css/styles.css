@@ -86,6 +86,205 @@
     --search-highlight-color: rgba(29, 155, 240, 0.2);
 }
 
+/* ============================================================
+   Named Theme Presets
+   Apply via: <html data-theme="monokai">
+   Each theme overrides the 7 core variables + accent-hover.
+   ============================================================ */
+
+html[data-theme="monokai"] {
+    color-scheme: dark;
+    --bg-primary: #272822;
+    --bg-secondary: #1e1f1a;
+    --bg-hover: #3e3d32;
+    --text-primary: #f8f8f2;
+    --text-secondary: #75715e;
+    --border-color: #3e3d32;
+    --accent-color: #a6e22e;
+    --accent-hover: #8bb820;
+}
+
+html[data-theme="monokai-pro"] {
+    color-scheme: dark;
+    --bg-primary: #2d2a2e;
+    --bg-secondary: #221f22;
+    --bg-hover: #403e41;
+    --text-primary: #fcfcfa;
+    --text-secondary: #939293;
+    --border-color: #403e41;
+    --accent-color: #ffd866;
+    --accent-hover: #e6c24e;
+}
+
+html[data-theme="dracula"] {
+    color-scheme: dark;
+    --bg-primary: #282a36;
+    --bg-secondary: #1e1f29;
+    --bg-hover: #44475a;
+    --text-primary: #f8f8f2;
+    --text-secondary: #6272a4;
+    --border-color: #44475a;
+    --accent-color: #bd93f9;
+    --accent-hover: #a67de8;
+}
+
+html[data-theme="catppuccin"] {
+    color-scheme: dark;
+    --bg-primary: #1e1e2e;
+    --bg-secondary: #181825;
+    --bg-hover: #313244;
+    --text-primary: #cdd6f4;
+    --text-secondary: #a6adc8;
+    --border-color: #313244;
+    --accent-color: #89b4fa;
+    --accent-hover: #74a0e3;
+}
+
+html[data-theme="nord"] {
+    color-scheme: dark;
+    --bg-primary: #2e3440;
+    --bg-secondary: #272c36;
+    --bg-hover: #3b4252;
+    --text-primary: #eceff4;
+    --text-secondary: #d8dee9;
+    --border-color: #3b4252;
+    --accent-color: #88c0d0;
+    --accent-hover: #74adbf;
+}
+
+html[data-theme="gruvbox"] {
+    color-scheme: dark;
+    --bg-primary: #282828;
+    --bg-secondary: #1d2021;
+    --bg-hover: #3c3836;
+    --text-primary: #ebdbb2;
+    --text-secondary: #a89984;
+    --border-color: #3c3836;
+    --accent-color: #fabd2f;
+    --accent-hover: #e0a820;
+}
+
+html[data-theme="solarized"] {
+    color-scheme: dark;
+    --bg-primary: #002b36;
+    --bg-secondary: #00212b;
+    --bg-hover: #073642;
+    --text-primary: #839496;
+    --text-secondary: #586e75;
+    --border-color: #073642;
+    --accent-color: #268bd2;
+    --accent-hover: #1f78b8;
+}
+
+html[data-theme="tokyo"] {
+    color-scheme: dark;
+    --bg-primary: #1a1b26;
+    --bg-secondary: #13141c;
+    --bg-hover: #292e42;
+    --text-primary: #a9b1d6;
+    --text-secondary: #565f89;
+    --border-color: #292e42;
+    --accent-color: #7aa2f7;
+    --accent-hover: #668fde;
+}
+
+html[data-theme="miasma"] {
+    color-scheme: dark;
+    --bg-primary: #222222;
+    --bg-secondary: #1a1a1a;
+    --bg-hover: #333333;
+    --text-primary: #c2c2b0;
+    --text-secondary: #797968;
+    --border-color: #333333;
+    --accent-color: #b36d43;
+    --accent-hover: #9a5c38;
+}
+
+html[data-theme="github"] {
+    color-scheme: light;
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-hover: #eaeef2;
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --border-color: #d0d7de;
+    --accent-color: #0969da;
+    --accent-hover: #0757b8;
+}
+
+html[data-theme="gotham"] {
+    color-scheme: dark;
+    --bg-primary: #0a0f14;
+    --bg-secondary: #060a0f;
+    --bg-hover: #11151c;
+    --text-primary: #98d1ce;
+    --text-secondary: #599cab;
+    --border-color: #11151c;
+    --accent-color: #33859e;
+    --accent-hover: #2a7088;
+}
+
+html[data-theme="tango"] {
+    color-scheme: dark;
+    --bg-primary: #2e3436;
+    --bg-secondary: #252829;
+    --bg-hover: #3c3f41;
+    --text-primary: #d3d7cf;
+    --text-secondary: #888a85;
+    --border-color: #3c3f41;
+    --accent-color: #729fcf;
+    --accent-hover: #5e8ab8;
+}
+
+html[data-theme="xterm"] {
+    color-scheme: dark;
+    --bg-primary: #000000;
+    --bg-secondary: #0a0a0a;
+    --bg-hover: #1a1a1a;
+    --text-primary: #ffffff;
+    --text-secondary: #aaaaaa;
+    --border-color: #1a1a1a;
+    --accent-color: #5f87ff;
+    --accent-hover: #4a72e6;
+}
+
+html[data-theme="ristretto"] {
+    color-scheme: dark;
+    --bg-primary: #1c1210;
+    --bg-secondary: #140d0b;
+    --bg-hover: #2b1f1b;
+    --text-primary: #d5ccba;
+    --text-secondary: #8a7e70;
+    --border-color: #2b1f1b;
+    --accent-color: #a67458;
+    --accent-hover: #8f6249;
+}
+
+html[data-theme="default"] {
+    /* Resets to system default — no overrides */
+}
+
+/* ============================================================
+   Tint Support
+   Apply via: <html data-tint="#ff0000">
+   Sets --tint-color for use as a subtle overlay.
+   ============================================================ */
+
+html[data-tint] {
+    /* --tint-color is set via JS: document.documentElement.style.setProperty('--tint-color', color) */
+}
+
+html[data-tint]::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    background: var(--tint-color, transparent);
+    opacity: 0.06;
+    pointer-events: none;
+    z-index: 9999;
+    mix-blend-mode: color;
+}
+
 /* Reset */
 *, *::before, *::after {
     box-sizing: border-box;

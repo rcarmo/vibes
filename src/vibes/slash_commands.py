@@ -100,6 +100,12 @@ async def execute_command(
     if command.name == "user-github":
         return await _handle_user_github(command.args)
 
+    if command.name == "theme":
+        return await _handle_theme(command.args)
+
+    if command.name == "tint":
+        return await _handle_tint(command.args)
+
     # Unknown command — tell caller to forward to agent
     return SlashCommandResult(
         status="success",
@@ -121,6 +127,8 @@ def _list_commands() -> SlashCommandResult:
         "- `/user-name [name|clear]` - Show or set your display name",
         "- `/user-avatar [url|clear]` - Show or set your avatar URL",
         "- `/user-github <username>` - Set name/avatar from GitHub profile",
+        "- `/theme [name]` - Show or set the UI theme",
+        "- `/tint [color|clear]` - Set or clear a UI colour tint",
         "- `/queue <message>` - Queue a message for after the current turn",
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
@@ -762,3 +770,54 @@ async def _run_shell(args: str) -> SlashCommandResult:
             status="error",
             message=f"Shell error: {e}",
         )
+
+
+AVAILABLE_THEMES = [
+    "default", "monokai", "monokai-pro", "dracula", "catppuccin",
+    "nord", "gruvbox", "solarized", "tokyo", "miasma",
+    "github", "gotham", "tango", "xterm", "ristretto",
+]
+
+
+async def _handle_theme(args: str) -> SlashCommandResult:
+    """Show or set the UI theme."""
+    from .routes.sse import broadcast_event
+
+    if not args:
+        return SlashCommandResult(
+            status="success",
+            message="Available themes: " + ", ".join(f"`{t}`" for t in AVAILABLE_THEMES)
+            + "\n\nSet with: `/theme <name>`",
+        )
+
+    name = args.strip().lower()
+    if name not in AVAILABLE_THEMES:
+        return SlashCommandResult(
+            status="error",
+            message=f"Unknown theme `{name}`. Available: {', '.join(AVAILABLE_THEMES)}",
+        )
+
+    await broadcast_event("ui_theme", {"theme": name})
+    return SlashCommandResult(
+        status="success",
+        message=f"Theme set to `{name}`.",
+    )
+
+
+async def _handle_tint(args: str) -> SlashCommandResult:
+    """Set or clear a UI colour tint."""
+    from .routes.sse import broadcast_event
+
+    if not args or args.strip().lower() == "clear":
+        await broadcast_event("ui_theme", {"tint": None})
+        return SlashCommandResult(
+            status="success",
+            message="UI tint cleared.",
+        )
+
+    color = args.strip()
+    await broadcast_event("ui_theme", {"tint": color})
+    return SlashCommandResult(
+        status="success",
+        message=f"UI tint set to `{color}`.",
+    )

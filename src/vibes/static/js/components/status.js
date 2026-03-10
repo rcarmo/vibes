@@ -1,6 +1,15 @@
 import { html, useEffect, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 
+const RATE_LIMIT_RE = /429|rate.?limit|too many requests|requests per minute|tokens per minute|rpm|tpm/i;
+
+function describeRateLimit(text) {
+    if (!text || !RATE_LIMIT_RE.test(text)) return null;
+    if (/tokens?\s*per\s*minute|tpm/i.test(text)) return '⚠ Rate limited (TPM — tokens per minute)';
+    if (/requests?\s*per\s*minute|rpm/i.test(text)) return '⚠ Rate limited (RPM — requests per minute)';
+    return '⚠ Rate limited';
+}
+
 export function AgentStatus({
     status,
     draft,
@@ -90,7 +99,8 @@ export function AgentStatus({
     } else if (status?.type === 'tool_status') {
         content = title ? `${title}: ${statusText || 'Working...'}` : (statusText || 'Working...');
     } else if (status?.type === 'error') {
-        content = title || 'Agent error';
+        const rateMsg = describeRateLimit(title || statusText || '');
+        content = rateMsg || title || 'Agent error';
     } else {
         content = title || statusText || 'Working...';
     }
