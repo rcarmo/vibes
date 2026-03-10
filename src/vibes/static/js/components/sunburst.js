@@ -204,7 +204,7 @@ export function DiskUsageSunburst({ node }) {
                     fill="var(--text-primary, #ccc)"
                     font-size="7"
                     font-weight="bold"
-                >${centerLabel}</text>
+                >${centerLabel.toUpperCase()}</text>
                 <text
                     x=${CX} y=${CY + 6}
                     text-anchor="middle"

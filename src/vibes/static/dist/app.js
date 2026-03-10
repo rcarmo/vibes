@@ -648,7 +648,7 @@ ${wi.map((br,ao)=>{let O9=Li[ao]?.name||`image-${ao+1}`;return`- attachment:${br
                     fill="var(--text-primary, #ccc)"
                     font-size="7"
                     font-weight="bold"
-                >${Ot}</text>
+                >${Ot.toUpperCase()}</text>
                 <text
                     x=${Wit} y=${Rit+6}
                     text-anchor="middle"
@@ -1565,4 +1565,4 @@ ${o}
         </div>
     `}Wvi(nn`<${i4n} />`,document.getElementById("app"));
 
-//# debugId=46802126CD317BEB64756E2164756E21
+//# debugId=547B91981C4F8ACD64756E2164756E21
