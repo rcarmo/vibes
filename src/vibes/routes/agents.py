@@ -730,41 +730,43 @@ async def get_agent_context(request: web.Request) -> web.Response:
         return web.json_response(null_resp)
 
 
+def _format_model_label(model) -> str | None:
+    """Format a model dict or string into a 'provider/id' label."""
+    if isinstance(model, str):
+        return model if model.strip() else None
+    if isinstance(model, dict):
+        provider = str(model.get("provider", "") or "").strip()
+        model_id = str(model.get("modelId") or model.get("id") or model.get("name") or "").strip()
+        if provider and model_id:
+            return f"{provider}/{model_id}"
+        return model_id or None
+    return None
+
+
 async def get_agent_models(request: web.Request) -> web.Response:
     """GET /agent/models — return available models and current selection."""
     empty = {"current": None, "models": []}
     if not is_pi_running():
         return web.json_response(empty)
     try:
-        resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
-        if not resp or not resp.get("success"):
-            return web.json_response(empty)
-        data = resp.get("data", {})
-        # Extract current model label
-        model = data.get("model")
+        # Get current model from get_state
         current = None
-        if isinstance(model, dict):
-            provider = model.get("provider", "")
-            model_id = model.get("id", "")
-            if provider and model_id:
-                current = f"{provider}/{model_id}"
-            elif model_id:
-                current = model_id
-        elif isinstance(model, str):
-            current = model
-        # Extract available models list
+        state_resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        if state_resp and state_resp.get("success"):
+            current = _format_model_label(state_resp.get("data", {}).get("model"))
+
+        # Get available models via dedicated RPC command
         models = []
-        available = data.get("availableModels") or data.get("available_models") or []
-        if isinstance(available, list):
-            for m in available:
-                if isinstance(m, dict):
-                    p = m.get("provider", "")
-                    i = m.get("id", "")
-                    label = f"{p}/{i}" if p and i else i or ""
+        models_resp = await send_rpc_command({"type": "get_available_models"}, timeout=2.0)
+        if models_resp and models_resp.get("success"):
+            raw_models = models_resp.get("data", {}).get("models", [])
+            if isinstance(raw_models, list):
+                for m in raw_models:
+                    label = _format_model_label(m)
                     if label:
                         models.append(label)
-                elif isinstance(m, str) and m:
-                    models.append(m)
+                models.sort()
+
         return web.json_response({"current": current, "models": models})
     except Exception:
         logger.debug("Failed to get agent models", exc_info=True)

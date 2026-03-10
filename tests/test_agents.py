@@ -552,14 +552,27 @@ async def test_get_agent_models_with_data():
         "success": True,
         "data": {
             "model": {"provider": "anthropic", "id": "claude-sonnet-4"},
-            "availableModels": [
-                {"provider": "anthropic", "id": "claude-sonnet-4"},
-                {"provider": "anthropic", "id": "claude-opus-4"},
+        },
+    }
+    models_resp = {
+        "success": True,
+        "data": {
+            "models": [
+                {"provider": "anthropic", "modelId": "claude-sonnet-4"},
+                {"provider": "anthropic", "modelId": "claude-opus-4"},
             ],
         },
     }
+
+    async def rpc_side_effect(cmd, **kwargs):
+        if cmd.get("type") == "get_state":
+            return state_resp
+        if cmd.get("type") == "get_available_models":
+            return models_resp
+        return None
+
     with patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=state_resp):
+         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=rpc_side_effect):
         resp = await agents_mod.get_agent_models(req)
     body = json.loads(resp.body)
     assert body["current"] == "anthropic/claude-sonnet-4"
