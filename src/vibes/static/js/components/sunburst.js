@@ -1,10 +1,12 @@
-import { html, useState, useCallback, useMemo } from '../vendor/preact-htm.js';
+import { html, useState, useEffect, useCallback, useMemo } from '../vendor/preact-htm.js';
+import { getWorkspaceTree } from '../api.js';
 
 const PALETTE = [
     '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
     '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
 ];
 
+const FETCH_DEPTH = 5;
 const MAX_DEPTH = 4;
 const CX = 100;
 const CY = 100;
@@ -20,31 +22,28 @@ function formatSize(bytes) {
     return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
 }
 
-function computeSize(node, nodeMap) {
+function computeSize(node) {
     if (!node) return 0;
     if (node.type !== 'dir') return node.size || 0;
     const children = node.children;
     if (!children || children.length === 0) return 0;
     let total = 0;
     for (const child of children) {
-        const resolved = typeof child === 'string' ? nodeMap.get(child) : child;
-        if (!resolved) continue;
-        total += computeSize(resolved, nodeMap);
+        total += computeSize(child);
     }
     return total;
 }
 
-function buildArcs(node, nodeMap, startAngle, endAngle, depth, parentIndex, result) {
+function buildArcs(node, startAngle, endAngle, depth, parentIndex, result) {
     if (depth >= MAX_DEPTH) return;
     const children = node.children;
     if (!children || children.length === 0) return;
 
     const resolved = [];
     for (const child of children) {
-        const c = typeof child === 'string' ? nodeMap.get(child) : child;
-        if (!c) continue;
-        const s = computeSize(c, nodeMap);
-        if (s > 0) resolved.push({ node: c, size: s });
+        if (!child) continue;
+        const s = computeSize(child);
+        if (s > 0) resolved.push({ node: child, size: s });
     }
     if (resolved.length === 0) return;
 
@@ -67,7 +66,7 @@ function buildArcs(node, nodeMap, startAngle, endAngle, depth, parentIndex, resu
             color: PALETTE[colorIdx],
         });
         if (child.type === 'dir') {
-            buildArcs(child, nodeMap, angle, angle + sweep, depth + 1, colorIdx, result);
+            buildArcs(child, angle, angle + sweep, depth + 1, colorIdx, result);
         }
         angle += sweep;
     }
@@ -90,23 +89,57 @@ function arcPath(cx, cy, r1, r2, a0, a1) {
     ].join(' ');
 }
 
-export function DiskUsageSunburst({ node, nodeMap }) {
+/**
+ * Find a node by path inside a deep tree (returned by getWorkspaceTree).
+ */
+function findNode(root, targetPath) {
+    if (!root) return null;
+    if (root.path === targetPath) return root;
+    if (!Array.isArray(root.children)) return null;
+    for (const child of root.children) {
+        const found = findNode(child, targetPath);
+        if (found) return found;
+    }
+    return null;
+}
+
+export function DiskUsageSunburst({ node }) {
+    const [deepTree, setDeepTree] = useState(null);
+    const [loading, setLoading] = useState(false);
     const [drillPath, setDrillPath] = useState(null);
     const [hovered, setHovered] = useState(null);
+    const folderPath = node?.path;
+
+    // Fetch a deep tree for the selected folder
+    useEffect(() => {
+        if (!folderPath) return;
+        let cancelled = false;
+        setLoading(true);
+        setDrillPath(null);
+        setHovered(null);
+        getWorkspaceTree(folderPath, FETCH_DEPTH)
+            .then((data) => {
+                if (!cancelled && data?.root) setDeepTree(data.root);
+            })
+            .catch(() => {})
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
+    }, [folderPath]);
 
     const root = useMemo(() => {
-        if (!drillPath) return node;
-        return nodeMap.get(drillPath) || node;
-    }, [node, nodeMap, drillPath]);
+        if (!deepTree) return null;
+        if (!drillPath) return deepTree;
+        return findNode(deepTree, drillPath) || deepTree;
+    }, [deepTree, drillPath]);
 
-    const totalSize = useMemo(() => computeSize(root, nodeMap), [root, nodeMap]);
+    const totalSize = useMemo(() => computeSize(root), [root]);
 
     const arcs = useMemo(() => {
         if (!root || totalSize === 0) return [];
         const result = [];
-        buildArcs(root, nodeMap, -Math.PI / 2, -Math.PI / 2 + TAU, 0, 0, result);
+        buildArcs(root, -Math.PI / 2, -Math.PI / 2 + TAU, 0, 0, result);
         return result;
-    }, [root, nodeMap, totalSize]);
+    }, [root, totalSize]);
 
     const handleArcClick = useCallback((arc) => {
         if (arc.node.type === 'dir' && arc.node.children && arc.node.children.length > 0) {
@@ -123,6 +156,8 @@ export function DiskUsageSunburst({ node, nodeMap }) {
     }, [drillPath]);
 
     if (!node) return null;
+    if (loading) return html`<div style="text-align:center;color:var(--text-secondary,#888);font-size:13px;padding:16px 0;">Loading disk usage…</div>`;
+    if (!deepTree) return null;
 
     const centerLabel = root.name === '.' ? 'root' : root.name;
 

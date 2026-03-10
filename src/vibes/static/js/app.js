@@ -610,6 +610,14 @@ function applyUiTheme(data) {
             localStorage.removeItem('vibes-tint');
         }
     }
+    // Sync browser/PWA title bar colour with the active --bg-primary
+    requestAnimationFrame(() => {
+        const bg = getComputedStyle(root).getPropertyValue('--bg-primary').trim();
+        if (bg) {
+            const meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', bg);
+        }
+    });
 }
 
 // Restore theme/tint from localStorage on page load
