@@ -25,6 +25,9 @@ class SlashCommandResult:
     message: str
     handled: bool = True  # False means forward to agent as normal prompt
     refresh_agents: bool = False  # True to tell frontend to reload agents
+    model_label: Optional[str] = None
+    thinking_level: Optional[str] = None
+    supports_thinking: Optional[bool] = None
 
 
 @dataclass
@@ -253,10 +256,30 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
             config.pi_model = resolved
             from .config import save_setting
             save_setting("pi_model", resolved)
-            thinking_note = f" Thinking level: {config.pi_thinking}." if config.pi_thinking else ""
+
+            # Query current state for thinking support info
+            thinking_level = config.pi_thinking or None
+            supports_thinking = None
+            try:
+                state_resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+                if state_resp and state_resp.get("success"):
+                    state_data = state_resp.get("data", {})
+                    tl = state_data.get("thinkingLevel")
+                    if tl:
+                        thinking_level = tl
+                    st = state_data.get("supportsThinking")
+                    if st is not None:
+                        supports_thinking = bool(st)
+            except Exception:
+                pass
+
+            thinking_note = f" Thinking level: {thinking_level}." if thinking_level else ""
             return SlashCommandResult(
                 status="success",
                 message=f"Model set to `{resolved}`.{thinking_note}",
+                model_label=resolved,
+                thinking_level=thinking_level,
+                supports_thinking=supports_thinking,
             )
         error = resp.get("error", "Unknown error") if resp else "No response"
         return SlashCommandResult(status="error", message=f"Failed to set model: {error}")
@@ -420,6 +443,9 @@ async def _handle_thinking(args: str, agent_mode: str) -> SlashCommandResult:
             return SlashCommandResult(
                 status="success",
                 message=f"Thinking level set to `{level}`.",
+                model_label=config.pi_model or None,
+                thinking_level=level,
+                supports_thinking=True,
             )
         error = resp.get("error", "Unknown error") if resp else "No response"
         return SlashCommandResult(status="error", message=f"Failed to set thinking level: {error}")

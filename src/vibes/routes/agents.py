@@ -829,10 +829,27 @@ async def send_message(request: web.Request) -> web.Response:
             await broadcast_event("agent_response", response_interaction)
             if result.refresh_agents:
                 await broadcast_event("agents_changed", {})
+            # Broadcast model state changes to all clients
+            if result.model_label is not None or result.thinking_level is not None:
+                model_event = {}
+                if result.model_label is not None:
+                    model_event["model"] = result.model_label
+                if result.thinking_level is not None:
+                    model_event["thinking_level"] = result.thinking_level
+                if result.supports_thinking is not None:
+                    model_event["supports_thinking"] = result.supports_thinking
+                await broadcast_event("model_changed", model_event)
+            cmd_response = {"status": result.status, "message": result.message}
+            if result.model_label is not None:
+                cmd_response["model_label"] = result.model_label
+            if result.thinking_level is not None:
+                cmd_response["thinking_level"] = result.thinking_level
+            if result.supports_thinking is not None:
+                cmd_response["supports_thinking"] = result.supports_thinking
             return web.json_response({
                 "user_message": user_interaction,
                 "thread_id": thread_id,
-                "command": {"status": result.status, "message": result.message},
+                "command": cmd_response,
             }, status=201)
         # Not a built-in command — fall through to forward to agent
 
