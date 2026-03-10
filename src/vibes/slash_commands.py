@@ -73,6 +73,9 @@ async def execute_command(
     if command.name == "model":
         return await _handle_model(command.args, agent_mode)
 
+    if command.name == "cycle-model":
+        return await _handle_cycle_model(agent_mode)
+
     if command.name == "thinking":
         return await _handle_thinking(command.args, agent_mode)
 
@@ -285,6 +288,42 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
         return SlashCommandResult(status="error", message=f"Failed to set model: {error}")
     except Exception as e:
         return SlashCommandResult(status="error", message=f"Failed to set model: {e}")
+
+
+async def _handle_cycle_model(agent_mode: str) -> SlashCommandResult:
+    """Cycle to the next available model."""
+    if agent_mode != "pi":
+        return SlashCommandResult(
+            status="error",
+            message="Model cycling is not supported for ACP agents.",
+        )
+
+    from .pi_client import is_pi_running
+
+    if not is_pi_running():
+        return SlashCommandResult(status="error", message="Pi agent is not running.")
+
+    models = await _query_pi_models_rpc()
+    if not models:
+        from .config import get_config
+        models = await _query_pi_models_cli(get_config())
+    if not models or len(models) < 2:
+        return SlashCommandResult(
+            status="error",
+            message="No models available to cycle through.",
+        )
+
+    from .config import get_config
+    config = get_config()
+    current = config.pi_model or ""
+    try:
+        idx = models.index(current)
+        next_model = models[(idx + 1) % len(models)]
+    except ValueError:
+        next_model = models[0]
+
+    # Delegate to the normal model setter
+    return await _handle_model(next_model, agent_mode)
 
 
 async def _show_pi_model_info(config) -> SlashCommandResult:

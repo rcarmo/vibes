@@ -155,6 +155,12 @@ export function DiskUsageSunburst({ node }) {
         setHovered(null);
     }, [drillPath]);
 
+    // Top-level legend entries (depth === 0 arcs, deduplicated by path)
+    const legendEntries = useMemo(() => {
+        const seen = new Set();
+        return arcs.filter((a) => a.depth === 0 && !seen.has(a.node.path) && seen.add(a.node.path));
+    }, [arcs]);
+
     if (!node) return null;
     if (loading) return html`<div style="text-align:center;color:var(--text-secondary,#888);font-size:13px;padding:16px 0;">Loading disk usage…</div>`;
     if (!deepTree) return null;
@@ -193,17 +199,17 @@ export function DiskUsageSunburst({ node }) {
                     onClick=${handleCenterClick}
                 />
                 <text
-                    x=${CX} y=${CY - 4}
+                    x=${CX} y=${CY - 5}
                     text-anchor="middle"
                     fill="var(--text-primary, #ccc)"
-                    font-size="5"
+                    font-size="7"
                     font-weight="bold"
                 >${centerLabel}</text>
                 <text
                     x=${CX} y=${CY + 6}
                     text-anchor="middle"
                     fill="var(--text-secondary, #888)"
-                    font-size="4.5"
+                    font-size="6"
                 >${formatSize(totalSize)}</text>
             </svg>
             ${hovered != null && arcs[hovered] && html`
@@ -223,6 +229,33 @@ export function DiskUsageSunburst({ node }) {
                     text-align:center;color:var(--text-secondary,#888);
                     font-size:13px;padding:8px 0;
                 ">No size data available</div>
+            `}
+            ${legendEntries.length > 0 && html`
+                <div style="
+                    display:flex;flex-wrap:wrap;gap:2px 10px;
+                    padding:4px 0 0;font-size:11px;
+                    color:var(--text-secondary,#888);
+                    justify-content:center;
+                ">
+                    ${legendEntries.map((entry) => html`
+                        <span
+                            key=${entry.node.path}
+                            style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;"
+                            onClick=${() => handleArcClick(entry)}
+                            title=${`${entry.node.name} — ${formatSize(entry.size)}`}
+                        >
+                            <span style="
+                                display:inline-block;width:8px;height:8px;
+                                border-radius:2px;background:${entry.color};
+                                flex-shrink:0;
+                            "></span>
+                            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:90px;">
+                                ${entry.node.name}
+                            </span>
+                            <span style="opacity:0.7;">${formatSize(entry.size)}</span>
+                        </span>
+                    `)}
+                </div>
             `}
         </div>
     `;
