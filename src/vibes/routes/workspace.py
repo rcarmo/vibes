@@ -24,7 +24,7 @@ MAX_TREE_DEPTH = 20
 DEFAULT_PREVIEW_BYTES = 20_000
 MAX_PREVIEW_BYTES = 500_000
 MAX_FILE_WRITE_BYTES = 5_000_000
-MAX_TREE_ENTRIES = 5_000
+MAX_TREE_ENTRIES = 50_000
 TEXT_EXTENSIONS = {
     ".md", ".markdown", ".txt", ".py", ".js", ".ts", ".tsx", ".jsx", ".json",
     ".yaml", ".yml", ".toml", ".ini", ".cfg", ".html", ".css", ".xml", ".sh",
