@@ -469,6 +469,166 @@ async def delete_workspace_file(request: web.Request) -> web.Response:
     })
 
 
+def _normalize_entry_name(raw: str | None) -> str | None:
+    """Validate and normalize a filename (no slashes, not '.' or '..')."""
+    name = (raw or "").strip()
+    if not name or name in (".", ".."):
+        return None
+    if "/" in name or "\\" in name:
+        return None
+    if Path(name).name != name:
+        return None
+    return name
+
+
+async def create_workspace_file(request: web.Request) -> web.Response:
+    """POST /workspace/create – create a new file in a workspace directory."""
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    filename = _normalize_entry_name(data.get("name"))
+    if not filename:
+        return web.json_response({"error": "Invalid filename"}, status=400)
+
+    content = data.get("content")
+    if not isinstance(content, str):
+        return web.json_response({"error": "Missing content"}, status=400)
+
+    if len(content.encode("utf-8")) > MAX_FILE_WRITE_BYTES:
+        return web.json_response({"error": "Content too large"}, status=413)
+
+    try:
+        target_dir = _resolve_workspace_path(data.get("path"))
+    except web.HTTPForbidden:
+        return web.json_response({"error": "Forbidden"}, status=403)
+
+    if not target_dir.is_dir():
+        return web.json_response({"error": "Directory not found"}, status=404)
+
+    dest = target_dir / filename
+    if dest.exists():
+        return web.json_response(
+            {"error": "File already exists", "code": "file_exists"}, status=409,
+        )
+
+    dest.write_text(content, encoding="utf-8")
+    stat = dest.stat()
+    return web.json_response({
+        "path": _to_workspace_relative(dest),
+        "name": filename,
+        "size": stat.st_size,
+        "mtime": _format_mtime(dest),
+    })
+
+
+async def rename_workspace_file(request: web.Request) -> web.Response:
+    """POST /workspace/rename – rename a file or folder."""
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    path_value = data.get("path")
+    if not path_value:
+        return web.json_response({"error": "Missing path"}, status=400)
+
+    filename = _normalize_entry_name(data.get("name"))
+    if not filename:
+        return web.json_response({"error": "Invalid filename"}, status=400)
+
+    try:
+        target = _resolve_workspace_path(path_value)
+    except web.HTTPForbidden:
+        return web.json_response({"error": "Forbidden"}, status=403)
+
+    rel_path = _to_workspace_relative(target)
+    if rel_path == ".":
+        return web.json_response({"error": "Cannot rename workspace root"}, status=400)
+
+    if not target.exists():
+        return web.json_response({"error": "File not found"}, status=404)
+
+    next_path = target.parent / filename
+    if next_path == target:
+        return web.json_response({"path": rel_path, "name": filename})
+
+    if next_path.exists():
+        return web.json_response(
+            {"error": "File already exists", "code": "file_exists"}, status=409,
+        )
+
+    target.rename(next_path)
+    return web.json_response({
+        "path": _to_workspace_relative(next_path),
+        "name": filename,
+        "old_path": rel_path,
+    })
+
+
+async def move_workspace_entry(request: web.Request) -> web.Response:
+    """POST /workspace/move – move a file or folder to another directory."""
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    path_value = data.get("path")
+    if not path_value:
+        return web.json_response({"error": "Missing path"}, status=400)
+
+    target_value = data.get("target")
+    if not target_value:
+        return web.json_response({"error": "Missing target"}, status=400)
+
+    try:
+        source = _resolve_workspace_path(path_value)
+    except web.HTTPForbidden:
+        return web.json_response({"error": "Forbidden"}, status=403)
+
+    rel_source = _to_workspace_relative(source)
+    if rel_source == ".":
+        return web.json_response({"error": "Cannot move workspace root"}, status=400)
+
+    if not source.exists():
+        return web.json_response({"error": "File not found"}, status=404)
+
+    try:
+        target_dir = _resolve_workspace_path(target_value)
+    except web.HTTPForbidden:
+        return web.json_response({"error": "Forbidden"}, status=403)
+
+    if not target_dir.is_dir():
+        return web.json_response({"error": "Target is not a directory"}, status=400)
+
+    filename = source.name
+    next_path = target_dir / filename
+
+    if next_path == source:
+        return web.json_response({"path": rel_source, "name": filename})
+
+    if source.is_dir():
+        rel_target = _to_workspace_relative(target_dir)
+        if rel_target == rel_source or rel_target.startswith(f"{rel_source}/"):
+            return web.json_response(
+                {"error": "Cannot move a folder into itself"}, status=400,
+            )
+
+    if next_path.exists():
+        return web.json_response(
+            {"error": "Target already exists", "code": "file_exists"}, status=409,
+        )
+
+    source.rename(next_path)
+    return web.json_response({
+        "path": _to_workspace_relative(next_path),
+        "name": filename,
+        "old_path": rel_source,
+        "target": _to_workspace_relative(target_dir),
+    })
+
+
 async def upload_workspace_file(request: web.Request) -> web.Response:
     """POST /workspace/upload – upload a file via multipart form data."""
     target_dir = request.query.get("path", "")
@@ -630,6 +790,9 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/workspace/file", get_workspace_file)
     app.router.add_put("/workspace/file", update_workspace_file)
     app.router.add_delete("/workspace/file", delete_workspace_file)
+    app.router.add_post("/workspace/create", create_workspace_file)
+    app.router.add_post("/workspace/rename", rename_workspace_file)
+    app.router.add_post("/workspace/move", move_workspace_entry)
     app.router.add_get("/workspace/raw", get_workspace_raw)
     app.router.add_get("/workspace/download", download_workspace_folder)
     app.router.add_post("/workspace/attach", attach_workspace_file)

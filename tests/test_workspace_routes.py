@@ -528,3 +528,128 @@ class TestDeleteWorkspaceFile:
         client = workspace_test_client
         resp = await client.delete("/workspace/file?path=../escape.txt")
         assert resp.status == 403
+
+
+class TestCreateWorkspaceFile:
+    @pytest.mark.asyncio
+    async def test_create_file(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        resp = await client.post("/workspace/create", json={"path": ".", "name": "hello.md", "content": "# Hi"})
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["name"] == "hello.md"
+        assert (workspace_dir / "hello.md").read_text() == "# Hi"
+
+    @pytest.mark.asyncio
+    async def test_create_conflict(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "exists.txt").write_text("old")
+        resp = await client.post("/workspace/create", json={"path": ".", "name": "exists.txt", "content": ""})
+        assert resp.status == 409
+
+    @pytest.mark.asyncio
+    async def test_create_invalid_name(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.post("/workspace/create", json={"path": ".", "name": "..", "content": ""})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_create_slash_in_name(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.post("/workspace/create", json={"path": ".", "name": "a/b.txt", "content": ""})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_create_in_subdir(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "sub").mkdir()
+        resp = await client.post("/workspace/create", json={"path": "sub", "name": "file.txt", "content": "x"})
+        assert resp.status == 200
+        assert (workspace_dir / "sub" / "file.txt").read_text() == "x"
+
+
+class TestRenameWorkspaceFile:
+    @pytest.mark.asyncio
+    async def test_rename_file(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "old.txt").write_text("data")
+        resp = await client.post("/workspace/rename", json={"path": "old.txt", "name": "new.txt"})
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["name"] == "new.txt"
+        assert data["old_path"] == "old.txt"
+        assert not (workspace_dir / "old.txt").exists()
+        assert (workspace_dir / "new.txt").read_text() == "data"
+
+    @pytest.mark.asyncio
+    async def test_rename_conflict(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "a.txt").write_text("a")
+        (workspace_dir / "b.txt").write_text("b")
+        resp = await client.post("/workspace/rename", json={"path": "a.txt", "name": "b.txt"})
+        assert resp.status == 409
+
+    @pytest.mark.asyncio
+    async def test_rename_not_found(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.post("/workspace/rename", json={"path": "nope.txt", "name": "new.txt"})
+        assert resp.status == 404
+
+    @pytest.mark.asyncio
+    async def test_rename_same_name(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "same.txt").write_text("x")
+        resp = await client.post("/workspace/rename", json={"path": "same.txt", "name": "same.txt"})
+        assert resp.status == 200
+
+    @pytest.mark.asyncio
+    async def test_rename_root_rejected(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.post("/workspace/rename", json={"path": ".", "name": "nope"})
+        assert resp.status == 400
+
+
+class TestMoveWorkspaceEntry:
+    @pytest.mark.asyncio
+    async def test_move_file(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "src.txt").write_text("data")
+        (workspace_dir / "dest").mkdir()
+        resp = await client.post("/workspace/move", json={"path": "src.txt", "target": "dest"})
+        assert resp.status == 200
+        data = await resp.json()
+        assert data["path"] == "dest/src.txt"
+        assert data["old_path"] == "src.txt"
+        assert not (workspace_dir / "src.txt").exists()
+        assert (workspace_dir / "dest" / "src.txt").read_text() == "data"
+
+    @pytest.mark.asyncio
+    async def test_move_conflict(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "dup.txt").write_text("a")
+        (workspace_dir / "dest").mkdir()
+        (workspace_dir / "dest" / "dup.txt").write_text("b")
+        resp = await client.post("/workspace/move", json={"path": "dup.txt", "target": "dest"})
+        assert resp.status == 409
+
+    @pytest.mark.asyncio
+    async def test_move_into_self(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        d = workspace_dir / "folder"
+        d.mkdir()
+        (d / "sub").mkdir()
+        resp = await client.post("/workspace/move", json={"path": "folder", "target": "folder/sub"})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_move_root_rejected(self, workspace_test_client, workspace_dir):
+        client = workspace_test_client
+        (workspace_dir / "dest").mkdir()
+        resp = await client.post("/workspace/move", json={"path": ".", "target": "dest"})
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_move_not_found(self, workspace_test_client):
+        client = workspace_test_client
+        resp = await client.post("/workspace/move", json={"path": "ghost.txt", "target": "."})
+        assert resp.status == 404

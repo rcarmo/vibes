@@ -298,6 +298,10 @@ html, body {
     overflow: hidden;
 }
 
+html {
+    background-color: var(--bg-primary);
+}
+
 body {
     font-family: var(--font-family);
     font-size: var(--font-size-md);
@@ -353,6 +357,7 @@ body {
 .workspace-download,
 .workspace-edit,
 .workspace-delete,
+.workspace-create,
 .workspace-toggle-hidden {
     background: var(--bg-secondary);
     border: 1px solid var(--border-color);
@@ -373,6 +378,7 @@ body {
 .workspace-download svg,
 .workspace-edit svg,
 .workspace-delete svg,
+.workspace-create svg,
 .workspace-toggle-hidden svg {
     width: 16px;
     height: 16px;
@@ -389,6 +395,7 @@ body {
 .workspace-download:hover,
 .workspace-edit:hover,
 .workspace-delete:hover,
+.workspace-create:hover,
 .workspace-toggle-hidden:hover {
     color: var(--text-primary);
     border-color: var(--accent-color);
@@ -396,7 +403,8 @@ body {
 
 .workspace-download:disabled,
 .workspace-edit:disabled,
-.workspace-delete:disabled {
+.workspace-delete:disabled,
+.workspace-create:disabled {
     opacity: 0.45;
     cursor: not-allowed;
     border-color: var(--border-color);
@@ -444,6 +452,8 @@ body {
     height: 22px;
     cursor: pointer;
     user-select: none;
+    -webkit-user-select: none;
+    -webkit-user-drag: element;
     white-space: nowrap;
     overflow: hidden;
     border-radius: 3px;
@@ -529,6 +539,22 @@ body {
     text-overflow: ellipsis;
     flex: 1;
     line-height: 22px;
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+.workspace-rename-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    line-height: 18px;
+    height: 20px;
+    padding: 0 4px;
+    border-radius: 3px;
+    border: 1px solid var(--accent-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    outline: none;
 }
 
 .workspace-count {

@@ -287,6 +287,36 @@ export async function deleteWorkspaceFile(path) {
 }
 
 /**
+ * Create a new workspace file.
+ */
+export async function createWorkspaceFile(path, name, content = '') {
+    return request('/workspace/create', {
+        method: 'POST',
+        body: JSON.stringify({ path, name, content }),
+    });
+}
+
+/**
+ * Rename a workspace file or folder.
+ */
+export async function renameWorkspaceFile(path, name) {
+    return request('/workspace/rename', {
+        method: 'POST',
+        body: JSON.stringify({ path, name }),
+    });
+}
+
+/**
+ * Move a workspace file or folder into another directory.
+ */
+export async function moveWorkspaceEntry(path, target) {
+    return request('/workspace/move', {
+        method: 'POST',
+        body: JSON.stringify({ path, target }),
+    });
+}
+
+/**
  * Toggle workspace visibility state.
  */
 export async function setWorkspaceVisibility(visible, showHidden = false) {

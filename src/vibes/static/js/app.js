@@ -572,14 +572,35 @@ function getAgentAvatar(agentId, agents) {
 }
 
 /**
+ * Ensure a <meta> tag exists and return it.
+ */
+function ensureMetaTag(name) {
+    if (typeof document === 'undefined') return null;
+    let tag = document.querySelector(`meta[name="${name}"]`);
+    if (!tag) {
+        tag = document.createElement('meta');
+        tag.setAttribute('name', name);
+        document.head.appendChild(tag);
+    }
+    return tag;
+}
+
+/**
  * Update browser theme color (affects mobile chrome and PWA title bar)
  */
 function updateThemeColor(dark) {
     const color = dark ? '#000000' : '#ffffff';
-    let meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) {
-        meta.setAttribute('content', color);
-    }
+    const themeMeta = ensureMetaTag('theme-color');
+    if (themeMeta) themeMeta.setAttribute('content', color);
+
+    const tileMeta = ensureMetaTag('msapplication-TileColor');
+    if (tileMeta) tileMeta.setAttribute('content', color);
+
+    const navMeta = ensureMetaTag('msapplication-navbutton-color');
+    if (navMeta) navMeta.setAttribute('content', color);
+
+    const statusMeta = ensureMetaTag('apple-mobile-web-app-status-bar-style');
+    if (statusMeta) statusMeta.setAttribute('content', dark ? 'black-translucent' : 'default');
 }
 
 /**
@@ -614,8 +635,12 @@ function applyUiTheme(data) {
     requestAnimationFrame(() => {
         const bg = getComputedStyle(root).getPropertyValue('--bg-primary').trim();
         if (bg) {
-            const meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) meta.setAttribute('content', bg);
+            const themeMeta = ensureMetaTag('theme-color');
+            if (themeMeta) themeMeta.setAttribute('content', bg);
+            const tileMeta = ensureMetaTag('msapplication-TileColor');
+            if (tileMeta) tileMeta.setAttribute('content', bg);
+            const navMeta = ensureMetaTag('msapplication-navbutton-color');
+            if (navMeta) navMeta.setAttribute('content', bg);
         }
     });
 }
