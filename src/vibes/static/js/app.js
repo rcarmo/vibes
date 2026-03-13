@@ -673,6 +673,7 @@ function App() {
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
     const [fileRefs, setFileRefs] = useState([]);
+    const [messageRefs, setMessageRefs] = useState([]);
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState({ text: '', totalLines: 0 });
     const [agentPlan, setAgentPlan] = useState('');
@@ -827,6 +828,47 @@ function App() {
         setFileRefs([]);
     }, []);
 
+    const addMessageRef = useCallback((id) => {
+        if (!id) return;
+        setMessageRefs((prev) => (prev.includes(id) ? prev : [...prev, id]));
+    }, []);
+
+    const removeMessageRef = useCallback((id) => {
+        setMessageRefs((prev) => prev.filter((item) => item !== id));
+    }, []);
+
+    const clearMessageRefs = useCallback(() => {
+        setMessageRefs([]);
+    }, []);
+
+    const scrollToMessage = useCallback(async (id) => {
+        const highlight = (el) => {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            el.classList.add('post-highlight');
+            setTimeout(() => el.classList.remove('post-highlight'), 2000);
+        };
+        const existing = document.getElementById('post-' + id);
+        if (existing) { highlight(existing); return; }
+        try {
+            const result = await api.getThread(id);
+            const msg = result?.thread?.[0];
+            if (!msg) return;
+            setPosts((prev) => {
+                if (!prev) return [msg];
+                if (prev.some((p) => p.id === msg.id)) return prev;
+                return [...prev, msg];
+            });
+            requestAnimationFrame(() => {
+                setTimeout(() => {
+                    const el = document.getElementById('post-' + id);
+                    if (el) highlight(el);
+                }, 50);
+            });
+        } catch (err) {
+            console.error('[scrollToMessage] Failed to fetch message', id, err);
+        }
+    }, []);
+
     const noteAgentActivity = useCallback((options = {}) => {
         lastAgentEventRef.current = Date.now();
         if (options.running) {
@@ -902,6 +944,15 @@ function App() {
     useEffect(() => {
         agentsRef.current = agents;
     }, [agents]);
+
+    useEffect(() => {
+        if (!posts || posts.length === 0) return;
+        const hash = location.hash;
+        if (!hash || !hash.startsWith('#msg-')) return;
+        const msgId = hash.slice(5);
+        scrollToMessage(msgId);
+        history.replaceState(null, '', location.pathname + location.search);
+    }, [posts, scrollToMessage]);
 
     const handleToggleNotifications = useCallback(async () => {
         if (typeof window === 'undefined' || typeof Notification === 'undefined') return;
@@ -1920,6 +1971,8 @@ function App() {
                     onLoadMore=${loadMore}
                     timelineRef=${timelineRef}
                     onHashtagClick=${handleHashtagClick}
+                    onMessageRef=${addMessageRef}
+                    onScrollToMessage=${scrollToMessage}
                     onPostClick=${undefined}
                     onDeletePost=${handleDeletePost}
                     emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
@@ -1959,6 +2012,9 @@ function App() {
                     fileRefs=${fileRefs}
                     onRemoveFileRef=${removeFileRef}
                     onClearFileRefs=${clearFileRefs}
+                    messageRefs=${messageRefs}
+                    onRemoveMessageRef=${removeMessageRef}
+                    onClearMessageRefs=${clearMessageRefs}
                     activeModel=${activeModel}
                     thinkingLevel=${activeThinkingLevel}
                     supportsThinking=${supportsThinking}

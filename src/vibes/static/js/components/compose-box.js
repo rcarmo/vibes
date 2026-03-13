@@ -80,6 +80,9 @@ export function ComposeBox({
     fileRefs = [],
     onRemoveFileRef,
     onClearFileRefs,
+    messageRefs = [],
+    onRemoveMessageRef,
+    onClearMessageRefs,
     activeModel = null,
     thinkingLevel = null,
     supportsThinking = false,
@@ -314,7 +317,7 @@ export function ComposeBox({
     };
 
     const handleSubmit = async () => {
-        if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0) return;
+        if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
 
         setLoading(true);
         try {
@@ -328,6 +331,9 @@ export function ComposeBox({
             const fileBlock = fileRefs.length
                 ? `Files:\n${fileRefs.map((path) => `- ${path}`).join('\n')}`
                 : '';
+            const messageBlock = messageRefs.length
+                ? `Messages:\n${messageRefs.map((id) => `- ${id}`).join('\n')}`
+                : '';
             const mediaBlock = mediaIds.length
                 ? `Images:\n${mediaIds.map((id, index) => {
                     const file = mediaFiles[index];
@@ -335,7 +341,7 @@ export function ComposeBox({
                     return `- attachment:${id} (${label})`;
                 }).join('\n')}`
                 : '';
-            const message = [baseContent, fileBlock, mediaBlock].filter(Boolean).join('\n\n');
+            const message = [baseContent, fileBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
 
             const response = await sendAgentMessage('default', message, null, mediaIds);
             if (response?.command) {
@@ -362,6 +368,7 @@ export function ComposeBox({
             setContent('');
             setMediaFiles([]);
             onClearFileRefs?.();
+            onClearMessageRefs?.();
             onPost?.();
         } catch (error) {
             console.error('Failed to post:', error);
@@ -593,8 +600,32 @@ export function ComposeBox({
                 onDrop=${handleComposeDrop}
             >
                 <div class="compose-input-main">
-                    ${!searchMode && (fileRefs.length > 0 || mediaFiles.length > 0) && html`
+                    ${(fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`
                         <div class="compose-file-refs">
+                            ${messageRefs.map((id) => {
+                                return html`
+                                    <span class="compose-file-pill" title=${'Message ' + id}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                        </svg>
+                                        <span class="compose-file-name">${'msg:' + id}</span>
+                                        <button
+                                            class="compose-file-remove"
+                                            onClick=${(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                onRemoveMessageRef?.(id);
+                                            }}
+                                            title="Remove message reference"
+                                            type="button"
+                                        >
+                                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M18 6L6 18M6 6l12 12"/>
+                                            </svg>
+                                        </button>
+                                    </span>
+                                `;
+                            })}
                             ${fileRefs.map((path) => {
                                 const label = path.split('/').pop() || path;
                                 return html`

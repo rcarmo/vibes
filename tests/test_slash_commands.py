@@ -20,6 +20,8 @@ _mod = importlib.import_module("vibes.slash_commands")
 parse_command = _mod.parse_command
 execute_command = _mod.execute_command
 SlashCommand = _mod.SlashCommand
+_resolve_theme = _mod._resolve_theme
+_normalize_hex = _mod._normalize_hex
 
 
 # ── parse_command ──────────────────────────────────────────
@@ -750,3 +752,123 @@ async def test_thinking_set_not_running():
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
         assert "not running" in result.message
+
+
+# ── theme / tint ─────────────────────────────────────────
+
+
+def test_resolve_theme_canonical():
+    assert _resolve_theme("monokai") == "monokai"
+    assert _resolve_theme("default") == "default"
+    assert _resolve_theme("  Nord  ") == "nord"
+
+
+def test_resolve_theme_aliases():
+    assert _resolve_theme("drac") == "dracula"
+    assert _resolve_theme("catpp") == "catppuccin"
+    assert _resolve_theme("gruv") == "gruvbox"
+    assert _resolve_theme("auto") == "default"
+    assert _resolve_theme("tokyo-night") == "tokyo"
+    assert _resolve_theme("github-dark") == "github"
+
+
+def test_resolve_theme_unknown():
+    assert _resolve_theme("nope") is None
+    assert _resolve_theme("") is None
+
+
+def test_normalize_hex_valid():
+    assert _normalize_hex("#3b82f6") == "#3b82f6"
+    assert _normalize_hex("3b82f6") == "#3b82f6"
+    assert _normalize_hex("#f00") == "#ff0000"
+    assert _normalize_hex("ABC") == "#aabbcc"
+
+
+def test_normalize_hex_invalid():
+    assert _normalize_hex("xyz") is None
+    assert _normalize_hex("#12345") is None
+    assert _normalize_hex("") is None
+
+
+@pytest.mark.asyncio
+async def test_theme_list():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock):
+        cmd = SlashCommand(name="theme", args="", raw="/theme")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "monokai" in result.message
+        assert "dracula" in result.message
+
+
+@pytest.mark.asyncio
+async def test_theme_set_known():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock) as mock_broadcast:
+        cmd = SlashCommand(name="theme", args="dracula", raw="/theme dracula")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "dracula" in result.message
+        mock_broadcast.assert_called_once_with("ui_theme", {"theme": "dracula"})
+
+
+@pytest.mark.asyncio
+async def test_theme_set_alias():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock) as mock_broadcast:
+        cmd = SlashCommand(name="theme", args="drac", raw="/theme drac")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        mock_broadcast.assert_called_once_with("ui_theme", {"theme": "dracula"})
+
+
+@pytest.mark.asyncio
+async def test_theme_unknown():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock):
+        cmd = SlashCommand(name="theme", args="nope", raw="/theme nope")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "Unknown" in result.message
+
+
+@pytest.mark.asyncio
+async def test_tint_set_hex():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock) as mock_broadcast:
+        cmd = SlashCommand(name="tint", args="#3b82f6", raw="/tint #3b82f6")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        mock_broadcast.assert_called_once_with("ui_theme", {"tint": "#3b82f6"})
+
+
+@pytest.mark.asyncio
+async def test_tint_set_named():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock) as mock_broadcast:
+        cmd = SlashCommand(name="tint", args="orange", raw="/tint orange")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        mock_broadcast.assert_called_once_with("ui_theme", {"tint": "orange"})
+
+
+@pytest.mark.asyncio
+async def test_tint_clear():
+    for word in ("off", "clear", "none", "reset", "default"):
+        with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock) as mock_broadcast:
+            cmd = SlashCommand(name="tint", args=word, raw=f"/tint {word}")
+            result = await execute_command(cmd, "pi")
+            assert result.status == "success"
+            mock_broadcast.assert_called_once_with("ui_theme", {"tint": None})
+
+
+@pytest.mark.asyncio
+async def test_tint_no_args():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock):
+        cmd = SlashCommand(name="tint", args="", raw="/tint")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "Usage" in result.message
+
+
+@pytest.mark.asyncio
+async def test_tint_invalid_hex():
+    with patch("vibes.routes.sse.broadcast_event", new_callable=AsyncMock):
+        cmd = SlashCommand(name="tint", args="#xyz", raw="/tint #xyz")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "error"
+        assert "Invalid" in result.message

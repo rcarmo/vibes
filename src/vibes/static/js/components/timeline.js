@@ -233,18 +233,18 @@ function getDisplayContent(content, _linkPreviews) {
     return typeof content === 'string' ? content : '';
 }
 
-function extractFileRefs(content) {
-    if (!content) return { content, fileRefs: [] };
+function extractBlockRefs(content, header) {
+    if (!content) return { content, refs: [] };
     const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n');
     let start = -1;
     for (let i = 0; i < lines.length; i += 1) {
-        if (lines[i].trim() === 'Files:' && lines[i + 1] && /^\s*-\s+/.test(lines[i + 1])) {
+        if (lines[i].trim() === header && lines[i + 1] && /^\s*-\s+/.test(lines[i + 1])) {
             start = i;
             break;
         }
     }
-    if (start === -1) return { content, fileRefs: [] };
+    if (start === -1) return { content, refs: [] };
     const refs = [];
     let end = start + 1;
     for (; end < lines.length; end += 1) {
@@ -255,12 +255,22 @@ function extractFileRefs(content) {
             break;
         }
     }
-    if (refs.length === 0) return { content, fileRefs: [] };
+    if (refs.length === 0) return { content, refs: [] };
     const before = lines.slice(0, start);
     const after = lines.slice(end);
     let cleaned = [...before, ...after].join('\n');
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
-    return { content: cleaned, fileRefs: refs };
+    return { content: cleaned, refs };
+}
+
+function extractFileRefs(content) {
+    const result = extractBlockRefs(content, 'Files:');
+    return { content: result.content, fileRefs: result.refs };
+}
+
+function extractMessageRefs(content) {
+    const result = extractBlockRefs(content, 'Messages:');
+    return { content: result.content, messageRefs: result.refs };
 }
 
 function extractAttachmentRefs(content) {
@@ -312,6 +322,8 @@ function Post({
     post,
     onClick,
     onHashtagClick,
+    onMessageRef,
+    onScrollToMessage,
     agentName,
     agentAvatarUrl,
     userName,
@@ -456,7 +468,8 @@ function Post({
     }
 
     const { content: cleanedContent, fileRefs } = extractFileRefs(displayContent);
-    const { content: cleanedWithAttachments, attachments } = extractAttachmentRefs(cleanedContent);
+    const { content: cleanedWithMessages, messageRefs } = extractMessageRefs(cleanedContent);
+    const { content: cleanedWithAttachments, attachments } = extractAttachmentRefs(cleanedWithMessages);
     displayContent = cleanedWithAttachments;
 
     if (attachments.length > 0) {
@@ -511,7 +524,12 @@ function Post({
                 </button>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
-                    <span class="post-time">${formatTimeLabel(post.timestamp)}</span>
+                    <span class="post-time" onClick=${(e) => {
+                        if (onMessageRef) {
+                            e.stopPropagation();
+                            onMessageRef(String(post.id));
+                        }
+                    }} style=${onMessageRef ? 'cursor:pointer' : ''}>${formatTimeLabel(post.timestamp)}</span>
                 </div>
                 ${isHardTruncated && truncatedInfo && html`
                     <div class="post-content truncated">
@@ -530,8 +548,34 @@ function Post({
                         </div>
                     </div>
                 `}
-                ${(fileRefs.length > 0 || attachmentPills.length > 0) && html`
+                ${(fileRefs.length > 0 || messageRefs.length > 0 || attachmentPills.length > 0) && html`
                     <div class="post-file-refs">
+                        ${messageRefs.map((id) => {
+                            const scrollToRef = (e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                if (onScrollToMessage) {
+                                    onScrollToMessage(id);
+                                } else {
+                                    const el = document.getElementById('post-' + id);
+                                    if (el) {
+                                        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                                        el.classList.add('post-highlight');
+                                        setTimeout(() => el.classList.remove('post-highlight'), 2000);
+                                    }
+                                }
+                            };
+                            return html`
+                                <a href=${`#msg-${id}`} class="post-msg-pill-link" onClick=${scrollToRef}>
+                                    <span class="post-file-pill" title=${'Message ' + id} onClick=${scrollToRef}>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                                        </svg>
+                                        <span class="post-file-name">${'msg:' + id}</span>
+                                    </span>
+                                </a>
+                            `;
+                        })}
                         ${fileRefs.map((ref) => {
                             const label = ref.split('/').pop() || ref;
                             return html`
@@ -647,6 +691,8 @@ export function Timeline({
     onLoadMore,
     onPostClick,
     onHashtagClick,
+    onMessageRef,
+    onScrollToMessage,
     emptyMessage,
     timelineRef,
     agents,
@@ -762,6 +808,8 @@ export function Timeline({
                         highlightQuery=${searchQuery}
                         onClick=${() => onPostClick?.(post)}
                         onHashtagClick=${onHashtagClick}
+                        onMessageRef=${onMessageRef}
+                        onScrollToMessage=${onScrollToMessage}
                         onDelete=${onDeletePost}
                         renderMarkdown=${renderMarkdown}
                         renderMermaidDiagrams=${renderMermaidDiagrams}

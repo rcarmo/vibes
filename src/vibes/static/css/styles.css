@@ -1696,6 +1696,29 @@ body {
     white-space: nowrap;
 }
 
+.post-msg-pill-link {
+    text-decoration: none;
+    color: inherit;
+    cursor: pointer;
+}
+
+.post-msg-pill-link:hover {
+    text-decoration: none;
+}
+
+.post-msg-pill-link .post-file-pill {
+    cursor: pointer;
+}
+
+@keyframes postHighlightFade {
+    0% { background-color: var(--search-highlight-color, rgba(255, 215, 0, 0.3)); }
+    100% { background-color: transparent; }
+}
+
+.post.post-highlight {
+    animation: postHighlightFade 2s ease-out;
+}
+
 @keyframes searchHighlightFade {
     0% { background-color: var(--search-highlight-color); }
     100% { background-color: transparent; }

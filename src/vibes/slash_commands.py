@@ -843,29 +843,62 @@ AVAILABLE_THEMES = [
     "github", "gotham", "tango", "xterm", "ristretto",
 ]
 
+THEME_ALIASES = {
+    "auto": "default",
+    "drac": "dracula",
+    "catpp": "catppuccin",
+    "gruv": "gruvbox",
+    "solarized-dark": "solarized",
+    "solarized-light": "solarized",
+    "tokyo-night": "tokyo",
+    "github-dark": "github",
+    "github-light": "github",
+    "monokai_pro": "monokai-pro",
+}
+
+TINT_CLEAR_VALUES = {"off", "clear", "none", "reset", "default"}
+
+
+def _normalize_hex(value: str) -> str | None:
+    """Validate and normalise a hex colour string."""
+    raw = value.lstrip("#")
+    if len(raw) == 3 and all(c in "0123456789abcdefABCDEF" for c in raw):
+        raw = "".join(c + c for c in raw)
+    if len(raw) != 6 or not all(c in "0123456789abcdefABCDEF" for c in raw):
+        return None
+    return f"#{raw.lower()}"
+
+
+def _resolve_theme(name: str) -> str | None:
+    """Resolve a theme name or alias to its canonical name."""
+    lower = name.strip().lower()
+    if lower in AVAILABLE_THEMES:
+        return lower
+    return THEME_ALIASES.get(lower)
+
 
 async def _handle_theme(args: str) -> SlashCommandResult:
     """Show or set the UI theme."""
     from .routes.sse import broadcast_event
 
-    if not args:
+    if not args or args.strip().lower() == "list":
+        items = "\n".join(f"• `{t}`" for t in AVAILABLE_THEMES)
         return SlashCommandResult(
             status="success",
-            message="Available themes: " + ", ".join(f"`{t}`" for t in AVAILABLE_THEMES)
-            + "\n\nSet with: `/theme <name>`",
+            message=f"Available themes:\n{items}\n\nSet with: `/theme <name>`",
         )
 
-    name = args.strip().lower()
-    if name not in AVAILABLE_THEMES:
+    theme = _resolve_theme(args)
+    if not theme:
         return SlashCommandResult(
             status="error",
-            message=f"Unknown theme `{name}`. Available: {', '.join(AVAILABLE_THEMES)}",
+            message=f"Unknown theme `{args}`. Use `/theme list` for options.",
         )
 
-    await broadcast_event("ui_theme", {"theme": name})
+    await broadcast_event("ui_theme", {"theme": theme})
     return SlashCommandResult(
         status="success",
-        message=f"Theme set to `{name}`.",
+        message=f"Theme set to `{theme}`.",
     )
 
 
@@ -873,14 +906,30 @@ async def _handle_tint(args: str) -> SlashCommandResult:
     """Set or clear a UI colour tint."""
     from .routes.sse import broadcast_event
 
-    if not args or args.strip().lower() == "clear":
+    if not args:
+        return SlashCommandResult(
+            status="error",
+            message="Usage: `/tint #hex` (e.g. `/tint #3b82f6`), `/tint orange`, or `/tint off`",
+        )
+
+    normalized = args.strip().lower()
+    if normalized in TINT_CLEAR_VALUES:
         await broadcast_event("ui_theme", {"tint": None})
         return SlashCommandResult(
             status="success",
-            message="UI tint cleared.",
+            message="Tint cleared (default light/dark restored).",
         )
 
     color = args.strip()
+    if color.startswith("#") or all(c in "0123456789abcdefABCDEF" for c in color):
+        hex_color = _normalize_hex(color)
+        if not hex_color:
+            return SlashCommandResult(
+                status="error",
+                message=f"Invalid hex colour: `{color}`. Use e.g. `#3b82f6` or `#f00`.",
+            )
+        color = hex_color
+
     await broadcast_event("ui_theme", {"tint": color})
     return SlashCommandResult(
         status="success",
