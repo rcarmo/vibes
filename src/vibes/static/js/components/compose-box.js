@@ -7,7 +7,13 @@ import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from 
  */
 const SLASH_COMMANDS = [
     { name: '/model', description: 'Show or set the model' },
+    { name: '/models', description: 'Alias for /model' },
+    { name: '/cycle-model', description: 'Cycle to the next available model' },
     { name: '/thinking', description: 'Show or set thinking level' },
+    { name: '/cycle-thinking', description: 'Cycle to the next thinking level' },
+    { name: '/context', description: 'Show context window usage' },
+    { name: '/ctx', description: 'Alias for /context' },
+    { name: '/state', description: 'Show current agent/session state' },
     { name: '/prompt', description: 'Show or set the user system prompt' },
     { name: '/theme', description: 'Show or set the UI theme' },
     { name: '/tint', description: 'Set or clear a UI colour tint' },
@@ -21,6 +27,7 @@ const SLASH_COMMANDS = [
     { name: '/abort', description: 'Cancel the current agent operation' },
     { name: '/restart', description: 'Restart the active agent' },
     { name: '/shell', description: 'Run a shell command' },
+    { name: '/bash', description: 'Run a shell command and return output inline' },
     { name: '/commands', description: 'List available commands' },
 ];
 

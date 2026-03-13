@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import subprocess
 from dataclasses import dataclass
 from typing import Optional
 
@@ -70,17 +71,29 @@ async def execute_command(
     if command.name == "restart":
         return await _restart_agent(agent_mode)
 
-    if command.name == "model":
+    if command.name == "model" or command.name == "models":
         return await _handle_model(command.args, agent_mode)
 
     if command.name == "cycle-model":
-        return await _handle_cycle_model(agent_mode)
+        return await _handle_cycle_model(command.args, agent_mode)
 
     if command.name == "thinking":
         return await _handle_thinking(command.args, agent_mode)
 
+    if command.name == "cycle-thinking":
+        return await _handle_cycle_thinking(agent_mode)
+
+    if command.name == "context" or command.name == "ctx":
+        return await _handle_context(agent_mode)
+
+    if command.name == "state":
+        return await _handle_state(agent_mode)
+
     if command.name == "shell":
         return await _run_shell(command.args)
+
+    if command.name == "bash":
+        return await _run_shell(command.args, add_to_context=True)
 
     if command.name == "abort":
         return await _handle_abort(agent_mode)
@@ -125,7 +138,13 @@ def _list_commands() -> SlashCommandResult:
     lines = [
         "Available commands:",
         "- `/model [provider/model]` - Show or set the model",
+        "- `/models` - Alias for `/model`",
+        "- `/cycle-model [back]` - Cycle to the next available model",
         "- `/thinking [level]` - Show or set thinking level",
+        "- `/cycle-thinking` - Cycle to the next thinking level",
+        "- `/context` - Show context window usage",
+        "- `/ctx` - Alias for `/context`",
+        "- `/state` - Show current agent/session state",
         "- `/prompt [text]` - Show or set the user system prompt",
         "- `/name [name]` - Show or set the agent display name",
         "- `/agent-name [name]` - Show or set the agent display name",
@@ -139,6 +158,7 @@ def _list_commands() -> SlashCommandResult:
         "- `/abort` - Cancel the current agent operation",
         "- `/restart` - Restart the active agent",
         "- `/shell <command>` - Run a shell command",
+        "- `/bash <command>` - Run a shell command (returned inline; not hidden context)",
         "- `/commands` - List available commands",
         "",
         "Messages sent while the agent is working are automatically sent as steering.",
@@ -290,7 +310,7 @@ async def _handle_model(args: str, agent_mode: str) -> SlashCommandResult:
         return SlashCommandResult(status="error", message=f"Failed to set model: {e}")
 
 
-async def _handle_cycle_model(agent_mode: str) -> SlashCommandResult:
+async def _handle_cycle_model(args: str, agent_mode: str) -> SlashCommandResult:
     """Cycle to the next available model."""
     if agent_mode != "pi":
         return SlashCommandResult(
@@ -316,11 +336,13 @@ async def _handle_cycle_model(agent_mode: str) -> SlashCommandResult:
     from .config import get_config
     config = get_config()
     current = config.pi_model or ""
+    backwards = args.strip().lower() in {"back", "prev", "previous"}
     try:
         idx = models.index(current)
-        next_model = models[(idx + 1) % len(models)]
+        step = -1 if backwards else 1
+        next_model = models[(idx + step) % len(models)]
     except ValueError:
-        next_model = models[0]
+        next_model = models[-1] if backwards else models[0]
 
     # Delegate to the normal model setter
     return await _handle_model(next_model, agent_mode)
@@ -490,6 +512,105 @@ async def _handle_thinking(args: str, agent_mode: str) -> SlashCommandResult:
         return SlashCommandResult(status="error", message=f"Failed to set thinking level: {error}")
     except Exception as e:
         return SlashCommandResult(status="error", message=f"Failed to set thinking level: {e}")
+
+
+async def _handle_cycle_thinking(agent_mode: str) -> SlashCommandResult:
+    """Cycle to the next thinking level."""
+    from .config import get_config
+
+    config = get_config()
+    current = (config.pi_thinking or "off").lower()
+    try:
+        idx = THINKING_LEVELS.index(current)
+    except ValueError:
+        idx = -1
+    next_level = THINKING_LEVELS[(idx + 1) % len(THINKING_LEVELS)]
+    return await _handle_thinking(next_level, agent_mode)
+
+
+async def _get_context_snapshot(agent_mode: str) -> tuple[Optional[int], Optional[int], Optional[float]]:
+    """Return (tokens, context_window, percent) for the active agent when available."""
+    if agent_mode != "pi":
+        return None, None, None
+
+    from .pi_client import send_rpc_command, is_pi_running
+
+    if not is_pi_running():
+        return None, None, None
+
+    try:
+        resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        if not resp or not resp.get("success"):
+            return None, None, None
+        data = resp.get("data", {})
+        context = data.get("context") or data.get("context_usage") or {}
+        tokens = context.get("tokens")
+        context_window = context.get("contextWindow") or context.get("context_window")
+        if not context_window:
+            model = data.get("model")
+            if isinstance(model, dict):
+                context_window = model.get("contextWindow") or model.get("context_window")
+        percent = None
+        if tokens is not None and context_window:
+            try:
+                percent = round(100.0 * tokens / context_window, 1)
+            except (TypeError, ZeroDivisionError):
+                percent = None
+        return tokens, context_window, percent
+    except Exception:
+        logger.debug("Failed to get context snapshot", exc_info=True)
+        return None, None, None
+
+
+async def _handle_context(agent_mode: str) -> SlashCommandResult:
+    """Show context window usage."""
+    tokens, context_window, percent = await _get_context_snapshot(agent_mode)
+    if tokens is None or context_window is None:
+        if agent_mode != "pi":
+            return SlashCommandResult(
+                status="success",
+                message="Context usage is only available for Pi agents.",
+            )
+        return SlashCommandResult(
+            status="success",
+            message="Context usage is not currently available.",
+        )
+    return SlashCommandResult(
+        status="success",
+        message=f"Context usage: `{tokens}` / `{context_window}` tokens ({percent or 0:.1f}%).",
+    )
+
+
+async def _handle_state(agent_mode: str) -> SlashCommandResult:
+    """Show current agent/session state."""
+    from .config import get_config
+
+    config = get_config()
+    lines = [
+        f"Agent mode: `{agent_mode}`",
+        f"Agent name: **{config.agent_name}**",
+    ]
+
+    if agent_mode == "pi":
+        model = config.pi_model or "(default — pi selects automatically)"
+        thinking = config.pi_thinking or "off"
+        lines.append(f"Model: `{model}`")
+        lines.append(f"Thinking level: `{thinking}`")
+        tokens, context_window, percent = await _get_context_snapshot(agent_mode)
+        if tokens is not None and context_window is not None:
+            lines.append(f"Context: `{tokens}` / `{context_window}` tokens ({percent or 0:.1f}%)")
+    else:
+        lines.append(f"ACP agent: `{config.acp_agent}`")
+
+    if config.prompt:
+        lines.append("Prompt: configured")
+    else:
+        lines.append("Prompt: default")
+
+    user_name = config.user_name or "You"
+    lines.append(f"User name: **{user_name}**")
+
+    return SlashCommandResult(status="success", message="\n".join(lines))
 
 
 async def _handle_abort(agent_mode: str) -> SlashCommandResult:
@@ -797,36 +918,38 @@ async def _handle_user_github(args: str) -> SlashCommandResult:
     )
 
 
-async def _run_shell(args: str) -> SlashCommandResult:
+async def _run_shell(args: str, add_to_context: bool = False) -> SlashCommandResult:
     """Run a shell command and return stdout/stderr as a fenced code block."""
     if not args:
         return SlashCommandResult(
             status="error",
-            message="Usage: `/shell <command>`",
+            message="Usage: `/bash <command>`" if add_to_context else "Usage: `/shell <command>`",
         )
 
     try:
-        proc = await asyncio.create_subprocess_shell(
-            args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-            stdin=asyncio.subprocess.DEVNULL,
-        )
         try:
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=SHELL_TIMEOUT)
-        except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            completed = subprocess.run(
+                args,
+                shell=True,
+                executable="/bin/bash",
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=SHELL_TIMEOUT,
+            )
+        except subprocess.TimeoutExpired:
             return SlashCommandResult(
                 status="error",
                 message=f"$ {args}\n```\n[timed out after {SHELL_TIMEOUT}s]\n```",
             )
-        output = stdout.decode("utf-8", errors="replace") if stdout else ""
-        exit_label = f"exit code {proc.returncode}" if proc.returncode else "ok"
+        output = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
+        exit_label = f"exit code {completed.returncode}" if completed.returncode else "ok"
         header = f"$ {args}  [{exit_label}]"
+        if add_to_context:
+            header += "\n[Note: Vibes returns `/bash` output inline and does not store hidden tool context.]"
         message = f"{header}\n```\n{output}```"
         return SlashCommandResult(
-            status="success" if proc.returncode == 0 else "error",
+            status="success" if completed.returncode == 0 else "error",
             message=message,
         )
     except Exception as e:

@@ -141,6 +141,12 @@ def test_parse_model_with_args():
     assert cmd.args == "anthropic/claude-sonnet"
 
 
+def test_parse_context_alias():
+    cmd = parse_command("/ctx")
+    assert cmd is not None
+    assert cmd.name == "ctx"
+
+
 @pytest.mark.asyncio
 async def test_model_show_pi(monkeypatch):
     config = importlib.import_module("vibes.config").get_config()
@@ -233,6 +239,37 @@ async def test_model_set_pi(monkeypatch):
         assert config.pi_model == "anthropic/claude-sonnet"
 
 
+@pytest.mark.asyncio
+async def test_models_alias_uses_model(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", None)
+    monkeypatch.setattr(config, "pi_thinking", None)
+    monkeypatch.setattr(_mod, "_query_pi_models_rpc", AsyncMock(return_value=[]))
+    monkeypatch.setattr(_mod, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    with patch("vibes.pi_client.is_pi_running", return_value=False):
+        cmd = SlashCommand(name="models", args="", raw="/models")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Current model:" in result.message
+
+
+@pytest.mark.asyncio
+async def test_cycle_model_back(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_model", "b/two")
+    monkeypatch.setattr(_mod, "_query_pi_models_rpc", AsyncMock(return_value=["a/one", "b/two", "c/three"]))
+    monkeypatch.setattr(_mod, "_query_pi_models_cli", AsyncMock(return_value=[]))
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, side_effect=[
+             {"type": "response", "command": "set_model", "success": True, "data": {"provider": "a", "modelId": "one"}},
+             {"type": "response", "command": "get_state", "success": True, "data": {}},
+         ]):
+        cmd = SlashCommand(name="cycle-model", args="back", raw="/cycle-model back")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Model set to `a/one`" in result.message
+
+
 # ── /thinking ──────────────────────────────────────────────
 
 
@@ -299,6 +336,21 @@ async def test_thinking_set_off_clears(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_cycle_thinking(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "pi_thinking", "low")
+    monkeypatch.setattr(config, "pi_model", "openai/gpt-4.1")
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock,
+               return_value={"type": "response", "command": "set_thinking_level", "success": True}):
+        cmd = SlashCommand(name="cycle-thinking", args="", raw="/cycle-thinking")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Thinking level set to `medium`." in result.message
+        assert config.pi_thinking == "medium"
+
+
+@pytest.mark.asyncio
 async def test_commands_lists_all():
     cmd = SlashCommand(name="commands", raw="/commands")
     result = await execute_command(cmd, "acp")
@@ -356,22 +408,24 @@ async def test_shell_stderr_merged():
 
 
 @pytest.mark.asyncio
+async def test_bash_alias_note():
+    cmd = SlashCommand(name="bash", args="echo hi", raw="/bash echo hi")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert "does not store hidden tool context" in result.message
+
+
+@pytest.mark.asyncio
 async def test_shell_timeout(monkeypatch):
-    import asyncio as _asyncio
+    import subprocess as _subprocess
     import vibes.slash_commands as sc
 
     monkeypatch.setattr(sc, "SHELL_TIMEOUT", 0.05)
 
-    class FakeProc:
-        def kill(self): pass
-        async def wait(self): pass
-        async def communicate(self):
-            await _asyncio.sleep(999)
+    def fake_run(*a, **kw):
+        raise _subprocess.TimeoutExpired(cmd="sleep 60", timeout=0.05)
 
-    async def fake_shell(*a, **kw):
-        return FakeProc()
-
-    monkeypatch.setattr(_asyncio, "create_subprocess_shell", fake_shell)
+    monkeypatch.setattr(_subprocess, "run", fake_run)
     cmd = SlashCommand(name="shell", args="sleep 60", raw="/shell sleep 60")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
@@ -515,12 +569,12 @@ async def test_queue_acp_not_supported():
 
 @pytest.mark.asyncio
 async def test_shell_generic_exception(monkeypatch):
-    import asyncio as _asyncio
+    import subprocess as _subprocess
 
-    async def _boom(*a, **kw):
+    def _boom(*a, **kw):
         raise OSError("no such file")
 
-    monkeypatch.setattr(_asyncio, "create_subprocess_shell", _boom)
+    monkeypatch.setattr(_subprocess, "run", _boom)
     cmd = SlashCommand(name="shell", args="echo hi", raw="/shell echo hi")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
@@ -573,6 +627,66 @@ async def test_prompt_works_in_acp_mode():
     assert "Be brief" in result.message
     # Clean up
     await execute_command(SlashCommand(name="prompt", args="clear", raw="/prompt clear"), "acp")
+
+
+@pytest.mark.asyncio
+async def test_context_pi():
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {
+                 "context": {"tokens": 1200, "contextWindow": 8000},
+                 "model": {"provider": "openai", "modelId": "gpt-4.1"},
+             },
+         }):
+        cmd = SlashCommand(name="context", args="", raw="/context")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "1200" in result.message
+        assert "8000" in result.message
+
+
+@pytest.mark.asyncio
+async def test_ctx_alias_acp():
+    cmd = SlashCommand(name="ctx", args="", raw="/ctx")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert "only available for Pi agents" in result.message
+
+
+@pytest.mark.asyncio
+async def test_state_acp(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "agent_name", "TestAgent")
+    monkeypatch.setattr(config, "acp_agent", "codex-acp")
+    monkeypatch.setattr(config, "prompt", "")
+    monkeypatch.setattr(config, "user_name", "")
+    cmd = SlashCommand(name="state", args="", raw="/state")
+    result = await execute_command(cmd, "acp")
+    assert result.status == "success"
+    assert "Agent mode: `acp`" in result.message
+    assert "ACP agent: `codex-acp`" in result.message
+
+
+@pytest.mark.asyncio
+async def test_state_pi_with_context(monkeypatch):
+    config = importlib.import_module("vibes.config").get_config()
+    monkeypatch.setattr(config, "agent_name", "TestAgent")
+    monkeypatch.setattr(config, "pi_model", "openai/gpt-4.1")
+    monkeypatch.setattr(config, "pi_thinking", "low")
+    monkeypatch.setattr(config, "prompt", "Be concise")
+    monkeypatch.setattr(config, "user_name", "You")
+    with patch("vibes.pi_client.is_pi_running", return_value=True), \
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value={
+             "success": True,
+             "data": {"context": {"tokens": 42, "contextWindow": 100}},
+         }):
+        cmd = SlashCommand(name="state", args="", raw="/state")
+        result = await execute_command(cmd, "pi")
+        assert result.status == "success"
+        assert "Agent mode: `pi`" in result.message
+        assert "Thinking level: `low`" in result.message
+        assert "Context: `42` / `100` tokens (42.0%)" in result.message
 
 
 # ── /name ─────────────────────────────────────────────────

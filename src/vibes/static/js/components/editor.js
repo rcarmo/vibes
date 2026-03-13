@@ -42,6 +42,7 @@ import {
     githubLight,
     githubDark,
 } from '../vendor/codemirror.js';
+import { MarkdownPreview } from './markdown-preview.js';
 
 const MONO_STACK = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const shellLanguage = StreamLanguage.define(shell);
@@ -117,6 +118,7 @@ const languageForPath = (path) => {
 export function WorkspaceEditor({
     path,
     content,
+    savedContent,
     loading,
     error,
     saving,
@@ -124,11 +126,16 @@ export function WorkspaceEditor({
     savedAt,
     onSave,
     onClose,
+    onChange,
+    showPreview,
+    onClosePreview,
+    renderMarkdown,
+    renderMermaidDiagrams,
 }) {
     const hostRef = useRef(null);
     const viewRef = useRef(null);
     const paneRef = useRef(null);
-    const initialContentRef = useRef(content || '');
+    const initialContentRef = useRef(savedContent ?? content ?? '');
     const [dirty, setDirty] = useState(false);
 
     const vimCompartment = useMemo(() => new Compartment(), []);
@@ -216,8 +223,10 @@ export function WorkspaceEditor({
         const view = viewRef.current;
         if (!view) return;
         const current = view.state.doc.toString();
-        setDirty(current !== initialContentRef.current);
-    }, []);
+        const nextDirty = current !== initialContentRef.current;
+        setDirty(nextDirty);
+        onChange?.(current, nextDirty);
+    }, [onChange]);
 
     const resetContent = useCallback((nextContent) => {
         const view = viewRef.current;
@@ -303,7 +312,7 @@ export function WorkspaceEditor({
 
         const view = new EditorView({ state, parent: host });
         viewRef.current = view;
-        initialContentRef.current = content || '';
+        initialContentRef.current = savedContent ?? content ?? '';
         setDirty(false);
 
         const updateGutterWidth = () => {
@@ -335,6 +344,12 @@ export function WorkspaceEditor({
         initialContentRef.current = view.state.doc.toString();
         setDirty(false);
     }, [savedAt]);
+
+    useEffect(() => {
+        if (savedContent === undefined) return;
+        initialContentRef.current = savedContent || '';
+        updateDirty();
+    }, [savedContent, updateDirty]);
 
     const handleToggleVim = useCallback(() => {
         setVimEnabled((prev) => !prev);
@@ -427,6 +442,14 @@ export function WorkspaceEditor({
                         </button>
                     </div>
                 </div>
+            `}
+            ${showPreview && html`
+                <${MarkdownPreview}
+                    content=${content || ''}
+                    onClose=${onClosePreview}
+                    renderMarkdown=${renderMarkdown}
+                    renderMermaidDiagrams=${renderMermaidDiagrams}
+                />
             `}
         </div>
     `;

@@ -723,7 +723,7 @@ body {
 }
 
 /* Editor pane */
-.editor-pane {
+.editor-stack {
     width: var(--editor-width, 40vw);
     min-width: 280px;
     max-width: 70vw;
@@ -735,7 +735,120 @@ body {
     flex-shrink: 0;
     border-left: 1px solid var(--border-color);
     border-right: 1px solid var(--border-color);
+}
+
+.editor-pane {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    display: flex;
+    flex-direction: column;
+    background-color: var(--bg-primary);
+    height: 100%;
+    overflow: hidden;
     position: relative;
+}
+
+.tab-strip {
+    display: flex;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: hidden;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    scrollbar-width: thin;
+}
+
+.tab-item {
+    min-width: 0;
+    max-width: 240px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 12px;
+    border-right: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    cursor: pointer;
+    user-select: none;
+}
+
+.tab-item:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.tab-item.active {
+    background: var(--bg-primary);
+    color: var(--text-primary);
+}
+
+.tab-item.pinned .tab-label {
+    font-weight: 600;
+}
+
+.tab-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+}
+
+.tab-close,
+.tab-pin-icon {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.tab-close {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+}
+
+.tab-close:hover {
+    background: var(--bg-hover);
+}
+
+.tab-dirty-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--accent-color);
+}
+
+.tab-context-menu {
+    position: fixed;
+    z-index: 80;
+    min-width: 180px;
+    padding: 6px;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    background: var(--bg-primary);
+    box-shadow: var(--shadow-md);
+}
+
+.tab-context-menu button {
+    width: 100%;
+    padding: 9px 10px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--text-primary);
+    text-align: left;
+    cursor: pointer;
+}
+
+.tab-context-menu button:hover {
+    background: var(--bg-hover);
+}
+
+.tab-context-menu hr {
+    border: 0;
+    border-top: 1px solid var(--border-color);
+    margin: 6px 0;
 }
 
 .editor-resize-handle {
@@ -910,6 +1023,79 @@ body {
     display: inline-flex;
     align-items: center;
     gap: 6px;
+}
+
+.md-preview-splitter {
+    position: relative;
+    height: 12px;
+    cursor: row-resize;
+    flex: 0 0 auto;
+}
+
+.md-preview-splitter::after {
+    content: '';
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    top: 5px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--border-color);
+}
+
+.md-preview-splitter:hover::after,
+.md-preview-splitter.dragging::after {
+    background: var(--accent-color);
+}
+
+.md-preview-panel {
+    flex: 0 0 auto;
+    min-height: 60px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.md-preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-primary);
+}
+
+.md-preview-title {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.md-preview-close {
+    width: 24px;
+    height: 24px;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.md-preview-close:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.md-preview-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 16px;
 }
 
 .editor-status-button {

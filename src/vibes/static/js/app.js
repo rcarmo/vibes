@@ -5,6 +5,7 @@ import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
+import { TabStrip } from './components/tab-strip.js';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
@@ -70,6 +71,10 @@ function getTurnColor(turnId) {
         hash = (hash * 31 + str.charCodeAt(i)) % 0x7fffffff;
     }
     return palette[Math.abs(hash) % palette.length];
+}
+
+function isMarkdownPath(path) {
+    return /\.(md|mdx|markdown)$/i.test(String(path || ''));
 }
 
 // Configure marked for safe rendering
@@ -694,10 +699,9 @@ function App() {
         const stored = localStorage.getItem('workspaceOpen');
         return stored === null ? true : stored === 'true';
     });
-    const [editorState, setEditorState] = useState({ open: false, path: null, content: '', loading: false, error: null });
-    const [editorSaving, setEditorSaving] = useState(false);
-    const [editorSaveError, setEditorSaveError] = useState(null);
-    const [editorSavedAt, setEditorSavedAt] = useState(null);
+    const [editorTabs, setEditorTabs] = useState([]);
+    const [activeEditorTabId, setActiveEditorTabId] = useState(null);
+    const [previewTabs, setPreviewTabs] = useState(() => new Set());
     const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
     const wasAgentActiveRef = useRef(false);
@@ -778,42 +782,175 @@ function App() {
 
     const openEditor = useCallback(async (path) => {
         if (!path) return;
-        setEditorSaveError(null);
-        setEditorSavedAt(null);
-        setEditorState({ open: true, path, content: '', loading: true, error: null });
+        if (editorTabs.some((tab) => tab.id === path)) {
+            setActiveEditorTabId(path);
+            return;
+        }
+        setActiveEditorTabId(path);
+        setEditorTabs((prev) => {
+            if (prev.some((tab) => tab.id === path)) return prev;
+            return [...prev, {
+                id: path,
+                path,
+                label: path.split('/').pop() || path,
+                content: '',
+                savedContent: '',
+                loading: true,
+                error: null,
+                dirty: false,
+                pinned: false,
+                saving: false,
+                saveError: null,
+                savedAt: null,
+                isMarkdown: isMarkdownPath(path),
+            }];
+        });
         try {
             const data = await getWorkspaceFile(path, 5_000_000, 'edit');
             if (data?.kind === 'text') {
-                setEditorState({ open: true, path, content: data.text || '', loading: false, error: null });
+                setEditorTabs((prev) => prev.map((tab) => (
+                    tab.id === path
+                        ? {
+                            ...tab,
+                            content: data.text || '',
+                            savedContent: data.text || '',
+                            loading: false,
+                            error: null,
+                            dirty: false,
+                            saveError: null,
+                        }
+                        : tab
+                )));
             } else {
-                setEditorState({ open: true, path, content: '', loading: false, error: 'File is not a text file' });
+                setEditorTabs((prev) => prev.map((tab) => (
+                    tab.id === path ? { ...tab, content: '', savedContent: '', loading: false, error: 'File is not a text file' } : tab
+                )));
             }
         } catch (err) {
-            setEditorState({ open: true, path, content: '', loading: false, error: err?.message || 'Failed to load file' });
+            setEditorTabs((prev) => prev.map((tab) => (
+                tab.id === path ? { ...tab, content: '', savedContent: '', loading: false, error: err?.message || 'Failed to load file' } : tab
+            )));
         }
-    }, []);
+    }, [editorTabs]);
+
+    const closeEditorTab = useCallback((tabId) => {
+        if (!tabId) return;
+        const tabs = editorTabs;
+        const target = tabs.find((tab) => tab.id === tabId);
+        if (!target) return;
+        if (target.dirty && !window.confirm(`"${target.label}" has unsaved changes. Close anyway?`)) {
+            return;
+        }
+        const idx = tabs.findIndex((tab) => tab.id === tabId);
+        const remaining = tabs.filter((tab) => tab.id !== tabId);
+        setEditorTabs(remaining);
+        setPreviewTabs((prev) => {
+            if (!prev.has(tabId)) return prev;
+            const next = new Set(prev);
+            next.delete(tabId);
+            return next;
+        });
+        if (activeEditorTabId === tabId) {
+            const fallback = remaining[Math.max(0, idx - 1)] || remaining[idx] || remaining[remaining.length - 1] || null;
+            setActiveEditorTabId(fallback?.id || null);
+        }
+    }, [activeEditorTabId, editorTabs]);
 
     const closeEditor = useCallback(() => {
-        setEditorState({ open: false, path: null, content: '', loading: false, error: null });
-        setEditorSaving(false);
-        setEditorSaveError(null);
-        setEditorSavedAt(null);
-    }, []);
+        closeEditorTab(activeEditorTabId);
+    }, [activeEditorTabId, closeEditorTab]);
 
     const handleEditorSave = useCallback(async (content) => {
-        const path = editorState.path;
+        const path = activeEditorTabId;
         if (!path) return;
-        setEditorSaving(true);
-        setEditorSaveError(null);
+        setEditorTabs((prev) => prev.map((tab) => (
+            tab.id === path ? { ...tab, saving: true, saveError: null } : tab
+        )));
         try {
             await updateWorkspaceFile(path, content);
-            setEditorSavedAt(Date.now());
+            const savedAt = Date.now();
+            setEditorTabs((prev) => prev.map((tab) => (
+                tab.id === path
+                    ? { ...tab, content, savedContent: content, dirty: false, saving: false, saveError: null, savedAt }
+                    : tab
+            )));
         } catch (err) {
-            setEditorSaveError(err?.message || 'Save failed');
-        } finally {
-            setEditorSaving(false);
+            setEditorTabs((prev) => prev.map((tab) => (
+                tab.id === path ? { ...tab, saving: false, saveError: err?.message || 'Save failed' } : tab
+            )));
         }
-    }, [editorState.path]);
+    }, [activeEditorTabId]);
+
+    const handleEditorChange = useCallback((nextContent, nextDirty) => {
+        const path = activeEditorTabId;
+        if (!path) return;
+        setEditorTabs((prev) => prev.map((tab) => (
+            tab.id === path ? { ...tab, content: nextContent, dirty: Boolean(nextDirty), saveError: null } : tab
+        )));
+    }, [activeEditorTabId]);
+
+    const handleTabActivate = useCallback((tabId) => {
+        setActiveEditorTabId(tabId);
+    }, []);
+
+    const handleTabCloseOthers = useCallback((keepId) => {
+        const closable = editorTabs.filter((tab) => tab.id !== keepId && !tab.pinned);
+        const dirtyCount = closable.filter((tab) => tab.dirty).length;
+        if (dirtyCount > 0 && !window.confirm(`${dirtyCount} unsaved tab${dirtyCount > 1 ? 's' : ''} will be closed. Continue?`)) {
+            return;
+        }
+        const nextTabs = editorTabs.filter((tab) => tab.id === keepId || tab.pinned);
+        setEditorTabs(nextTabs);
+        setPreviewTabs((prev) => {
+            const next = new Set(prev);
+            closable.forEach((tab) => next.delete(tab.id));
+            return next;
+        });
+        setActiveEditorTabId(keepId);
+    }, [editorTabs]);
+
+    const handleTabCloseAll = useCallback(() => {
+        const closable = editorTabs.filter((tab) => !tab.pinned);
+        const dirtyCount = closable.filter((tab) => tab.dirty).length;
+        if (dirtyCount > 0 && !window.confirm(`${dirtyCount} unsaved tab${dirtyCount > 1 ? 's' : ''} will be closed. Continue?`)) {
+            return;
+        }
+        const nextTabs = editorTabs.filter((tab) => tab.pinned);
+        setEditorTabs(nextTabs);
+        setPreviewTabs((prev) => {
+            const next = new Set(prev);
+            closable.forEach((tab) => next.delete(tab.id));
+            return next;
+        });
+        setActiveEditorTabId(nextTabs[0]?.id || null);
+    }, [editorTabs]);
+
+    const handleTabTogglePin = useCallback((tabId) => {
+        setEditorTabs((prev) => prev.map((tab) => (
+            tab.id === tabId ? { ...tab, pinned: !tab.pinned } : tab
+        )));
+    }, []);
+
+    const handleTabTogglePreview = useCallback((tabId) => {
+        if (!tabId) return;
+        setPreviewTabs((prev) => {
+            const next = new Set(prev);
+            if (next.has(tabId)) next.delete(tabId);
+            else next.add(tabId);
+            return next;
+        });
+    }, []);
+
+    useEffect(() => {
+        const hasUnsaved = editorTabs.some((tab) => tab.dirty);
+        const onBeforeUnload = (event) => {
+            if (!hasUnsaved) return;
+            event.preventDefault();
+            event.returnValue = '';
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, [editorTabs]);
 
     const addFileRef = useCallback((path) => {
         if (!path) return;
@@ -1925,7 +2062,9 @@ function App() {
         document.addEventListener('touchcancel', onUp);
     }).current;
 
-    const editorOpen = editorState.open;
+    const editorOpen = editorTabs.length > 0;
+    const activeEditorTab = editorTabs.find((tab) => tab.id === activeEditorTabId) || editorTabs[editorTabs.length - 1] || null;
+    const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}`} ref=${appShellRef}>
@@ -1942,17 +2081,37 @@ function App() {
             </button>
             <div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>
             ${editorOpen && html`
-                <${WorkspaceEditor}
-                    path=${editorState.path}
-                    content=${editorState.content}
-                    loading=${editorState.loading}
-                    error=${editorState.error}
-                    saving=${editorSaving}
-                    saveError=${editorSaveError}
-                    savedAt=${editorSavedAt}
-                    onSave=${handleEditorSave}
-                    onClose=${closeEditor}
-                />
+                <div class="editor-stack">
+                    <${TabStrip}
+                        tabs=${editorTabs}
+                        activeId=${activeEditorTab?.id}
+                        onActivate=${handleTabActivate}
+                        onClose=${closeEditorTab}
+                        onCloseOthers=${handleTabCloseOthers}
+                        onCloseAll=${handleTabCloseAll}
+                        onTogglePin=${handleTabTogglePin}
+                        onTogglePreview=${handleTabTogglePreview}
+                        previewTabs=${previewTabs}
+                    />
+                    <${WorkspaceEditor}
+                        key=${activeEditorTab?.id || 'editor'}
+                        path=${activeEditorTab?.path}
+                        content=${activeEditorTab?.content}
+                        savedContent=${activeEditorTab?.savedContent}
+                        loading=${activeEditorTab?.loading}
+                        error=${activeEditorTab?.error}
+                        saving=${activeEditorTab?.saving}
+                        saveError=${activeEditorTab?.saveError}
+                        savedAt=${activeEditorTab?.savedAt}
+                        onSave=${handleEditorSave}
+                        onClose=${closeEditor}
+                        onChange=${handleEditorChange}
+                        showPreview=${previewOpen}
+                        onClosePreview=${() => handleTabTogglePreview(activeEditorTab?.id)}
+                        renderMarkdown=${renderMarkdown}
+                        renderMermaidDiagrams=${renderMermaidDiagrams}
+                    />
+                </div>
                 <div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>
             `}
             <div class="container">

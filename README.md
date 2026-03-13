@@ -61,13 +61,20 @@ Type a `/` command in the message input to control the agent or run utilities wi
 |---|---|
 | `/commands` | List all available slash commands |
 | `/model` | Show the current model (Pi) or agent binary (ACP) |
+| `/models` | Alias for `/model` |
 | `/model <provider/model>` | Switch the Pi agent to a different model (live, no restart) |
+| `/cycle-model [back]` | Cycle through available Pi models |
 | `/thinking` | Show current thinking level and available levels |
 | `/thinking <level>` | Set thinking level (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) live |
+| `/cycle-thinking` | Cycle through the available thinking levels |
+| `/context` | Show current Pi context-window usage |
+| `/ctx` | Alias for `/context` |
+| `/state` | Show current agent/session state |
 | `/steer <message>` | Inject mid-turn guidance while the agent is thinking/working |
 | `/abort` | Cancel the current agent operation |
 | `/restart` | Reset the agent session (or hard restart as fallback) |
 | `/shell <command>` | Run a shell command and display the output |
+| `/bash <command>` | Run a shell command and display the output inline |
 | `/prompt` | Show or set the user system prompt |
 | `/user-name` | Set or show your display name |
 | `/user-avatar` | Set or show your avatar URL |
