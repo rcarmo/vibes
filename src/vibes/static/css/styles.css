@@ -165,15 +165,29 @@ html[data-theme="gruvbox"] {
 }
 
 html[data-theme="solarized"] {
-    color-scheme: dark;
-    --bg-primary: #002b36;
-    --bg-secondary: #00212b;
-    --bg-hover: #073642;
-    --text-primary: #839496;
-    --text-secondary: #586e75;
-    --border-color: #073642;
+    color-scheme: light;
+    --bg-primary: #fdf6e3;
+    --bg-secondary: #f5efdc;
+    --bg-hover: #eee8d5;
+    --text-primary: #586e75;
+    --text-secondary: #657b83;
+    --border-color: #e0d8c6;
     --accent-color: #268bd2;
     --accent-hover: #1f78b8;
+}
+
+@media (prefers-color-scheme: dark) {
+    html[data-theme="solarized"] {
+        color-scheme: dark;
+        --bg-primary: #002b36;
+        --bg-secondary: #073642;
+        --bg-hover: #0b3c4a;
+        --text-primary: #eee8d5;
+        --text-secondary: #93a1a1;
+        --border-color: #18424a;
+        --accent-color: #268bd2;
+        --accent-hover: #1f78b8;
+    }
 }
 
 html[data-theme="tokyo"] {
