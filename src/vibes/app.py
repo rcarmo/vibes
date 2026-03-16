@@ -9,6 +9,7 @@ from pathlib import Path
 from aiohttp import web
 
 from .config import get_config
+from .avatar import resolve_avatar_url
 from .db import init_db, close_db, get_db, Database
 from .middleware import create_auth_middleware, create_cors_middleware, create_security_middleware
 from .tasks import start_task_queue, stop_task_queue
@@ -35,12 +36,16 @@ async def manifest_handler(request: web.Request) -> web.Response:
     """Dynamic PWA manifest — uses agent name/avatar when configured."""
     config = get_config()
     name = config.agent_name or "Vibes"
+    agent_avatar = resolve_avatar_url("agent", config.agent_avatar)
     icons = [
         {"src": "/static/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable"},
         {"src": "/static/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable"},
     ]
-    if config.agent_avatar:
-        icons.insert(0, {"src": config.agent_avatar, "sizes": "192x192", "type": "image/png", "purpose": "any"})
+    if agent_avatar:
+        icons = [
+            {"src": agent_avatar, "sizes": "any", "purpose": "any"},
+            *icons,
+        ]
     manifest = {
         "name": name,
         "short_name": name[:12] if len(name) > 12 else name,

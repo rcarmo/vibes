@@ -17,6 +17,7 @@ for module_name in list(sys.modules.keys()):
         sys.modules.pop(module_name, None)
 
 media = importlib.import_module("vibes.routes.media")
+app_mod = importlib.import_module("vibes.app")
 
 
 class TestGenerateThumbnail:
@@ -68,6 +69,30 @@ class TestGenerateThumbnail:
         
         result_img = Image.open(io.BytesIO(result))
         assert result_img.mode == 'RGB'
+
+
+class TestManifestHandler:
+    """Dynamic manifest behavior."""
+
+    @pytest.mark.asyncio
+    async def test_manifest_uses_cached_agent_avatar_icon(self):
+        from aiohttp.test_utils import make_mocked_request
+        from types import SimpleNamespace
+        from unittest.mock import patch
+        import json
+
+        req = make_mocked_request("GET", "/manifest.json")
+        cfg = SimpleNamespace(agent_name="Agent", agent_avatar="https://example.com/avatar.png")
+
+        with patch.object(app_mod, "get_config", return_value=cfg), \
+             patch.object(app_mod, "resolve_avatar_url", return_value="/avatar/agent"):
+            resp = await app_mod.manifest_handler(req)
+
+        body = json.loads(resp.body)
+        assert body["name"] == "Agent"
+        assert body["icons"][0]["src"] == "/avatar/agent"
+        assert body["icons"][0]["sizes"] == "any"
+        assert body["icons"][1]["src"] == "/static/icon-192.png"
 
 
 class TestPostRoutesIntegration:
