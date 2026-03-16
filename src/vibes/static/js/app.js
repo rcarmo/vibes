@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, sendAgentMessage, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -686,6 +686,7 @@ function App() {
     const [pendingRequest, setPendingRequest] = useState(null);
     const [currentTurnId, setCurrentTurnId] = useState(null);
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
+    const [queuedFollowups, setQueuedFollowups] = useState([]);
     const [agents, setAgents] = useState({});
     const [activeModel, setActiveModel] = useState(null);
     const [activeThinkingLevel, setActiveThinkingLevel] = useState(null);
@@ -732,6 +733,22 @@ function App() {
     
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
+
+    const syncQueueState = useCallback((statusData) => {
+        if (!statusData) return;
+        const queued = Array.isArray(statusData.queued_followups) ? statusData.queued_followups : [];
+        setQueuedFollowups(queued);
+        const pendingSteers = Array.isArray(statusData.pending_steers) ? statusData.pending_steers : [];
+        const turns = Array.isArray(statusData.active_turns) ? statusData.active_turns : [];
+        if (pendingSteers.length > 0 && turns.length > 0) {
+            const activeTurnId = turns[turns.length - 1]?.turn_id || null;
+            steerQueuedTurnIdRef.current = activeTurnId;
+            setSteerQueuedTurnId(activeTurnId);
+        } else if (pendingSteers.length === 0 && !isAgentRunningRef.current) {
+            steerQueuedTurnIdRef.current = null;
+            setSteerQueuedTurnId(null);
+        }
+    }, []);
 
     const applyBranding = useCallback((name, avatarUrl, avatarVersion = null) => {
         if (typeof document === 'undefined') return;
@@ -1305,6 +1322,7 @@ function App() {
         // On every (re)connect, poll agent status to restore in-flight state
         getAgentStatus().then((statusData) => {
             if (!statusData) return;
+            syncQueueState(statusData);
             const turns = statusData.active_turns || [];
             if (turns.length > 0) {
                 const turn = turns[turns.length - 1];
@@ -1327,7 +1345,7 @@ function App() {
         if (!activeHashtag && !activeSearch) {
             loadPosts();
         }
-    }, [clearAgentRunState, loadPosts, setActiveTurn, noteAgentActivity]);
+    }, [clearAgentRunState, loadPosts, setActiveTurn, noteAgentActivity, syncQueueState]);
     
     // Load older messages (prepend)
     const loadMore = useCallback(async () => {
@@ -1516,6 +1534,26 @@ function App() {
         setAgentTurnPanelExpanded(activeTurn, panelKey, expanded).catch((e) => {
             console.warn('Failed to set panel state:', e);
         });
+    }, []);
+
+    const handleQueueRemove = useCallback(async (rowId) => {
+        if (rowId == null) return;
+        try {
+            await removeAgentQueueItem(rowId);
+        } catch (error) {
+            console.error('Failed to remove queued item:', error);
+            alert('Failed to remove queued item: ' + error.message);
+        }
+    }, []);
+
+    const handleQueueSteer = useCallback(async (rowId) => {
+        if (rowId == null) return;
+        try {
+            await steerAgentQueueItem(rowId);
+        } catch (error) {
+            console.error('Failed to steer queued item:', error);
+            alert('Failed to steer queued item: ' + error.message);
+        }
     }, []);
 
     const applyModelState = useCallback((payload) => {
@@ -1740,6 +1778,9 @@ function App() {
         }
 
         if (eventType === 'agent_steer_queued') {
+            if (typeof data?.row_id === 'number') {
+                setQueuedFollowups((prev) => prev.filter((item) => item.row_id !== data.row_id));
+            }
             if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                 return;
             }
@@ -1747,6 +1788,19 @@ function App() {
             if (!targetTurn) return;
             steerQueuedTurnIdRef.current = targetTurn;
             setSteerQueuedTurnId(targetTurn);
+            return;
+        }
+
+        if (eventType === 'agent_followup_queued') {
+            setQueuedFollowups((prev) => {
+                if (prev.some((item) => item.row_id === data?.row_id)) return prev;
+                return [...prev, data].sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+            });
+            return;
+        }
+
+        if (eventType === 'agent_followup_consumed' || eventType === 'agent_followup_removed') {
+            setQueuedFollowups((prev) => prev.filter((item) => item.row_id !== data?.row_id));
             return;
         }
 
@@ -1881,6 +1935,7 @@ function App() {
                 try {
                     const statusData = await getAgentStatus();
                     if (!statusData) return;
+                    syncQueueState(statusData);
                     const turns = statusData.active_turns || [];
                     if (turns.length > 0) {
                         const turn = turns[turns.length - 1];
@@ -1930,7 +1985,7 @@ function App() {
             }
         }, intervalMs);
         return () => clearInterval(interval);
-    }, [connectionStatus, isAgentActive, loadPosts, clearAgentRunState, noteAgentActivity]);
+    }, [connectionStatus, isAgentActive, loadPosts, clearAgentRunState, noteAgentActivity, syncQueueState]);
 
     const handleSplitterMouseDown = useRef((e) => {
         e.preventDefault();
@@ -2178,6 +2233,9 @@ function App() {
                     thinkingLevel=${activeThinkingLevel}
                     supportsThinking=${supportsThinking}
                     contextUsage=${contextUsage}
+                    queuedFollowups=${queuedFollowups}
+                    onQueueRemove=${handleQueueRemove}
+                    onQueueSteer=${handleQueueSteer}
                     onModelChange=${setActiveModel}
                     onModelStateChange=${applyModelState}
                     notificationsEnabled=${notificationsEnabled}

@@ -20,6 +20,7 @@ for module_name in list(sys.modules.keys()):
         sys.modules.pop(module_name, None)
 
 agents_mod = importlib.import_module("vibes.routes.agents")
+followups_mod = importlib.import_module("vibes.followups")
 
 
 # ── _resolve_agent_mode ──────────────────────────────────
@@ -267,18 +268,25 @@ class FakeDB:
     async def get_inflight_thread_id(self):
         return None
 
+    async def get_active_turns(self):
+        return []
 
-def _make_send_request(content, agent_id="default"):
+
+def _make_send_request(content, agent_id="default", mode=None):
     """Create a mock aiohttp request for send_message."""
     req = make_mocked_request("POST", f"/agents/{agent_id}/message",
                                match_info={"agent_id": agent_id})
-    req.json = AsyncMock(return_value={"content": content})
+    payload = {"content": content}
+    if mode is not None:
+        payload["mode"] = mode
+    req.json = AsyncMock(return_value=payload)
     return req
 
 
 @pytest.fixture
 def mock_deps():
     """Patch all external dependencies of send_message."""
+    followups_mod.reset_state()
     fake_db = FakeDB()
     with patch.object(agents_mod, "get_db", new_callable=AsyncMock, return_value=fake_db), \
          patch.object(agents_mod, "broadcast_event", new_callable=AsyncMock) as mock_broadcast, \
@@ -306,36 +314,39 @@ async def test_send_message_normal_path(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_send_message_steering_when_busy(mock_deps):
-    """Message sent while agent is busy should auto-steer."""
+async def test_send_message_busy_defaults_to_queue(mock_deps):
+    """Busy submissions should default to queued follow-up behavior."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
+        fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
-             patch.object(agents_mod, "send_pi_rpc_fire_and_forget",
-                          new_callable=AsyncMock, return_value=True) as mock_steer:
+             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
             req = _make_send_request("focus on tests")
             resp = await agents_mod.send_message(req)
             assert resp.status == 201
             body = json.loads(resp.body)
-            assert body["steered"] is True
-            assert "steering" in body["status"].lower()
-            mock_steer.assert_called_once_with({"type": "steer", "message": "focus on tests"})
-            # Should NOT enqueue a new turn
+            assert body["queued"] == "followup"
+            assert body["thread_id"] == 42
+            assert "queued" in body["status"].lower()
             mock_deps["enqueue"].assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_send_message_steering_failure(mock_deps):
-    """Steering failure still returns 201 with steered=False."""
+async def test_send_message_explicit_pi_steer_when_busy(mock_deps):
+    """Explicit steer mode uses real Pi steering when available."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
+        fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
+             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]), \
              patch.object(agents_mod, "send_pi_rpc_fire_and_forget",
-                          new_callable=AsyncMock, return_value=False):
-            req = _make_send_request("steer me")
+                          new_callable=AsyncMock, return_value=True) as mock_steer:
+            req = _make_send_request("steer me", mode="steer")
             resp = await agents_mod.send_message(req)
             body = json.loads(resp.body)
-            assert body["steered"] is False
+            assert body["steered"] is True
+            assert body["emulated"] is False
+            mock_steer.assert_called_once_with({"type": "steer", "message": "steer me"})
 
 
 @pytest.mark.asyncio
@@ -352,14 +363,79 @@ async def test_send_message_slash_command(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_send_message_acp_no_steering(mock_deps):
-    """ACP mode should not steer, just enqueue normally."""
+async def test_send_message_explicit_acp_steer_is_emulated(mock_deps):
+    """ACP steer mode should queue a prioritized steer item."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "acp"
-        req = _make_send_request("hello")
-        resp = await agents_mod.send_message(req)
+        fake_turn = {"turn_id": "turn-2", "thread_id": 7, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+        with patch.object(agents_mod, "_is_agent_busy", return_value=True), \
+             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
+            req = _make_send_request("hello", mode="steer")
+            resp = await agents_mod.send_message(req)
+        body = json.loads(resp.body)
+        assert resp.status == 201
+        assert body["queued"] == "steer"
+        assert body["emulated"] is True
+        mock_deps["enqueue"].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_message_acp_idle_enqueues_turn(mock_deps):
+    """ACP mode still starts a normal turn while idle."""
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "acp"
+        with patch.object(agents_mod, "_is_agent_busy", return_value=False):
+            req = _make_send_request("hello")
+            resp = await agents_mod.send_message(req)
         assert resp.status == 201
         mock_deps["enqueue"].assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_queue_remove_route(mock_deps):
+    """Queued items can be removed via route."""
+    item = followups_mod.queue_followup(thread_id=1, agent_id="default", message_id=5, content="hello")
+    req = make_mocked_request("POST", "/agent/queue-remove")
+    req.json = AsyncMock(return_value={"row_id": item["row_id"]})
+    resp = await agents_mod.remove_queue_item(req)
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["removed"] is True
+
+
+@pytest.mark.asyncio
+async def test_queue_steer_route_emulates_for_acp(mock_deps):
+    """Queued ACP items can be promoted into deferred steering."""
+    item = followups_mod.queue_followup(thread_id=3, agent_id="default", message_id=8, content="nudge")
+    fake_turn = {"turn_id": "turn-3", "thread_id": 3, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+    req = make_mocked_request("POST", "/agent/queue-steer")
+    req.json = AsyncMock(return_value={"row_id": item["row_id"]})
+    with patch.object(agents_mod, "get_config") as mc:
+        mc.return_value.default_agent = "acp"
+        with patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
+            resp = await agents_mod.steer_queue_item(req)
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert body["queued"] == "steer"
+    assert body["item"]["emulated"] is True
+
+
+@pytest.mark.asyncio
+async def test_send_message_invalid_mode(mock_deps):
+    """Unknown submit mode is rejected."""
+    req = _make_send_request("hello", mode="bogus")
+    resp = await agents_mod.send_message(req)
+    assert resp.status == 400
+
+
+@pytest.mark.asyncio
+async def test_send_message_missing_content():
+    """Missing content field returns 400."""
+    req = make_mocked_request("POST", "/agents/default/message",
+                               match_info={"agent_id": "default"})
+    req.json = AsyncMock(return_value={"not_content": "x"})
+    resp = await agents_mod.send_message(req)
+    assert resp.status == 400
 
 
 @pytest.mark.asyncio
@@ -373,13 +449,14 @@ async def test_send_message_invalid_json():
 
 
 @pytest.mark.asyncio
-async def test_send_message_missing_content():
-    """Missing content field returns 400."""
-    req = make_mocked_request("POST", "/agents/default/message",
-                               match_info={"agent_id": "default"})
-    req.json = AsyncMock(return_value={"not_content": "x"})
-    resp = await agents_mod.send_message(req)
-    assert resp.status == 400
+async def test_get_agent_queue_lists_items(mock_deps):
+    """Queue endpoint returns queued follow-ups."""
+    followups_mod.queue_followup(thread_id=9, agent_id="default", message_id=12, content="later")
+    req = make_mocked_request("GET", "/agent/queue")
+    resp = await agents_mod.get_agent_queue(req)
+    body = json.loads(resp.body)
+    assert resp.status == 200
+    assert len(body["items"]) == 1
 
 
 # ── list_agents ───────────────────────────────────────────

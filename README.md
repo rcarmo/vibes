@@ -21,7 +21,7 @@ A single-user, mobile-friendly SPA for Slack-like interactions with coding agent
 The UI is single-user, mobile-friendly, and streams updates over SSE:
 
 - **Thought/Draft panels** — collapsible live reasoning and draft blocks, visible during streaming
-- **Live steering** — inject follow-up guidance while the agent is still responding (`/steer`)
+- **Queued follow-ups + steering** — while the agent is busy, new messages queue automatically and queued items can be promoted to steering from the compose UI
 - **File attachments** — drag, paste, or pick images; attach workspace files as reference pills
 - **Link previews** — server-side OpenGraph fetch with image thumbnails
 - **Multi-turn threading** — subsequent turns are visually threaded under the first
@@ -53,6 +53,22 @@ Click the **pencil icon** on any text file preview (up to 256 KB) to open the bu
 - **Line wrapping**, line numbers, active line highlight, and indentation markers
 - **Dark/Light theme** — switches automatically with system preference
 
+### Queueing and steering
+
+When the active agent is already working, sending another message does not start a second concurrent turn:
+
+- **Default busy-submit behavior** — new messages are queued automatically as follow-ups
+- **Queue stack in compose** — queued items appear above the textarea with `Steer` and `Cancel` actions
+- **Queue consumption** — when the current turn finishes, the next queued item is dispatched automatically
+- **Reconnect restore** — queued items and pending steering state are restored from `/agents/status` after reconnect
+
+Caveats:
+
+- **Pi** supports real mid-turn steering when available, so a `Steer` action can be injected into the active run immediately.
+- **ACP** does not currently support mid-turn input without interrupting the active prompt. In ACP mode, `Steer` is emulated as **next-turn priority**: the item is removed from the visible queue, marked as pending steering, and dispatched before normal queued follow-ups after the current turn finishes.
+- The visible queue stack shows normal queued follow-ups. Pending ACP steering is indicated in the status area, but it is not shown as another queue item.
+- The legacy `/queue <message>` slash command still exists for Pi, but the primary UX is the compose queue stack and automatic busy-submit queueing.
+
 ## Slash Commands
 
 Type a `/` command in the message input to control the agent or run utilities without sending a prompt. Built-in commands are handled instantly; unknown commands are forwarded to the agent as regular prompts.
@@ -70,7 +86,6 @@ Type a `/` command in the message input to control the agent or run utilities wi
 | `/context` | Show current Pi context-window usage |
 | `/ctx` | Alias for `/context` |
 | `/state` | Show current agent/session state |
-| `/steer <message>` | Inject mid-turn guidance while the agent is thinking/working |
 | `/abort` | Cancel the current agent operation |
 | `/restart` | Reset the agent session (or hard restart as fallback) |
 | `/shell <command>` | Run a shell command and display the output |
@@ -81,9 +96,11 @@ Type a `/` command in the message input to control the agent or run utilities wi
 | `/user-github` | Set name and avatar from a GitHub profile |
 | `/agent-name` | Set or show the agent display name |
 | `/agent-avatar` | Set or show the agent avatar URL |
-| `/queue <message>` | Queue a message for after the current turn |
+| `/queue <message>` | Legacy Pi queue command for after the current turn |
 
-> **Note:** `/model`, `/thinking`, `/steer`, and `/abort` use Pi's RPC protocol and apply to the Pi agent only. ACP agents do not expose these controls.
+> **Note:** `/model`, `/thinking`, and `/abort` are Pi-specific live controls. ACP agents do not expose equivalent runtime controls.
+
+> **Queue/Steer note:** busy submits queue automatically for both Pi and ACP. Steering is exposed in the compose queue UI. Pi steering is real mid-turn steering; ACP steering is emulated as next-turn priority.
 
 ## Installation
 

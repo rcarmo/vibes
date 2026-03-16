@@ -59,7 +59,7 @@ function ContextPie({ usage }) {
             : 'var(--context-green, #22c55e)';
 
     return html`
-        <span class="compose-context-pie" title=${label}>
+        <span class="compose-context-pie icon-btn" title=${label}>
             <svg width="18" height="18" viewBox="0 0 20 20">
                 <circle cx="10" cy="10" r=${r}
                     fill="none"
@@ -74,6 +74,34 @@ function ContextPie({ usage }) {
                     transform="rotate(-90 10 10)" />
             </svg>
         </span>
+    `;
+}
+
+function FollowupQueue({ items, onRemove, onSteer }) {
+    if (!items || items.length === 0) return null;
+    return html`
+        <div class="compose-queue-stack" aria-label="Queued follow-ups">
+            ${items.map((item) => {
+                const content = String(item.content || '').trim();
+                const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
+                return html`
+                    <div key=${item.row_id} class="compose-queue-item">
+                        <div class="compose-queue-item-main">
+                            <span class="compose-queue-badge">${item.mode === 'steer' ? 'Steer' : 'Queued'}</span>
+                            <div class="compose-queue-text" title=${content}>${preview || 'Untitled follow-up'}</div>
+                        </div>
+                        <div class="compose-queue-actions">
+                            <button type="button" class="compose-queue-btn" onClick=${() => onSteer?.(item.row_id)}>
+                                Steer
+                            </button>
+                            <button type="button" class="compose-queue-btn danger" onClick=${() => onRemove?.(item.row_id)}>
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                `;
+            })}
+        </div>
     `;
 }
 
@@ -94,6 +122,9 @@ export function ComposeBox({
     thinkingLevel = null,
     supportsThinking = false,
     contextUsage = null,
+    queuedFollowups = [],
+    onQueueRemove,
+    onQueueSteer,
     onModelChange,
     onModelStateChange,
     notificationsEnabled = false,
@@ -174,7 +205,7 @@ export function ComposeBox({
             .catch(() => {});
     }, []);
 
-    const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0);
+    const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0 || messageRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
         && typeof navigator !== 'undefined'
         && Boolean(navigator.geolocation)
@@ -186,8 +217,10 @@ export function ComposeBox({
     const notificationActive = notificationPermission === 'granted' && notificationsEnabled;
     const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
 
-    const modelHintSuffix = supportsThinking && thinkingLevel ? ` (${thinkingLevel})` : '';
-    const modelHintLabel = activeModel ? `${activeModel}${modelHintSuffix}` : '';
+    const modelHintLabel = activeModel ? `${activeModel}` : '';
+    const thinkingLabel = supportsThinking
+        ? `Thinking: ${thinkingLevel || 'default'}`
+        : '';
 
     const emitModelState = (payload) => {
         if (!payload || typeof payload !== 'object') return;
@@ -208,7 +241,7 @@ export function ComposeBox({
         const textarea = textareaRef.current;
         if (!textarea) return;
         textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
     };
 
     /** Update slash autocomplete matches based on current input. */
@@ -309,6 +342,10 @@ export function ComposeBox({
 
     const handleCycleModel = async () => {
         await runModelCommand('/cycle-model');
+    };
+
+    const handleCycleThinking = async () => {
+        await runModelCommand('/cycle-thinking');
     };
 
     const handleSelectModel = async (modelLabel) => {
@@ -607,6 +644,13 @@ export function ComposeBox({
                 onDrop=${handleComposeDrop}
             >
                 <div class="compose-input-main">
+                    ${!searchMode && html`
+                        <${FollowupQueue}
+                            items=${queuedFollowups}
+                            onRemove=${onQueueRemove}
+                            onSteer=${onQueueSteer}
+                        />
+                    `}
                     ${(fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`
                         <div class="compose-file-refs">
                             ${messageRefs.map((id) => {
@@ -714,7 +758,7 @@ export function ComposeBox({
                             `)}
                         </div>
                     `}
-                    ${!searchMode && (activeModel || (contextUsage && contextUsage.percent != null)) && html`
+                    ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
                             ${activeModel && html`
                                 <button
@@ -727,6 +771,17 @@ export function ComposeBox({
                                     disabled=${loading || switchingModel}
                                 >
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
+                                </button>
+                            `}
+                            ${supportsThinking && html`
+                                <button
+                                    type="button"
+                                    class="compose-thinking-pill"
+                                    title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
+                                    onClick=${() => { void handleCycleThinking(); }}
+                                    disabled=${loading || switchingModel}
+                                >
+                                    ${thinkingLevel || 'thinking'}
                                 </button>
                             `}
                             ${contextUsage && contextUsage.percent != null && html`

@@ -161,7 +161,8 @@ def _list_commands() -> SlashCommandResult:
         "- `/bash <command>` - Run a shell command (returned inline; not hidden context)",
         "- `/commands` - List available commands",
         "",
-        "Messages sent while the agent is working are automatically sent as steering.",
+        "Messages sent while the agent is working are automatically queued as follow-ups.",
+        "Use the compose queue UI to promote a queued item to steering.",
         "Any other /command is forwarded to the agent.",
     ]
     return SlashCommandResult(status="success", message="\n".join(lines))

@@ -87,10 +87,10 @@ export async function deletePost(postId, cascade = false) {
 /**
  * Send message to agent
  */
-export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = []) {
+export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null) {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
-        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds }),
+        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode }),
     });
 }
 
@@ -113,6 +113,28 @@ export async function getAgentContext() {
  */
 export async function getAgentStatus() {
     return request('/agents/status');
+}
+
+export async function getAgentQueue(agentId = null, threadId = null) {
+    const params = new URLSearchParams();
+    if (agentId) params.set('agent_id', agentId);
+    if (threadId != null) params.set('thread_id', String(threadId));
+    const query = params.toString();
+    return request(query ? `/agent/queue?${query}` : '/agent/queue');
+}
+
+export async function removeAgentQueueItem(rowId) {
+    return request('/agent/queue-remove', {
+        method: 'POST',
+        body: JSON.stringify({ row_id: rowId }),
+    });
+}
+
+export async function steerAgentQueueItem(rowId) {
+    return request('/agent/queue-steer', {
+        method: 'POST',
+        body: JSON.stringify({ row_id: rowId }),
+    });
 }
 
 /**
@@ -444,6 +466,18 @@ export class SSEClient {
 
         this.eventSource.addEventListener('agent_steer_queued', (e) => {
             this.onEvent('agent_steer_queued', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_followup_queued', (e) => {
+            this.onEvent('agent_followup_queued', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_followup_consumed', (e) => {
+            this.onEvent('agent_followup_consumed', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_followup_removed', (e) => {
+            this.onEvent('agent_followup_removed', JSON.parse(e.data));
         });
 
         this.eventSource.addEventListener('model_changed', (e) => {

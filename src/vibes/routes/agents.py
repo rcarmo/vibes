@@ -27,6 +27,14 @@ from ..pi_client import (
 )
 from ..slash_commands import parse_command, execute_command
 from ..tasks import enqueue
+from ..followups import (
+    consume_next_followup,
+    defer_steer,
+    list_followups,
+    list_pending_steers,
+    queue_followup,
+    remove_followup,
+)
 from .sse import broadcast_event
 
 _DATA_URI_MARKDOWN_IMAGE_RE = re.compile(
@@ -78,6 +86,19 @@ logger = logging.getLogger(__name__)
 _PREVIEW_MAX_CHARS_PER_LINE = 160
 _MAX_TURN_PREVIEWS = 128
 _turn_previews: dict[str, dict] = {}
+
+
+def _serialize_followup_event(item: dict) -> dict:
+    return {
+        "row_id": item["row_id"],
+        "thread_id": item["thread_id"],
+        "agent_id": item["agent_id"],
+        "message_id": item["message_id"],
+        "content": item["content"],
+        "mode": item.get("mode", "queue"),
+        "created_at": item.get("created_at"),
+        "emulated": bool(item.get("emulated")),
+    }
 
 
 def _estimate_total_lines(text: str, max_chars_per_line: int = _PREVIEW_MAX_CHARS_PER_LINE) -> int:
@@ -293,6 +314,8 @@ async def get_agent_status(request: web.Request) -> web.Response:
         "pi_busy": pi_busy,
         "acp_busy": acp_busy,
         "active_turns": active_turns,
+        "queued_followups": list_followups(),
+        "pending_steers": list_pending_steers(),
     })
 
 
@@ -312,6 +335,103 @@ async def get_turn_preview(request: web.Request) -> web.Response:
         "draft_total_lines": _estimate_total_lines(draft),
         "thought_total_lines": _estimate_total_lines(thought),
     })
+
+
+async def get_agent_queue(request: web.Request) -> web.Response:
+    """Return queued follow-ups and pending steering items."""
+    agent_id = request.query.get("agent_id") or None
+    thread_id_raw = request.query.get("thread_id")
+    try:
+        thread_id = int(thread_id_raw) if thread_id_raw is not None else None
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Invalid thread_id"}, status=400)
+
+    return web.json_response({
+        "items": list_followups(agent_id=agent_id, thread_id=thread_id),
+        "pending_steers": list_pending_steers(agent_id=agent_id, thread_id=thread_id),
+    })
+
+
+async def remove_queue_item(request: web.Request) -> web.Response:
+    """Remove a queued follow-up item."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    try:
+        row_id = int(data.get("row_id"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Missing row_id"}, status=400)
+
+    removed = remove_followup(row_id)
+    if not removed:
+        return web.json_response({"error": "Queue item not found"}, status=404)
+
+    payload = _serialize_followup_event(removed)
+    await broadcast_event("agent_followup_removed", payload)
+    return web.json_response({"removed": True, "item": payload})
+
+
+async def steer_queue_item(request: web.Request) -> web.Response:
+    """Promote a queued item into steering for the active turn."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+
+    try:
+        row_id = int(data.get("row_id"))
+    except (TypeError, ValueError):
+        return web.json_response({"error": "Missing row_id"}, status=400)
+
+    queued = None
+    for item in list_followups():
+        if item["row_id"] == row_id:
+            queued = item
+            break
+    if not queued:
+        return web.json_response({"error": "Queue item not found"}, status=404)
+
+    agent_mode = _resolve_agent_mode(queued["agent_id"])
+    active_turn = await _get_active_turn_for_agent(queued["agent_id"])
+    target_turn_id = active_turn.get("turn_id") if active_turn else None
+    actual_steer = False
+    emulated = agent_mode != "pi"
+
+    removed = remove_followup(row_id)
+    if not removed:
+        return web.json_response({"error": "Queue item not found"}, status=404)
+
+    if agent_mode == "pi" and _is_agent_busy(agent_mode):
+        actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}))
+        emulated = not actual_steer
+
+    if not actual_steer:
+        steered = defer_steer(
+            thread_id=removed["thread_id"],
+            agent_id=removed["agent_id"],
+            message_id=removed["message_id"],
+            content=removed["content"],
+            emulated=True,
+        )
+    else:
+        steered = {
+            **removed,
+            "mode": "steer",
+            "emulated": False,
+        }
+
+    removed_payload = _serialize_followup_event(removed)
+    steer_payload = {
+        **_serialize_followup_event(steered),
+        "turn_id": target_turn_id,
+        "actual": actual_steer,
+        "emulated": emulated,
+    }
+    await broadcast_event("agent_followup_removed", removed_payload)
+    await broadcast_event("agent_steer_queued", steer_payload)
+    return web.json_response({"queued": "steer", "item": steer_payload})
 
 
 async def set_turn_panel_state(request: web.Request) -> web.Response:
@@ -378,6 +498,31 @@ def _resolve_agent_mode(agent_id: str) -> str:
     if agent_id in ("pi", "acp"):
         return agent_id
     return default_mode
+
+
+async def _get_active_turn_for_agent(agent_id: str) -> dict | None:
+    """Return the most recently started active turn for an agent."""
+    try:
+        db = await get_db()
+        turns = await db.get_active_turns()
+    except Exception:
+        return None
+
+    matching = [turn for turn in turns if turn.get("agent_id") == agent_id]
+    if not matching:
+        return None
+    matching.sort(key=lambda turn: str(turn.get("started_at") or ""), reverse=True)
+    return matching[0]
+
+
+def _is_agent_busy(agent_mode: str) -> bool:
+    if agent_mode == "pi":
+        return is_pi_busy()
+    try:
+        from ..acp_client import _state as acp_state
+        return acp_state.request_lock.locked()
+    except Exception:
+        return False
 
 
 async def process_agent_response(thread_id: int, content: str, agent_id: str):
@@ -591,13 +736,16 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         await _persist_and_broadcast_status({"type": "done"})
         turn_completed = True
         
-        # Check for queued messages and send the next one
-        if agent_mode == "pi":
-            from ..pi_client import pop_queued_message
-            queued = pop_queued_message()
-            if queued:
-                logger.info("Sending queued message after turn completion")
-                enqueue(process_agent_response, thread_id, queued, agent_id)
+        next_followup = consume_next_followup(thread_id, agent_id)
+        if next_followup:
+            logger.info(
+                "Dispatching queued follow-up %s for thread %s (%s)",
+                next_followup["row_id"],
+                thread_id,
+                next_followup.get("mode", "queue"),
+            )
+            await broadcast_event("agent_followup_consumed", _serialize_followup_event(next_followup))
+            enqueue(process_agent_response, thread_id, next_followup["content"], agent_id)
         
     except Exception as e:
         logger.error(f"Error processing agent response: {e}", exc_info=True)
@@ -786,6 +934,9 @@ async def send_message(request: web.Request) -> web.Response:
         return web.json_response({"error": "Missing 'content' field"}, status=400)
 
     thread_id = data.get("thread_id")
+    requested_mode = str(data.get("mode") or "").strip().lower() or None
+    if requested_mode not in {None, "auto", "queue", "steer"}:
+        return web.json_response({"error": "Invalid mode"}, status=400)
     
     # Store user message as interaction
     db = await get_db()
@@ -855,26 +1006,87 @@ async def send_message(request: web.Request) -> web.Response:
             }, status=201)
         # Not a built-in command — fall through to forward to agent
 
-    # If agent is busy, send as steering instead of queueing a new turn
     agent_mode = _resolve_agent_mode(agent_id)
-    if agent_mode == "pi" and is_pi_busy():
-        ok = await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]})
-        # Re-parent this steering message to the inflight turn's thread
-        inflight_thread = await db.get_inflight_thread_id()
-        if ok and inflight_thread:
-            await db.set_interaction_thread_id(msg_id, inflight_thread)
-            updated = await db.get_interaction(msg_id)
-            await broadcast_event("interaction_updated", updated)
-            await broadcast_event("agent_steer_queued", {
-                "thread_id": inflight_thread,
-                "message_id": msg_id,
-            })
-        status_msg = "Sent as steering to active turn" if ok else "Agent is busy (steering failed)"
+    busy = _is_agent_busy(agent_mode)
+    submit_mode = requested_mode or "auto"
+    active_turn = await _get_active_turn_for_agent(agent_id) if busy else None
+    inflight_thread = active_turn.get("thread_id") if active_turn else None
+
+    if busy and inflight_thread:
+        await db.set_interaction_thread_id(msg_id, inflight_thread)
+        updated = await db.get_interaction(msg_id)
+        await broadcast_event("interaction_updated", updated)
+        thread_id = inflight_thread
+        user_interaction = updated
+
+    if busy:
+        effective_mode = submit_mode if submit_mode != "auto" else "queue"
+
+        if effective_mode == "steer":
+            actual_steer = False
+            emulated = agent_mode != "pi"
+            if agent_mode == "pi":
+                actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]}))
+                emulated = not actual_steer
+
+            if actual_steer:
+                steer_payload = {
+                    "thread_id": thread_id,
+                    "agent_id": agent_id,
+                    "message_id": msg_id,
+                    "turn_id": active_turn.get("turn_id") if active_turn else None,
+                    "actual": True,
+                    "emulated": False,
+                }
+                await broadcast_event("agent_steer_queued", steer_payload)
+                return web.json_response({
+                    "user_message": user_interaction,
+                    "thread_id": thread_id,
+                    "queued": "steer",
+                    "steered": True,
+                    "emulated": False,
+                    "status": "Sent as steering to active turn",
+                }, status=201)
+
+            queued_item = defer_steer(
+                thread_id=thread_id,
+                agent_id=agent_id,
+                message_id=msg_id,
+                content=data["content"],
+                emulated=True,
+            )
+            steer_payload = {
+                **_serialize_followup_event(queued_item),
+                "turn_id": active_turn.get("turn_id") if active_turn else None,
+                "actual": False,
+                "emulated": True,
+            }
+            await broadcast_event("agent_steer_queued", steer_payload)
+            return web.json_response({
+                "user_message": user_interaction,
+                "thread_id": thread_id,
+                "queued": "steer",
+                "steered": False,
+                "emulated": True,
+                "item": steer_payload,
+                "status": "Steering queued for the next turn",
+            }, status=201)
+
+        queued_item = queue_followup(
+            thread_id=thread_id,
+            agent_id=agent_id,
+            message_id=msg_id,
+            content=data["content"],
+            mode="queue",
+        )
+        queued_payload = _serialize_followup_event(queued_item)
+        await broadcast_event("agent_followup_queued", queued_payload)
         return web.json_response({
-            "user_message": await db.get_interaction(msg_id),
-            "thread_id": inflight_thread or thread_id,
-            "steered": ok,
-            "status": status_msg,
+            "user_message": user_interaction,
+            "thread_id": thread_id,
+            "queued": "followup",
+            "item": queued_payload,
+            "status": "Queued for after the current turn",
         }, status=201)
 
     # Queue agent response processing in background
@@ -1048,10 +1260,13 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/agent/context", get_agent_context)
     app.router.add_get("/agent/models", get_agent_models)
     app.router.add_get("/agent/commands", get_agent_commands)
+    app.router.add_get("/agent/queue", get_agent_queue)
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
+    app.router.add_post("/agent/queue-remove", remove_queue_item)
+    app.router.add_post("/agent/queue-steer", steer_queue_item)
     app.router.add_post("/agent/respond", respond_to_agent_request)
     app.router.add_get("/agent/whitelist", get_whitelist)
     app.router.add_post("/agent/whitelist", add_to_whitelist)
