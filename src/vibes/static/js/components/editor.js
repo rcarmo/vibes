@@ -404,20 +404,6 @@ export function WorkspaceEditor({
 
     return html`
         <div class="editor-pane" ref=${paneRef}>
-            <div class="editor-header">
-                <div class="editor-title" title=${path || ''}>${path || 'Untitled file'}</div>
-                <div class="editor-actions">
-                    <button class="editor-button" onClick=${handleClose} title="Close editor">Close</button>
-                    <button
-                        class="editor-button primary"
-                        onClick=${handleSave}
-                        disabled=${!dirty || saving || loading}
-                        title=${dirty ? 'Save changes' : 'No changes to save'}
-                    >
-                        ${saving ? 'Saving…' : 'Save'}
-                    </button>
-                </div>
-            </div>
             ${loading && html`<div class="editor-status">Loading…</div>`}
             ${error && html`<div class="editor-error">${error}</div>`}
             <div class="editor-body${loading || error ? ' disabled' : ''}">
@@ -427,7 +413,7 @@ export function WorkspaceEditor({
             ${!saveError && !error && html`
                 <div class="editor-status editor-status-row">
                     <span class="editor-status-text">
-                        ${dirty ? 'Unsaved changes' : savedAt ? 'All changes saved' : 'Ready'}
+                        ${saving ? 'Saving…' : dirty ? 'Unsaved changes' : savedAt ? 'All changes saved' : 'Ready'}
                     </span>
                     <div class="editor-status-actions">
                         <button
