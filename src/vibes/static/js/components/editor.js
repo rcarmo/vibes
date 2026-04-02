@@ -137,6 +137,7 @@ export function WorkspaceEditor({
     const paneRef = useRef(null);
     const initialContentRef = useRef(savedContent ?? content ?? '');
     const [dirty, setDirty] = useState(false);
+    const resettingRef = useRef(false);
 
     const vimCompartment = useMemo(() => new Compartment(), []);
     const themeCompartment = useMemo(() => new Compartment(), []);
@@ -220,6 +221,7 @@ export function WorkspaceEditor({
     const languageExtension = useMemo(() => languageForPath(path), [path]);
 
     const updateDirty = useCallback(() => {
+        if (resettingRef.current) return;
         const view = viewRef.current;
         if (!view) return;
         const current = view.state.doc.toString();
@@ -237,10 +239,14 @@ export function WorkspaceEditor({
             setDirty(false);
             return;
         }
+        // Update ref before dispatch so the synchronous updateListener
+        // sees the correct baseline (prevents spurious dirty/onChange).
+        initialContentRef.current = nextContent;
+        resettingRef.current = true;
         view.dispatch({
             changes: { from: 0, to: view.state.doc.length, insert: nextContent },
         });
-        initialContentRef.current = nextContent;
+        resettingRef.current = false;
         setDirty(false);
     }, []);
 
