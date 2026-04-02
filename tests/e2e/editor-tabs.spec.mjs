@@ -244,7 +244,7 @@ test.describe('Editor Tab UX', () => {
         await expect(page.locator('.tab-strip')).not.toBeVisible();
     });
 
-    test('Open in Window creates a popup with editor param', async ({ page, context }) => {
+    test('Open in Window removes tab and opens editor-only popup', async ({ page, context }) => {
         await waitForApp(page);
         await openFileInEditor(page, 'README.md');
 
@@ -258,11 +258,16 @@ test.describe('Editor Tab UX', () => {
         const popup = await popupPromise;
         await popup.waitForLoadState('domcontentloaded');
 
-        // Popup URL should contain ?editor=README.md
+        // Popup URL should contain editor and popout params
         expect(popup.url()).toContain('editor=README.md');
+        expect(popup.url()).toContain('popout=1');
+
+        // Tab should be removed from the parent window
+        await expect(page.locator('.tab-item', { hasText: 'README.md' })).not.toBeVisible();
+        await expect(page.locator('.tab-strip')).not.toBeVisible();
     });
 
-    test('popout window auto-opens the editor tab', async ({ page, context }) => {
+    test('popout window is editor-only and shows content', async ({ page, context }) => {
         const errors = [];
 
         await waitForApp(page);
@@ -278,10 +283,17 @@ test.describe('Editor Tab UX', () => {
         popup.on('pageerror', (err) => errors.push(err.message));
         await popup.waitForLoadState('domcontentloaded');
 
-        // The popup should render the app and auto-open the editor
+        // The popup should render editor-only (popout mode)
         await popup.waitForSelector('.app-shell', { timeout: 10_000 });
+        await expect(popup.locator('.app-shell')).toHaveClass(/popout-mode/);
+
+        // Editor tab should be visible
         const popupTab = popup.locator('.tab-item', { hasText: 'README.md' });
         await expect(popupTab).toBeVisible({ timeout: 10_000 });
+
+        // Sidebar and chat should NOT be visible
+        await expect(popup.locator('.workspace-sidebar')).not.toBeVisible();
+        await expect(popup.locator('.container')).not.toBeAttached();
 
         // No JS errors in popup
         expect(errors).toEqual([]);

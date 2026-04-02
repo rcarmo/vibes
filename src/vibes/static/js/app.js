@@ -698,13 +698,17 @@ function App() {
     const [removingPostIds, setRemovingPostIds] = useState(() => new Set());
     const [workspaceOpen, setWorkspaceOpen] = useState(() => {
         if (typeof window === 'undefined') return true;
+        if (new URLSearchParams(window.location.search).has('popout')) return false;
         const stored = localStorage.getItem('workspaceOpen');
         return stored === null ? true : stored === 'true';
+    });
+    const [popoutMode] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        return new URLSearchParams(window.location.search).has('popout');
     });
     const [editorTabs, setEditorTabs] = useState([]);
     const [activeEditorTabId, setActiveEditorTabId] = useState(null);
     const [previewTabs, setPreviewTabs] = useState(() => new Set());
-    const [detachedTabs, setDetachedTabs] = useState(() => new Map());
     const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
     const wasAgentActiveRef = useRef(false);
@@ -970,30 +974,22 @@ function App() {
         });
         const params = new URLSearchParams();
         params.set('editor', tabId);
+        params.set('popout', '1');
         if (transferPayload?.editor_popout) {
             params.set('editor_popout', transferPayload.editor_popout);
         }
         const url = `${window.location.origin}${window.location.pathname}?${params}`;
-        const popout = window.open(url, `vibes-editor-${tabId}`);
-        setDetachedTabs((prev) => {
-            const next = new Map(prev);
-            next.set(tabId, { windowRef: popout, label: label || tabId });
-            return next;
+        window.open(url, `vibes-editor-${tabId}`, 'popup,width=820,height=620');
+        // Remove the tab from this window
+        setEditorTabs((prev) => prev.filter((t) => t.id !== tabId));
+        setActiveEditorTabId((prev) => {
+            if (prev !== tabId) return prev;
+            const remaining = editorTabs.filter((t) => t.id !== tabId);
+            return remaining[remaining.length - 1]?.id || null;
         });
     }, [editorTabs]);
 
-    const handleReattachTab = useCallback((tabId) => {
-        if (!tabId) return;
-        setDetachedTabs((prev) => {
-            if (!prev.has(tabId)) return prev;
-            const next = new Map(prev);
-            next.delete(tabId);
-            return next;
-        });
-        setActiveEditorTabId(tabId);
-    }, []);
-
-    // Restore editor from popout URL params on startup
+    // Open editor from URL params on startup (?editor=path, optional ?popout=1)
     useEffect(() => {
         const url = new URL(window.location.href);
         const editorPath = url.searchParams.get('editor')?.trim();
@@ -1004,6 +1000,7 @@ function App() {
         // Clean the URL params so a refresh doesn't re-trigger
         url.searchParams.delete('editor');
         url.searchParams.delete('editor_popout');
+        url.searchParams.delete('popout');
         window.history.replaceState(window.history.state, document.title, url.toString());
 
         // Try to consume stashed editor state (content + cursor)
@@ -2208,9 +2205,9 @@ function App() {
     const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
     
     return html`
-        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}`} ref=${appShellRef}>
-            <${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />
-            <button
+        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}`} ref=${appShellRef}>
+            ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
+            ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
                 title=${workspaceOpen ? 'Hide workspace' : 'Show workspace'}
@@ -2219,8 +2216,8 @@ function App() {
                 <svg class="workspace-toggle-tab-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                     <polyline points="6 3 11 8 6 13" />
                 </svg>
-            </button>
-            <div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>
+            </button>`}
+            ${!popoutMode && html`<div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>`}
             ${editorOpen && html`
                 <div class="editor-stack">
                     <${TabStrip}
@@ -2233,9 +2230,7 @@ function App() {
                         onTogglePin=${handleTabTogglePin}
                         onTogglePreview=${handleTabTogglePreview}
                         previewTabs=${previewTabs}
-                        detachedTabs=${detachedTabs}
-                        onReattachTab=${handleReattachTab}
-                        onPopOutTab=${handlePopOutTab}
+                        onPopOutTab=${!popoutMode ? handlePopOutTab : undefined}
                     />
                     <${WorkspaceEditor}
                         key=${activeEditorTab?.id || 'editor'}
@@ -2256,9 +2251,9 @@ function App() {
                         renderMermaidDiagrams=${renderMermaidDiagrams}
                     />
                 </div>
-                <div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>
+                ${!popoutMode && html`<div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>`}
             `}
-            <div class="container">
+            ${!popoutMode && html`<div class="container">
                 ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}
                 ${(currentHashtag || searchQuery) && html`
                     <div class="hashtag-header">
@@ -2334,7 +2329,7 @@ function App() {
                 />
                 <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
-            </div>
+            </div>`}
         </div>
     `;
 }

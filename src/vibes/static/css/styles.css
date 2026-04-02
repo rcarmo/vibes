@@ -751,6 +751,12 @@ body {
     border-right: 1px solid var(--border-color);
 }
 
+.popout-mode .editor-stack {
+    width: 100%;
+    max-width: none;
+    border: none;
+}
+
 .editor-pane {
     width: 100%;
     min-width: 0;
@@ -832,14 +838,6 @@ body {
 
 .tab-close:hover {
     background: var(--bg-hover);
-}
-
-.tab-detached-badge {
-    flex: 0 0 auto;
-    font-size: 11px;
-    line-height: 1;
-    color: var(--accent-color);
-    opacity: 0.8;
 }
 
 .tab-strip-spacer {

@@ -46,8 +46,6 @@ export function getStandaloneTabUrl(path, { hasPopOutTab = false } = {}) {
  * @param {(id: string) => void} props.onTogglePin
  * @param {(id: string) => void} [props.onTogglePreview]
  * @param {Set<string>} [props.previewTabs]
- * @param {Map<string, unknown>} [props.detachedTabs] - Tabs currently detached into standalone windows.
- * @param {(id: string) => void} [props.onReattachTab] - Reattach a detached tab to the main window.
  * @param {(id: string, label?: string) => void} [props.onPopOutTab] - Open a tab in a standalone window.
  * @param {() => void} [props.onToggleDock] - Toggle terminal dock visibility.
  * @param {boolean} [props.dockVisible] - Whether the terminal dock is currently visible.
@@ -64,8 +62,6 @@ export function TabStrip({
     onTogglePin,
     onTogglePreview,
     previewTabs,
-    detachedTabs,
-    onReattachTab,
     onPopOutTab,
     onToggleDock,
     dockVisible,
@@ -166,12 +162,6 @@ export function TabStrip({
         () => tabs.find((tab) => tab.id === contextMenu?.id) || null,
         [contextMenu?.id, tabs],
     );
-    const isContextMenuTabDetached = useMemo(() => {
-        const tabId = contextMenu?.id;
-        if (!tabId || !(detachedTabs instanceof Map)) return false;
-        return detachedTabs.has(tabId);
-    }, [contextMenu?.id, detachedTabs]);
-
     if (!tabs?.length) return null;
 
     return html`
@@ -195,9 +185,6 @@ export function TabStrip({
                         </span>
                     `}
                     <span class="tab-label">${tab.label}</span>
-                    ${detachedTabs instanceof Map && detachedTabs.has(tab.id) && html`
-                        <span class="tab-detached-badge" aria-label="Detached" title="Open in separate window">↗</span>
-                    `}
                     <button
                         type="button"
                         class="tab-close"
@@ -258,13 +245,7 @@ export function TabStrip({
                 <button onClick=${() => { onTogglePin?.(contextMenu.id); setContextMenu(null); }}>
                     ${contextMenuTab?.pinned ? 'Unpin' : 'Pin'}
                 </button>
-                ${isContextMenuTabDetached && onReattachTab && html`
-                    <button onClick=${() => {
-                        onReattachTab(contextMenu.id);
-                        setContextMenu(null);
-                    }}>Reattach Here</button>
-                `}
-                ${onPopOutTab && !isContextMenuTabDetached && html`
+                ${onPopOutTab && html`
                     <button onClick=${() => {
                         const tab = tabs.find((t) => t.id === contextMenu.id);
                         onPopOutTab(contextMenu.id, tab?.label);
