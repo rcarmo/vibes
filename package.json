@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "eslint": "9.39.4",
     "globals": "16.5.0"
   },
