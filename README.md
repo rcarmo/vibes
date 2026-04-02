@@ -1,110 +1,20 @@
 # Vibes
 
-A single-user, mobile-friendly SPA for Slack-like interactions with coding agents via the ACP protocol (including [`copilot --acp`](https://docs.github.com/en/copilot) and [`codex-acp`](https://github.com/openai/codex)), as well as direct integration with [`pi`](https://pi.dev). Heavily inspired by [Toad](https://github.com/batrachianai/toad)'s ACP implementation, (which is stellar), but aimed at providing my own mobile agent interface over Tailscale.
-
-## Highlights
+A mobile-friendly web UI for coding agents, supporting [ACP](https://docs.github.com/en/copilot) (`copilot --acp`, [`codex-acp`](https://github.com/openai/codex)) and [Pi](https://pi.dev) via RPC. Inspired by [Toad](https://github.com/batrachianai/toad), built for personal use over Tailscale.
 
 ![Demo](docs/demo.gif)
 
 > Vibes and [piclaw](https://github.com/rcarmo/piclaw) share the same web UI.
 
-- **Streaming web UI** — real-time token-by-token updates over SSE, with Markdown, KaTeX, and Mermaid rendering
-- **Workspace explorer** — file tree sidebar with previews, drag-and-drop upload, keyboard navigation, and downloads
-- **Code editor** — built-in CodeMirror 6 with syntax highlighting for 13 languages, Vim mode, search/replace, and save
-- **Persistent storage** — SQLite-backed messages, media, and full-text search
-- **Rich media** — paste or drag images, attach workspace files, link previews with OpenGraph
-- **Dark/Light themes** — follows system preference automatically
-- **Installable PWA** — standalone webapp manifest with window-controls-overlay support
+## Features
 
-## Web UI
-
-The UI is single-user, mobile-friendly, and streams updates over SSE:
-
-- **Thought/Draft panels** — collapsible live reasoning and draft blocks, visible during streaming
-- **Queued follow-ups + steering** — while the agent is busy, new messages queue automatically and queued items can be promoted to steering from the compose UI
-- **File attachments** — drag, paste, or pick images; attach workspace files as reference pills
-- **Link previews** — server-side OpenGraph fetch with image thumbnails
-- **Multi-turn threading** — subsequent turns are visually threaded under the first
-- **Accept/Deny tool usage** — approve, deny, or always-allow agent operations with command previews
-- **Context window indicator** — colour-coded pie chart showing token usage (green / amber / red)
-- **Compose history** — up/down arrow keys cycle through last 200 messages
-- **Full-text search** — search conversations using SQLite FTS
-- **Mobile-first layout** — responsive design for phone, tablet, and desktop
-
-### Workspace explorer
-
-The sidebar shows a file tree with auto-refresh. Click a file to preview it or add a **file reference pill** to the next prompt. Drag and drop files onto the tree to upload them, with overwrite conflict detection.
-
-- **Keyboard navigation** — arrow keys to browse, Enter to open/edit, Delete to remove, Escape to deselect
-- **Per-folder upload** — hover a folder to reveal its upload button
-- **Touch support** — long-press to delete files on mobile
-- **Hidden files toggle** — show/hide dotfiles (persisted)
-- **Download** — single files or entire folders as ZIP
-
-### Code editor
-
-Click the **pencil icon** on any text file preview (up to 256 KB) to open the built-in editor. It appears as a resizable centre pane between the sidebar and the chat, with a tabbed interface for multiple open files.
-
-- **13 languages** — JS/TS, Python, Go, JSON, CSS, HTML, YAML, SQL, XML, Markdown, Shell, plus auto-detection
-- **Tabbed editing** — open multiple files in tabs; dirty state shown as a dot indicator on unsaved tabs
-- **Search and replace** — Cmd/Ctrl+F
-- **Save** — Cmd/Ctrl+S; dirty state is tracked per tab
-- **Close** — Escape to close the active editor tab
-- **Open in Window** — pop out any editor tab into a standalone, editor-only window (removes the tab from the parent)
-- **Tab context menu** — right-click a tab for Close, Close Others, Close All, Pin/Unpin, and Open in Window
-- **Vim mode** — toggle with Alt+V (persisted)
-- **Whitespace visibility** — toggle with Alt+W (persisted)
-- **Line wrapping**, line numbers, active line highlight, and indentation markers
-- **Dark/Light theme** — switches automatically with system preference
-
-### Queueing and steering
-
-When the active agent is already working, sending another message does not start a second concurrent turn:
-
-- **Default busy-submit behavior** — new messages are queued automatically as follow-ups
-- **Queue stack in compose** — queued items appear above the textarea with `Steer` and `Cancel` actions
-- **Queue consumption** — when the current turn finishes, the next queued item is dispatched automatically
-- **Reconnect restore** — queued items and pending steering state are restored from `/agents/status` after reconnect
-
-Caveats:
-
-- **Pi** supports real mid-turn steering when available, so a `Steer` action can be injected into the active run immediately.
-- **ACP** does not currently support mid-turn input without interrupting the active prompt. In ACP mode, `Steer` is emulated as **next-turn priority**: the item is removed from the visible queue, marked as pending steering, and dispatched before normal queued follow-ups after the current turn finishes.
-- The visible queue stack shows normal queued follow-ups. Pending ACP steering is indicated in the status area, but it is not shown as another queue item.
-- The legacy `/queue <message>` slash command still exists for Pi, but the primary UX is the compose queue stack and automatic busy-submit queueing.
-
-## Slash Commands
-
-Type a `/` command in the message input to control the agent or run utilities without sending a prompt. Built-in commands are handled instantly; unknown commands are forwarded to the agent as regular prompts.
-
-| Command | Description |
-|---|---|
-| `/commands` | List all available slash commands |
-| `/model` | Show the current model (Pi) or agent binary (ACP) |
-| `/models` | Alias for `/model` |
-| `/model <provider/model>` | Switch the Pi agent to a different model (live, no restart) |
-| `/cycle-model [back]` | Cycle through available Pi models |
-| `/thinking` | Show current thinking level and available levels |
-| `/thinking <level>` | Set thinking level (`off`, `minimal`, `low`, `medium`, `high`, `xhigh`) live |
-| `/cycle-thinking` | Cycle through the available thinking levels |
-| `/context` | Show current Pi context-window usage |
-| `/ctx` | Alias for `/context` |
-| `/state` | Show current agent/session state |
-| `/abort` | Cancel the current agent operation |
-| `/restart` | Reset the agent session (or hard restart as fallback) |
-| `/shell <command>` | Run a shell command and display the output |
-| `/bash <command>` | Run a shell command and display the output inline |
-| `/prompt` | Show or set the user system prompt |
-| `/user-name` | Set or show your display name |
-| `/user-avatar` | Set or show your avatar URL |
-| `/user-github` | Set name and avatar from a GitHub profile |
-| `/agent-name` | Set or show the agent display name |
-| `/agent-avatar` | Set or show the agent avatar URL |
-| `/queue <message>` | Legacy Pi queue command for after the current turn |
-
-> **Note:** `/model`, `/thinking`, and `/abort` are Pi-specific live controls. ACP agents do not expose equivalent runtime controls.
-
-> **Queue/Steer note:** busy submits queue automatically for both Pi and ACP. Steering is exposed in the compose queue UI. Pi steering is real mid-turn steering; ACP steering is emulated as next-turn priority.
+- **Streaming chat** — real-time SSE with Markdown, KaTeX, and Mermaid rendering
+- **Workspace explorer** — file tree with previews, drag-and-drop upload, and folder downloads
+- **Code editor** — tabbed CodeMirror 6 editor (13 languages, Vim mode, search/replace, pop-out windows)
+- **Agent controls** — approve/deny tool calls, queue follow-ups, mid-turn steering (Pi), slash commands
+- **Rich media** — paste images, attach files, OpenGraph link previews
+- **SQLite storage** — messages, media, and full-text search in a single file
+- **PWA** — installable, dark/light themes, responsive from phone to desktop
 
 ## Installation
 
@@ -148,34 +58,31 @@ vibes whitelist remove "Run command"
 vibes whitelist list
 ```
 
+## Keyboard shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl+S` | Save current editor tab |
+| `Cmd/Ctrl+F` | Search/replace in editor |
+| `Escape` | Close active editor tab |
+| `Alt+V` | Toggle Vim mode |
+| `Alt+W` | Toggle whitespace visibility |
+| `↑` / `↓` | Cycle compose history |
+
+Type `/commands` in the chat input to list all slash commands.
+
 ## Configuration
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md). For Pi RPC integration, see [docs/PI_MODE.md](docs/PI_MODE.md).
-
-## API Endpoints
-
-See [docs/API.md](docs/API.md).
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md). For Pi integration, see [docs/PI_MODE.md](docs/PI_MODE.md). For the full API, see [docs/API.md](docs/API.md).
 
 ## Development
 
 ```bash
-# Install dev dependencies
-pip install -e ".[dev]"
-
-# Run tests
-make check           # lint + tests (388 unit + 34 E2E)
-
-# Run frontend linting (requires bun)
-make lint-frontend
-
-# Rebuild frontend bundle
-make build-frontend  # bundles JS + CSS via bun
-
-# Run E2E tests (requires Playwright + running dev server on :8765)
-bunx playwright test  # Chromium + WebKit
-
-# Run with make
-make serve
+pip install -e ".[dev]"        # dev dependencies
+make check                     # lint + 388 unit tests + 34 E2E tests
+make build-frontend            # rebuild JS/CSS bundles (requires bun)
+bunx playwright test           # E2E tests (Chromium + WebKit)
+make serve                     # run dev server
 ```
 
 ## License
