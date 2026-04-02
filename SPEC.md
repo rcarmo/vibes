@@ -2,7 +2,7 @@
 
 ## Overview
 
-A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol. The app supports text, links, images/files, threaded conversations, and rich media previews. It uses an asyncio-based Python backend (aiohttp) and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
+A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The app supports text, links, images/files, threaded conversations, rich media previews, a workspace file explorer, and a built-in code editor. It uses an asyncio-based Python backend (aiohttp) and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
 
 ---
 
@@ -10,8 +10,8 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Preact + HTM (vendored) |
-| Backend | Python with aiohttp + ACP protocol |
+| Frontend | Preact + HTM (vendored), CodeMirror 6, bundled via Bun |
+| Backend | Python with aiohttp + ACP protocol + Pi RPC |
 | Database | SQLite with JSON columns and virtual columns for indexing |
 | Live Updates | Server-Sent Events (SSE) |
 | Authentication | Deferred to upstream proxy/IDP |
@@ -22,31 +22,72 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 ## Features
 
 - Post text, links, images, and files
-- Threaded conversations with ACP agents
+- Threaded conversations with ACP and Pi agents
 - Rich media previews (downscaled and stored in database)
-- Live updates via SSE
+- Live updates via SSE with token-by-token streaming
+- Workspace file explorer with file tree, upload, download, and previews
+- Built-in code editor with tabbed editing, popout windows, and syntax highlighting
+- Queued follow-ups and mid-turn steering
+- Accept/deny agent tool usage with command previews
+- Context window indicator (colour-coded pie chart)
+- Compose history (up/down arrow keys cycle through last 200 messages)
+- Full-text search via SQLite FTS
 - Responsive design for mobile, tablet, and desktop
-- Dark/light mode toggle
-- Markdown rendering
-- Hashtag support
+- Dark/light mode following system preference
+- Markdown, KaTeX math, and Mermaid diagram rendering
+- Installable PWA with window-controls-overlay support
 
 ---
 
 ## Frontend
 
-**Framework:** Preact + HTM (vendored)
+**Framework:** Preact + HTM (vendored), bundled with Bun
 
 ### Styling
 - Cross-platform sans-serif font stack
 - CSS media queries for responsive breakpoints (mobile, tablet, desktop)
-- Dark/light mode using CSS variables
+- Dark/light mode using CSS variables (follows `prefers-color-scheme`)
 
 ### UI Layout
-- Linear message timeline (Slack-style)
-- Compose box for new messages
-- Inline thread expansion
-- Media preview components
-- Agent status indicator
+- **Three-pane layout** — workspace sidebar (left), editor stack (centre), chat timeline (right)
+- Resizable panes via drag handles / splitters
+- Workspace sidebar toggleable (auto-hides on narrow viewports)
+- Chat compose box with file attachment pills, queue stack, and steering controls
+- Agent status indicator with context-window pie chart
+
+### Components
+
+| Component | File | Description |
+|-----------|------|-------------|
+| `App` | `app.js` | Root SPA component; all state management |
+| `Timeline` / `Post` | `timeline.js` | Message timeline with threading, media, and attachment previews |
+| `ComposeBox` | `compose-box.js` | Text input with file pills, queue stack, history |
+| `WorkspaceExplorer` | `workspace-explorer.js` | File tree sidebar with upload, preview, keyboard nav |
+| `WorkspaceEditor` | `editor.js` | CodeMirror 6 editor with save, dirty tracking, status bar |
+| `TabStrip` | `tab-strip.js` | Editor tab bar with context menu (close, pin, popout) |
+| `AgentStatus` | `status.js` | Streaming panels (Draft, Thoughts, Planning) + spinner |
+| `MarkdownPreview` | `markdown-preview.js` | Markdown/KaTeX/Mermaid rendering |
+| `Sunburst` | `sunburst.js` | Context-window pie chart |
+
+### Editor details
+
+- **13 languages** — JS/TS, Python, Go, JSON, CSS, HTML, YAML, SQL, XML, Markdown, Shell, plus auto-detection
+- **Tabbed editing** — multiple files open as tabs; dirty state shown as a dot indicator
+- **Save** — Cmd/Ctrl+S; dirty state tracked per tab
+- **Close** — Escape to close the active editor tab
+- **Open in Window** — pop out any tab into a standalone editor-only popup window
+- **Tab context menu** — Close, Close Others, Close All, Pin/Unpin, Open in Window
+- **Vim mode** — Alt+V (persisted)
+- **Whitespace visibility** — Alt+W (persisted)
+- **Dark/Light theme** — switches automatically with system preference
+
+### Popout (editor-only) mode
+
+When a tab is popped out via "Open in Window", the new window:
+- Opens as a popup window (820×620) centred on screen
+- Runs in **editor-only mode** — no sidebar, no chat, no tab bar
+- Receives editor content via localStorage transfer for instant hydration
+- The original tab is removed from the parent window
 
 ---
 
@@ -54,18 +95,26 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 
 **Framework:** aiohttp
 
-### ACP Integration
-- Use python-sdk from `agentclientprotocol/python-sdk`
-- Maintain persistent sessions with agents
-- Support custom endpoints for predefined tasks (e.g., summarizing a web page)
+### Agent Integration
+
+Vibes supports two agent backends:
+- **ACP** (Agent Client Protocol) — stdio-based JSON-RPC communication with agents like `copilot --acp` and `codex-acp`
+- **Pi RPC** — Pi's `--mode rpc` protocol with streaming drafts, thinking traces, tool events, and live model/thinking control
 
 ### Media Handling
 - Accept image/file uploads
 - Downscale images and store as BLOBs in the database
 - Generate and serve rich previews from database
 
+### Workspace
+- Serve the agent's working directory as a browsable file tree
+- Support file CRUD, rename, move, upload, and folder download (as ZIP)
+- Detect binary vs text files for preview routing
+- File editing via the built-in editor (PUT `/workspace/file`)
+
 ### Live Updates
-- Implement SSE endpoints for real-time updates to the frontend
+- SSE endpoint for real-time updates to the frontend
+- Event types: connection, posts, replies, agent responses, status, drafts, permissions
 
 ---
 
@@ -77,7 +126,6 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 - Use JSON columns for flexible data storage
 - Implement virtual columns for indexing and querying
 - Store media as BLOBs for easy migration/backup
-- Follow guidance from SQLite JSON Virtual Columns & Indexing
 
 ### Tables
 
@@ -107,175 +155,30 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 
 ## API Endpoints
 
-### Public
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/sse/stream` | SSE endpoint for live updates |
-| GET | `/media/{id}` | Serve media files from database |
-| GET | `/media/{id}/thumbnail` | Serve downscaled previews from database |
+See [docs/API.md](docs/API.md) for the full endpoint reference.
 
-### Authenticated (via upstream proxy)
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/post` | Submit new post (text/link/image/file) |
-| POST | `/reply` | Reply to a thread |
-| POST | `/agent/{agent_id}/action/{action_id}` | Trigger custom agent action |
-| GET | `/thread/{thread_id}` | Retrieve full thread context |
+### Summary
+
+| Section | Endpoints |
+|---------|-----------|
+| Health | `GET /health` |
+| Timeline & Posts | 7 endpoints — CRUD, search, hashtags, threads |
+| Media | 4 endpoints — upload, serve, thumbnail, info |
+| Workspace | 12 endpoints — tree, file CRUD, rename, move, upload, download, attach, visibility |
+| Agents | 16 endpoints — list, status, context, models, commands, queue, messaging, actions, permissions, whitelist |
+| Avatars | `GET /avatar/{kind}` |
+| Real-time | `GET /sse/stream` (11 event types) |
 
 ---
 
 ## Deployment
 
-- Installable via pip from https://github.com/rcarmo/vibes 
-- Minimal Dockerfile and CI/CD workflows similar to https://github.com/rcarmo/webterm
+- Installable via pip from https://github.com/rcarmo/vibes
+- Minimal Dockerfile and CI/CD workflows
 - Single-user mode
 - CORS enabled
 - Authentication handled externally
-- Static frontend served by aiohttp but bundled into the pip package
-
----
-
-## Notes
-
-- All user-agent interactions are stored and indexed for context reconstruction
-- Custom endpoints can be configured via a JSON file or environment variables
-- Media processing uses PIL or similar for image downscaling
-- All media stored in database for single-file backup/migration
-
----
-
-## Future Enhancements
-
-- Multi-user support
-- Plugin system for custom agent actions
-
----
-
-# Implementation Plan
-
-## Phase 1: Project Setup & Foundation
-
-- [ ] **1.1 Initialize project structure**
-  - Create directory layout: `src/`, `static/`
-  - Create `requirements.txt` with dependencies: `aiohttp`, `aiosqlite`, `pillow`
-  - Create `pyproject.toml` for packaging
-
-- [ ] **1.2 Set up database layer**
-  - Create `src/db.py` with async SQLite connection management
-  - Implement schema initialization with migrations support
-  - Create `interactions` table with JSON columns and virtual column indexes
-  - Create `media` table with BLOB columns for file storage
-  - Write unit tests for database operations
-
-- [ ] **1.3 Create base aiohttp application**
-  - Create `src/app.py` with aiohttp application factory
-  - Configure CORS middleware (open policy)
-  - Set up static file serving for `/static/`
-  - Add health check endpoint (`GET /health`)
-
-## Phase 2: Core Backend API
-
-- [ ] **2.1 Implement interactions API**
-  - `POST /post` – Create new post (text, link, image, file)
-  - `POST /reply` – Reply to existing thread
-  - `GET /thread/{thread_id}` – Fetch full thread with all interactions
-  - `GET /timeline` – Fetch paginated timeline (newest first)
-  - Add request validation and error handling
-
-- [ ] **2.2 Implement media handling (database storage)**
-  - `POST /media/upload` – Accept multipart file uploads, store as BLOB
-  - `GET /media/{id}` – Serve media from database BLOB
-  - `GET /media/{id}/thumbnail` – Serve thumbnail from database BLOB
-  - Implement image downscaling with PIL (max 800px, JPEG 80%)
-  - Store both original and thumbnail as BLOBs in `media` table
-
-- [ ] **2.3 Implement SSE for live updates**
-  - `GET /sse/stream` – SSE endpoint with event types:
-    - `new_post` – New post created
-    - `new_reply` – Reply added to thread
-    - `agent_response` – Agent responded
-  - Implement connection management and heartbeat (30s keepalive)
-  - Add reconnection support with `Last-Event-ID`
-
-## Phase 3: ACP Agent Integration
-
-- [ ] **3.1 Set up ACP client**
-  - Install and configure `python-sdk` from agentclientprotocol
-  - Create `src/acp_client.py` wrapper for agent communication
-  - Implement session management (persistent sessions per agent)
-
-- [ ] **3.2 Implement agent endpoints**
-  - `POST /agent/{agent_id}/message` – Send message to agent
-  - `POST /agent/{agent_id}/action/{action_id}` – Trigger predefined action
-  - `GET /agents` – List available agents and their capabilities
-  - Handle async agent responses and push via SSE
-
-- [ ] **3.3 Custom endpoint configuration**
-  - Create `config/endpoints.json` schema for custom actions
-  - Implement config loader with environment variable overrides
-  - Add validation for custom endpoint definitions
-
-## Phase 4: Frontend Implementation
-
-- [ ] **4.1 Set up frontend foundation**
-  - Vendor Preact + HTM (no build step required)
-  - Create `static/index.html` as SPA entry point
-  - Create `static/js/app.js` with Preact application
-  - Create `static/css/styles.css` with CSS variables for theming
-
-- [ ] **4.2 Implement CSS framework**
-  - Define CSS variables for colors, spacing, typography
-  - Implement dark/light mode toggle with `prefers-color-scheme` support
-  - Create responsive breakpoints: mobile (<640px), tablet (640-1024px), desktop (>1024px)
-  - Style timeline, compose box, thread view components
-
-- [ ] **4.3 Build UI components**
-  - `<App>` – Root component with routing
-  - `<Timeline>` – Scrollable list of posts
-  - `<Post>` – Individual post with media previews
-  - `<ComposeBox>` – Text input with file attachment
-  - `<ThreadView>` – Expanded thread with replies
-  - `<MediaPreview>` – Image/file preview component
-  - `<ThemeToggle>` – Dark/light mode switch
-
-- [ ] **4.4 Implement API integration**
-  - Create `static/js/api.js` with fetch wrappers
-  - Implement SSE client with auto-reconnect
-  - Add optimistic UI updates for posts
-  - Handle error states and loading indicators
-
-## Phase 5: Polish & Testing
-
-- [ ] **5.1 End-to-end testing**
-  - Test full post → agent response → SSE update flow
-  - Test media upload and retrieval from database
-  - Test responsive layout on different viewports
-  - Test dark/light mode persistence
-
-- [ ] **5.2 Error handling & edge cases**
-  - Handle network failures gracefully
-  - Add retry logic for failed API calls
-  - Implement offline indicator
-  - Validate file types and sizes on upload
-
-- [ ] **5.3 Documentation**
-  - Create `README.md` with setup instructions
-  - Document API endpoints with examples
-  - Add configuration reference for custom endpoints
-
-## Phase 6: Deployment Preparation
-
-- [ ] **6.1 Production configuration**
-  - Create `Dockerfile` for containerized deployment
-  - Add environment variable configuration
-  - Set up logging with structured JSON output
-  - Add graceful shutdown handling
-
-- [ ] **6.2 Final verification**
-  - Run full test suite
-  - Verify all endpoints work correctly
-  - Test with actual ACP agent
-  - Performance check on timeline loading
+- Static frontend bundled into the pip package
 
 ---
 
@@ -283,31 +186,65 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 
 ```
 /
-├── src/
+├── src/vibes/
 │   ├── __init__.py
-│   ├── app.py          # aiohttp application factory
-│   ├── db.py           # Database layer (SQLite with BLOBs)
+│   ├── app.py              # aiohttp application factory + routes
+│   ├── db.py               # Database layer (SQLite with BLOBs)
+│   ├── config.py           # Configuration loader
+│   ├── middleware.py        # HTTP middleware
+│   ├── acp_client.py       # ACP agent subprocess + JSON-RPC
+│   ├── acp_protocol.py     # ACP protocol types + helpers
+│   ├── pi_client.py        # Pi RPC agent subprocess
+│   ├── pi_prompt.py        # Pi system prompt generation
+│   ├── slash_commands.py   # Slash command dispatch
+│   ├── followups.py        # Queue/steering logic
+│   ├── tasks.py            # Background task management
+│   ├── opengraph.py        # OpenGraph link preview fetcher
+│   ├── avatar.py           # Avatar serving
 │   ├── routes/
-│   │   ├── __init__.py
-│   │   ├── posts.py    # Post/reply endpoints
-│   │   ├── media.py    # Media upload/serve from DB
-│   │   ├── sse.py      # Server-Sent Events
-│   │   └── agents.py   # ACP agent integration
-│   ├── acp_client.py   # ACP SDK wrapper
-│   └── config.py       # Configuration loader
-├── static/
-│   ├── index.html
-│   ├── css/
-│   │   └── styles.css
-│   └── js/
-│       ├── app.js      # Main Preact app
-│       ├── api.js      # API client
-│       └── vendor/     # Vendored Preact + HTM
+│   │   ├── posts.py        # Timeline, threads, search
+│   │   ├── media.py        # Media upload/serve from DB
+│   │   ├── workspace.py    # Workspace file tree + CRUD
+│   │   ├── agents.py       # Agent messaging, queue, permissions
+│   │   ├── avatar.py       # Avatar endpoint
+│   │   └── sse.py          # Server-Sent Events
+│   ├── extensions/
+│   │   └── pi-vibes-tools.ts  # Pi extension for file attachments
+│   └── static/
+│       ├── index.html
+│       ├── css/styles.css
+│       ├── js/
+│       │   ├── app.js               # Main Preact SPA
+│       │   ├── api.js               # API client
+│       │   ├── components/
+│       │   │   ├── compose-box.js   # Message compose
+│       │   │   ├── editor.js        # CodeMirror 6 editor
+│       │   │   ├── tab-strip.js     # Editor tab bar
+│       │   │   ├── timeline.js      # Message timeline
+│       │   │   ├── workspace-explorer.js  # File tree sidebar
+│       │   │   ├── status.js        # Agent status panels
+│       │   │   ├── markdown-preview.js    # Markdown rendering
+│       │   │   └── sunburst.js      # Context pie chart
+│       │   ├── panes/
+│       │   │   └── editor-popout-transfer.js  # Popout state transfer
+│       │   └── vendor/              # Vendored Preact + HTM
+│       └── dist/                    # Built bundles (bun)
 ├── config/
-│   └── endpoints.json  # Custom endpoint definitions
-├── data/
-│   └── app.db          # SQLite database (contains all data + media)
-├── requirements.txt
-├── Dockerfile
-└── README.md
+│   └── endpoints.json       # Custom action definitions
+├── data/                    # Runtime data (DB, workspace)
+├── tests/
+│   ├── e2e/
+│   │   └── editor-tabs.spec.mjs  # Playwright E2E tests (34 tests)
+│   └── test_*.py            # pytest unit tests (388 tests)
+├── docs/
+│   ├── API.md               # Full API endpoint reference
+│   ├── CONFIGURATION.md     # Environment variable reference
+│   ├── PI_MODE.md           # Pi RPC integration details
+│   ├── ACP_HARDENING.md     # ACP protocol hardening plan
+│   └── ACP_ROUTING.md       # ACP streaming/filtering notes
+├── build.js                 # Bun build script
+├── playwright.config.mjs    # Playwright config (Chromium + WebKit)
+├── Makefile                 # Build, lint, test, serve targets
+├── package.json             # Frontend dependencies
+└── pyproject.toml           # Python packaging
 ```

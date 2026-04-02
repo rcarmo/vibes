@@ -43,11 +43,15 @@ The sidebar shows a file tree with auto-refresh. Click a file to preview it or a
 
 ### Code editor
 
-Click the **pencil icon** on any text file preview (up to 256 KB) to open the built-in editor. It appears as a resizable centre pane between the sidebar and the chat.
+Click the **pencil icon** on any text file preview (up to 256 KB) to open the built-in editor. It appears as a resizable centre pane between the sidebar and the chat, with a tabbed interface for multiple open files.
 
 - **13 languages** — JS/TS, Python, Go, JSON, CSS, HTML, YAML, SQL, XML, Markdown, Shell, plus auto-detection
+- **Tabbed editing** — open multiple files in tabs; dirty state shown as a dot indicator on unsaved tabs
 - **Search and replace** — Cmd/Ctrl+F
-- **Save** — Cmd/Ctrl+S or the Save button; dirty state is tracked
+- **Save** — Cmd/Ctrl+S; dirty state is tracked per tab
+- **Close** — Escape to close the active editor tab
+- **Open in Window** — pop out any editor tab into a standalone, editor-only window (removes the tab from the parent)
+- **Tab context menu** — right-click a tab for Close, Close Others, Close All, Pin/Unpin, and Open in Window
 - **Vim mode** — toggle with Alt+V (persisted)
 - **Whitespace visibility** — toggle with Alt+W (persisted)
 - **Line wrapping**, line numbers, active line highlight, and indentation markers
@@ -159,13 +163,16 @@ See [docs/API.md](docs/API.md).
 pip install -e ".[dev]"
 
 # Run tests
-make check           # lint + tests (344 tests)
+make check           # lint + tests (388 unit + 34 E2E)
 
 # Run frontend linting (requires bun)
 make lint-frontend
 
 # Rebuild frontend bundle
 make build-frontend  # bundles JS + CSS via bun
+
+# Run E2E tests (requires Playwright + running dev server on :8765)
+bunx playwright test  # Chromium + WebKit
 
 # Run with make
 make serve
