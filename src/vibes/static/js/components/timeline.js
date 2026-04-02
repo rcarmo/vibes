@@ -52,6 +52,125 @@ function highlightHtml(htmlStr, query) {
     return doc.body.innerHTML;
 }
 
+const CODE_COPY_RESET_MS = 2000;
+const COPY_ICON_SVG = `
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+        <rect x="5" y="3" width="8" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
+        <path d="M3 11V4.5C3 3.67 3.67 3 4.5 3H10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
+    </svg>
+`;
+const COPY_SUCCESS_SVG = `
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+        <path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+`;
+const COPY_ERROR_SVG = `
+    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
+        <path d="M4.5 4.5 11.5 11.5M11.5 4.5 4.5 11.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+    </svg>
+`;
+
+async function copyCodeText(text) {
+    if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        try {
+            await navigator.clipboard.writeText(text);
+            return true;
+        } catch {
+            // Fall through to the textarea fallback.
+        }
+    }
+    try {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        textarea.setAttribute('readonly', '');
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        textarea.setSelectionRange(0, textarea.value.length);
+        const copied = document.execCommand('copy');
+        document.body.removeChild(textarea);
+        return copied;
+    } catch {
+        return false;
+    }
+}
+
+function enhanceCodeBlocks(container) {
+    if (!container) return () => {};
+    const blocks = Array.from(container.querySelectorAll('pre')).filter((pre) => pre.querySelector('code'));
+    if (blocks.length === 0) return () => {};
+
+    const resetTimers = new Map();
+    const cleanups = [];
+
+    const setButtonState = (button, state) => {
+        const nextState = state || 'idle';
+        button.dataset.copyState = nextState;
+        if (nextState === 'success') {
+            button.innerHTML = COPY_SUCCESS_SVG;
+            button.setAttribute('aria-label', 'Copied');
+            button.setAttribute('title', 'Copied');
+            button.classList.add('is-success');
+            button.classList.remove('is-error');
+        } else if (nextState === 'error') {
+            button.innerHTML = COPY_ERROR_SVG;
+            button.setAttribute('aria-label', 'Copy failed');
+            button.setAttribute('title', 'Copy failed');
+            button.classList.add('is-error');
+            button.classList.remove('is-success');
+        } else {
+            button.innerHTML = COPY_ICON_SVG;
+            button.setAttribute('aria-label', 'Copy code');
+            button.setAttribute('title', 'Copy code');
+            button.classList.remove('is-success', 'is-error');
+        }
+    };
+
+    blocks.forEach((pre) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'post-code-block';
+        pre.parentNode?.insertBefore(wrapper, pre);
+        wrapper.appendChild(pre);
+
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'post-code-copy-btn';
+        setButtonState(button, 'idle');
+        wrapper.appendChild(button);
+
+        const handleCopyClick = async (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            const code = pre.querySelector('code');
+            const ok = await copyCodeText(code?.textContent || '');
+            setButtonState(button, ok ? 'success' : 'error');
+            const existingTimer = resetTimers.get(button);
+            if (existingTimer) clearTimeout(existingTimer);
+            const timer = setTimeout(() => {
+                setButtonState(button, 'idle');
+                resetTimers.delete(button);
+            }, CODE_COPY_RESET_MS);
+            resetTimers.set(button, timer);
+        };
+
+        button.addEventListener('click', handleCopyClick);
+        cleanups.push(() => {
+            button.removeEventListener('click', handleCopyClick);
+            const timer = resetTimers.get(button);
+            if (timer) clearTimeout(timer);
+            if (wrapper.parentNode) {
+                wrapper.parentNode.insertBefore(pre, wrapper);
+                wrapper.remove();
+            }
+        });
+    });
+
+    return () => {
+        cleanups.forEach((cleanup) => cleanup());
+    };
+}
+
 function ImageModal({ src, onClose }) {
     useEffect(() => {
         const handleEsc = (e) => {
@@ -324,6 +443,7 @@ function Post({
     onHashtagClick,
     onMessageRef,
     onScrollToMessage,
+    onOpenAttachmentPreview,
     agentName,
     agentAvatarUrl,
     userName,
@@ -505,6 +625,10 @@ function Post({
         }
     }, [displayContent, renderMermaidDiagrams]);
 
+    useEffect(() => {
+        return enhanceCodeBlocks(contentRef.current);
+    }, [displayContent, highlightQuery]);
+
     return html`
         <div id=${`post-${post.id}`} class="post ${isAgent ? 'agent-post' : ''} ${isThreadReply ? 'thread-reply' : ''} ${isRemoving ? 'removing' : ''}" onClick=${onClick}>
             <div class="post-avatar ${isAgent ? 'agent-avatar' : ''} ${avatarInfo.image ? 'has-image' : ''}" style="background-color: ${avatarBgColor}">
@@ -589,7 +713,10 @@ function Post({
                             `;
                         })}
                         ${attachmentPills.map((attachment) => html`
-                            <span class="post-file-pill" title=${attachment.label}>
+                            <span class="post-file-pill" title=${attachment.label}
+                                onClick=${onOpenAttachmentPreview ? (e) => { e.stopPropagation(); onOpenAttachmentPreview(attachment); } : undefined}
+                                style=${onOpenAttachmentPreview ? { cursor: 'pointer' } : undefined}
+                            >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                                     <polyline points="14 2 14 8 20 8"/>
@@ -693,6 +820,7 @@ export function Timeline({
     onHashtagClick,
     onMessageRef,
     onScrollToMessage,
+    onOpenAttachmentPreview,
     emptyMessage,
     timelineRef,
     agents,
@@ -811,6 +939,7 @@ export function Timeline({
                         onMessageRef=${onMessageRef}
                         onScrollToMessage=${onScrollToMessage}
                         onDelete=${onDeletePost}
+                        onOpenAttachmentPreview=${onOpenAttachmentPreview}
                         renderMarkdown=${renderMarkdown}
                         renderMermaidDiagrams=${renderMermaidDiagrams}
                         getAvatarInfo=${getAvatarInfo}

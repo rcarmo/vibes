@@ -820,10 +820,56 @@ body {
     width: 18px;
     height: 18px;
     border-radius: 999px;
+    border: 0;
+    padding: 0;
+    margin: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
 }
 
 .tab-close:hover {
     background: var(--bg-hover);
+}
+
+.tab-detached-badge {
+    flex: 0 0 auto;
+    font-size: 11px;
+    line-height: 1;
+    color: var(--accent-color);
+    opacity: 0.8;
+}
+
+.tab-strip-spacer {
+    flex: 1 1 auto;
+}
+
+.tab-strip-dock-toggle,
+.tab-strip-zen-toggle {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 0;
+}
+
+.tab-strip-dock-toggle:hover,
+.tab-strip-zen-toggle:hover {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+}
+
+.tab-strip-dock-toggle.active,
+.tab-strip-zen-toggle.active {
+    color: var(--accent-color);
 }
 
 .tab-dirty-dot {
@@ -1372,6 +1418,11 @@ body {
     background: var(--bg-primary);
 }
 
+.compose-queue-item:focus-within {
+    border-color: var(--accent-color);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent-color) 40%, transparent);
+}
+
 .compose-queue-item-main {
     min-width: 0;
     display: flex;
@@ -1437,6 +1488,25 @@ body {
     padding: 2px var(--spacing-xs) 0 var(--spacing-xs);
 }
 
+.compose-clear-attachments-btn {
+    border: 1px solid var(--border-color);
+    background: transparent;
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    padding: 4px 10px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color var(--ui-transition-fast), color var(--ui-transition-fast), border-color var(--ui-transition-fast);
+}
+
+.compose-clear-attachments-btn:hover,
+.compose-clear-attachments-btn:focus-visible {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+    outline: none;
+}
+
 .compose-file-pill {
     display: inline-flex;
     align-items: center;
@@ -1475,6 +1545,16 @@ body {
 
 .compose-file-remove:hover {
     color: var(--text-primary);
+}
+
+.compose-submit-error {
+    margin-bottom: var(--spacing-xs);
+    padding: 8px 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid color-mix(in srgb, var(--danger-color) 30%, var(--border-color));
+    background: color-mix(in srgb, var(--danger-color) 10%, var(--bg-secondary));
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
 }
 
 .compose-box textarea {
@@ -2117,13 +2197,54 @@ body {
     padding: var(--spacing-md);
     border-radius: var(--radius-md);
     overflow-x: auto;
-    margin: 0.5em 0 1em 0;
+    margin: 0;
     max-width: 100%;
 }
 
 .post-content pre code {
     background: none;
     padding: 0;
+}
+
+.post-code-block {
+    position: relative;
+    margin: 0.5em 0 1em 0;
+}
+
+.post-code-copy-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    background: color-mix(in srgb, var(--bg-primary) 92%, transparent);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background-color var(--ui-transition-fast), color var(--ui-transition-fast), border-color var(--ui-transition-fast);
+}
+
+.post-code-copy-btn:hover,
+.post-code-copy-btn:focus-visible {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+    outline: none;
+}
+
+.post-code-copy-btn.is-success {
+    color: var(--success-color, #16a34a);
+    border-color: color-mix(in srgb, var(--success-color, #16a34a) 40%, var(--border-color));
+}
+
+.post-code-copy-btn.is-error {
+    color: var(--danger-color);
+    border-color: color-mix(in srgb, var(--danger-color) 40%, var(--border-color));
 }
 
 .post-content blockquote {

@@ -1,5 +1,59 @@
-import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
+import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
 
+const OFFICE_EXTENSIONS = /\.(docx?|xlsx?|pptx?|odt|ods|odp|rtf)$/i;
+const CSV_EXTENSIONS = /\.(csv|tsv)$/i;
+const PDF_EXTENSIONS = /\.pdf$/i;
+const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|ico|svg)$/i;
+const DRAWIO_EXTENSIONS = /\.drawio(\.xml|\.svg|\.png)?$/i;
+
+/**
+ * Resolve a standalone (new-tab) URL for a given file path, or null if the
+ * file type should be opened inside the pane system instead.
+ */
+export function getStandaloneTabUrl(path, { hasPopOutTab = false } = {}) {
+    const normalizedPath = typeof path === 'string' ? path.trim() : '';
+    if (!normalizedPath) return null;
+    if (OFFICE_EXTENSIONS.test(normalizedPath)) {
+        const rawUrl = '/workspace/raw?path=' + encodeURIComponent(normalizedPath);
+        const name = normalizedPath.split('/').pop() || 'document';
+        return '/office-viewer/?url=' + encodeURIComponent(rawUrl) + '&name=' + encodeURIComponent(name);
+    }
+    if (CSV_EXTENSIONS.test(normalizedPath)) {
+        return '/csv-viewer/?path=' + encodeURIComponent(normalizedPath);
+    }
+    if (PDF_EXTENSIONS.test(normalizedPath)) {
+        return '/workspace/raw?path=' + encodeURIComponent(normalizedPath);
+    }
+    if (IMAGE_EXTENSIONS.test(normalizedPath) && !DRAWIO_EXTENSIONS.test(normalizedPath)) {
+        return '/image-viewer/?path=' + encodeURIComponent(normalizedPath);
+    }
+    if (DRAWIO_EXTENSIONS.test(normalizedPath) && !hasPopOutTab) {
+        return '/drawio/edit?path=' + encodeURIComponent(normalizedPath);
+    }
+    return null;
+}
+
+/**
+ * TabStrip — horizontal tab bar for open editor files.
+ *
+ * @param {Object} props
+ * @param {Array} props.tabs
+ * @param {string|null} props.activeId
+ * @param {(id: string) => void} props.onActivate
+ * @param {(id: string) => void} props.onClose
+ * @param {(id: string) => void} props.onCloseOthers
+ * @param {() => void} props.onCloseAll
+ * @param {(id: string) => void} props.onTogglePin
+ * @param {(id: string) => void} [props.onTogglePreview]
+ * @param {Set<string>} [props.previewTabs]
+ * @param {Map<string, unknown>} [props.detachedTabs] - Tabs currently detached into standalone windows.
+ * @param {(id: string) => void} [props.onReattachTab] - Reattach a detached tab to the main window.
+ * @param {(id: string, label?: string) => void} [props.onPopOutTab] - Open a tab in a standalone window.
+ * @param {() => void} [props.onToggleDock] - Toggle terminal dock visibility.
+ * @param {boolean} [props.dockVisible] - Whether the terminal dock is currently visible.
+ * @param {() => void} [props.onToggleZen] - Toggle zen mode.
+ * @param {boolean} [props.zenMode] - Whether zen mode is active.
+ */
 export function TabStrip({
     tabs,
     activeId,
@@ -10,10 +64,18 @@ export function TabStrip({
     onTogglePin,
     onTogglePreview,
     previewTabs,
+    detachedTabs,
+    onReattachTab,
+    onPopOutTab,
+    onToggleDock,
+    dockVisible,
+    onToggleZen,
+    zenMode,
 }) {
     const [contextMenu, setContextMenu] = useState(null);
     const stripRef = useRef(null);
 
+    // Close context menu on outside click or Escape
     useEffect(() => {
         if (!contextMenu) return;
         const dismiss = (event) => {
@@ -28,17 +90,20 @@ export function TabStrip({
         };
     }, [contextMenu]);
 
+    // Keyboard shortcuts: Ctrl+Tab (next), Ctrl+Shift+Tab (prev), Ctrl+W (close)
     useEffect(() => {
         const onKeyDown = (event) => {
             if (event.ctrlKey && event.key === 'Tab') {
                 event.preventDefault();
                 if (!tabs.length) return;
                 const idx = tabs.findIndex((tab) => tab.id === activeId);
-                if (idx < 0) return;
-                const nextIdx = event.shiftKey
-                    ? (idx - 1 + tabs.length) % tabs.length
-                    : (idx + 1) % tabs.length;
-                onActivate?.(tabs[nextIdx]?.id);
+                if (event.shiftKey) {
+                    const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
+                    onActivate?.(prev.id);
+                } else {
+                    const next = tabs[(idx + 1) % tabs.length];
+                    onActivate?.(next.id);
+                }
                 return;
             }
 
@@ -54,6 +119,7 @@ export function TabStrip({
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [tabs, activeId, onActivate, onClose]);
 
+    // Scroll active tab into view
     useEffect(() => {
         if (!activeId || !stripRef.current) return;
         stripRef.current.querySelector('.tab-item.active')?.scrollIntoView({
@@ -63,23 +129,48 @@ export function TabStrip({
         });
     }, [activeId]);
 
-    const handleMouseDown = useCallback((event, id) => {
+    // Middle-click closes immediately so the tab never becomes active.
+    const handleTabMouseDown = useCallback((event, id) => {
         if (event.button === 1) {
             event.preventDefault();
             onClose?.(id);
-            return;
         }
+    }, [onClose]);
+
+    const handleTabClick = useCallback((event, id) => {
+        if (event.defaultPrevented) return;
         if (event.button === 0) {
             onActivate?.(id);
         }
-    }, [onActivate, onClose]);
+    }, [onActivate]);
 
     const handleContextMenu = useCallback((event, id) => {
         event.preventDefault();
         setContextMenu({ id, x: event.clientX, y: event.clientY });
     }, []);
 
-    const activeMenuTab = tabs.find((tab) => tab.id === contextMenu?.id);
+    // Keep close-button pointer presses isolated from the parent tab so the
+    // tab never activates before the close click lands.
+    const handleClosePointerDown = useCallback((event) => {
+        event.preventDefault();
+        event.stopPropagation();
+    }, []);
+
+    const handleCloseClick = useCallback((event, id) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onClose?.(id);
+    }, [onClose]);
+
+    const contextMenuTab = useMemo(
+        () => tabs.find((tab) => tab.id === contextMenu?.id) || null,
+        [contextMenu?.id, tabs],
+    );
+    const isContextMenuTabDetached = useMemo(() => {
+        const tabId = contextMenu?.id;
+        if (!tabId || !(detachedTabs instanceof Map)) return false;
+        return detachedTabs.has(tabId);
+    }, [contextMenu?.id, detachedTabs]);
 
     if (!tabs?.length) return null;
 
@@ -92,7 +183,8 @@ export function TabStrip({
                     role="tab"
                     aria-selected=${tab.id === activeId}
                     title=${tab.path}
-                    onMouseDown=${(event) => handleMouseDown(event, tab.id)}
+                    onMouseDown=${(event) => handleTabMouseDown(event, tab.id)}
+                    onClick=${(event) => handleTabClick(event, tab.id)}
                     onContextMenu=${(event) => handleContextMenu(event, tab.id)}
                 >
                     ${tab.pinned && html`
@@ -103,21 +195,59 @@ export function TabStrip({
                         </span>
                     `}
                     <span class="tab-label">${tab.label}</span>
-                    <span
+                    ${detachedTabs instanceof Map && detachedTabs.has(tab.id) && html`
+                        <span class="tab-detached-badge" aria-label="Detached" title="Open in separate window">↗</span>
+                    `}
+                    <button
+                        type="button"
                         class="tab-close"
-                        onClick=${(event) => { event.stopPropagation(); onClose?.(tab.id); }}
+                        onPointerDown=${handleClosePointerDown}
+                        onMouseDown=${handleClosePointerDown}
+                        onClick=${(event) => handleCloseClick(event, tab.id)}
                         title=${tab.dirty ? 'Unsaved changes' : 'Close'}
                         aria-label=${tab.dirty ? 'Unsaved changes' : `Close ${tab.label}`}
                     >
                         ${tab.dirty
                             ? html`<span class="tab-dirty-dot" aria-hidden="true"></span>`
-                            : html`<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
-                                <line x1="4" y1="4" x2="12" y2="12" />
-                                <line x1="12" y1="4" x2="4" y2="12" />
+                            : html`<svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true" focusable="false" style=${{ pointerEvents: 'none' }}>
+                                <line x1="4" y1="4" x2="12" y2="12" style=${{ pointerEvents: 'none' }} />
+                                <line x1="12" y1="4" x2="4" y2="12" style=${{ pointerEvents: 'none' }} />
                             </svg>`}
-                    </span>
+                    </button>
                 </div>
             `)}
+            ${onToggleDock && html`
+                <div class="tab-strip-spacer"></div>
+                <button
+                    class=${`tab-strip-dock-toggle${dockVisible ? ' active' : ''}`}
+                    onClick=${onToggleDock}
+                    title=${`${dockVisible ? 'Hide' : 'Show'} terminal (Ctrl+\`)`}
+                    aria-label=${`${dockVisible ? 'Hide' : 'Show'} terminal`}
+                    aria-pressed=${dockVisible ? 'true' : 'false'}
+                >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="1.75" y="2.25" width="12.5" height="11.5" rx="2"/>
+                        <polyline points="4.5 5.25 7 7.75 4.5 10.25"/>
+                        <line x1="8.5" y1="10.25" x2="11.5" y2="10.25"/>
+                    </svg>
+                </button>
+            `}
+            ${onToggleZen && html`
+                <button
+                    class=${`tab-strip-zen-toggle${zenMode ? ' active' : ''}`}
+                    onClick=${onToggleZen}
+                    title=${`${zenMode ? 'Exit' : 'Enter'} zen mode (Ctrl+Shift+Z)`}
+                    aria-label=${`${zenMode ? 'Exit' : 'Enter'} zen mode`}
+                    aria-pressed=${zenMode ? 'true' : 'false'}
+                >
+                    <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        ${zenMode
+                            ? html`<polyline points="4 8 1.5 8 1.5 1.5 14.5 1.5 14.5 8 12 8"/><polyline points="4 8 1.5 8 1.5 14.5 14.5 14.5 14.5 8 12 8"/>`
+                            : html`<polyline points="5.5 1.5 1.5 1.5 1.5 5.5"/><polyline points="10.5 1.5 14.5 1.5 14.5 5.5"/><polyline points="5.5 14.5 1.5 14.5 1.5 10.5"/><polyline points="10.5 14.5 14.5 14.5 14.5 10.5"/>`
+                        }
+                    </svg>
+                </button>
+            `}
         </div>
         ${contextMenu && html`
             <div class="tab-context-menu" style=${{ left: `${contextMenu.x}px`, top: `${contextMenu.y}px` }}>
@@ -126,14 +256,40 @@ export function TabStrip({
                 <button onClick=${() => { onCloseAll?.(); setContextMenu(null); }}>Close All</button>
                 <hr />
                 <button onClick=${() => { onTogglePin?.(contextMenu.id); setContextMenu(null); }}>
-                    ${activeMenuTab?.pinned ? 'Unpin' : 'Pin'}
+                    ${contextMenuTab?.pinned ? 'Unpin' : 'Pin'}
                 </button>
-                ${activeMenuTab?.isMarkdown && html`
+                ${isContextMenuTabDetached && onReattachTab && html`
+                    <button onClick=${() => {
+                        onReattachTab(contextMenu.id);
+                        setContextMenu(null);
+                    }}>Reattach Here</button>
+                `}
+                ${onPopOutTab && !isContextMenuTabDetached && html`
+                    <button onClick=${() => {
+                        const tab = tabs.find((t) => t.id === contextMenu.id);
+                        onPopOutTab(contextMenu.id, tab?.label);
+                        setContextMenu(null);
+                    }}>Open in Window</button>
+                `}
+                ${onTogglePreview && /\.(md|mdx|markdown)$/i.test(contextMenu.id) && html`
                     <hr />
-                    <button onClick=${() => { onTogglePreview?.(contextMenu.id); setContextMenu(null); }}>
+                    <button onClick=${() => { onTogglePreview(contextMenu.id); setContextMenu(null); }}>
                         ${previewTabs?.has(contextMenu.id) ? 'Hide Preview' : 'Preview'}
                     </button>
                 `}
+                ${(() => {
+                    const standaloneUrl = getStandaloneTabUrl(contextMenu.id, {
+                        hasPopOutTab: typeof onPopOutTab === 'function',
+                    });
+                    if (!standaloneUrl) return null;
+                    return html`
+                        <hr />
+                        <button onClick=${() => {
+                            window.open(standaloneUrl, '_blank', 'noopener');
+                            setContextMenu(null);
+                        }}>Open in New Tab</button>
+                    `;
+                })()}
             </div>
         `}
     `;

@@ -6,6 +6,7 @@ import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/s
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
 import { TabStrip } from './components/tab-strip.js';
+import { stashEditorPopoutState, consumeEditorPopoutState, consumePanePopoutTransferToken } from './panes/editor-popout-transfer.js';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
@@ -703,6 +704,7 @@ function App() {
     const [editorTabs, setEditorTabs] = useState([]);
     const [activeEditorTabId, setActiveEditorTabId] = useState(null);
     const [previewTabs, setPreviewTabs] = useState(() => new Set());
+    const [detachedTabs, setDetachedTabs] = useState(() => new Map());
     const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
     const wasAgentActiveRef = useRef(false);
@@ -956,6 +958,51 @@ function App() {
             else next.add(tabId);
             return next;
         });
+    }, []);
+
+    const handlePopOutTab = useCallback((tabId, label) => {
+        if (!tabId) return;
+        const tab = editorTabs.find((t) => t.id === tabId);
+        const transferPayload = stashEditorPopoutState({
+            path: tabId,
+            content: tab?.content,
+            mtime: tab?.savedAt ? new Date(tab.savedAt).toISOString() : null,
+        });
+        const params = new URLSearchParams();
+        params.set('editor', tabId);
+        if (transferPayload?.editor_popout) {
+            params.set('editor_popout', transferPayload.editor_popout);
+        }
+        const url = `${window.location.origin}${window.location.pathname}?${params}`;
+        const popout = window.open(url, `vibes-editor-${tabId}`, 'noopener');
+        if (popout) {
+            setDetachedTabs((prev) => {
+                const next = new Map(prev);
+                next.set(tabId, { windowRef: popout, label: label || tabId });
+                return next;
+            });
+        }
+    }, [editorTabs]);
+
+    const handleReattachTab = useCallback((tabId) => {
+        if (!tabId) return;
+        setDetachedTabs((prev) => {
+            if (!prev.has(tabId)) return prev;
+            const next = new Map(prev);
+            next.delete(tabId);
+            return next;
+        });
+        setActiveEditorTabId(tabId);
+    }, []);
+
+    // Restore editor state from a popout transfer token on startup
+    useEffect(() => {
+        const token = consumePanePopoutTransferToken('editor_popout');
+        if (!token) return;
+        const state = consumeEditorPopoutState(token);
+        if (state?.path) {
+            openEditor(state.path);
+        }
     }, []);
 
     useEffect(() => {
@@ -1480,6 +1527,13 @@ function App() {
             alert(`Failed to delete message: ${errorMessage}`);
         }
     }, [hasMore, loadMore, posts, animateAndRemovePosts]);
+
+    const handleOpenAttachmentPreview = useCallback((attachment) => {
+        if (!attachment) return;
+        if (attachment.id) {
+            window.open(getMediaUrl(attachment.id), '_blank', 'noopener');
+        }
+    }, []);
 
     const loadAgents = useCallback(async () => {
         try {
@@ -2147,6 +2201,9 @@ function App() {
                         onTogglePin=${handleTabTogglePin}
                         onTogglePreview=${handleTabTogglePreview}
                         previewTabs=${previewTabs}
+                        detachedTabs=${detachedTabs}
+                        onReattachTab=${handleReattachTab}
+                        onPopOutTab=${handlePopOutTab}
                     />
                     <${WorkspaceEditor}
                         key=${activeEditorTab?.id || 'editor'}
@@ -2189,6 +2246,7 @@ function App() {
                     onScrollToMessage=${scrollToMessage}
                     onPostClick=${undefined}
                     onDeletePost=${handleDeletePost}
+                    onOpenAttachmentPreview=${handleOpenAttachmentPreview}
                     emptyMessage=${currentHashtag ? `No posts with #${currentHashtag}` : searchQuery ? `No results for "${searchQuery}"` : undefined}
                     agents=${agents}
                     user=${userProfile}

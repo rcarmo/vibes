@@ -80,21 +80,32 @@ function ContextPie({ usage }) {
 function FollowupQueue({ items, onRemove, onSteer }) {
     if (!items || items.length === 0) return null;
     return html`
-        <div class="compose-queue-stack" aria-label="Queued follow-ups">
+        <div class="compose-queue-stack" aria-label="Queued follow-ups" role="list">
             ${items.map((item) => {
                 const content = String(item.content || '').trim();
                 const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
+                const itemLabel = preview || 'Untitled follow-up';
                 return html`
-                    <div key=${item.row_id} class="compose-queue-item">
+                    <div key=${item.row_id} class="compose-queue-item" role="listitem">
                         <div class="compose-queue-item-main">
                             <span class="compose-queue-badge">${item.mode === 'steer' ? 'Steer' : 'Queued'}</span>
-                            <div class="compose-queue-text" title=${content}>${preview || 'Untitled follow-up'}</div>
+                            <div class="compose-queue-text" title=${content}>${itemLabel}</div>
                         </div>
                         <div class="compose-queue-actions">
-                            <button type="button" class="compose-queue-btn" onClick=${() => onSteer?.(item.row_id)}>
+                            <button
+                                type="button"
+                                class="compose-queue-btn"
+                                aria-label=${`Promote queued item to steering: ${itemLabel}`}
+                                onClick=${() => onSteer?.(item.row_id)}
+                            >
                                 Steer
                             </button>
-                            <button type="button" class="compose-queue-btn danger" onClick=${() => onRemove?.(item.row_id)}>
+                            <button
+                                type="button"
+                                class="compose-queue-btn danger"
+                                aria-label=${`Cancel queued item: ${itemLabel}`}
+                                onClick=${() => onRemove?.(item.row_id)}
+                            >
                                 Cancel
                             </button>
                         </div>
@@ -134,6 +145,7 @@ export function ComposeBox({
     const [content, setContent] = useState('');
     const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
+    const [submitError, setSubmitError] = useState('');
     const [mediaFiles, setMediaFiles] = useState([]);
     const [isDragActive, setIsDragActive] = useState(false);
     const [slashMatches, setSlashMatches] = useState([]);
@@ -291,6 +303,7 @@ export function ComposeBox({
     };
 
     const updateValue = (value) => {
+        setSubmitError('');
         if (searchMode) {
             setSearchText(value);
         } else {
@@ -364,6 +377,7 @@ export function ComposeBox({
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
 
         setLoading(true);
+        setSubmitError('');
         try {
             const mediaIds = [];
             for (const file of mediaFiles) {
@@ -416,7 +430,7 @@ export function ComposeBox({
             onPost?.();
         } catch (error) {
             console.error('Failed to post:', error);
-            alert('Failed to post: ' + error.message);
+            setSubmitError(error?.message || 'Failed to send message.');
         } finally {
             setLoading(false);
         }
@@ -510,6 +524,7 @@ export function ComposeBox({
     const addMediaFiles = (files) => {
         const list = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
         if (!list.length) return;
+        setSubmitError('');
         setMediaFiles((current) => [...current, ...list]);
     };
 
@@ -519,7 +534,15 @@ export function ComposeBox({
     };
 
     const removeMediaFile = (index) => {
+        setSubmitError('');
         setMediaFiles((current) => current.filter((_, idx) => idx !== index));
+    };
+
+    const clearAllAttachmentRefs = () => {
+        setMediaFiles([]);
+        onClearFileRefs?.();
+        onClearMessageRefs?.();
+        setSubmitError('');
     };
 
     const handleDragEnter = (e) => {
@@ -636,6 +659,9 @@ export function ComposeBox({
 
     return html`
         <div class="compose-box">
+            ${submitError && html`
+                <div class="compose-submit-error" role="status" aria-live="polite">${submitError}</div>
+            `}
             <div
                 class=${`compose-input-wrapper${isDragActive ? ' drag-active' : ''}`}
                 onDragEnter=${handleDragEnter}
@@ -729,6 +755,15 @@ export function ComposeBox({
                                     </span>
                                 `;
                             })}
+                            <button
+                                type="button"
+                                class="compose-clear-attachments-btn"
+                                onClick=${clearAllAttachmentRefs}
+                                title="Clear all attachments and references"
+                                aria-label="Clear all attachments and references"
+                            >
+                                Clear all
+                            </button>
                         </div>
                     `}
                     <textarea
