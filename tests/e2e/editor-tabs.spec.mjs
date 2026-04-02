@@ -287,9 +287,11 @@ test.describe('Editor Tab UX', () => {
         await popup.waitForSelector('.app-shell', { timeout: 10_000 });
         await expect(popup.locator('.app-shell')).toHaveClass(/popout-mode/);
 
-        // Editor tab should be visible
-        const popupTab = popup.locator('.tab-item', { hasText: 'README.md' });
-        await expect(popupTab).toBeVisible({ timeout: 10_000 });
+        // Tab bar should be hidden in popout mode
+        await expect(popup.locator('.tab-strip')).not.toBeVisible();
+
+        // Editor content should be visible
+        await expect(popup.locator('.editor-body .cm-editor')).toBeVisible({ timeout: 10_000 });
 
         // Sidebar and chat should NOT be visible
         await expect(popup.locator('.workspace-sidebar')).not.toBeVisible();

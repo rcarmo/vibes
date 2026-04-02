@@ -757,6 +757,10 @@ body {
     border: none;
 }
 
+.popout-mode .tab-strip {
+    display: none;
+}
+
 .editor-pane {
     width: 100%;
     min-width: 0;
