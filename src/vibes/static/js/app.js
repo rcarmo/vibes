@@ -6,7 +6,7 @@ import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/s
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
 import { TabStrip } from './components/tab-strip.js';
-import { stashEditorPopoutState, consumeEditorPopoutState, consumePanePopoutTransferToken } from './panes/editor-popout-transfer.js';
+import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
@@ -974,14 +974,12 @@ function App() {
             params.set('editor_popout', transferPayload.editor_popout);
         }
         const url = `${window.location.origin}${window.location.pathname}?${params}`;
-        const popout = window.open(url, `vibes-editor-${tabId}`, 'noopener');
-        if (popout) {
-            setDetachedTabs((prev) => {
-                const next = new Map(prev);
-                next.set(tabId, { windowRef: popout, label: label || tabId });
-                return next;
-            });
-        }
+        const popout = window.open(url, `vibes-editor-${tabId}`);
+        setDetachedTabs((prev) => {
+            const next = new Map(prev);
+            next.set(tabId, { windowRef: popout, label: label || tabId });
+            return next;
+        });
     }, [editorTabs]);
 
     const handleReattachTab = useCallback((tabId) => {
@@ -995,13 +993,47 @@ function App() {
         setActiveEditorTabId(tabId);
     }, []);
 
-    // Restore editor state from a popout transfer token on startup
+    // Restore editor from popout URL params on startup
     useEffect(() => {
-        const token = consumePanePopoutTransferToken('editor_popout');
-        if (!token) return;
-        const state = consumeEditorPopoutState(token);
-        if (state?.path) {
-            openEditor(state.path);
+        const url = new URL(window.location.href);
+        const editorPath = url.searchParams.get('editor')?.trim();
+        const popoutToken = url.searchParams.get('editor_popout')?.trim();
+
+        if (!editorPath) return;
+
+        // Clean the URL params so a refresh doesn't re-trigger
+        url.searchParams.delete('editor');
+        url.searchParams.delete('editor_popout');
+        window.history.replaceState(window.history.state, document.title, url.toString());
+
+        // Try to consume stashed editor state (content + cursor)
+        const transferred = popoutToken
+            ? consumeEditorPopoutState(popoutToken)
+            : null;
+
+        if (transferred?.content !== undefined) {
+            // Hydrate the tab directly from transferred state (skips fetch)
+            setEditorTabs((prev) => {
+                if (prev.some((tab) => tab.id === editorPath)) return prev;
+                return [...prev, {
+                    id: editorPath,
+                    path: editorPath,
+                    label: editorPath.split('/').pop() || editorPath,
+                    content: transferred.content,
+                    savedContent: transferred.content,
+                    loading: false,
+                    error: null,
+                    dirty: false,
+                    pinned: false,
+                    saving: false,
+                    saveError: null,
+                    savedAt: null,
+                    isMarkdown: isMarkdownPath(editorPath),
+                }];
+            });
+            setActiveEditorTabId(editorPath);
+        } else {
+            openEditor(editorPath);
         }
     }, []);
 
