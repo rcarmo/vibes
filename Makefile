@@ -1,9 +1,10 @@
-.PHONY: help install lint format test test-acp serve dev frontend frontend-fast bundle clean check build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push
+.PHONY: help install lint format test race coverage fuzz check serve dev frontend frontend-fast bundle clean clean-all build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push test-acp
 
 BINARY = vibes
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)"
 STATIC_DIR = static
+FUZZTIME ?= 1s
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -29,7 +30,7 @@ build-go: ## Build Go binary (assumes frontend is already built)
 		exit 1; \
 	fi
 	go build $(LDFLAGS) -o $(BINARY) ./cmd/vibes/
-	@echo "Built $(BINARY) ($(shell du -h $(BINARY) | cut -f1))"
+	@echo "Built $(BINARY) ($(shell du -h $(BINARY) 2>/dev/null | cut -f1))"
 
 build: frontend build-go ## Full build: frontend + Go binary
 
@@ -54,10 +55,27 @@ format: ## Format Go code
 test: ## Run Go tests
 	go test ./...
 
+race: ## Run Go tests with race detector
+	go test -race ./...
+
+coverage: ## Run tests with coverage report
+	go test ./... -coverprofile=coverage.out
+	@go tool cover -func=coverage.out | tail -n 1
+	@echo "Run 'go tool cover -html=coverage.out' to view detailed coverage"
+
+fuzz: ## Run all fuzz tests briefly (override with FUZZTIME=10s)
+	@echo "Running fuzz tests (FUZZTIME=$(FUZZTIME))..."
+	@for pkg in $$(go list ./... | xargs -I {} sh -c 'grep -l "^func Fuzz" $$(go list -f "{{.Dir}}" {})/*_test.go 2>/dev/null && echo {}' | grep "^github" | sort -u); do \
+		for fuzz in $$(grep -h "^func Fuzz" $$(go list -f "{{.Dir}}" $$pkg)/*_test.go | sed 's/^func \(Fuzz[A-Za-z0-9_]*\).*/\1/'); do \
+			echo "  $$pkg :: $$fuzz"; \
+			go test $$pkg -run="^$$" -fuzz="^$$fuzz$$" -fuzztime=$(FUZZTIME) || exit 1; \
+		done; \
+	done
+
 test-acp: ## Run ACP integration test (spawns copilot/codex/claude agents)
 	go run cmd/acp-test/main.go
 
-check: lint test ## Run lint + tests
+check: lint test coverage ## Run lint + tests + coverage
 
 serve: build ## Build and run with debug logging
 	VIBES_DEBUG=true ./$(BINARY)
@@ -65,11 +83,11 @@ serve: build ## Build and run with debug logging
 dev: ## Run from source with debug logging (skips frontend build)
 	VIBES_DEBUG=true go run ./cmd/vibes/
 
-clean: ## Remove build artifacts
-	rm -f $(BINARY) $(BINARY)-*
+clean: ## Remove build artifacts and coverage
+	rm -f $(BINARY) $(BINARY)-* coverage.out
 	go clean
 
-clean-all: clean ## Remove build artifacts and frontend dependencies
+clean-all: clean ## Remove build artifacts, coverage, and frontend dependencies
 	rm -rf node_modules bun.lock $(STATIC_DIR)/dist
 
 push: ## Push current branch and any tags pointing at HEAD

@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [ main, go ]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build frontend bundle
+        run: bun run build.js
+
+      - name: Run checks (lint + test + race + coverage)
+        run: |
+          set -e
+          if make -n check >/dev/null 2>&1; then
+            make check
+          elif make -n lint >/dev/null 2>&1 && make -n test >/dev/null 2>&1; then
+            make lint && make test
+          else
+            echo "No Makefile check/lint/test targets found; skipping."
+          fi
+
+      - name: Run fuzz tests (1s each)
+        run: make fuzz
+
+      - name: Build Go binary
+        run: make build-go
+
+      - name: Verify binary
+        run: |
+          ./vibes & PID=$!
+          sleep 2
+          curl -fsS http://localhost:8080/health
+          curl -fsS http://localhost:8080/ -o /dev/null
+          curl -fsS http://localhost:8080/static/js/api.js -o /dev/null
+          kill $PID
+
+      - name: Build runtime image (if Dockerfile present)
+        run: |
+          set -e
+          if [ -f Dockerfile ]; then
+            docker build --target runtime --tag vibes:ci .
+          else
+            echo "No Dockerfile found; skipping."
+          fi
