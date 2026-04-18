@@ -1,12 +1,23 @@
+# Vibes — Copilot Instructions
 
-If `AGENTBOX_ENVIRONMENT` is set and you are in `/workspace`, then you are running in a sandbox container where you can use `uv`, `brew` and `apt` to install additional tooling. For Python you should prefer `pip3 install --user --break-system-packages` over a `venv`.
+This is a Go project. The backend is written in Go using the chi router and pure-Go SQLite.
 
-## Build, lint, and test
+## Key files
 
-- Prefer Makefile targets for common workflows (e.g., `make lint`, `make lint-frontend`, `make test`, `make check`).
-- Run existing linters/tests before and after changes when feasible.
+- `cmd/vibes/main.go` — entry point
+- `internal/app/app.go` — application wiring
+- `internal/config/config.go` — environment-based configuration
+- `internal/agent/provider.go` — agent provider interface and registry
+- `internal/agent/acp/client.go` — ACP client wrapping keepmind9/acp-sdk-go
+- `internal/extensions/registry.go` — extension system
+- `internal/server/sse/broker.go` — SSE fanout broker
+- `static/` — frontend (Preact + HTM, bundled with Bun)
 
-## Avoid duplication
+## Conventions
 
-- Do not duplicate logic across files: extract helpers or reuse existing utilities.
-- Keep tests DRY by parameterizing cases and using fixtures instead of copy/paste.
+- Use `log/slog` for structured logging
+- Use `context.Context` for cancellation and timeouts
+- Use interfaces for testability (agent.Provider, extensions.Extension)
+- Config is loaded from `VIBES_*` environment variables
+- The frontend is shared with the Python version — do not modify frontend files without checking compatibility
+- ACP protocol handling must be metadata-only (no content heuristics) per docs/ACP_ROUTING.md

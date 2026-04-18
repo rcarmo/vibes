@@ -2,7 +2,7 @@
 
 ## Overview
 
-A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The app supports text, links, images/files, threaded conversations, rich media previews, a workspace file explorer, and a built-in code editor. It uses an asyncio-based Python backend (aiohttp) and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
+A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The app supports text, links, images/files, threaded conversations, rich media previews, a workspace file explorer, and a built-in code editor. It uses a Go backend with chi router and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
 
 ---
 
@@ -11,11 +11,12 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 | Layer | Technology |
 |-------|------------|
 | Frontend | Preact + HTM (vendored), CodeMirror 6, bundled via Bun |
-| Backend | Python with aiohttp + ACP protocol + Pi RPC |
-| Database | SQLite with JSON columns and virtual columns for indexing |
+| Backend | Go with chi router + ACP protocol + Pi RPC |
+| Database | SQLite (pure Go via modernc.org/sqlite) with JSON columns |
 | Live Updates | Server-Sent Events (SSE) |
 | Authentication | Deferred to upstream proxy/IDP |
 | CORS | Open |
+| Extensions | Go interface + JSON manifests for frontend panels |
 
 ---
 
@@ -36,6 +37,7 @@ A single-user, mobile-friendly single-page application (SPA) that enables Slack-
 - Dark/light mode following system preference
 - Markdown, KaTeX math, and Mermaid diagram rendering
 - Installable PWA with window-controls-overlay support
+- Extension system for backend routes, SSE events, and frontend UI panels
 
 ---
 
@@ -93,13 +95,23 @@ When a tab is popped out via "Open in Window", the new window:
 
 ## Backend
 
-**Framework:** aiohttp
+**Framework:** Go with chi router
 
 ### Agent Integration
 
-Vibes supports two agent backends:
-- **ACP** (Agent Client Protocol) — stdio-based JSON-RPC communication with agents like `copilot --acp` and `codex-acp`
+Vibes supports multiple agent backends via a common `Provider` interface:
+- **ACP** (Agent Client Protocol) — stdio-based JSON-RPC communication with agents like `copilot-language-server --acp`, `codex-acp`, and `claude-agent-acp`
 - **Pi RPC** — Pi's `--mode rpc` protocol with streaming drafts, thinking traces, tool events, and live model/thinking control
+
+Agent switching is done via an `agent.Registry` that maps agent IDs to providers. The active agent can be changed at runtime.
+
+### Extension System
+
+Extensions implement a Go interface and can provide:
+- HTTP routes (mounted on the chi router)
+- SSE event types (broadcast via the SSE broker)
+- Static assets (served under `/ext/{id}/`)
+- Frontend UI panel manifests (sidebar, toolbar, overlay, main area)
 
 ### Media Handling
 - Accept image/file uploads
@@ -114,13 +126,14 @@ Vibes supports two agent backends:
 
 ### Live Updates
 - SSE endpoint for real-time updates to the frontend
+- Per-client buffered channels with goroutine-per-connection fanout
 - Event types: connection, posts, replies, agent responses, status, drafts, permissions
 
 ---
 
 ## Database Schema
 
-**Engine:** SQLite
+**Engine:** SQLite (pure Go via `modernc.org/sqlite`)
 
 ### Design Principles
 - Use JSON columns for flexible data storage
@@ -167,84 +180,76 @@ See [docs/API.md](docs/API.md) for the full endpoint reference.
 | Workspace | 12 endpoints — tree, file CRUD, rename, move, upload, download, attach, visibility |
 | Agents | 16 endpoints — list, status, context, models, commands, queue, messaging, actions, permissions, whitelist |
 | Avatars | `GET /avatar/{kind}` |
+| Extensions | `GET /extensions` — list manifests; `/ext/{id}/*` — static assets |
 | Real-time | `GET /sse/stream` (11 event types) |
 
 ---
 
 ## Deployment
 
-- Installable via pip from https://github.com/rcarmo/vibes
-- Minimal Dockerfile and CI/CD workflows
+- Single static binary (~11 MB), cross-compilable for any Go-supported platform
+- Minimal Dockerfile (scratch-based)
 - Single-user mode
 - CORS enabled
 - Authentication handled externally
-- Static frontend bundled into the pip package
+- Static frontend embedded or served from `static/` directory
 
 ---
 
 ## File Structure
 
 ```
-/
-├── src/vibes/
-│   ├── __init__.py
-│   ├── app.py              # aiohttp application factory + routes
-│   ├── db.py               # Database layer (SQLite with BLOBs)
-│   ├── config.py           # Configuration loader
-│   ├── middleware.py        # HTTP middleware
-│   ├── acp_client.py       # ACP agent subprocess + JSON-RPC
-│   ├── acp_protocol.py     # ACP protocol types + helpers
-│   ├── pi_client.py        # Pi RPC agent subprocess
-│   ├── pi_prompt.py        # Pi system prompt generation
-│   ├── slash_commands.py   # Slash command dispatch
-│   ├── followups.py        # Queue/steering logic
-│   ├── tasks.py            # Background task management
-│   ├── opengraph.py        # OpenGraph link preview fetcher
-│   ├── avatar.py           # Avatar serving
+vibes/
+├── cmd/
+│   ├── vibes/
+│   │   └── main.go              # Entry point
+│   └── acp-test/
+│       └── main.go              # ACP agent integration test
+├── internal/
+│   ├── app/
+│   │   └── app.go               # chi router + application wiring
+│   ├── config/
+│   │   └── config.go            # Configuration (env vars)
+│   ├── db/
+│   │   ├── db.go                # Database layer
+│   │   ├── migrations.go        # Schema migrations
+│   │   └── queries.go           # Typed queries
+│   ├── agent/
+│   │   ├── provider.go          # AgentProvider interface + Registry
+│   │   ├── acp/
+│   │   │   └── client.go        # ACP client (wraps acp-sdk-go)
+│   │   └── pi/
+│   │       └── client.go        # Pi RPC client
+│   ├── server/
+│   │   └── sse/
+│   │       └── broker.go        # SSE connection management + fanout
 │   ├── routes/
-│   │   ├── posts.py        # Timeline, threads, search
-│   │   ├── media.py        # Media upload/serve from DB
-│   │   ├── workspace.py    # Workspace file tree + CRUD
-│   │   ├── agents.py       # Agent messaging, queue, permissions
-│   │   ├── avatar.py       # Avatar endpoint
-│   │   └── sse.py          # Server-Sent Events
+│   │   ├── timeline.go          # Timeline, threads, search
+│   │   ├── media.go             # Media upload/serve
+│   │   ├── workspace.go         # Workspace file tree + CRUD
+│   │   └── agents.go            # Agent messaging, queue, permissions
 │   ├── extensions/
-│   │   └── pi-vibes-tools.ts  # Pi extension for file attachments
-│   └── static/
-│       ├── index.html
-│       ├── css/styles.css
-│       ├── js/
-│       │   ├── app.js               # Main Preact SPA
-│       │   ├── api.js               # API client
-│       │   ├── components/
-│       │   │   ├── compose-box.js   # Message compose
-│       │   │   ├── editor.js        # CodeMirror 6 editor
-│       │   │   ├── tab-strip.js     # Editor tab bar
-│       │   │   ├── timeline.js      # Message timeline
-│       │   │   ├── workspace-explorer.js  # File tree sidebar
-│       │   │   ├── status.js        # Agent status panels
-│       │   │   ├── markdown-preview.js    # Markdown rendering
-│       │   │   └── sunburst.js      # Context pie chart
-│       │   ├── panes/
-│       │   │   └── editor-popout-transfer.js  # Popout state transfer
-│       │   └── vendor/              # Vendored Preact + HTM
-│       └── dist/                    # Built bundles (bun)
+│   │   └── registry.go          # Extension discovery + lifecycle
+│   └── media/
+│       └── processing.go        # Image downscaling, thumbnails
+├── static/                      # Frontend (Preact + HTM + CodeMirror 6)
+│   ├── index.html
+│   ├── css/
+│   ├── js/
+│   ├── dist/
+│   └── fonts/
 ├── config/
-│   └── endpoints.json       # Custom action definitions
-├── data/                    # Runtime data (DB, workspace)
-├── tests/
-│   ├── e2e/
-│   │   └── editor-tabs.spec.mjs  # Playwright E2E tests (34 tests)
-│   └── test_*.py            # pytest unit tests (388 tests)
+│   └── endpoints.json           # Custom action definitions
 ├── docs/
-│   ├── API.md               # Full API endpoint reference
-│   ├── CONFIGURATION.md     # Environment variable reference
-│   ├── PI_MODE.md           # Pi RPC integration details
-│   ├── ACP_HARDENING.md     # ACP protocol hardening plan
-│   └── ACP_ROUTING.md       # ACP streaming/filtering notes
-├── build.js                 # Bun build script
-├── playwright.config.mjs    # Playwright config (Chromium + WebKit)
-├── Makefile                 # Build, lint, test, serve targets
-├── package.json             # Frontend dependencies
-└── pyproject.toml           # Python packaging
+│   ├── API.md
+│   ├── CONFIGURATION.md
+│   ├── PI_MODE.md
+│   ├── ACP_ROUTING.md
+│   └── ACP_HARDENING.md
+├── build.js                     # Bun build script (frontend)
+├── package.json
+├── go.mod
+├── go.sum
+├── Makefile
+└── LICENSE
 ```

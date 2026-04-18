@@ -1,92 +1,46 @@
-.PHONY: help install install-dev lint format test coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
+.PHONY: all build clean test test-acp serve dev frontend lint
 
-PYTHON ?= python3
-PIP ?= pip3
+BINARY = vibes
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)"
 
-# Server configuration
-export VIBES_HOST ?= 0.0.0.0
-export VIBES_PORT ?= 8080
-export VIBES_ACP_AGENT ?= copilot --acp
+all: build
 
-help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+build:
+	go build $(LDFLAGS) -o $(BINARY) ./cmd/vibes/
 
-# =============================================================================
-# Python targets
-# =============================================================================
+clean:
+	rm -f $(BINARY)
+	go clean
 
-install: ## Install package in editable mode
-	$(PIP) install -e .
+test:
+	go test ./...
 
-install-dev: install ## Install with dev dependencies
-	$(PIP) install -e ".[dev]"
-	$(PIP) install ruff
+test-acp:
+	go run cmd/acp-test/main.go
 
-lint: ## Run ruff linter
-	ruff check src tests
+serve: build
+	VIBES_DEBUG=true ./$(BINARY)
 
-lint-frontend: ## Run frontend lint with bun
-	bun run lint:frontend
+dev:
+	VIBES_DEBUG=true go run ./cmd/vibes/
 
-build-frontend: ## Bundle frontend JS with bun
-	bun run build:frontend
+frontend:
+	bun run build.js
 
-format: ## Format code with ruff
-	ruff format src tests
+lint:
+	go vet ./...
 
-test: ## Run pytest
-	PYTHONPATH=src $(PYTHON) -m pytest
+# Cross-compile targets
+build-linux-amd64:
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o $(BINARY)-linux-amd64 ./cmd/vibes/
 
-coverage: ## Run pytest with coverage
-	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
+build-linux-arm64:
+	GOOS=linux GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-linux-arm64 ./cmd/vibes/
 
-check: lint test ## Run lint + tests
+build-darwin-arm64:
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o $(BINARY)-darwin-arm64 ./cmd/vibes/
 
-check-all: lint lint-frontend coverage ## Run all lints + tests with coverage
+build-all: build-linux-amd64 build-linux-arm64 build-darwin-arm64
 
-serve: ## Run the web server
-	PYTHONPATH=src VIBES_HOST=$(VIBES_HOST) VIBES_PORT=$(VIBES_PORT) $(PYTHON) -m vibes.app
-
-# =============================================================================
-# Clean targets
-# =============================================================================
-
-clean: ## Remove Python cache files
-	rm -rf .pytest_cache .coverage htmlcov .ruff_cache __pycache__ src/**/__pycache__ src/*.egg-info
-
-# =============================================================================
-# Version management
-# =============================================================================
-
-bump-minor: ## Bump minor version, reset patch, and create git tag
-	@OLD=$$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml); \
-	MAJOR=$$(echo $$OLD | cut -d. -f1); \
-	MINOR=$$(echo $$OLD | cut -d. -f2); \
-	NEW="$$MAJOR.$$((MINOR + 1)).0"; \
-	sed -i "s/^version = \"$$OLD\"/version = \"$$NEW\"/" pyproject.toml; \
-	git add pyproject.toml; \
-	git commit -m "Bump version to $$NEW"; \
-	git tag "v$$NEW"; \
-	echo "Bumped version: $$OLD -> $$NEW (tagged v$$NEW)"
-
-bump-patch: ## Bump patch version and create git tag
-	@OLD=$$(grep -Po '(?<=^version = ")[^"]+' pyproject.toml); \
-	MAJOR=$$(echo $$OLD | cut -d. -f1); \
-	MINOR=$$(echo $$OLD | cut -d. -f2); \
-	PATCH=$$(echo $$OLD | cut -d. -f3); \
-	NEW="$$MAJOR.$$MINOR.$$((PATCH + 1))"; \
-	sed -i "s/^version = \"$$OLD\"/version = \"$$NEW\"/" pyproject.toml; \
-	git add pyproject.toml; \
-	git commit -m "Bump version to $$NEW"; \
-	git tag "v$$NEW"; \
-	echo "Bumped version: $$OLD -> $$NEW (tagged v$$NEW)"
-
-push: ## Push commits and current tag to origin
-	@TAG=$$(git describe --tags --exact-match 2>/dev/null); \
-	git push origin main; \
-	if [ -n "$$TAG" ]; then \
-		echo "Pushing tag $$TAG..."; \
-		git push origin "$$TAG"; \
-	else \
-		echo "No tag on current commit"; \
-	fi
+check: lint test test-acp

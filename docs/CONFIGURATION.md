@@ -7,8 +7,8 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_HOST` | `0.0.0.0` | Server bind address |
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database path |
-| `VIBES_DEBUG` | `false` | Enable debug mode |
-| `VIBES_ACP_AGENT` | `vibe-acp` | ACP agent command (recommended: `copilot --acp --model gpt-5-mini` |
+| `VIBES_DEBUG` | `false` | Enable debug mode (verbose logging) |
+| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | ACP agent command. Set to `codex-acp` or `claude-agent-acp` for other backends. |
 | `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request times out |
 | `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all agent permission requests |
@@ -16,30 +16,61 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = no throttling) |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) for the `default` agent id |
-| `VIBES_PI_AGENT` | `pi --mode rpc --no-session --append-system-prompt <vibes prompt> -e <package>/extensions/pi-vibes-tools.ts` | Pi RPC command to spawn when Pi mode is enabled (default resolves to the packaged extension path and includes the Vibes prompt) |
+| `VIBES_PI_AGENT` | *(auto)* | Pi RPC command to spawn when Pi mode is enabled |
 | `VIBES_PI_ENABLED` | `false` | Enable Pi RPC agent (auto-enabled when `VIBES_DEFAULT_AGENT=pi`) |
 | `VIBES_PI_RESTART_ON_DISCONNECT` | `false` | Restart Pi agent when all SSE clients disconnect |
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Path to custom endpoints config |
-
-For Pi mode details, see [docs/PI_MODE.md](PI_MODE.md).
+| `VIBES_EXTENSIONS_DIR` | `extensions` | Directory to scan for extensions |
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
+
+## Agent selection
+
+Vibes supports three ACP agents out of the box:
+
+```bash
+# GitHub Copilot (default)
+VIBES_ACP_AGENT="copilot-language-server --acp --stdio"
+
+# OpenAI Codex
+VIBES_ACP_AGENT="codex-acp"
+
+# Claude
+VIBES_ACP_AGENT="claude-agent-acp"
+```
+
+The agent binary must be in `$PATH`. Install via npm:
+
+```bash
+npm install -g @github/copilot-language-server    # GitHub Copilot
+npm install -g @openai/codex                       # codex-acp is bundled
+npm install -g @agentclientprotocol/claude-agent-acp  # Claude
+```
 
 ## Permission whitelist
 
 Whitelist entries are persisted in the SQLite database at `VIBES_DB_PATH`.
-Manage entries with the CLI:
+Manage entries via the API:
 
 ```bash
-vibes whitelist add "Run command" --description "Auto-approved: Run command"
-vibes whitelist remove "Run command"
-vibes whitelist list
+# List whitelist
+curl http://localhost:8080/agent/whitelist
+
+# Add pattern
+curl -X POST http://localhost:8080/agent/whitelist \
+  -H 'Content-Type: application/json' \
+  -d '{"pattern": "Run command"}'
+
+# Remove pattern
+curl -X DELETE http://localhost:8080/agent/whitelist \
+  -H 'Content-Type: application/json' \
+  -d '{"pattern": "Run command"}'
 ```
 
 ## Custom endpoints (config/endpoints.json)
 
-Vibes can map **custom action IDs** to prompts using `config/endpoints.json` (path configurable via `VIBES_CONFIG_PATH`).
-These actions are triggered with `POST /agent/{agent_id}/action/{action_id}` and enqueue an agent response.
+Vibes can map **custom action IDs** to prompts using `config/endpoints.json`.
+These actions are triggered with `POST /agent/{agent_id}/action/{action_id}`.
 
 ### File format
 
@@ -56,56 +87,4 @@ These actions are triggered with `POST /agent/{agent_id}/action/{action_id}` and
 }
 ```
 
-### Field meanings
-
-- `endpoints` (object, required): map of `action_id` → action definition.
-- `description` (string, optional): used as a default prompt if `prompt` is not provided.
-- `prompt` (string, optional): explicit prompt template used when action is triggered.
-- `params` (array of strings, optional): parameter names expected by the action. These are **not** enforced server‑side, but are appended to the prompt when provided.
-- `agent_id` (string, optional): informational only; the **request path** (`/agent/{agent_id}/...`) selects the actual agent.
-
-### How prompts are built
-
-When you trigger an action:
-
-1. `prompt` is used if present; otherwise `description` is used (or `action_id` as a fallback).
-2. If `params` are supplied in the request body, they are appended as JSON:
-
-```
-<prompt text>
-
-Params: {"url": "https://example.com"}
-```
-
-### Triggering a custom action
-
-**Request**
-
-```
-POST /agent/{agent_id}/action/{action_id}
-Content-Type: application/json
-
-{
-  "thread_id": 123,
-  "params": {
-    "url": "https://example.com"
-  }
-}
-```
-
-**Response (immediate)**
-
-```json
-{
-  "status": "queued",
-  "agent_id": "default",
-  "action_id": "summarize"
-}
-```
-
-**Actual result**
-
-The agent response is **async**:
-- Stored as a new interaction in the thread.
-- Broadcast over SSE as `agent_response`.
-There is no synchronous response payload beyond the `queued` acknowledgment.
+See [docs/API.md](API.md) for the full custom endpoint triggering reference.
