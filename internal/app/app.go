@@ -8,6 +8,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+
+	vibes "github.com/rcarmo/vibes"
 	"github.com/rcarmo/vibes/internal/agent"
 	"github.com/rcarmo/vibes/internal/config"
 	"github.com/rcarmo/vibes/internal/extensions"
@@ -56,12 +58,20 @@ func New(cfg *config.Config) (*App, error) {
 		r.Method(route.Method, route.Pattern, route.Handler)
 	}
 
-	// Serve frontend static files
-	fileServer := http.FileServer(http.Dir("static"))
+	// Serve frontend static files (embedded into the binary at compile time).
+	staticFS, err := vibes.StaticFS()
+	if err != nil {
+		return nil, fmt.Errorf("load embedded static FS: %w", err)
+	}
+	fileServer := http.FileServer(staticFS)
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
-	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
-		http.ServeFile(w, r, "static/index.html")
-	})
+
+	// Serve index.html at the root
+	r.Get("/", serveStaticFile(staticFS, "index.html", "text/html; charset=utf-8"))
+	r.Get("/index.html", serveStaticFile(staticFS, "index.html", "text/html; charset=utf-8"))
+	r.Get("/manifest.json", serveStaticFile(staticFS, "manifest.json", "application/manifest+json"))
+	r.Get("/icon-192.png", serveStaticFile(staticFS, "icon-192.png", "image/png"))
+	r.Get("/icon-512.png", serveStaticFile(staticFS, "icon-512.png", "image/png"))
 
 	app.Router = r
 	return app, nil
@@ -106,4 +116,27 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// serveStaticFile returns a handler that serves a single file from the embedded FS.
+func serveStaticFile(fs http.FileSystem, name, contentType string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		f, err := fs.Open(name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		defer f.Close()
+
+		stat, err := f.Stat()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		if contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+		http.ServeContent(w, r, name, stat.ModTime(), f)
+	}
 }

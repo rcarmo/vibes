@@ -1,7 +1,8 @@
 // Package acp implements the ACP (Agent Client Protocol) provider for Vibes.
 //
 // It wraps keepmind9/acp-sdk-go to manage stdio-based agent subprocesses
-// (copilot --acp, codex-acp, claude --acp) with streaming support.
+// (copilot-language-server --acp --stdio, codex-acp, claude-agent-acp)
+// with streaming support.
 package acp
 
 import (
@@ -12,30 +13,34 @@ import (
 	"sync"
 
 	acpclient "github.com/keepmind9/acp-sdk-go/client"
-	"github.com/keepmind9/acp-sdk-go/contrib"
+	"github.com/keepmind9/acp-sdk-go/core"
+	"github.com/keepmind9/acp-sdk-go/helpers"
 	"github.com/keepmind9/acp-sdk-go/schema"
 	"github.com/keepmind9/acp-sdk-go/transport"
+
 	"github.com/rcarmo/vibes/internal/agent"
 )
 
 // Config configures an ACP agent provider.
 type Config struct {
-	ID      string   // provider identifier (e.g., "copilot")
-	Command string   // agent binary name
-	Args    []string // agent binary arguments
-	WorkDir string   // working directory for the agent
-	Debug   bool     // enable wire logging
+	ID      string            // provider identifier (e.g., "copilot")
+	Command string            // agent binary name (e.g., "copilot-language-server")
+	Args    []string          // agent binary arguments (e.g., ["--acp", "--stdio"])
+	WorkDir string            // working directory for the agent
+	Env     map[string]string // additional environment variables
 }
 
 // Provider implements agent.Provider for ACP agents.
 type Provider struct {
-	cfg     Config
-	conn    *acpclient.Client
-	proc    *transport.Process
-	events  chan agent.Event
-	tracker *contrib.ToolCallTracker
-	perms   *contrib.PermissionBroker
-	accum   *contrib.SessionAccumulator
+	cfg       Config
+	conn      *acpclient.ClientSideConnection
+	proc      *transport.Subprocess
+	events    chan agent.Event
+	sessionID string
+
+	// Per-turn state for tool call tracking and content classification.
+	turnMu    sync.Mutex
+	toolCalls map[string]*schema.ToolCall
 
 	mu     sync.RWMutex
 	status agent.ProviderStatus
@@ -44,15 +49,15 @@ type Provider struct {
 // New creates a new ACP provider with the given configuration.
 func New(cfg Config) *Provider {
 	return &Provider{
-		cfg:    cfg,
-		events: make(chan agent.Event, 256),
-		status: agent.ProviderStatus{State: "stopped"},
+		cfg:       cfg,
+		events:    make(chan agent.Event, 256),
+		toolCalls: make(map[string]*schema.ToolCall),
+		status:    agent.ProviderStatus{State: "stopped"},
 	}
 }
 
-func (p *Provider) ID() string { return p.cfg.ID }
-
-func (p *Provider) Events() <-chan agent.Event { return p.events }
+func (p *Provider) ID() string                   { return p.cfg.ID }
+func (p *Provider) Events() <-chan agent.Event   { return p.events }
 
 func (p *Provider) Status() agent.ProviderStatus {
 	p.mu.RLock()
@@ -68,49 +73,42 @@ func (p *Provider) setStatus(s agent.ProviderStatus) {
 
 // Initialize spawns the ACP agent subprocess and performs the ACP handshake.
 func (p *Provider) Initialize(ctx context.Context) error {
-	// Build the command
-	args := make([]string, len(p.cfg.Args))
-	copy(args, p.cfg.Args)
-
 	slog.Info("spawning ACP agent",
 		"id", p.cfg.ID,
 		"command", p.cfg.Command,
-		"args", strings.Join(args, " "),
+		"args", strings.Join(p.cfg.Args, " "),
 	)
 
-	// Spawn the agent subprocess
-	proc, err := transport.Spawn(ctx, p.cfg.Command, args...)
+	// Build spawn options
+	opts := []transport.SpawnOption{transport.WithArgs(p.cfg.Args...)}
+	if p.cfg.WorkDir != "" {
+		opts = append(opts, transport.WithCwd(p.cfg.WorkDir))
+	}
+	if len(p.cfg.Env) > 0 {
+		opts = append(opts, transport.WithEnv(p.cfg.Env))
+	}
+
+	proc, err := transport.Spawn(p.cfg.Command, opts...)
 	if err != nil {
 		return fmt.Errorf("spawn ACP agent %s: %w", p.cfg.ID, err)
 	}
 	p.proc = proc
 
-	// Create typed client connection
-	client := acpclient.New(proc.Conn())
-	p.conn = client
+	// Connect using the core helper. The clientImpl receives session updates.
+	impl := &clientImpl{provider: p, Base: &acpclient.Base{}}
+	conn := core.ConnectToAgent(impl, proc)
+	go conn.ReceiveLoop()
+	p.conn = conn
 
-	// Initialize contrib helpers
-	p.tracker = contrib.NewToolCallTracker()
-	p.perms = contrib.NewPermissionBroker()
-	p.accum = contrib.NewSessionAccumulator()
-
-	// Register notification handler for session/update
-	client.OnNotification("session/update", p.handleSessionUpdate)
-
-	// Register request handler for session/request_permission
-	client.OnRequest("session/request_permission", p.handlePermissionRequest)
-
-	// Send ACP initialize
+	// Perform ACP initialize handshake
 	pv := schema.ProtocolVersion(1)
-	initReq := &schema.InitializeRequest{
-		ProtocolVersion: &pv,
-		ClientInfo:      &schema.Implementation{Name: "vibes-go", Version: "0.1.0"},
+	resp, err := conn.Initialize(&schema.InitializeRequest{
+		ProtocolVersion:    &pv,
 		ClientCapabilities: &schema.ClientCapabilities{},
-	}
-
-	resp, err := client.Initialize(ctx, initReq)
+		ClientInfo:         &schema.Implementation{Name: "vibes-go", Version: "0.1.0"},
+	})
 	if err != nil {
-		proc.Kill()
+		proc.Close()
 		return fmt.Errorf("ACP initialize: %w", err)
 	}
 
@@ -119,8 +117,25 @@ func (p *Provider) Initialize(ctx context.Context) error {
 		model = resp.AgentInfo.Name
 	}
 
+	// Create a new session
+	session, err := conn.NewSession(&schema.NewSessionRequest{
+		McpServers: []*schema.McpServer{},
+	})
+	if err != nil {
+		proc.Close()
+		return fmt.Errorf("ACP new_session: %w", err)
+	}
+	if session.SessionId != nil {
+		p.sessionID = string(*session.SessionId)
+	}
+
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: model})
-	slog.Info("ACP agent initialized", "id", p.cfg.ID, "agent", model)
+	slog.Info("ACP agent initialized",
+		"id", p.cfg.ID,
+		"agent", model,
+		"protocol", *resp.ProtocolVersion,
+		"session", p.sessionID,
+	)
 
 	return nil
 }
@@ -128,96 +143,86 @@ func (p *Provider) Initialize(ctx context.Context) error {
 // Prompt sends a user message to the ACP agent.
 func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) error {
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
+	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
 
-	// Reset accumulator for new turn
-	p.accum.Reset()
+	// Reset per-turn tool call state
+	p.turnMu.Lock()
+	p.toolCalls = make(map[string]*schema.ToolCall)
+	p.turnMu.Unlock()
 
-	req := &schema.PromptRequest{
-		Messages: []schema.PromptMessage{
-			{
-				Role: "user",
-				Content: schema.ContentBlockList{
-					schema.TextContentBlock(message),
-				},
-			},
-		},
-	}
-
-	resp, err := p.conn.Prompt(ctx, req)
-
-	p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
+	block := helpers.TextBlock(message)
+	sessID := schema.SessionId(p.sessionID)
+	resp, err := p.conn.Prompt(&schema.PromptRequest{
+		SessionId: &sessID,
+		Prompt:    []*schema.ContentBlock{&block},
+	})
 
 	if err != nil {
 		p.events <- agent.Event{Type: "error", Data: err.Error()}
 		return err
 	}
 
-	// Send final response event
 	p.events <- agent.Event{Type: "response", Data: resp}
-
 	return nil
 }
 
 // Cancel aborts the current prompt.
 func (p *Provider) Cancel() error {
-	if p.conn != nil {
-		return p.conn.Cancel()
+	if p.conn == nil || p.sessionID == "" {
+		return nil
 	}
-	return nil
+	return p.conn.Cancel(p.sessionID)
 }
 
 // Shutdown stops the ACP agent subprocess.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	p.setStatus(agent.ProviderStatus{State: "stopped"})
+	if p.conn != nil {
+		p.conn.Close()
+	}
 	if p.proc != nil {
-		return p.proc.Kill()
+		return p.proc.Close()
 	}
 	return nil
 }
 
-// handleSessionUpdate processes streaming session/update notifications.
-func (p *Provider) handleSessionUpdate(params interface{}) {
-	// Route based on update type to appropriate UI channel
-	// This is where draft/thought/plan/tool_call classification happens
-	// using metadata only (not content heuristics), per ACP_ROUTING.md
-
-	update, ok := params.(*schema.SessionUpdate)
-	if !ok {
-		return
-	}
-
-	p.accum.Add(update)
-
-	switch {
-	case update.Kind == "tool_call" || update.Kind == "tool_call_update":
-		p.tracker.Track(update)
-		p.events <- agent.Event{Type: "status", Data: update}
-
-	case isThoughtSegment(update):
-		p.events <- agent.Event{Type: "thought", Data: update}
-
-	default:
-		p.events <- agent.Event{Type: "draft", Data: update}
-	}
+// clientImpl implements the ACP Client interface to receive session updates.
+type clientImpl struct {
+	*acpclient.Base
+	provider *Provider
 }
 
-// handlePermissionRequest processes permission requests from the agent.
-func (p *Provider) handlePermissionRequest(params interface{}) interface{} {
-	p.events <- agent.Event{Type: "permission", Data: params}
-	// The permission broker will handle the response asynchronously
-	return p.perms.Wait(params)
-}
+// SessionUpdate is called for every streaming session/update notification.
+// We classify by metadata only (per docs/ACP_ROUTING.md) and fan out to events.
+func (c *clientImpl) SessionUpdate(_ context.Context, notif *schema.SessionNotification) error {
+	switch notif.Update.SessionUpdate {
+	case schema.SessionUpdateKindAgentMessageChunk:
+		c.provider.events <- agent.Event{Type: "draft", Data: notif.Update.AgentMessageChunk}
 
-// isThoughtSegment returns true if the update is a thought/plan/segment
-// using only metadata fields, not content inspection.
-func isThoughtSegment(update *schema.SessionUpdate) bool {
-	switch update.Segment {
-	case "think", "thought", "thinking", "plan", "intent", "segment":
-		return true
+	case schema.SessionUpdateKindAgentThoughtChunk:
+		c.provider.events <- agent.Event{Type: "thought", Data: notif.Update.AgentThoughtChunk}
+
+	case schema.SessionUpdateKindToolCall:
+		if notif.Update.ToolCall != nil {
+			c.provider.turnMu.Lock()
+			id := ""
+			if notif.Update.ToolCall.ToolCallId != nil {
+				id = string(*notif.Update.ToolCall.ToolCallId)
+			}
+			c.provider.toolCalls[id] = notif.Update.ToolCall
+			c.provider.turnMu.Unlock()
+			c.provider.events <- agent.Event{Type: "status", Data: notif.Update.ToolCall}
+		}
+
+	case schema.SessionUpdateKindToolCallUpdate:
+		if notif.Update.ToolCallUpdate != nil {
+			c.provider.events <- agent.Event{Type: "status", Data: notif.Update.ToolCallUpdate}
+		}
+
+	case schema.SessionUpdateKindPlan:
+		if notif.Update.Plan != nil {
+			c.provider.events <- agent.Event{Type: "plan", Data: notif.Update.Plan}
+		}
 	}
-	switch update.Channel {
-	case "think", "thought", "thinking", "plan":
-		return true
-	}
-	return false
+	return nil
 }

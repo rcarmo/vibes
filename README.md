@@ -49,20 +49,25 @@ All three implement ACP protocol v1 over stdio JSON-RPC and are driven by the sa
 ```bash
 git clone https://github.com/rcarmo/vibes.git
 cd vibes
-go build -o vibes ./cmd/vibes/
+make build
 ```
+
+This runs the full build pipeline:
+1. `bun install` (frontend dependencies)
+2. `bun run build.js` (bundles JS/CSS into `static/dist/`)
+3. `go build` (compiles Go binary with all static assets embedded)
+
+The resulting `vibes` binary is **fully self-contained** — no external static files, no Python, no Node.js runtime. Just deploy the binary anywhere.
 
 ### Cross-compile
 
 ```bash
-# Linux ARM64 (Proxmox on ARM, Raspberry Pi)
-GOOS=linux GOARCH=arm64 go build -o vibes-arm64 ./cmd/vibes/
-
-# macOS Apple Silicon
-GOOS=darwin GOARCH=arm64 go build -o vibes-darwin ./cmd/vibes/
+make build-linux-arm64       # For Raspberry Pi, ARM Proxmox, etc.
+make build-darwin-arm64      # For macOS Apple Silicon
+make build-all               # Linux amd64 + arm64 + macOS arm64
 ```
 
-The resulting binary is ~11 MB with zero runtime dependencies (SQLite is pure Go via `modernc.org/sqlite`).
+The binary is ~23 MB with the embedded frontend bundle, with zero runtime dependencies (SQLite is pure Go via `modernc.org/sqlite`).
 
 ## Usage
 
@@ -173,21 +178,38 @@ vibes/
 ## Development
 
 ```bash
-# Build
-go build -o vibes ./cmd/vibes/
+# Full build (frontend + Go binary, fully self-contained)
+make build
 
-# Run dev server
-VIBES_DEBUG=true ./vibes
+# Run from source (skips frontend build, useful for backend iteration)
+make dev
 
-# Test ACP agent handshakes
-go run cmd/acp-test/main.go
+# Build and run with debug logging
+make serve
 
-# Rebuild frontend bundles (requires bun)
-bun run build.js
+# Test ACP agent handshakes (spawns copilot/codex/claude)
+make test-acp
 
-# Run E2E tests (requires playwright)
-bunx playwright test
+# Rebuild frontend bundles only
+make frontend
+
+# Lint, vet, and test
+make check
+
+# See all targets
+make help
 ```
+
+### Embedded assets
+
+All static frontend assets (HTML, CSS, JS, fonts, icons) are embedded into the
+Go binary at compile time via `//go:embed all:static`. This is the same pattern
+used by [rcarmo/webterm](https://github.com/rcarmo/webterm) and produces a
+truly self-contained binary that can be deployed anywhere without external files.
+
+The `embed.go` file at the project root holds the directive; the `internal/app/`
+package imports the root package to access `vibes.StaticFS()` for the HTTP
+file server.
 
 ## License
 
