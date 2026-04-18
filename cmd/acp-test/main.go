@@ -37,6 +37,7 @@ func main() {
 		{"GitHub Copilot", "copilot-language-server", []string{"--acp", "--stdio"}},
 		{"Codex (OpenAI)", "codex-acp", nil},
 		{"Claude Agent", "claude-agent-acp", nil},
+		{"Pi (via pi-acp)", "pi-acp", nil},
 	}
 
 	fmt.Println("=== ACP Handshake Test ===")

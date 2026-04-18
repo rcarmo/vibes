@@ -1,6 +1,6 @@
 # Vibes
 
-A mobile-friendly web UI for coding agents, written in Go. Supports [ACP](https://agentclientprotocol.com/) agents (`copilot`, `codex-acp`, `claude-agent-acp`) and [Pi](https://pi.dev) via RPC. Inspired by [Toad](https://github.com/batrachianai/toad), built for personal use over Tailscale.
+A mobile-friendly web UI for coding agents, written in Go. Supports [ACP](https://agentclientprotocol.com/) agents (`copilot`, `codex-acp`, `claude-agent-acp`, `pi-acp`) and [Pi](https://pi.dev) via native RPC. Inspired by [Toad](https://github.com/batrachianai/toad), built for personal use over Tailscale.
 
 ![Demo](docs/demo.gif)
 
@@ -20,27 +20,28 @@ A mobile-friendly web UI for coding agents, written in Go. Supports [ACP](https:
 
 ## Verified ACP agents
 
-All three major ACP agents have been tested against our Go ACP client:
+All four ACP agents have been tested against our Go ACP client:
 
 | Agent | Binary | ACP Version | Status |
 |---|---|---|---|
 | **GitHub Copilot** | `copilot-language-server --acp --stdio` | v1.472.0 | ✅ Responds to initialize |
 | **OpenAI Codex** | `codex-acp` | v0.11.1 | ✅ Responds to initialize |
 | **Claude Agent** | `claude-agent-acp` | v0.29.2 | ✅ Responds to initialize |
+| **Pi** | `pi-acp` | v0.0.26 | ✅ Responds to initialize |
 
 ### Capability comparison
 
-| Feature | Copilot | Codex | Claude |
-|---|---|---|---|
-| Image support | ✅ | ✅ | ✅ |
-| Embedded context | ✅ | ✅ | ✅ |
-| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) |
-| Session list/close | ✅ | ✅ | ✅ |
-| Session fork/resume | — | — | ✅ |
-| Prompt queueing | — | — | ✅ (Claude-specific) |
-| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured |
+| Feature | Copilot | Codex | Claude | Pi |
+|---|---|---|---|---|
+| Image support | ✅ | ✅ | ✅ | ✅ |
+| Embedded context | ✅ | ✅ | ✅ | — |
+| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) | — |
+| Session list/close | ✅ | ✅ | ✅ | ✅ |
+| Session fork/resume | — | — | ✅ | — |
+| Prompt queueing | — | — | ✅ (Claude-specific) | — |
+| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured | Terminal login |
 
-All three implement ACP protocol v1 over stdio JSON-RPC and are driven by the same `internal/agent/acp/client.go` code — only the spawn command differs.
+All four implement ACP protocol v1 over stdio JSON-RPC and are driven by the same `internal/agent/acp/client.go` code — only the spawn command differs. Pi uses [`pi-acp`](https://github.com/svkozak/pi-acp) (★209), a community ACP adapter that wraps `pi --mode rpc`.
 
 ## Installation
 
@@ -81,7 +82,10 @@ VIBES_ACP_AGENT="codex-acp" ./vibes
 # Use Claude
 VIBES_ACP_AGENT="claude-agent-acp" ./vibes
 
-# Use Pi as the agent backend
+# Use Pi via ACP adapter
+VIBES_ACP_AGENT="pi-acp" ./vibes
+
+# Use Pi's native RPC mode (richer features, not ACP)
 VIBES_DEFAULT_AGENT=pi VIBES_PI_ENABLED=true ./vibes
 
 # Custom host/port

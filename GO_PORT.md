@@ -14,27 +14,28 @@ This branch is a **work-in-progress** port of [Vibes](https://github.com/rcarmo/
 
 ## Verified ACP agents
 
-All three major ACP agents have been tested against our Go ACP client (via `cmd/acp-test/main.go`):
+All four ACP agents have been tested against our Go ACP client (via `cmd/acp-test/main.go`):
 
 | Agent | Binary | ACP Version | Status |
 |---|---|---|---|
 | **GitHub Copilot** | `copilot-language-server --acp --stdio` | v1.472.0 | ✅ Responds to initialize |
 | **OpenAI Codex** | `codex-acp` | v0.11.1 | ✅ Responds to initialize |
 | **Claude Agent** | `claude-agent-acp` | v0.29.2 | ✅ Responds to initialize |
+| **Pi** | `pi-acp` | v0.0.26 | ✅ Responds to initialize |
 
 ### Capability comparison
 
-| Feature | Copilot | Codex | Claude |
-|---|---|---|---|
-| Image support | ✅ | ✅ | ✅ |
-| Embedded context | ✅ | ✅ | ✅ |
-| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) |
-| Session list/close | ✅ | ✅ | ✅ |
-| Session fork/resume | — | — | ✅ |
-| Prompt queueing | — | — | ✅ (Claude-specific) |
-| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured |
+| Feature | Copilot | Codex | Claude | Pi |
+|---|---|---|---|---|
+| Image support | ✅ | ✅ | ✅ | ✅ |
+| Embedded context | ✅ | ✅ | ✅ | — |
+| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) | — |
+| Session list/close | ✅ | ✅ | ✅ | ✅ |
+| Session fork/resume | — | — | ✅ | — |
+| Prompt queueing | — | — | ✅ (Claude-specific) | — |
+| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured | Terminal login |
 
-All three implement ACP protocol v1 over stdio JSON-RPC and are driven by the same `internal/agent/acp/client.go` code — only the spawn command differs.
+All four implement ACP protocol v1 over stdio JSON-RPC and are driven by the same `internal/agent/acp/client.go` code — only the spawn command differs. Pi uses [`pi-acp`](https://github.com/svkozak/pi-acp) (★209), a community ACP adapter that wraps `pi --mode rpc`.
 
 ## Architecture
 
@@ -87,9 +88,10 @@ If the SDK proves insufficient, we can fork or replace individual layers since A
 ```go
 // Agent registry — switch at runtime
 registry := agent.NewRegistry()
-registry.Register("copilot", agent.ACPConfig{Command: "copilot", Args: []string{"--acp"}})
+registry.Register("copilot", agent.ACPConfig{Command: "copilot-language-server", Args: []string{"--acp", "--stdio"}})
 registry.Register("codex",   agent.ACPConfig{Command: "codex-acp"})
-registry.Register("claude",  agent.ACPConfig{Command: "claude", Args: []string{"--acp"}})
+registry.Register("claude",  agent.ACPConfig{Command: "claude-agent-acp"})
+registry.Register("pi-acp",  agent.ACPConfig{Command: "pi-acp"})
 registry.Register("pi",      agent.PiConfig{Command: "pi", Args: []string{"--mode", "rpc"}})
 
 // Select agent per request or globally
