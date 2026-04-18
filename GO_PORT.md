@@ -12,6 +12,30 @@ This branch is a **work-in-progress** port of [Vibes](https://github.com/rcarmo/
 - Easy cross-compilation for ARM (Proxmox nodes, Raspberry Pi, etc.)
 - CGo-free SQLite via `modernc.org/sqlite` for true single-binary builds
 
+## Verified ACP agents
+
+All three major ACP agents have been tested against our Go ACP client (via `cmd/acp-test/main.go`):
+
+| Agent | Binary | ACP Version | Status |
+|---|---|---|---|
+| **GitHub Copilot** | `copilot-language-server --acp --stdio` | v1.472.0 | ✅ Responds to initialize |
+| **OpenAI Codex** | `codex-acp` | v0.11.1 | ✅ Responds to initialize |
+| **Claude Agent** | `claude-agent-acp` | v0.29.2 | ✅ Responds to initialize |
+
+### Capability comparison
+
+| Feature | Copilot | Codex | Claude |
+|---|---|---|---|
+| Image support | ✅ | ✅ | ✅ |
+| Embedded context | ✅ | ✅ | ✅ |
+| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) |
+| Session list/close | ✅ | ✅ | ✅ |
+| Session fork/resume | — | — | ✅ |
+| Prompt queueing | — | — | ✅ (Claude-specific) |
+| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured |
+
+All three implement ACP protocol v1 over stdio JSON-RPC and are driven by the same `internal/agent/acp/client.go` code — only the spawn command differs.
+
 ## Architecture
 
 ### Agent backends
