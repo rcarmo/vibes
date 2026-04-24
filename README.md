@@ -191,8 +191,13 @@ make dev
 # Build and run with debug logging
 make serve
 
-# Test ACP agent handshakes (spawns copilot/codex/claude)
+# Test ACP agent handshakes (spawns copilot/codex/claude/pi)
 make test-acp
+
+# Run Playwright E2E tests against Pi with gpt-5-mini
+make e2e             # starts vibes, runs tests, stops vibes
+make e2e-setup       # just start vibes for manual test runs
+make e2e-teardown    # stop the E2E instance
 
 # Rebuild frontend bundles only
 make frontend
@@ -203,6 +208,25 @@ make check
 # See all targets
 make help
 ```
+
+### E2E tests
+
+The Playwright test suite (`tests/e2e/ui.spec.mjs`) validates the full UI against
+a running vibes instance backed by Pi (via `pi-acp`). Tests cover:
+
+- Page load, SPA hydration, and SSE connection
+- Health and API endpoint validation
+- Sending messages and receiving agent responses
+- Agent status display during streaming
+- Slash command autocomplete
+- Workspace explorer and file tree API
+- Editor file opening
+- Media upload
+- Compose history (arrow keys)
+- Dark/light theme support
+
+By default, Pi uses whatever model is configured. Set `gpt-5-mini` as your
+default in `~/.pi/agent/settings.json` or pass it via Pi's config.
 
 ### Embedded assets
 
