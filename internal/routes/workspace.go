@@ -3,7 +3,6 @@ package routes
 import (
 	"archive/zip"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -399,10 +398,3 @@ func readFileLimited(path string, maxBytes int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, maxBytes))
 }
 
-// Export jsonResp/jsonError are in timeline.go — they share the package.
-// (No duplication needed since they're in the same package.)
-func init() {
-	// Suppress unused import warning for json/fmt
-	_ = json.Marshal
-	_ = fmt.Sprintf
-}

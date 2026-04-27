@@ -217,11 +217,15 @@ func scanInteraction(row *sql.Row) (*Interaction, error) {
 	var data string
 	var threadID sql.NullInt64
 	var agentID sql.NullString
-	err := row.Scan(&i.ID, &i.Timestamp, &data, &i.Type, &threadID, &agentID)
+	var itype sql.NullString
+	err := row.Scan(&i.ID, &i.Timestamp, &data, &itype, &threadID, &agentID)
 	if err != nil {
 		return nil, err
 	}
 	i.Data = json.RawMessage(data)
+	if itype.Valid {
+		i.Type = itype.String
+	}
 	if threadID.Valid {
 		i.ThreadID = &threadID.Int64
 	}
@@ -238,10 +242,14 @@ func scanInteractions(rows *sql.Rows) ([]Interaction, error) {
 		var data string
 		var threadID sql.NullInt64
 		var agentID sql.NullString
-		if err := rows.Scan(&i.ID, &i.Timestamp, &data, &i.Type, &threadID, &agentID); err != nil {
+		var itype sql.NullString
+		if err := rows.Scan(&i.ID, &i.Timestamp, &data, &itype, &threadID, &agentID); err != nil {
 			return nil, err
 		}
 		i.Data = json.RawMessage(data)
+		if itype.Valid {
+			i.Type = itype.String
+		}
 		if threadID.Valid {
 			i.ThreadID = &threadID.Int64
 		}
