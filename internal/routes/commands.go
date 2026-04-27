@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/rcarmo/vibes/internal/agent"
 )
@@ -92,6 +93,9 @@ func executeShellCommand(cmd string) string {
 		return "Usage: /shell <command>"
 	}
 
-	// Execute with timeout (implemented in a future iteration with os/exec)
-	return "Shell command execution not yet implemented in Go port: `" + cmd + "`"
+	out, _ := ExecuteShell(cmd, 30*time.Second)
+	if out == "" {
+		return "(no output)"
+	}
+	return "```\n" + out + "```"
 }
