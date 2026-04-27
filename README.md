@@ -4,6 +4,9 @@ A mobile-friendly web UI for coding agents, written in Go. Supports [ACP](https:
 
 ![Demo](docs/demo.gif)
 
+> **This is the Go port** (single static binary, ~20 MB, zero runtime dependencies).
+> The original Python implementation is available on the [`python`](https://github.com/rcarmo/vibes/tree/python) branch.
+
 > Vibes and [piclaw](https://github.com/rcarmo/piclaw) share the same web UI design language. The extension system is inspired by piclaw's architecture.
 
 ## Features
@@ -238,6 +241,19 @@ truly self-contained binary that can be deployed anywhere without external files
 The `embed.go` file at the project root holds the directive; the `internal/app/`
 package imports the root package to access `vibes.StaticFS()` for the HTTP
 file server.
+
+## Python version
+
+The original Python implementation (aiohttp backend, 388 unit tests, 34 E2E tests)
+is preserved on the [`python`](https://github.com/rcarmo/vibes/tree/python) branch.
+It is fully functional and can be installed with:
+
+```bash
+pip install -U git+https://github.com/rcarmo/vibes.git@python
+```
+
+The Go port shares the same frontend, API endpoints, SSE event format, and
+SQLite schema — they are interchangeable for the same workspace.
 
 ## License
 

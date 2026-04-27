@@ -1,8 +1,9 @@
-# Vibes — Go Port
+# Vibes — Architecture
 
-This branch is a **work-in-progress** port of [Vibes](https://github.com/rcarmo/vibes) from Python (aiohttp) to Go.
+This document describes the Go implementation of Vibes (the `main` branch).
+The original Python implementation is available on the [`python`](https://github.com/rcarmo/vibes/tree/python) branch.
 
-> **Status: design phase** — scaffolding and ACP research, not yet functional.
+> **Status: infrastructure complete, data layer in progress.**
 
 ## Why Go
 

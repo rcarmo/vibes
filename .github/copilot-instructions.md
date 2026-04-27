@@ -1,6 +1,6 @@
 # Vibes — Copilot Instructions
 
-This is a Go project. The backend is written in Go using the chi router and pure-Go SQLite.
+This is the Go implementation of Vibes (main branch). The Python version lives on the `python` branch.
 
 ## Key files
 

@@ -2,7 +2,7 @@
 
 ## Overview
 
-A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The app supports text, links, images/files, threaded conversations, rich media previews, a workspace file explorer, and a built-in code editor. It uses a Go backend with chi router and stores all interactions in a SQLite database using JSON columns with virtual indexing for efficient querying.
+A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The Go backend (`main` branch) is a port of the original Python implementation (preserved on the `python` branch). It uses a chi router and stores all interactions in a SQLite database (pure Go via `modernc.org/sqlite`) using JSON columns with virtual indexing for efficient querying.
 
 ---
 
