@@ -3,7 +3,7 @@
 This document describes the Go implementation of Vibes (the `main` branch).
 The original Python implementation is available on the [`python`](https://github.com/rcarmo/vibes/tree/python) branch.
 
-> **Status: infrastructure complete, data layer in progress.**
+> **Status: functionally complete.** All core features implemented, 52% test coverage, 9 fuzz targets, 14 E2E tests.
 
 ## Why Go
 

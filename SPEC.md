@@ -2,7 +2,7 @@
 
 ## Overview
 
-A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The Go backend (`main` branch) is a port of the original Python implementation (preserved on the `python` branch). It uses a chi router and stores all interactions in a SQLite database (pure Go via `modernc.org/sqlite`) using JSON columns with virtual indexing for efficient querying.
+A single-user, mobile-friendly single-page application (SPA) that enables Slack-like interactions with coding agents via the ACP protocol and Pi RPC. The Go backend (`main` branch) is a port of the original Python implementation (preserved on the `python` branch). It ships as a single static binary (~24 MB) using a chi router, pure-Go SQLite (`modernc.org/sqlite`), and embedded frontend assets (`//go:embed`). All interactions are stored in a SQLite database using JSON columns with virtual indexing and FTS5 for full-text search.
 
 ---
 

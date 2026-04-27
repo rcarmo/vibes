@@ -2,31 +2,34 @@
 
 Vibes reads configuration from environment variables (and a `.env` file if present).
 
+## Environment variables
+
 | Variable | Default | Description |
-|----------|---------|-------------|
+|---|---|---|
 | `VIBES_HOST` | `0.0.0.0` | Server bind address |
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database path |
-| `VIBES_DEBUG` | `false` | Enable debug mode (verbose logging) |
-| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | ACP agent command. Set to `codex-acp` or `claude-agent-acp` for other backends. |
+| `VIBES_DEBUG` | `false` | Enable debug mode (verbose structured logging) |
+| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | ACP agent command to spawn |
 | `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
-| `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request times out |
+| `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request auto-cancels |
 | `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all agent permission requests |
-| `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to wait before restarting agent on disconnect |
+| `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to keep agent alive after last SSE client disconnects |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
-| `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = no throttling) |
-| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) for the `default` agent id |
-| `VIBES_PI_AGENT` | *(auto)* | Pi RPC command to spawn when Pi mode is enabled |
-| `VIBES_PI_ENABLED` | `false` | Enable Pi RPC agent (auto-enabled when `VIBES_DEFAULT_AGENT=pi`) |
-| `VIBES_PI_RESTART_ON_DISCONNECT` | `false` | Restart Pi agent when all SSE clients disconnect |
-| `VIBES_CONFIG_PATH` | `config/endpoints.json` | Path to custom endpoints config |
-| `VIBES_EXTENSIONS_DIR` | `extensions` | Directory to scan for extensions |
+| `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = unlimited) |
+| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) |
+| `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
+| `VIBES_PI_ENABLED` | `false` | Enable Pi native RPC provider (auto-enabled when `DEFAULT_AGENT=pi`) |
+| `VIBES_PI_RESTART_ON_DISCONNECT` | `false` | Restart Pi when all SSE clients disconnect |
+| `VIBES_CONFIG_PATH` | `config/endpoints.json` | Custom action definitions |
+| `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
+| `VIBES_WORKSPACE` | `<cwd>` | Workspace root for file explorer |
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
 
 ## Agent selection
 
-Vibes supports three ACP agents out of the box:
+Vibes supports four ACP agents plus Pi native RPC:
 
 ```bash
 # GitHub Copilot (default)
@@ -37,42 +40,62 @@ VIBES_ACP_AGENT="codex-acp"
 
 # Claude
 VIBES_ACP_AGENT="claude-agent-acp"
+
+# Pi via ACP adapter
+VIBES_ACP_AGENT="pi-acp"
+
+# Pi native RPC (richer: streaming drafts, thinking, live model control)
+VIBES_DEFAULT_AGENT=pi VIBES_PI_ENABLED=true
 ```
 
-The agent binary must be in `$PATH`. Install via npm:
+### Installing agent binaries
 
 ```bash
-npm install -g @github/copilot-language-server    # GitHub Copilot
-npm install -g @openai/codex                       # codex-acp is bundled
+npm install -g @github/copilot-language-server       # Copilot
+npm install -g @openai/codex                          # Codex (includes codex-acp)
 npm install -g @agentclientprotocol/claude-agent-acp  # Claude
+npm install -g pi-acp                                 # Pi ACP adapter
+npm install -g @mariozechner/pi-coding-agent          # Pi (native RPC)
 ```
+
+## Slash commands
+
+Available via the compose box (type `/` to see autocomplete):
+
+| Command | Description |
+|---|---|
+| `/model [provider/model]` | Show or change the active model |
+| `/model list` | List available models |
+| `/thinking [level]` | Show or change thinking level |
+| `/restart` | Reset agent session |
+| `/abort` | Cancel current request |
+| `/steer <message>` | Send mid-turn steering guidance |
+| `/commands` | List all slash commands |
+| `/clear` | Clear the timeline display |
+| `/shell <command>` | Run a shell command (30s timeout) |
 
 ## Permission whitelist
 
-Whitelist entries are persisted in the SQLite database at `VIBES_DB_PATH`.
-Manage entries via the API:
+Whitelist entries auto-approve matching tool calls. Managed via API:
 
 ```bash
-# List whitelist
+# List
 curl http://localhost:8080/agent/whitelist
 
-# Add pattern
+# Add (supports glob: "Run *" matches "Run command", "Run script", etc.)
 curl -X POST http://localhost:8080/agent/whitelist \
   -H 'Content-Type: application/json' \
-  -d '{"pattern": "Run command"}'
+  -d '{"pattern": "Run *", "description": "Auto-approve all run commands"}'
 
-# Remove pattern
+# Remove
 curl -X DELETE http://localhost:8080/agent/whitelist \
   -H 'Content-Type: application/json' \
-  -d '{"pattern": "Run command"}'
+  -d '{"pattern": "Run *"}'
 ```
 
 ## Custom endpoints (config/endpoints.json)
 
-Vibes can map **custom action IDs** to prompts using `config/endpoints.json`.
-These actions are triggered with `POST /agent/{agent_id}/action/{action_id}`.
-
-### File format
+Map custom action IDs to prompts:
 
 ```json
 {
@@ -87,4 +110,15 @@ These actions are triggered with `POST /agent/{agent_id}/action/{action_id}`.
 }
 ```
 
-See [docs/API.md](API.md) for the full custom endpoint triggering reference.
+Trigger with `POST /agent/{agent_id}/action/{action_id}`.
+
+## Database
+
+SQLite with WAL mode. Location controlled by `VIBES_DB_PATH`.
+
+Schema:
+- `interactions` — JSON column with virtual columns (type, thread_id, agent_id) + FTS5
+- `media` — BLOBs for files and thumbnails
+- `whitelist` — permission patterns
+
+The database is the single source of truth. Back up `vibes.db` to preserve all messages, media, and settings.
