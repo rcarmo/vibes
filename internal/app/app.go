@@ -2,33 +2,67 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
 	vibes "github.com/rcarmo/vibes"
 	"github.com/rcarmo/vibes/internal/agent"
+	"github.com/rcarmo/vibes/internal/agent/acp"
 	"github.com/rcarmo/vibes/internal/config"
+	"github.com/rcarmo/vibes/internal/db"
 	"github.com/rcarmo/vibes/internal/extensions"
+	"github.com/rcarmo/vibes/internal/routes"
+	"github.com/rcarmo/vibes/internal/server/sse"
 )
 
 // App is the top-level application container.
 type App struct {
 	Config     *config.Config
 	Router     chi.Router
+	DB         *db.DB
 	Agents     *agent.Registry
 	Extensions *extensions.Registry
+	SSE        *sse.Broker
 }
 
 // New creates and wires the application.
 func New(cfg *config.Config) (*App, error) {
+	// Open database
+	database, err := db.Open(cfg.DBPath)
+	if err != nil {
+		return nil, fmt.Errorf("open database: %w", err)
+	}
+
+	// Create SSE broker
+	broker := sse.NewBroker()
+
+	// Create agent registry
+	agentRegistry := agent.NewRegistry()
+
+	// Register ACP agent from config
+	if cfg.ACPAgent != "" {
+		parts := splitCommand(cfg.ACPAgent)
+		acpProvider := acp.New(acp.Config{
+			ID:      "acp",
+			Command: parts[0],
+			Args:    parts[1:],
+			WorkDir: workspaceDir(),
+		})
+		agentRegistry.Register("acp", acpProvider)
+	}
+
 	app := &App{
 		Config:     cfg,
-		Agents:     agent.NewRegistry(),
+		DB:         database,
+		Agents:     agentRegistry,
 		Extensions: extensions.NewRegistry(),
+		SSE:        broker,
 	}
 
 	// Set up HTTP router
@@ -45,33 +79,69 @@ func New(cfg *config.Config) (*App, error) {
 		w.Write([]byte(`{"status":"ok"}`))
 	})
 
-	// TODO: mount route groups
-	// r.Route("/timeline", routes.Timeline(app))
-	// r.Route("/media", routes.Media(app))
-	// r.Route("/workspace", routes.Workspace(app))
-	// r.Route("/agent", routes.Agents(app))
-	// r.Get("/sse/stream", sse.Handler(app))
+	// API routes
+	r.Route("/timeline", routes.Timeline(database))
+	r.Route("/post", routes.Posts(database))
+	r.Route("/thread", routes.Threads(database))
+	r.Route("/search", routes.Search(database))
+	r.Route("/media", routes.Media(database))
+	r.Route("/workspace", routes.Workspace(workspaceDir()))
+	r.Route("/agent", routes.Agents(agentRegistry, database, broker))
+	r.Get("/agents", func(w http.ResponseWriter, r *http.Request) {
+		// Alias for /agent/ list
+		routes.Agents(agentRegistry, database, broker)(chi.NewRouter())
+		ids := agentRegistry.List()
+		agents := make([]map[string]interface{}, 0)
+		for _, id := range ids {
+			p, _ := agentRegistry.Get(id)
+			s := p.Status()
+			agents = append(agents, map[string]interface{}{
+				"id": id, "status": s.State, "model": s.Model, "active": id == agentRegistry.Active(),
+			})
+		}
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `[`)
+		for i, a := range agents {
+			if i > 0 {
+				fmt.Fprintf(w, ",")
+			}
+			b, _ := json.Marshal(a)
+			w.Write(b)
+		}
+		fmt.Fprintf(w, `]`)
+	})
 
-	// Mount extension routes
+	// SSE stream
+	r.Get("/sse/stream", broker.Handler())
+
+	// Extension routes
 	for _, route := range app.Extensions.AllRoutes() {
 		slog.Debug("mounting extension route", "method", route.Method, "pattern", route.Pattern)
 		r.Method(route.Method, route.Pattern, route.Handler)
 	}
 
-	// Serve frontend static files (embedded into the binary at compile time).
+	// Serve embedded static frontend
 	staticFS, err := vibes.StaticFS()
 	if err != nil {
 		return nil, fmt.Errorf("load embedded static FS: %w", err)
 	}
 	fileServer := http.FileServer(staticFS)
 	r.Handle("/static/*", http.StripPrefix("/static/", fileServer))
-
-	// Serve index.html at the root
 	r.Get("/", serveStaticFile(staticFS, "index.html", "text/html; charset=utf-8"))
 	r.Get("/index.html", serveStaticFile(staticFS, "index.html", "text/html; charset=utf-8"))
 	r.Get("/manifest.json", serveStaticFile(staticFS, "manifest.json", "application/manifest+json"))
 	r.Get("/icon-192.png", serveStaticFile(staticFS, "icon-192.png", "image/png"))
 	r.Get("/icon-512.png", serveStaticFile(staticFS, "icon-512.png", "image/png"))
+
+	// Avatars
+	r.Get("/avatar/{kind}", func(w http.ResponseWriter, r *http.Request) {
+		kind := chi.URLParam(r, "kind")
+		if kind == "agent" {
+			serveStaticFile(staticFS, "icon-192.png", "image/png")(w, r)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
 
 	app.Router = r
 	return app, nil
@@ -84,6 +154,7 @@ func (app *App) Run(ctx context.Context) error {
 		return fmt.Errorf("init extensions: %w", err)
 	}
 	defer app.Extensions.ShutdownAll(context.Background())
+	defer app.DB.Close()
 
 	addr := fmt.Sprintf("%s:%d", app.Config.Host, app.Config.Port)
 	server := &http.Server{
@@ -139,4 +210,33 @@ func serveStaticFile(fs http.FileSystem, name, contentType string) http.HandlerF
 		}
 		http.ServeContent(w, r, name, stat.ModTime(), f)
 	}
+}
+
+// splitCommand splits a command string by spaces (simple, no quotes).
+func splitCommand(cmd string) []string {
+	var parts []string
+	var current string
+	for _, c := range cmd {
+		if c == ' ' {
+			if current != "" {
+				parts = append(parts, current)
+				current = ""
+			}
+		} else {
+			current += string(c)
+		}
+	}
+	if current != "" {
+		parts = append(parts, current)
+	}
+	return parts
+}
+
+// workspaceDir returns the workspace directory (cwd or VIBES_WORKSPACE).
+func workspaceDir() string {
+	if ws := os.Getenv("VIBES_WORKSPACE"); ws != "" {
+		return ws
+	}
+	dir, _ := os.Getwd()
+	return dir
 }
