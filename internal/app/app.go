@@ -14,6 +14,7 @@ import (
 	vibes "github.com/rcarmo/vibes"
 	"github.com/rcarmo/vibes/internal/agent"
 	"github.com/rcarmo/vibes/internal/agent/acp"
+	"github.com/rcarmo/vibes/internal/agent/pi"
 	"github.com/rcarmo/vibes/internal/config"
 	"github.com/rcarmo/vibes/internal/db"
 	"github.com/rcarmo/vibes/internal/extensions"
@@ -57,6 +58,22 @@ func New(cfg *config.Config) (*App, error) {
 		agentRegistry.Register("acp", acpProvider)
 	}
 
+	// Register Pi native RPC agent if enabled
+	if cfg.PiEnabled {
+		piCmd := cfg.PiAgent
+		if piCmd == "" {
+			piCmd = "pi"
+		}
+		piProvider := pi.New(pi.Config{
+			Command: piCmd,
+			WorkDir: workspaceDir(),
+		})
+		agentRegistry.Register("pi", piProvider)
+		if cfg.DefaultAgent == "pi" {
+			agentRegistry.SetActive("pi")
+		}
+	}
+
 	app := &App{
 		Config:     cfg,
 		DB:         database,
@@ -87,6 +104,21 @@ func New(cfg *config.Config) (*App, error) {
 	r.Route("/media", routes.Media(database))
 	r.Route("/workspace", routes.Workspace(workspaceDir()))
 	r.Route("/agent", routes.Agents(agentRegistry, database, broker))
+	r.Get("/agent/commands", routes.GetCommands())
+	r.Get("/agent/context", func(w http.ResponseWriter, r *http.Request) {
+		p, err := agentRegistry.Get("default")
+		if err != nil {
+			jsonResp := func(w http.ResponseWriter, v interface{}) {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(v)
+			}
+			jsonResp(w, map[string]interface{}{"used": 0, "total": 0, "pct": 0})
+			return
+		}
+		s := p.Status()
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{"used": 0, "total": 1000000, "pct": s.ContextPct})
+	})
 	r.Get("/agents", func(w http.ResponseWriter, r *http.Request) {
 		// Alias for /agent/ list
 		routes.Agents(agentRegistry, database, broker)(chi.NewRouter())
