@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"io"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -22,6 +23,8 @@ func Workspace(workDir string) func(r chi.Router) {
 		r.Delete("/file", deleteFile(workDir))
 		r.Post("/create", createFile(workDir))
 		r.Post("/rename", renameFile(workDir))
+		r.Post("/move", moveFile(workDir))
+		r.Post("/visibility", workspaceVisibility())
 		r.Get("/raw", getRaw(workDir))
 		r.Get("/download", downloadPath(workDir))
 		r.Post("/upload", uploadFile(workDir))
@@ -42,16 +45,25 @@ func getTree(workDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		subpath := r.URL.Query().Get("path")
 		depth := intQuery(r, "depth", 3)
-		showHidden := r.URL.Query().Get("show_hidden") == "true"
+		showHidden := boolQuery(r, "show_hidden")
 
-		root := filepath.Join(workDir, filepath.Clean("/"+subpath))
-		if !strings.HasPrefix(root, workDir) {
+		root := safePath(workDir, subpath)
+		if root == "" {
 			jsonError(w, "path traversal", http.StatusBadRequest)
 			return
 		}
 
 		entries := buildTree(root, workDir, depth, showHidden)
-		jsonResp(w, map[string]interface{}{"entries": entries})
+		name := filepath.Base(root)
+		path := subpath
+		if path == "" || path == "." || path == "/" {
+			name = "workspace"
+			path = "."
+		}
+		jsonResp(w, map[string]interface{}{
+			"root":    fileEntry{Name: name, Path: path, Type: "dir", Children: entries},
+			"entries": entries,
+		})
 	}
 }
 
@@ -76,7 +88,7 @@ func buildTree(dir, workDir string, depth int, showHidden bool) []fileEntry {
 		entry := fileEntry{Name: name, Path: rel}
 
 		if e.IsDir() {
-			entry.Type = "directory"
+			entry.Type = "dir"
 			if depth > 1 {
 				entry.Children = buildTree(filepath.Join(dir, name), workDir, depth-1, showHidden)
 			}
@@ -125,7 +137,7 @@ func getFile(workDir string) http.HandlerFunc {
 		}
 
 		// Detect if binary
-		contentType := http.DetectContentType(data)
+		contentType := detectWorkspaceContentType(fullPath, data)
 		isBinary := !strings.HasPrefix(contentType, "text/") &&
 			contentType != "application/json" &&
 			contentType != "application/javascript" &&
@@ -140,9 +152,17 @@ func getFile(workDir string) http.HandlerFunc {
 		if isBinary {
 			resp["content"] = base64.StdEncoding.EncodeToString(data)
 			resp["encoding"] = "base64"
+			resp["kind"] = "binary"
+			resp["data"] = resp["content"]
 		} else {
 			resp["content"] = string(data)
 			resp["encoding"] = "utf-8"
+			resp["kind"] = "text"
+			resp["text"] = string(data)
+		}
+		if strings.HasPrefix(contentType, "image/") {
+			resp["kind"] = "image"
+			resp["url"] = "/workspace/raw?path=" + path
 		}
 
 		jsonResp(w, resp)
@@ -243,10 +263,18 @@ func renameFile(workDir string) http.HandlerFunc {
 		var req struct {
 			From string `json:"from"`
 			To   string `json:"to"`
+			Path string `json:"path"`
+			Name string `json:"name"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			jsonError(w, "invalid body", http.StatusBadRequest)
 			return
+		}
+		if req.From == "" && req.Path != "" {
+			req.From = req.Path
+		}
+		if req.To == "" && req.Path != "" && req.Name != "" {
+			req.To = filepath.Join(filepath.Dir(req.Path), req.Name)
 		}
 
 		fromPath := safePath(workDir, req.From)
@@ -266,6 +294,50 @@ func renameFile(workDir string) http.HandlerFunc {
 		}
 
 		jsonResp(w, map[string]string{"status": "ok", "from": req.From, "to": req.To})
+	}
+}
+
+func moveFile(workDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path   string `json:"path"`
+			Target string `json:"target"`
+		}
+		if err := decodeJSON(r, &req); err != nil {
+			jsonError(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		if req.Path == "" || req.Target == "" {
+			jsonError(w, "path and target required", http.StatusBadRequest)
+			return
+		}
+		fromPath := safePath(workDir, req.Path)
+		toRel := filepath.Join(req.Target, filepath.Base(req.Path))
+		toPath := safePath(workDir, toRel)
+		if fromPath == "" || toPath == "" {
+			jsonError(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+		if err := os.MkdirAll(filepath.Dir(toPath), 0o755); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if err := os.Rename(fromPath, toPath); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "ok", "from": req.Path, "to": toRel, "path": toRel})
+	}
+}
+
+func workspaceVisibility() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Visible    bool `json:"visible"`
+			ShowHidden bool `json:"show_hidden"`
+		}
+		_ = decodeJSON(r, &req)
+		jsonResp(w, map[string]interface{}{"visible": req.Visible, "show_hidden": req.ShowHidden})
 	}
 }
 
@@ -338,6 +410,7 @@ func uploadFile(workDir string) http.HandlerFunc {
 		}
 
 		targetPath := r.FormValue("path")
+		overwrite := boolQuery(r, "overwrite")
 		file, header, err := r.FormFile("file")
 		if err != nil {
 			jsonError(w, "missing file", http.StatusBadRequest)
@@ -354,6 +427,15 @@ func uploadFile(workDir string) http.HandlerFunc {
 		if err := os.MkdirAll(filepath.Dir(destPath), 0o755); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if !overwrite {
+			if _, err := os.Stat(destPath); err == nil {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusConflict)
+				fmt.Fprintf(w, `{"error":"file exists","code":"file_exists"}`)
+				return
+			}
 		}
 
 		out, err := os.Create(destPath)
@@ -378,12 +460,17 @@ func uploadFile(workDir string) http.HandlerFunc {
 
 // safePath resolves a relative path under workDir, preventing traversal.
 func safePath(workDir, rel string) string {
-	if rel == "" {
-		return workDir
+	absWorkDir, err := filepath.Abs(workDir)
+	if err != nil {
+		return ""
 	}
-	cleaned := filepath.Clean("/" + rel)
-	full := filepath.Join(workDir, cleaned)
-	if !strings.HasPrefix(full, workDir) {
+	if rel == "" || rel == "." || rel == "/" {
+		return absWorkDir
+	}
+	cleaned := filepath.Clean(string(os.PathSeparator) + rel)
+	full := filepath.Join(absWorkDir, strings.TrimPrefix(cleaned, string(os.PathSeparator)))
+	relToWork, err := filepath.Rel(absWorkDir, full)
+	if err != nil || relToWork == ".." || strings.HasPrefix(relToWork, ".."+string(os.PathSeparator)) || filepath.IsAbs(relToWork) {
 		return ""
 	}
 	return full
@@ -398,3 +485,27 @@ func readFileLimited(path string, maxBytes int64) ([]byte, error) {
 	return io.ReadAll(io.LimitReader(f, maxBytes))
 }
 
+func boolQuery(r *http.Request, key string) bool {
+	v := strings.ToLower(strings.TrimSpace(r.URL.Query().Get(key)))
+	return v == "1" || v == "true" || v == "yes" || v == "on"
+}
+
+func detectWorkspaceContentType(path string, data []byte) string {
+	ext := strings.ToLower(filepath.Ext(path))
+	if ext != "" {
+		if ctype := mime.TypeByExtension(ext); ctype != "" {
+			return strings.Split(ctype, ";")[0]
+		}
+	}
+	switch ext {
+	case ".md", ".markdown", ".mdx":
+		return "text/markdown"
+	case ".js", ".mjs", ".cjs":
+		return "application/javascript"
+	case ".ts", ".tsx":
+		return "text/typescript"
+	case ".go", ".py", ".sh", ".css", ".html", ".yml", ".yaml", ".sql", ".xml":
+		return "text/plain"
+	}
+	return http.DetectContentType(data)
+}

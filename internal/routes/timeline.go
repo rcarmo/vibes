@@ -43,6 +43,13 @@ func Search(database *db.DB) func(r chi.Router) {
 	}
 }
 
+// Hashtags mounts hashtag search routes.
+func Hashtags(database *db.DB) func(r chi.Router) {
+	return func(r chi.Router) {
+		r.Get("/{tag}", getHashtag(database))
+	}
+}
+
 func getTimeline(database *db.DB) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit := intQuery(r, "limit", 20)
@@ -92,6 +99,28 @@ func searchPosts(database *db.DB) http.HandlerFunc {
 		offset := intQuery(r, "offset", 0)
 
 		posts, err := database.SearchInteractions(query, limit, offset)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if posts == nil {
+			posts = []db.Interaction{}
+		}
+		jsonResp(w, map[string]interface{}{"posts": posts})
+	}
+}
+
+func getHashtag(database *db.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tag := chi.URLParam(r, "tag")
+		if tag == "" {
+			jsonError(w, "missing hashtag", http.StatusBadRequest)
+			return
+		}
+		limit := intQuery(r, "limit", 50)
+		offset := intQuery(r, "offset", 0)
+
+		posts, err := database.GetHashtag(tag, limit, offset)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -172,12 +201,21 @@ func deletePost(database *db.DB) http.HandlerFunc {
 			return
 		}
 		cascade := r.URL.Query().Get("cascade") == "true"
+		ids := []int64{id}
+		if cascade {
+			if posts, err := database.GetThread(id); err == nil {
+				ids = ids[:0]
+				for _, post := range posts {
+					ids = append(ids, post.ID)
+				}
+			}
+		}
 
 		if err := database.DeleteInteraction(id, cascade); err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusNoContent)
+		jsonResp(w, map[string]interface{}{"ids": ids})
 	}
 }
 

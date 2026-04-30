@@ -72,6 +72,17 @@ func TestACPAgentDefault(t *testing.T) {
 	}
 }
 
+func TestACPAgentCanBeDisabled(t *testing.T) {
+	t.Setenv("VIBES_ACP_AGENT", "")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.ACPAgent != "" {
+		t.Errorf("ACPAgent = %q, want empty when explicitly disabled", cfg.ACPAgent)
+	}
+}
+
 // findEqual returns the index of the first '=' in s, or len(s).
 func findEqual(s string) int {
 	for i, c := range s {

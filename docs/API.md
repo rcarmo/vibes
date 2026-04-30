@@ -15,7 +15,7 @@
 | GET | `/hashtag/{hashtag}` | Get posts by hashtag |
 | GET | `/search?q={query}` | Full-text search posts |
 | POST | `/post` | Create new post |
-| POST | `/reply` | Reply to thread |
+| POST | `/thread` | Reply to thread |
 | DELETE | `/post/{post_id}?cascade=true` | Delete post (cascade replies when true) |
 
 ## Media
@@ -40,7 +40,6 @@
 | POST | `/workspace/move` | Move a file or directory |
 | GET | `/workspace/raw?path={path}` | Get raw file content (served as-is) |
 | GET | `/workspace/download?path={path}` | Download a file or folder (folders as ZIP) |
-| POST | `/workspace/attach` | Attach a workspace file to a message |
 | POST | `/workspace/upload` | Upload a file to the workspace |
 | POST | `/workspace/visibility` | Toggle hidden-files visibility |
 
@@ -49,7 +48,7 @@
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/agents` | List available agents |
-| GET | `/agents/status` | Get current agent status (busy, idle, queue) |
+| GET | `/agent/status` | Get current agent status (busy, idle, queue) |
 | GET | `/agent/context` | Get agent context-window usage |
 | GET | `/agent/models` | List available models (Pi mode) |
 | GET | `/agent/commands` | List available slash commands |
@@ -57,7 +56,6 @@
 | GET | `/agent/turn/{turn_id}` | Get turn content preview |
 | POST | `/agent/turn/{turn_id}/panel` | Set panel collapse state for a turn |
 | POST | `/agent/{id}/message` | Send message to agent |
-| POST | `/agent/{id}/action/{action_id}` | Trigger a configured custom action |
 | POST | `/agent/queue-remove` | Remove an item from the queue |
 | POST | `/agent/queue-steer` | Promote a queued item to steering |
 | POST | `/agent/respond` | Respond to agent permission request |

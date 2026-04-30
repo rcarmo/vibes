@@ -105,6 +105,10 @@ func (p *Provider) Initialize(ctx context.Context) error {
 
 // Prompt sends a user message via Pi RPC.
 func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) error {
+	if p.stdin == nil {
+		return fmt.Errorf("Pi RPC agent is not initialized")
+	}
+
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
 	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
 

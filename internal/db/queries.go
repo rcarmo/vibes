@@ -105,6 +105,21 @@ func (db *DB) SearchInteractions(query string, limit, offset int) ([]Interaction
 	return scanInteractions(rows)
 }
 
+// GetHashtag returns interactions whose content contains a hashtag.
+func (db *DB) GetHashtag(tag string, limit, offset int) ([]Interaction, error) {
+	rows, err := db.Query(
+		`SELECT id, timestamp, data, type, thread_id, agent_id
+		 FROM interactions
+		 WHERE json_extract(data, '$.content') LIKE ?
+		 ORDER BY id DESC LIMIT ? OFFSET ?`,
+		"%#"+tag+"%", limit, offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanInteractions(rows)
+}
+
 // DeleteInteraction removes an interaction. If cascade is true, also removes replies.
 func (db *DB) DeleteInteraction(id int64, cascade bool) error {
 	if cascade {
@@ -282,14 +297,14 @@ func matchGlob(pattern, value string) bool {
 
 // InteractionData is the typed payload structure stored as JSON.
 type InteractionData struct {
-	Type     string `json:"type"`               // "user_message", "agent_response", "system"
-	Content  string `json:"content"`            // text content
-	AgentID  string `json:"agent_id,omitempty"` // which agent responded
-	ThreadID *int64 `json:"thread_id,omitempty"`
+	Type     string  `json:"type"`               // "user_message", "agent_response", "system"
+	Content  string  `json:"content"`            // text content
+	AgentID  string  `json:"agent_id,omitempty"` // which agent responded
+	ThreadID *int64  `json:"thread_id,omitempty"`
 	MediaIDs []int64 `json:"media_ids,omitempty"`
 	// Agent-specific fields
-	Model    string `json:"model,omitempty"`
-	Tokens   *int   `json:"tokens,omitempty"`
+	Model  string `json:"model,omitempty"`
+	Tokens *int   `json:"tokens,omitempty"`
 }
 
 // NewUserMessage creates an InteractionData for a user message.

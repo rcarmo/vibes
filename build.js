@@ -13,7 +13,7 @@ import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const staticDir = resolve(__dirname, "src/vibes/static");
+const staticDir = resolve(__dirname, "static");
 const distDir = resolve(staticDir, "dist");
 
 // ── JS bundle ─────────────────────────────────────────────────────────────

@@ -5,6 +5,7 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS = -ldflags "-s -w -X main.version=$(VERSION)"
 STATIC_DIR = static
 FUZZTIME ?= 1s
+GO_PACKAGES = $(shell go list ./... | grep -v '/node_modules/')
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -47,19 +48,19 @@ build-darwin-arm64: frontend ## Build for macOS Apple Silicon
 build-all: build-linux-amd64 build-linux-arm64 build-darwin-arm64 ## Build for all supported platforms
 
 lint: ## Run go vet
-	go vet ./...
+	go vet $(GO_PACKAGES)
 
 format: ## Format Go code
 	gofmt -w ./cmd ./internal ./embed.go
 
 test: ## Run Go tests
-	go test ./...
+	go test $(GO_PACKAGES)
 
 race: ## Run Go tests with race detector
-	go test -race ./...
+	go test -race $(GO_PACKAGES)
 
 coverage: ## Run tests with coverage report
-	go test ./... -coverprofile=coverage.out
+	go test $(GO_PACKAGES) -coverprofile=coverage.out
 	@go tool cover -func=coverage.out | tail -n 1
 	@echo "Run 'go tool cover -html=coverage.out' to view detailed coverage"
 

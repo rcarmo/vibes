@@ -2012,7 +2012,7 @@ function App() {
 
     // Adaptive backstop poller — SSE is the primary event source; this is
     // a safety net only. 15 s when a turn is active, 60 s when idle.
-    // When active, also polls /agents/status to detect long-running agent
+    // When active, also polls /agent/status to detect long-running agent
     // activity and update the UI if SSE events are lagging.
     const isAgentActive = agentStatus !== null;
     useEffect(() => {

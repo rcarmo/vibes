@@ -1,10 +1,7 @@
 import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
 import {
-    attachWorkspaceFile,
     createWorkspaceFile,
     deleteWorkspaceFile,
-    getMediaInfo,
-    getMediaUrl,
     getWorkspaceDownloadUrl,
     getWorkspaceFile,
     getWorkspaceRawUrl,
@@ -118,37 +115,6 @@ function replaceNodeAtPath(node, targetPath, nextNode) {
     return changed ? { ...node, children } : node;
 }
 
-function FileAttachmentCard({ mediaId }) {
-    const [info, setInfo] = useState(null);
-    useEffect(() => {
-        if (!mediaId) return;
-        getMediaInfo(mediaId).then(setInfo).catch(() => {});
-    }, [mediaId]);
-    if (!info) return null;
-    const filename = info.filename || 'file';
-    const sizeStr = info.metadata?.size ? formatFileSize(info.metadata.size) : '';
-    return html`
-        <a href=${getMediaUrl(mediaId)} download=${filename} class="file-attachment" onClick=${(e) => e.stopPropagation()}>
-            <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                <polyline points="14 2 14 8 20 8"/>
-                <line x1="16" y1="13" x2="8" y2="13"/>
-                <line x1="16" y1="17" x2="8" y2="17"/>
-                <polyline points="10 9 9 9 8 9"/>
-            </svg>
-            <div class="file-info">
-                <span class="file-name">${filename}</span>
-                ${sizeStr && html`<span class="file-size">${sizeStr}</span>`}
-            </div>
-            <svg class="download-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                <polyline points="7 10 12 15 17 10"/>
-                <line x1="12" y1="15" x2="12" y2="3"/>
-            </svg>
-        </a>
-    `;
-}
-
 export function WorkspaceExplorer({ onFileSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
@@ -156,7 +122,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const [renamingPath, setRenamingPath] = useState(null);
     const [renameValue, setRenameValue] = useState('');
     const [preview, setPreview] = useState(null);
-    const [downloadId, setDownloadId] = useState(null);
     const [initialLoad, setInitialLoad] = useState(true);
     const [loadingPreview, setLoadingPreview] = useState(false);
     const [error, setError] = useState(null);
@@ -300,7 +265,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                 });
             }
             setSelectedPath(nextPath);
-            if (node?.type === 'dir') { setPreview(null); setLoadingPreview(false); setDownloadId(null); }
+            if (node?.type === 'dir') { setPreview(null); setLoadingPreview(false); }
             else { loadPreviewRef.current?.(nextPath); }
             loadSubtreeRef.current?.(parent);
         } catch (err) {
@@ -361,7 +326,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                 });
             }
             setSelectedPath(nextPath);
-            if (node.type === 'dir') { setPreview(null); setLoadingPreview(false); setDownloadId(null); }
+            if (node.type === 'dir') { setPreview(null); setLoadingPreview(false); }
             else { loadPreviewRef.current?.(nextPath); }
             loadSubtreeRef.current?.(sourceParent);
             loadSubtreeRef.current?.(targetDir);
@@ -415,7 +380,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const loadPreview = async (path) => {
         setLoadingPreview(true);
         setPreview(null);
-        setDownloadId(null);
         try {
             const data = await getWorkspaceFile(path, 20_000);
             setPreview(data);
@@ -825,16 +789,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         document.addEventListener('touchcancel', onUp);
     }).current;
 
-    const handleDownload = async () => {
-        if (!selectedPath) return;
-        try {
-            const result = await attachWorkspaceFile(selectedPath);
-            if (result?.media_id) setDownloadId(result.media_id);
-        } catch (err) {
-            setPreview((prev) => ({ ...(prev || {}), error: err?.message || 'Failed to attach' }));
-        }
-    };
-
     const handleDeleteFile = async () => {
         if (!selectedPath || selectedIsDir) return;
         const filename = selectedPath.split('/').pop() || selectedPath;
@@ -1194,13 +1148,14 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                                         <line x1="12" y1="15" x2="12" y2="3"/>
                                     </svg>
                                 </a>`
-                                : html`<button class="workspace-download" onClick=${handleDownload} title="Download">
+                                : html`<a class="workspace-download" href=${getWorkspaceDownloadUrl(selectedPath, showHidden)}
+                                    title="Download file" onClick=${(e) => e.stopPropagation()}>
                                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
                                         <polyline points="7 10 12 15 17 10"/>
                                         <line x1="12" y1="15" x2="12" y2="3"/>
                                     </svg>
-                                </button>`}
+                                </a>`}
                         </div>
                     </div>
                     ${loadingPreview && html`<div class="workspace-loading">Loading preview…</div>`}
@@ -1227,11 +1182,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
                         ${preview.kind === 'binary' && html`
                             <div class="workspace-preview-text">Binary file — download to view.</div>
                         `}
-                    `}
-                    ${downloadId && html`
-                        <div class="workspace-download-card">
-                            <${FileAttachmentCard} mediaId=${downloadId} />
-                        </div>
                     `}
                 </div>
             `}

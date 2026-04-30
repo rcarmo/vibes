@@ -101,6 +101,7 @@ func New(cfg *config.Config) (*App, error) {
 	r.Route("/post", routes.Posts(database))
 	r.Route("/thread", routes.Threads(database))
 	r.Route("/search", routes.Search(database))
+	r.Route("/hashtag", routes.Hashtags(database))
 	r.Route("/media", routes.Media(database))
 	r.Route("/workspace", routes.Workspace(workspaceDir()))
 	r.Route("/agent", routes.Agents(agentRegistry, database, broker))
@@ -121,7 +122,6 @@ func New(cfg *config.Config) (*App, error) {
 	})
 	r.Get("/agents", func(w http.ResponseWriter, r *http.Request) {
 		// Alias for /agent/ list
-		routes.Agents(agentRegistry, database, broker)(chi.NewRouter())
 		ids := agentRegistry.List()
 		agents := make([]map[string]interface{}, 0)
 		for _, id := range ids {
@@ -181,6 +181,12 @@ func New(cfg *config.Config) (*App, error) {
 
 // Run starts the HTTP server and blocks until the context is cancelled.
 func (app *App) Run(ctx context.Context) error {
+	if err := app.initializeAgents(ctx); err != nil {
+		return err
+	}
+	defer app.shutdownAgents()
+	app.forwardAgentEvents(ctx)
+
 	// Initialize extensions
 	if err := app.Extensions.InitAll(ctx); err != nil {
 		return fmt.Errorf("init extensions: %w", err)
@@ -206,6 +212,61 @@ func (app *App) Run(ctx context.Context) error {
 		return err
 	}
 	return nil
+}
+
+func (app *App) initializeAgents(ctx context.Context) error {
+	active := app.Agents.Active()
+	for _, id := range app.Agents.List() {
+		p, err := app.Agents.Get(id)
+		if err != nil {
+			return err
+		}
+		if err := p.Initialize(ctx); err != nil {
+			if id != active {
+				slog.Warn("non-active agent initialization failed", "id", id, "error", err)
+				continue
+			}
+			return fmt.Errorf("initialize agent %s: %w", id, err)
+		}
+	}
+	return nil
+}
+
+func (app *App) shutdownAgents() {
+	for _, id := range app.Agents.List() {
+		p, err := app.Agents.Get(id)
+		if err != nil {
+			continue
+		}
+		if err := p.Shutdown(context.Background()); err != nil {
+			slog.Warn("agent shutdown error", "id", id, "error", err)
+		}
+	}
+}
+
+func (app *App) forwardAgentEvents(ctx context.Context) {
+	for _, id := range app.Agents.List() {
+		p, err := app.Agents.Get(id)
+		if err != nil {
+			continue
+		}
+		go func(provider agent.Provider) {
+			for {
+				select {
+				case event, ok := <-provider.Events():
+					if !ok {
+						return
+					}
+					app.SSE.Broadcast(sse.Event{
+						Type: "agent_" + event.Type,
+						Data: event.Data,
+					})
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(p)
+	}
 }
 
 func corsMiddleware(next http.Handler) http.Handler {

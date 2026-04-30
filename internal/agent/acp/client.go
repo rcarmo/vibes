@@ -56,8 +56,8 @@ func New(cfg Config) *Provider {
 	}
 }
 
-func (p *Provider) ID() string                   { return p.cfg.ID }
-func (p *Provider) Events() <-chan agent.Event   { return p.events }
+func (p *Provider) ID() string                 { return p.cfg.ID }
+func (p *Provider) Events() <-chan agent.Event { return p.events }
 
 func (p *Provider) Status() agent.ProviderStatus {
 	p.mu.RLock()
@@ -142,6 +142,10 @@ func (p *Provider) Initialize(ctx context.Context) error {
 
 // Prompt sends a user message to the ACP agent.
 func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) error {
+	if p.conn == nil || p.sessionID == "" {
+		return fmt.Errorf("ACP agent %s is not initialized", p.cfg.ID)
+	}
+
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
 	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
 

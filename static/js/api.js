@@ -21,7 +21,9 @@ async function request(url, options = {}) {
         throw new Error(error.error || `HTTP ${response.status}`);
     }
     
-    return response.json();
+    if (response.status === 204) return {};
+    const text = await response.text();
+    return text ? JSON.parse(text) : {};
 }
 
 /**
@@ -30,7 +32,7 @@ async function request(url, options = {}) {
 export async function getTimeline(limit = 10, beforeId = null) {
     let url = `/timeline?limit=${limit}`;
     if (beforeId) {
-        url += `&before=${beforeId}`;
+        url += `&before_id=${beforeId}`;
     }
     return request(url);
 }
@@ -70,7 +72,7 @@ export async function createPost(content, mediaIds = []) {
  * Reply to a thread
  */
 export async function createReply(threadId, content, mediaIds = []) {
-    return request('/reply', {
+    return request('/thread', {
         method: 'POST',
         body: JSON.stringify({ thread_id: threadId, content, media_ids: mediaIds }),
     });
@@ -98,7 +100,8 @@ export async function sendAgentMessage(agentId, content, threadId = null, mediaI
  * Get available agents
  */
 export async function getAgents() {
-    return request('/agents');
+    const data = await request('/agents');
+    return Array.isArray(data) ? { agents: data } : data;
 }
 
 /**
@@ -112,7 +115,7 @@ export async function getAgentContext() {
  * Get current agent busy state and active turns (for polling on SSE reconnect).
  */
 export async function getAgentStatus() {
-    return request('/agents/status');
+    return request('/agent/status');
 }
 
 export async function getAgentQueue(agentId = null, threadId = null) {
@@ -244,7 +247,7 @@ export async function getMediaInfo(mediaId) {
  * Get workspace tree.
  */
 export async function getWorkspaceTree(path = '', depth = 2, showHidden = false) {
-    return request(`/workspace/tree?path=${encodeURIComponent(path)}&depth=${depth}&show_hidden=${showHidden ? '1' : '0'}`);
+    return request(`/workspace/tree?path=${encodeURIComponent(path)}&depth=${depth}&show_hidden=${showHidden ? 'true' : 'false'}`);
 }
 
 /**
@@ -252,7 +255,7 @@ export async function getWorkspaceTree(path = '', depth = 2, showHidden = false)
  */
 export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
-    return request(`/workspace/file?path=${encodeURIComponent(path)}&max=${maxBytes}${modeParam}`);
+    return request(`/workspace/file?path=${encodeURIComponent(path)}&max_bytes=${maxBytes}${modeParam}`);
 }
 
 /**
@@ -291,16 +294,6 @@ export async function uploadWorkspaceFile(file, targetPath = '', options = {}) {
 }
 
 /**
- * Attach workspace file to conversation as media.
- */
-export async function attachWorkspaceFile(path) {
-    return request('/workspace/attach', {
-        method: 'POST',
-        body: JSON.stringify({ path }),
-    });
-}
-
-/**
  * Delete a file from the workspace.
  */
 export async function deleteWorkspaceFile(path) {
@@ -322,9 +315,13 @@ export async function createWorkspaceFile(path, name, content = '') {
  * Rename a workspace file or folder.
  */
 export async function renameWorkspaceFile(path, name) {
+    const parts = String(path || '').split('/');
+    parts.pop();
+    const parent = parts.join('/');
+    const nextPath = parent ? `${parent}/${name}` : name;
     return request('/workspace/rename', {
         method: 'POST',
-        body: JSON.stringify({ path, name }),
+        body: JSON.stringify({ from: path, to: nextPath }),
     });
 }
 
@@ -359,7 +356,7 @@ export function getWorkspaceRawUrl(path) {
  * Get workspace folder download URL (zip)
  */
 export function getWorkspaceDownloadUrl(path, showHidden = false) {
-    const query = `path=${encodeURIComponent(path || '')}&show_hidden=${showHidden ? '1' : '0'}`;
+    const query = `path=${encodeURIComponent(path || '')}&show_hidden=${showHidden ? 'true' : 'false'}`;
     return `${API_BASE}/workspace/download?${query}`;
 }
 

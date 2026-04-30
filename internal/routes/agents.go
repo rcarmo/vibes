@@ -1,8 +1,10 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rcarmo/vibes/internal/agent"
@@ -12,10 +14,19 @@ import (
 
 // Agents mounts agent-related routes.
 func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(r chi.Router) {
+	permissionBroker := NewPermissionBroker(broker, 30*time.Second)
+	queue := NewFollowUpQueue()
 	return func(r chi.Router) {
 		r.Get("/", listAgents(registry))
 		r.Get("/status", getAgentStatus(registry))
 		r.Post("/{id}/message", sendAgentMessage(registry, database, broker))
+		r.Get("/models", getAgentModels(registry))
+		r.Get("/queue", getQueue(queue))
+		r.Post("/queue-remove", removeQueueItem(queue))
+		r.Post("/queue-steer", steerQueueItem(queue))
+		r.Get("/turn/{id}", getTurnPreview())
+		r.Post("/turn/{id}/panel", setTurnPanel())
+		r.Post("/respond", permissionBroker.RespondHandler())
 		r.Get("/whitelist", getWhitelist(database))
 		r.Post("/whitelist", addWhitelist(database))
 		r.Delete("/whitelist", removeWhitelist(database))
@@ -49,10 +60,13 @@ func getAgentStatus(registry *agent.Registry) http.HandlerFunc {
 		}
 		status := p.Status()
 		jsonResp(w, map[string]interface{}{
-			"status":      status.State,
-			"model":       status.Model,
-			"context_pct": status.ContextPct,
-			"agent_id":    p.ID(),
+			"status":           status.State,
+			"model":            status.Model,
+			"context_pct":      status.ContextPct,
+			"agent_id":         p.ID(),
+			"active_turns":     []interface{}{},
+			"queued_followups": []interface{}{},
+			"pending_steers":   []interface{}{},
 		})
 	}
 }
@@ -72,6 +86,13 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		}
 		if req.Content == "" {
 			jsonError(w, "content is required", http.StatusBadRequest)
+			return
+		}
+
+		// Validate the provider before storing the user message.
+		provider, err := registry.Get(agentID)
+		if err != nil {
+			jsonError(w, "unknown agent: "+agentID, http.StatusBadRequest)
 			return
 		}
 
@@ -98,31 +119,15 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			"type":    "user_message",
 		}})
 
-		// Get the provider and send prompt asynchronously
-		provider, err := registry.Get(agentID)
-		if err != nil {
-			jsonError(w, "unknown agent: "+agentID, http.StatusBadRequest)
-			return
-		}
-
 		threadID := postID
 		if req.ThreadID != nil {
 			threadID = *req.ThreadID
 		}
 
 		// Launch agent prompt in background, stream events via SSE
+		promptCtx := context.Background()
 		go func() {
-			// Forward agent events to SSE broker
-			go func() {
-				for event := range provider.Events() {
-					broker.Broadcast(sse.Event{
-						Type: "agent_" + event.Type,
-						Data: event.Data,
-					})
-				}
-			}()
-
-			err := provider.Prompt(r.Context(), req.Content, threadID)
+			err := provider.Prompt(promptCtx, req.Content, threadID)
 			if err != nil {
 				broker.Broadcast(sse.Event{Type: "agent_error", Data: map[string]string{"error": err.Error()}})
 				return
@@ -154,6 +159,77 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			"agent_id":  agentID,
 			"status":    "queued",
 		})
+	}
+}
+
+func getAgentModels(registry *agent.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p, err := registry.Get("default")
+		if err != nil {
+			jsonResp(w, map[string]interface{}{"current": "", "models": []string{}})
+			return
+		}
+		status := p.Status()
+		models := []string{}
+		if status.Model != "" {
+			models = append(models, status.Model)
+		}
+		jsonResp(w, map[string]interface{}{"current": status.Model, "model": status.Model, "models": models})
+	}
+}
+
+func getQueue(queue *FollowUpQueue) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonResp(w, map[string]interface{}{"items": queue.List(), "queued_followups": queue.List()})
+	}
+}
+
+func removeQueueItem(queue *FollowUpQueue) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			RowID int64 `json:"row_id"`
+		}
+		if err := decodeJSON(r, &req); err != nil || req.RowID == 0 {
+			jsonError(w, "row_id required", http.StatusBadRequest)
+			return
+		}
+		if !queue.Remove(req.RowID) {
+			jsonError(w, "queue item not found", http.StatusNotFound)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "removed"})
+	}
+}
+
+func steerQueueItem(queue *FollowUpQueue) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			RowID int64 `json:"row_id"`
+		}
+		if err := decodeJSON(r, &req); err != nil || req.RowID == 0 {
+			jsonError(w, "row_id required", http.StatusBadRequest)
+			return
+		}
+		if !queue.PromoteToSteer(req.RowID) {
+			jsonError(w, "queue item not found", http.StatusNotFound)
+			return
+		}
+		jsonResp(w, map[string]string{"status": "steered"})
+	}
+}
+
+func getTurnPreview() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonResp(w, map[string]interface{}{
+			"draft": "", "draft_total_lines": 0,
+			"thought": "", "thought_total_lines": 0,
+		})
+	}
+}
+
+func setTurnPanel() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonResp(w, map[string]string{"status": "ok"})
 	}
 }
 

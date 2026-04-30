@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+
 	"github.com/caarlos0/env/v11"
 )
 
@@ -20,14 +22,14 @@ type Config struct {
 	AgentName    string `env:"VIBES_AGENT_NAME"`
 
 	// ACP
-	ACPAgent    string `env:"VIBES_ACP_AGENT" envDefault:"copilot --acp"`
+	ACPAgent    string `env:"VIBES_ACP_AGENT" envDefault:"copilot-language-server --acp --stdio"`
 	ACPDebug    bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
 	ACPThrottle int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
 
 	// Pi
-	PiAgent              string `env:"VIBES_PI_AGENT"`
-	PiEnabled            bool   `env:"VIBES_PI_ENABLED" envDefault:"false"`
-	PiRestartOnDisconnect bool  `env:"VIBES_PI_RESTART_ON_DISCONNECT" envDefault:"false"`
+	PiAgent               string `env:"VIBES_PI_AGENT"`
+	PiEnabled             bool   `env:"VIBES_PI_ENABLED" envDefault:"false"`
+	PiRestartOnDisconnect bool   `env:"VIBES_PI_RESTART_ON_DISCONNECT" envDefault:"false"`
 
 	// Permissions
 	PermissionTimeout     int  `env:"VIBES_PERMISSION_TIMEOUT" envDefault:"30"`
@@ -48,6 +50,9 @@ func Load() (*Config, error) {
 	cfg := &Config{}
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
+	}
+	if value, ok := os.LookupEnv("VIBES_ACP_AGENT"); ok {
+		cfg.ACPAgent = value
 	}
 
 	// Auto-enable Pi if default agent is pi

@@ -39,7 +39,7 @@ Key responsibilities:
 
 ### Frontend consumption
 
-File: `src/vibes/static/js/app.js`
+File: `static/js/app.js`
 
 Key responsibilities:
 

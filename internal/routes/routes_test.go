@@ -32,6 +32,7 @@ func testRouter(t *testing.T) (chi.Router, *db.DB) {
 	r.Route("/post", Posts(database))
 	r.Route("/thread", Threads(database))
 	r.Route("/search", Search(database))
+	r.Route("/hashtag", Hashtags(database))
 	r.Route("/media", Media(database))
 	return r, database
 }
@@ -111,8 +112,13 @@ func TestDeletePost(t *testing.T) {
 
 	// Delete
 	w = doJSON(r, "DELETE", "/post/"+itoa(id), nil)
-	if w.Code != 204 {
-		t.Errorf("delete status = %d, want 204", w.Code)
+	if w.Code != 200 {
+		t.Errorf("delete status = %d, want 200", w.Code)
+	}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	ids := resp["ids"].([]interface{})
+	if len(ids) != 1 || int(ids[0].(float64)) != id {
+		t.Errorf("delete ids = %v, want [%d]", ids, id)
 	}
 
 	// Verify gone
@@ -147,6 +153,24 @@ func TestSearchMissingQuery(t *testing.T) {
 	w := doJSON(r, "GET", "/search", nil)
 	if w.Code != 400 {
 		t.Errorf("status = %d, want 400", w.Code)
+	}
+}
+
+func TestHashtag(t *testing.T) {
+	r, _ := testRouter(t)
+
+	doJSON(r, "POST", "/post", map[string]string{"content": "ship it #release"})
+	doJSON(r, "POST", "/post", map[string]string{"content": "ordinary message"})
+
+	w := doJSON(r, "GET", "/hashtag/release", nil)
+	if w.Code != 200 {
+		t.Fatalf("hashtag status = %d", w.Code)
+	}
+	var resp map[string]interface{}
+	json.Unmarshal(w.Body.Bytes(), &resp)
+	posts := resp["posts"].([]interface{})
+	if len(posts) != 1 {
+		t.Errorf("expected 1 hashtag result, got %d", len(posts))
 	}
 }
 
@@ -201,6 +225,10 @@ func TestWorkspaceTree(t *testing.T) {
 	if len(entries) < 2 {
 		t.Errorf("expected at least 2 entries, got %d", len(entries))
 	}
+	root := resp["root"].(map[string]interface{})
+	if root["type"] != "dir" {
+		t.Errorf("root type = %q, want dir", root["type"])
+	}
 }
 
 func TestWorkspaceFileCRUD(t *testing.T) {
@@ -229,6 +257,9 @@ func TestWorkspaceFileCRUD(t *testing.T) {
 	json.Unmarshal(rec.Body.Bytes(), &resp)
 	if resp["content"] != "hello" {
 		t.Errorf("content = %q, want hello", resp["content"])
+	}
+	if resp["kind"] != "text" || resp["text"] != "hello" {
+		t.Errorf("preview fields kind/text = %q/%q, want text/hello", resp["kind"], resp["text"])
 	}
 
 	// Update file
