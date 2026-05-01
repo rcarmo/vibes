@@ -23,8 +23,10 @@ type Client struct {
 
 // Broker manages SSE client connections and event fanout.
 type Broker struct {
-	mu      sync.RWMutex
-	clients map[string]*Client
+	mu          sync.RWMutex
+	clients     map[string]*Client
+	onEmpty     func() // called when last client disconnects (fixes #9)
+	onReconnect func() // called when first client connects after empty
 }
 
 // NewBroker creates a new SSE broker.
@@ -34,8 +36,16 @@ func NewBroker() *Broker {
 	}
 }
 
+// OnEmpty sets a callback for when all clients disconnect.
+func (b *Broker) OnEmpty(fn func()) { b.onEmpty = fn }
+
+// OnReconnect sets a callback for when first client connects after being empty.
+func (b *Broker) OnReconnect(fn func()) { b.onReconnect = fn }
+
 // Subscribe adds a new client and returns it.
 func (b *Broker) Subscribe(id string) *Client {
+	wasEmpty := b.Count() == 0
+
 	client := &Client{
 		id:     id,
 		events: make(chan Event, 64),
@@ -47,6 +57,11 @@ func (b *Broker) Subscribe(id string) *Client {
 	b.mu.Unlock()
 
 	slog.Debug("SSE client connected", "id", id, "total", b.Count())
+
+	if wasEmpty && b.onReconnect != nil {
+		go b.onReconnect()
+	}
+
 	return client
 }
 
@@ -60,6 +75,10 @@ func (b *Broker) Unsubscribe(id string) {
 	b.mu.Unlock()
 
 	slog.Debug("SSE client disconnected", "id", id, "total", b.Count())
+
+	if b.Count() == 0 && b.onEmpty != nil {
+		go b.onEmpty()
+	}
 }
 
 // Broadcast sends an event to all connected clients.

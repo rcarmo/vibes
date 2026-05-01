@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -40,11 +42,41 @@ func New(cfg *config.Config) (*App, error) {
 		return nil, fmt.Errorf("open database: %w", err)
 	}
 
-	// Create SSE broker
-	broker := sse.NewBroker()
-
 	// Create agent registry
 	agentRegistry := agent.NewRegistry()
+
+	// Create SSE broker with disconnect handling (fixes #9)
+	broker := sse.NewBroker()
+	var disconnectTimer *time.Timer
+	var disconnectMu sync.Mutex
+
+	broker.OnEmpty(func() {
+		disconnectMu.Lock()
+		defer disconnectMu.Unlock()
+		timeout := time.Duration(cfg.DisconnectTimeout) * time.Second
+		if timeout <= 0 {
+			return
+		}
+		slog.Info("all SSE clients disconnected, starting disconnect timer", "timeout", timeout)
+		disconnectTimer = time.AfterFunc(timeout, func() {
+			slog.Info("disconnect timeout expired, shutting down agents")
+			for _, id := range agentRegistry.List() {
+				if p, err := agentRegistry.Get(id); err == nil {
+					p.Shutdown(context.Background())
+				}
+			}
+		})
+	})
+
+	broker.OnReconnect(func() {
+		disconnectMu.Lock()
+		defer disconnectMu.Unlock()
+		if disconnectTimer != nil {
+			disconnectTimer.Stop()
+			disconnectTimer = nil
+			slog.Info("SSE client reconnected, cancelled disconnect timer")
+		}
+	})
 
 	// Register ACP agent from config
 	if cfg.ACPAgent != "" {
@@ -54,6 +86,7 @@ func New(cfg *config.Config) (*App, error) {
 			Command: parts[0],
 			Args:    parts[1:],
 			WorkDir: workspaceDir(),
+			Debug:   cfg.ACPDebug,
 		})
 		agentRegistry.Register("acp", acpProvider)
 	}

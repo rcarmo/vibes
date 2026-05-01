@@ -28,6 +28,7 @@ type Config struct {
 	Args    []string          // agent binary arguments (e.g., ["--acp", "--stdio"])
 	WorkDir string            // working directory for the agent
 	Env     map[string]string // additional environment variables
+	Debug   bool              // enable wire-level logging (fixes #11)
 }
 
 // Provider implements agent.Provider for ACP agents.
