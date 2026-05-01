@@ -1,0 +1,86 @@
+name: UX Tests (BDD/Playwright)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  ux-tests:
+    name: BDD User Stories (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: true
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install frontend dependencies
+        run: bun install
+
+      - name: Build frontend bundle
+        run: bun run build.js
+
+      - name: Build vibes binary
+        run: go build -ldflags "-s -w" -o vibes ./cmd/vibes/
+
+      - name: Install Playwright browsers
+        run: bunx playwright install chromium --with-deps
+
+      - name: Install Pi and pi-acp
+        run: |
+          npm install -g @mariozechner/pi-coding-agent pi-acp
+          which pi-acp
+
+      - name: Start vibes server
+        env:
+          VIBES_PORT: 8765
+          VIBES_ACP_AGENT: "pi-acp"
+          VIBES_DB_PATH: /tmp/vibes-bdd-test.db
+          VIBES_DEBUG: "true"
+        run: |
+          ./vibes > /tmp/vibes-bdd.log 2>&1 &
+          echo $! > /tmp/vibes.pid
+          sleep 3
+          curl -fsS http://127.0.0.1:8765/health || (cat /tmp/vibes-bdd.log && exit 1)
+          echo "Vibes server started (PID $(cat /tmp/vibes.pid))"
+
+      - name: Run BDD Playwright tests
+        env:
+          VIBES_TEST_URL: http://127.0.0.1:8765
+        run: bunx playwright test --reporter=github,html
+
+      - name: Stop vibes server
+        if: always()
+        run: |
+          if [ -f /tmp/vibes.pid ]; then
+            kill $(cat /tmp/vibes.pid) 2>/dev/null || true
+          fi
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Upload server log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibes-server-log
+          path: /tmp/vibes-bdd.log
+          retention-days: 7

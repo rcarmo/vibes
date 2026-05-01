@@ -1,24 +1,29 @@
 // @ts-check
 import { defineConfig } from '@playwright/test';
 
-/*
- * Playwright E2E tests for Vibes.
+/**
+ * Playwright config for Vibes BDD/UX test pipeline.
  *
- * These tests run against a locally-running vibes instance backed by Pi
- * (via pi-acp or native RPC). The instance must be started before running:
+ * Tests are organized as:
+ *   tests/features/*.feature  — Gherkin user stories (documentation)
+ *   tests/steps/*.spec.mjs    — Playwright implementations of each scenario
+ *   tests/e2e/*.spec.mjs      — Additional E2E tests (legacy)
  *
+ * Usage:
  *   VIBES_ACP_AGENT="pi-acp" VIBES_PORT=8765 ./vibes &
  *   bunx playwright test
  *
- * Or use `make e2e` which handles setup/teardown.
+ * Or via Makefile:
+ *   make e2e
  */
 export default defineConfig({
-  testDir: './tests/e2e',
-  timeout: 120_000,     // 2 min per test — agents can be slow
+  testDir: './tests',
+  testMatch: ['steps/*.spec.mjs', 'e2e/*.spec.mjs'],
+  timeout: 120_000,
   retries: 0,
-  workers: 1,           // serial — one agent session at a time
+  workers: 1,
   use: {
-    baseURL: 'http://127.0.0.1:8765',
+    baseURL: process.env.VIBES_TEST_URL || 'http://127.0.0.1:8765',
     headless: true,
     screenshot: 'only-on-failure',
     trace: 'retain-on-failure',
