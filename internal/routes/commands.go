@@ -2,6 +2,7 @@ package routes
 
 import (
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/rcarmo/vibes/internal/agent"
@@ -55,9 +56,48 @@ func HandleSlashCommand(msg string, registry *agent.Registry) (string, bool) {
 	case startsWith(msg, "/model list"):
 		return "Model listing not yet implemented in Go port.", true
 	case startsWith(msg, "/model"):
-		return "Model switching not yet implemented in Go port.", true
+		arg := strings.TrimSpace(msg[6:])
+		if arg == "" {
+			p, err := registry.Get("default")
+			if err == nil {
+				return "Current model: `" + p.Status().Model + "`", true
+			}
+			return "No active agent.", true
+		}
+		// Try to set model (Pi only)
+		p, err := registry.Get("default")
+		if err != nil {
+			return "No active agent.", true
+		}
+		type modelSetter interface {
+			SetModel(provider, modelID string) error
+		}
+		if ms, ok := p.(modelSetter); ok {
+			parts := strings.SplitN(arg, "/", 2)
+			if len(parts) == 2 {
+				ms.SetModel(parts[0], parts[1])
+				return "Model set to `" + arg + "`", true
+			}
+			return "Usage: /model provider/model-id", true
+		}
+		return "Model switching requires Pi agent.", true
 	case startsWith(msg, "/thinking"):
-		return "Thinking level control not yet implemented in Go port.", true
+		arg := strings.TrimSpace(msg[9:])
+		if arg == "" {
+			return "Usage: /thinking low|medium|high", true
+		}
+		p, err := registry.Get("default")
+		if err != nil {
+			return "No active agent.", true
+		}
+		type thinkingSetter interface {
+			SetThinkingLevel(level string) error
+		}
+		if ts, ok := p.(thinkingSetter); ok {
+			ts.SetThinkingLevel(arg)
+			return "Thinking level set to `" + arg + "`", true
+		}
+		return "Thinking level control requires Pi agent.", true
 	case msg == "/restart":
 		return "Session restart not yet implemented in Go port.", true
 	case startsWith(msg, "/steer"):

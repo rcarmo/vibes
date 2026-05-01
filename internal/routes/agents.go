@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -124,22 +125,47 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			threadID = *req.ThreadID
 		}
 
-		// Launch agent prompt in background, stream events via SSE
+		// Launch agent prompt in background, collect streamed content
 		promptCtx := context.Background()
 		go func() {
+			// Collect streamed draft text during the turn (fixes #1)
+			var collectedContent strings.Builder
+			collectDone := make(chan struct{})
+
+			go func() {
+				defer close(collectDone)
+				for event := range provider.Events() {
+					// Accumulate draft text
+					if event.Type == "draft" {
+						if m, ok := event.Data.(map[string]string); ok {
+							if text, exists := m["text"]; exists {
+								collectedContent.WriteString(text)
+							}
+						}
+					}
+					// All events still forwarded via central event loop in app.go
+				}
+			}()
+
 			err := provider.Prompt(promptCtx, req.Content, threadID)
+			<-collectDone
+
 			if err != nil {
 				broker.Broadcast(sse.Event{Type: "agent_error", Data: map[string]string{"error": err.Error()}})
 				return
 			}
 
-			// Store agent response
-			// (In a full implementation, we'd collect the streamed content)
+			// Store final agent response with collected content
+			finalContent := collectedContent.String()
+			if finalContent == "" {
+				finalContent = "(no content)"
+			}
 			agentData := db.InteractionData{
 				Type:     "agent_response",
-				Content:  "(streamed response)",
+				Content:  finalContent,
 				AgentID:  provider.ID(),
 				ThreadID: &threadID,
+				Model:    provider.Status().Model,
 			}
 			respData, _ := db.MarshalInteraction(agentData)
 			respID, _ := database.InsertInteraction(respData)
@@ -148,6 +174,7 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				"id":        respID,
 				"thread_id": threadID,
 				"agent_id":  provider.ID(),
+				"content":   finalContent,
 			}})
 		}()
 

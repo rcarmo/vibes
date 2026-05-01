@@ -3,6 +3,7 @@ package routes
 import (
 	"archive/zip"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime"
@@ -12,10 +13,11 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/rcarmo/vibes/internal/db"
 )
 
 // Workspace mounts workspace file-management routes.
-func Workspace(workDir string) func(r chi.Router) {
+func Workspace(workDir string, mediaDB ...*db.DB) func(r chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/tree", getTree(workDir))
 		r.Get("/file", getFile(workDir))
@@ -28,6 +30,9 @@ func Workspace(workDir string) func(r chi.Router) {
 		r.Get("/raw", getRaw(workDir))
 		r.Get("/download", downloadPath(workDir))
 		r.Post("/upload", uploadFile(workDir))
+		if len(mediaDB) > 0 && mediaDB[0] != nil {
+			r.Post("/attach", attachWorkspaceFile(workDir, mediaDB[0]))
+		}
 	}
 }
 
@@ -508,4 +513,64 @@ func detectWorkspaceContentType(path string, data []byte) string {
 		return "text/plain"
 	}
 	return http.DetectContentType(data)
+}
+
+// attachWorkspaceFile copies a workspace file into the media table. (fixes #2)
+func attachWorkspaceFile(workDir string, database *db.DB) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			Path string `json:"path"`
+		}
+		if err := decodeJSON(r, &req); err != nil || req.Path == "" {
+			jsonError(w, "path is required", http.StatusBadRequest)
+			return
+		}
+
+		fullPath := safePath(workDir, req.Path)
+		if fullPath == "" {
+			jsonError(w, "invalid path", http.StatusBadRequest)
+			return
+		}
+
+		info, err := os.Stat(fullPath)
+		if err != nil || info.IsDir() {
+			http.NotFound(w, r)
+			return
+		}
+
+		data, err := os.ReadFile(fullPath)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		filename := filepath.Base(fullPath)
+		contentType := detectWorkspaceContentType(fullPath, data)
+
+		var thumbnail []byte
+		if isImage(contentType) {
+			thumbnail = generateThumbnail(data, contentType)
+		}
+
+		metadata, _ := json.Marshal(map[string]interface{}{
+			"size":           len(data),
+			"filename":       filename,
+			"workspace_path": req.Path,
+		})
+
+		id, err := database.InsertMedia(filename, contentType, data, thumbnail, metadata)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusCreated)
+		jsonResp(w, map[string]interface{}{
+			"id":           id,
+			"filename":     filename,
+			"content_type": contentType,
+			"url":          fmt.Sprintf("/media/%d", id),
+			"thumbnail":    fmt.Sprintf("/media/%d/thumbnail", id),
+		})
+	}
 }

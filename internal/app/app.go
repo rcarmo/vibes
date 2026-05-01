@@ -103,9 +103,41 @@ func New(cfg *config.Config) (*App, error) {
 	r.Route("/search", routes.Search(database))
 	r.Route("/hashtag", routes.Hashtags(database))
 	r.Route("/media", routes.Media(database))
-	r.Route("/workspace", routes.Workspace(workspaceDir()))
+	r.Route("/workspace", routes.Workspace(workspaceDir(), database))
 	r.Route("/agent", routes.Agents(agentRegistry, database, broker))
+
+	// Custom action endpoints (fixes #3)
+	actions, err := routes.LoadActions(cfg.ConfigPath)
+	if err != nil {
+		slog.Warn("failed to load custom actions", "path", cfg.ConfigPath, "error", err)
+		actions = &routes.ActionsConfig{Endpoints: map[string]routes.ActionDef{}}
+	}
+	if len(actions.Endpoints) > 0 {
+		r.Route("/agent", routes.Actions(actions, agentRegistry, database, broker))
+	}
 	r.Get("/agent/commands", routes.GetCommands())
+
+	// Link preview endpoint (fixes #10)
+	r.Post("/link-preview", func(w http.ResponseWriter, r *http.Request) {
+		var req struct {
+			URL string `json:"url"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.URL == "" {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": "url is required"})
+			return
+		}
+		preview, err := routes.FetchLinkPreview(req.URL)
+		if err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadGateway)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(preview)
+	})
 	r.Get("/agent/context", func(w http.ResponseWriter, r *http.Request) {
 		p, err := agentRegistry.Get("default")
 		if err != nil {
