@@ -382,40 +382,58 @@ export function ComposeBox({
     };
 
     // Typeahead keyboard handler for model popup (ported from piclaw)
-    const handleModelPopupKeyDown = useCallback((e) => {
-        if (!showModelPopup || modelOptions.length === 0) return;
-
+    // Unified popup keyboard handler — matches piclaw's handlePopupKeyboardEvent exactly
+    const handlePopupKeyboardEvent = useCallback((e) => {
+        if (searchMode || !showModelPopup || e?.isComposing) return false;
+        const consume = () => {
+            e.preventDefault?.();
+            e.stopPropagation?.();
+        };
+        const resetPopupTypeahead = () => {
+            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+        };
         if (e.key === 'Escape') {
-            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
-            setShowModelPopup(false);
-            return;
+            consume();
+            resetPopupTypeahead();
+            if (showModelPopup) setShowModelPopup(false);
+            return true;
         }
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
-            setModelPopupIndex((idx) => (idx + 1) % modelOptions.length);
-            return;
+        if (showModelPopup) {
+            if (e.key === 'ArrowDown') {
+                consume();
+                resetPopupTypeahead();
+                if (modelOptions.length > 0) setModelPopupIndex((idx) => (idx + 1) % modelOptions.length);
+                return true;
+            }
+            if (e.key === 'ArrowUp') {
+                consume();
+                resetPopupTypeahead();
+                if (modelOptions.length > 0) setModelPopupIndex((idx) => (idx - 1 + modelOptions.length) % modelOptions.length);
+                return true;
+            }
+            if ((e.key === 'Enter' || e.key === 'Tab') && modelOptions.length > 0) {
+                consume();
+                resetPopupTypeahead();
+                void handleSelectModel(modelOptions[Math.max(0, Math.min(modelPopupIndex, modelOptions.length - 1))]);
+                return true;
+            }
+            if (isPopupTypeaheadKey(e) && modelOptions.length > 0) {
+                consume();
+                const nextBuffer = updatePopupTypeaheadBuffer(popupTypeaheadRef.current, e.key);
+                popupTypeaheadRef.current = nextBuffer;
+                const match = resolvePopupTypeaheadMatch(modelOptions, nextBuffer.value, modelPopupIndex);
+                if (match >= 0) setModelPopupIndex(match);
+                return true;
+            }
         }
-        if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
-            setModelPopupIndex((idx) => (idx - 1 + modelOptions.length) % modelOptions.length);
-            return;
-        }
-        if (e.key === 'Enter' || e.key === 'Tab') {
-            e.preventDefault();
-            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
-            handleSelectModel(modelOptions[Math.max(0, Math.min(modelPopupIndex, modelOptions.length - 1))]);
-            return;
-        }
-        if (isPopupTypeaheadKey(e)) {
-            e.preventDefault();
-            const nextBuffer = updatePopupTypeaheadBuffer(popupTypeaheadRef.current, e.key);
-            popupTypeaheadRef.current = nextBuffer;
-            const match = resolvePopupTypeaheadMatch(modelOptions, nextBuffer.value, modelPopupIndex);
-            if (match >= 0) setModelPopupIndex(match);
-        }
-    }, [showModelPopup, modelOptions, modelPopupIndex]);
+        return false;
+    }, [
+        searchMode,
+        showModelPopup,
+        modelOptions,
+        modelPopupIndex,
+        handleSelectModel,
+    ]);
 
     const handleSubmit = async () => {
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
@@ -481,6 +499,11 @@ export function ComposeBox({
     };
 
     const handleKeyDown = (e) => {
+        if (e.isComposing) return;
+        // Popup typeahead intercepts first (model picker, etc.)
+        if (handlePopupKeyboardEvent(e)) {
+            return;
+        }
         if (searchMode && e.key === 'Escape') {
             e.preventDefault();
             setSearchText('');
@@ -710,6 +733,16 @@ export function ComposeBox({
         return () => document.removeEventListener('pointerdown', onPointerDown);
     }, [showModelPopup]);
 
+    // Global keydown listener for popup typeahead (piclaw pattern)
+    useEffect(() => {
+        if (searchMode || !showModelPopup) return;
+        const onKeyDown = (event) => {
+            handlePopupKeyboardEvent(event);
+        };
+        document.addEventListener('keydown', onKeyDown, true);
+        return () => document.removeEventListener('keydown', onKeyDown, true);
+    }, [searchMode, showModelPopup, handlePopupKeyboardEvent]);
+
     return html`
         <div class="compose-box">
             ${submitError && html`
@@ -878,7 +911,7 @@ export function ComposeBox({
                         </div>
                     `}
                     ${showModelPopup && !searchMode && html`
-                        <div class="compose-model-popup" ref=${modelPopupRef} tabIndex="-1" onKeyDown=${handleModelPopupKeyDown}>
+                        <div class="compose-model-popup" ref=${modelPopupRef} tabIndex="-1" onKeyDown=${handlePopupKeyboardEvent}>
                             <div class="compose-model-popup-title">Select model</div>
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
