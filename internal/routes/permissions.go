@@ -2,11 +2,13 @@ package routes
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"os/exec"
 	"sync"
 	"time"
 
+	"github.com/rcarmo/vibes/internal/db"
 	"github.com/rcarmo/vibes/internal/server/sse"
 )
 
@@ -32,20 +34,38 @@ type PermissionBroker struct {
 	pending  map[string]*PermissionRequest
 	sseBrk   *sse.Broker
 	timeout  time.Duration
+	whitelistDB *db.DB // for auto-approve (fixes #8)
 }
 
 // NewPermissionBroker creates a permission broker.
-func NewPermissionBroker(sseBroker *sse.Broker, timeout time.Duration) *PermissionBroker {
-	return &PermissionBroker{
+func NewPermissionBroker(sseBroker *sse.Broker, timeout time.Duration, whitelistDB ...*db.DB) *PermissionBroker {
+	pb := &PermissionBroker{
 		pending: make(map[string]*PermissionRequest),
 		sseBrk:  sseBroker,
 		timeout: timeout,
 	}
+	if len(whitelistDB) > 0 {
+		pb.whitelistDB = whitelistDB[0]
+	}
+	return pb
 }
 
 // Request creates a permission request and broadcasts it via SSE.
 // Blocks until the user responds or the timeout expires.
+// Auto-approves if the method matches a whitelist pattern. (fixes #8)
 func (pb *PermissionBroker) Request(id, method, title string, options []Option) (string, error) {
+	// Auto-approve via whitelist
+	if pb.whitelistDB != nil {
+		if ok, _ := pb.whitelistDB.IsWhitelisted(method); ok {
+			log.Println("auto-approved:", method)
+			// Return the first option (approve) or "approve"
+			if len(options) > 0 {
+				return options[0].ID, nil
+			}
+			return "approve", nil
+		}
+	}
+
 	req := &PermissionRequest{
 		ID:        id,
 		Method:    method,

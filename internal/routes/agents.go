@@ -15,7 +15,7 @@ import (
 
 // Agents mounts agent-related routes.
 func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(r chi.Router) {
-	permissionBroker := NewPermissionBroker(broker, 30*time.Second)
+	permissionBroker := NewPermissionBroker(broker, 30*time.Second, database)
 	queue := NewFollowUpQueue()
 	turnMgr := NewTurnManager()
 	return func(r chi.Router) {
@@ -198,11 +198,28 @@ func getAgentModels(registry *agent.Registry) http.HandlerFunc {
 			return
 		}
 		status := p.Status()
-		models := []string{}
-		if status.Model != "" {
-			models = append(models, status.Model)
+
+		// Collect models from all registered agents (fixes #7)
+		var models []map[string]string
+		for _, id := range registry.List() {
+			ap, _ := registry.Get(id)
+			s := ap.Status()
+			if s.Model != "" {
+				models = append(models, map[string]string{
+					"agent_id": id,
+					"model":    s.Model,
+				})
+			}
 		}
-		jsonResp(w, map[string]interface{}{"current": status.Model, "model": status.Model, "models": models})
+		if models == nil {
+			models = []map[string]string{}
+		}
+
+		jsonResp(w, map[string]interface{}{
+			"current": status.Model,
+			"model":   status.Model,
+			"models":  models,
+		})
 	}
 }
 
