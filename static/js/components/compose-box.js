@@ -1,5 +1,6 @@
-import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
+import { html, useRef, useState, useEffect, useCallback, useMemo } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -154,9 +155,12 @@ export function ComposeBox({
     const [switchingModel, setSwitchingModel] = useState(false);
     const [showModelPopup, setShowModelPopup] = useState(false);
     const [modelOptions, setModelOptions] = useState([]);
+    const [modelPopupIndex, setModelPopupIndex] = useState(0);
     const [loadingModels, setLoadingModels] = useState(false);
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
+    const modelPopupRef = useRef(null);
+    const popupTypeaheadRef = useRef({ value: '', updatedAt: 0 });
     const slashRef = useRef(null);
     const modelPopupRef = useRef(null);
     const modelHintRef = useRef(null);
@@ -370,8 +374,48 @@ export function ComposeBox({
     const toggleModelPopup = (event) => {
         event.preventDefault();
         event.stopPropagation();
-        setShowModelPopup((prev) => !prev);
+        popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+        setShowModelPopup((prev) => {
+            if (!prev) setModelPopupIndex(0);
+            return !prev;
+        });
     };
+
+    // Typeahead keyboard handler for model popup (ported from piclaw)
+    const handleModelPopupKeyDown = useCallback((e) => {
+        if (!showModelPopup || modelOptions.length === 0) return;
+
+        if (e.key === 'Escape') {
+            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+            setShowModelPopup(false);
+            return;
+        }
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+            setModelPopupIndex((idx) => (idx + 1) % modelOptions.length);
+            return;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+            setModelPopupIndex((idx) => (idx - 1 + modelOptions.length) % modelOptions.length);
+            return;
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+            e.preventDefault();
+            popupTypeaheadRef.current = { value: '', updatedAt: 0 };
+            handleSelectModel(modelOptions[Math.max(0, Math.min(modelPopupIndex, modelOptions.length - 1))]);
+            return;
+        }
+        if (isPopupTypeaheadKey(e)) {
+            e.preventDefault();
+            const nextBuffer = updatePopupTypeaheadBuffer(popupTypeaheadRef.current, e.key);
+            popupTypeaheadRef.current = nextBuffer;
+            const match = resolvePopupTypeaheadMatch(modelOptions, nextBuffer.value, modelPopupIndex);
+            if (match >= 0) setModelPopupIndex(match);
+        }
+    }, [showModelPopup, modelOptions, modelPopupIndex]);
 
     const handleSubmit = async () => {
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
@@ -643,6 +687,15 @@ export function ComposeBox({
         if (searchMode) setShowModelPopup(false);
     }, [searchMode]);
 
+    // Focus model popup and scroll active item into view
+    useEffect(() => {
+        if (!showModelPopup) return;
+        const popup = modelPopupRef.current;
+        popup?.focus?.();
+        const active = popup?.querySelector?.('.compose-model-popup-item.active');
+        if (active) active.scrollIntoView({ block: 'nearest' });
+    }, [showModelPopup, modelPopupIndex, modelOptions]);
+
     useEffect(() => {
         if (!showModelPopup) return;
         const onPointerDown = (event) => {
@@ -825,7 +878,7 @@ export function ComposeBox({
                         </div>
                     `}
                     ${showModelPopup && !searchMode && html`
-                        <div class="compose-model-popup" ref=${modelPopupRef}>
+                        <div class="compose-model-popup" ref=${modelPopupRef} tabIndex="-1" onKeyDown=${handleModelPopupKeyDown}>
                             <div class="compose-model-popup-title">Select model</div>
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
@@ -834,13 +887,14 @@ export function ComposeBox({
                                 ${!loadingModels && modelOptions.length === 0 && html`
                                     <div class="compose-model-popup-empty">No models available.</div>
                                 `}
-                                ${!loadingModels && modelOptions.map((modelLabel) => html`
+                                ${!loadingModels && modelOptions.map((modelLabel, index) => html`
                                     <button
                                         key=${modelLabel}
                                         type="button"
                                         role="menuitem"
-                                        class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}
+                                        class=${`compose-model-popup-item${modelPopupIndex === index ? ' active' : ''}${activeModel === modelLabel ? ' current-model' : ''}`}
                                         onClick=${() => { void handleSelectModel(modelLabel); }}
+                                        onMouseEnter=${() => setModelPopupIndex(index)}
                                         disabled=${switchingModel}
                                     >
                                         ${modelLabel}

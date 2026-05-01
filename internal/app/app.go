@@ -146,7 +146,11 @@ func New(cfg *config.Config) (*App, error) {
 		actions = &routes.ActionsConfig{Endpoints: map[string]routes.ActionDef{}}
 	}
 	if len(actions.Endpoints) > 0 {
-		r.Route("/agent", routes.Actions(actions, agentRegistry, database, broker))
+		// Mount action routes directly (not as subrouter) to avoid chi path conflict
+		for actionID := range actions.Endpoints {
+			_ = actionID // actions are dispatched by the handler
+		}
+		r.Post("/agent/{agent_id}/action/{action_id}", routes.TriggerAction(actions, agentRegistry, database, broker))
 	}
 	r.Get("/agent/commands", routes.GetCommands())
 

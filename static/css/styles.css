@@ -1655,6 +1655,16 @@ body {
 .compose-model-popup-item.active {
     color: var(--accent-color);
     font-weight: 600;
+    background: var(--hover-bg);
+}
+
+.compose-model-popup-item.current-model {
+    font-style: italic;
+}
+
+.compose-model-popup-item.current-model::after {
+    content: ' ✓';
+    opacity: 0.6;
 }
 
 .compose-model-popup-actions {

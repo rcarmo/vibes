@@ -52,6 +52,11 @@ func Actions(actions *ActionsConfig, registry *agent.Registry, database *db.DB, 
 	}
 }
 
+// TriggerAction returns a handler for POST /agent/{agent_id}/action/{action_id}. (fixes #3)
+func TriggerAction(actions *ActionsConfig, registry *agent.Registry, database *db.DB, broker *sse.Broker) http.HandlerFunc {
+	return triggerAction(actions, registry, database, broker)
+}
+
 func triggerAction(actions *ActionsConfig, registry *agent.Registry, database *db.DB, broker *sse.Broker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		agentID := chi.URLParam(r, "agent_id")
