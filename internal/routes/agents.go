@@ -17,6 +17,7 @@ import (
 func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(r chi.Router) {
 	permissionBroker := NewPermissionBroker(broker, 30*time.Second)
 	queue := NewFollowUpQueue()
+	turnMgr := NewTurnManager()
 	return func(r chi.Router) {
 		r.Get("/", listAgents(registry))
 		r.Get("/status", getAgentStatus(registry))
@@ -25,8 +26,8 @@ func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(
 		r.Get("/queue", getQueue(queue))
 		r.Post("/queue-remove", removeQueueItem(queue))
 		r.Post("/queue-steer", steerQueueItem(queue))
-		r.Get("/turn/{id}", getTurnPreview())
-		r.Post("/turn/{id}/panel", setTurnPanel())
+		r.Get("/turn/{id}", getTurnPreviewHandler(turnMgr))
+		r.Post("/turn/{id}/panel", setTurnPanelHandler(turnMgr))
 		r.Post("/respond", permissionBroker.RespondHandler())
 		r.Get("/whitelist", getWhitelist(database))
 		r.Post("/whitelist", addWhitelist(database))
@@ -242,21 +243,6 @@ func steerQueueItem(queue *FollowUpQueue) http.HandlerFunc {
 			return
 		}
 		jsonResp(w, map[string]string{"status": "steered"})
-	}
-}
-
-func getTurnPreview() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		jsonResp(w, map[string]interface{}{
-			"draft": "", "draft_total_lines": 0,
-			"thought": "", "thought_total_lines": 0,
-		})
-	}
-}
-
-func setTurnPanel() http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		jsonResp(w, map[string]string{"status": "ok"})
 	}
 }
 

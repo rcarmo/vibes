@@ -1,14 +1,19 @@
 package routes
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/jpeg"
+	"image/png"
 	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rcarmo/vibes/internal/db"
+	xdraw "golang.org/x/image/draw"
 )
 
 // Media mounts media routes.
@@ -143,16 +148,51 @@ func isImage(contentType string) bool {
 	return false
 }
 
-// generateThumbnail creates a downscaled version of an image.
-// For now, we just return the original data for small images
-// and skip for large ones. A proper implementation would use
-// golang.org/x/image for resize.
+// generateThumbnail creates a downscaled version of an image. (fixes #5)
 func generateThumbnail(data []byte, contentType string) []byte {
-	// Simple threshold: if under 200KB, use as-is for thumbnail
-	if len(data) <= 200*1024 {
+	// Small images don't need thumbnailing
+	if len(data) <= 100*1024 {
 		return data
 	}
-	// TODO: proper image downscaling with golang.org/x/image
-	// For now, return nil (no thumbnail for large images)
-	return nil
+
+	// Decode
+	var img image.Image
+	var err error
+	switch contentType {
+	case "image/jpeg":
+		img, err = jpeg.Decode(bytes.NewReader(data))
+	case "image/png":
+		img, err = png.Decode(bytes.NewReader(data))
+	default:
+		// GIF, WebP, SVG — return original for now
+		return data
+	}
+	if err != nil {
+		return nil
+	}
+
+	// Resize to max 200x200 preserving aspect ratio
+	bounds := img.Bounds()
+	w, h := bounds.Dx(), bounds.Dy()
+	maxDim := 200
+	if w <= maxDim && h <= maxDim {
+		return data
+	}
+
+	newW, newH := maxDim, maxDim
+	if w > h {
+		newH = h * maxDim / w
+	} else {
+		newW = w * maxDim / h
+	}
+
+	dst := image.NewRGBA(image.Rect(0, 0, newW, newH))
+	xdraw.ApproxBiLinear.Scale(dst, dst.Bounds(), img, bounds, xdraw.Over, nil)
+
+	// Encode as JPEG
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, dst, &jpeg.Options{Quality: 80}); err != nil {
+		return nil
+	}
+	return buf.Bytes()
 }
