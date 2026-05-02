@@ -7,6 +7,10 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  models: read
+
 jobs:
   ux-tests:
     name: BDD User Stories (Playwright)
@@ -45,37 +49,42 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install chromium --with-deps
 
-      - name: Start vibes server (no agent — API and UI structure tests)
+      - name: Install ACP agents
+        run: |
+          npm install -g @github/copilot-language-server opencode-ai
+          echo "copilot-language-server: $(copilot-language-server --version 2>/dev/null || echo installed)"
+          echo "opencode: $(opencode --version 2>/dev/null || echo installed)"
+
+      - name: Configure GitHub Models for Copilot ACP
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # GitHub Models auth: $GITHUB_TOKEN is auto-available in runners
+          # copilot-language-server uses it for model access
+          echo "GITHUB_TOKEN is set: $([ -n "$GITHUB_TOKEN" ] && echo yes || echo no)"
+          # Set GH_COPILOT_TOKEN for copilot-language-server
+          echo "GH_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
+          echo "GITHUB_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
+
+      - name: Start vibes server with Copilot ACP (GitHub Models)
         env:
           VIBES_PORT: "8765"
-          VIBES_ACP_AGENT: ""
+          VIBES_ACP_AGENT: "copilot-language-server --acp --stdio"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"
         run: |
           ./vibes > /tmp/vibes-bdd.log 2>&1 &
           echo $! > /tmp/vibes.pid
-          sleep 3
-          curl -fsS http://127.0.0.1:8765/health || { cat /tmp/vibes-bdd.log; exit 1; }
+          sleep 5
+          curl -fsS http://127.0.0.1:8765/health || { echo "=== Server log ==="; cat /tmp/vibes-bdd.log; exit 1; }
           echo "Vibes server started (PID $(cat /tmp/vibes.pid))"
 
-      - name: Run BDD Playwright tests
+      - name: Run all BDD Playwright tests
         env:
           VIBES_TEST_URL: "http://127.0.0.1:8765"
-        run: |
-          bunx playwright test \
-            tests/steps/api-endpoints.spec.mjs \
-            tests/steps/page-load.spec.mjs \
-            tests/steps/timeline.spec.mjs \
-            tests/steps/workspace.spec.mjs \
-            tests/steps/media.spec.mjs \
-            tests/steps/permissions.spec.mjs \
-            tests/steps/link-preview.spec.mjs \
-            tests/steps/agent-switching.spec.mjs \
-            tests/steps/compose-and-theme.spec.mjs \
-          || true
-          echo "Note: agent-conversation and slash-commands tests require a running ACP agent and are skipped in CI without credentials."
+        run: bunx playwright test || true
 
-      - name: Generate PDF test report
+      - name: Generate PDF + HTML test report
         if: always()
         run: |
           node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
@@ -88,18 +97,18 @@ jobs:
             kill "$(cat /tmp/vibes.pid)" 2>/dev/null || true
           fi
 
-      - name: Upload PDF report
+      - name: Upload PDF + HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ux-test-report-pdf
+          name: ux-test-report
           path: |
             test-results/vibes-ux-report.pdf
             test-results/vibes-ux-report.html
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Upload screenshots and traces
+      - name: Upload screenshots, videos, and traces
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -111,16 +120,16 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Upload HTML report
+      - name: Upload Playwright HTML report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ux-test-report-html
+          name: ux-test-playwright-report
           path: playwright-report/
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Upload test results JSON
+      - name: Upload raw results JSON
         if: always()
         uses: actions/upload-artifact@v4
         with:
