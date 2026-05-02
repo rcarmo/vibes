@@ -66,16 +66,21 @@ jobs:
           echo "GH_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
           echo "GITHUB_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
 
-      - name: Start vibes server with Copilot ACP (GitHub Models)
+      - name: Start vibes server
         env:
           VIBES_PORT: "8765"
           VIBES_ACP_AGENT: "copilot-language-server --acp --stdio"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"
         run: |
+          # Server starts even if agent init fails (non-fatal)
           ./vibes > /tmp/vibes-bdd.log 2>&1 &
           echo $! > /tmp/vibes.pid
           sleep 5
+          # Retry health check (agent init may take a moment)
+          for i in 1 2 3 4 5; do
+            curl -fsS http://127.0.0.1:8765/health && break || sleep 2
+          done
           curl -fsS http://127.0.0.1:8765/health || { echo "=== Server log ==="; cat /tmp/vibes-bdd.log; exit 1; }
           echo "Vibes server started (PID $(cat /tmp/vibes.pid))"
 
