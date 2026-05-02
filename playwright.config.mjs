@@ -9,12 +9,9 @@ import { defineConfig } from '@playwright/test';
  *   tests/steps/*.spec.mjs    — Playwright implementations of each scenario
  *   tests/e2e/*.spec.mjs      — Additional E2E tests (legacy)
  *
- * Usage:
- *   VIBES_ACP_AGENT="pi-acp" VIBES_PORT=8765 ./vibes &
- *   bunx playwright test
- *
- * Or via Makefile:
- *   make e2e
+ * Screenshots are captured on every test (pass or fail) and stored under
+ * test-results/ for evidence. The CI workflow converts the HTML report
+ * to PDF for easy reading.
  */
 export default defineConfig({
   testDir: './tests',
@@ -22,13 +19,23 @@ export default defineConfig({
   timeout: 120_000,
   retries: 0,
   workers: 1,
+  outputDir: 'test-results',
   use: {
     baseURL: process.env.VIBES_TEST_URL || 'http://127.0.0.1:8765',
     headless: true,
-    screenshot: 'only-on-failure',
+    // Capture screenshots on every test for evidence
+    screenshot: 'on',
+    // Full trace on failure for debugging
     trace: 'retain-on-failure',
+    // Record video on failure
+    video: 'retain-on-failure',
     viewport: { width: 1280, height: 800 },
   },
+  reporter: [
+    ['list'],
+    ['html', { open: 'never', outputFolder: 'playwright-report' }],
+    ['json', { outputFile: 'test-results/results.json' }],
+  ],
   projects: [
     { name: 'chromium', use: { browserName: 'chromium' } },
   ],

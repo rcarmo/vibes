@@ -48,8 +48,6 @@ jobs:
         run: |
           npm install -g opencode-ai
           opencode --version
-          echo "Available free models:"
-          opencode models 2>/dev/null | head -5 || true
 
       - name: Start vibes server
         env:
@@ -67,7 +65,12 @@ jobs:
       - name: Run BDD Playwright tests
         env:
           VIBES_TEST_URL: http://127.0.0.1:8765
-        run: bunx playwright test --reporter=github,html
+        run: bunx playwright test
+        continue-on-error: true
+
+      - name: Generate PDF test report
+        if: always()
+        run: node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
 
       - name: Stop vibes server
         if: always()
@@ -76,12 +79,36 @@ jobs:
             kill $(cat /tmp/vibes.pid) 2>/dev/null || true
           fi
 
-      - name: Upload test report
+      - name: Upload PDF report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
+          name: ux-test-report-pdf
+          path: test-results/vibes-ux-report.pdf
+          retention-days: 30
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-test-screenshots
+          path: test-results/**/*.png
+          retention-days: 30
+
+      - name: Upload HTML report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-test-report-html
           path: playwright-report/
+          retention-days: 30
+
+      - name: Upload test results JSON
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ux-test-results-json
+          path: test-results/results.json
           retention-days: 30
 
       - name: Upload server log

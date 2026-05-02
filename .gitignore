@@ -36,3 +36,7 @@ node_modules/
 
 # Environment
 .env
+
+# Playwright test output
+test-results/
+playwright-report/

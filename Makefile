@@ -91,11 +91,17 @@ e2e-teardown: ## Stop the E2E vibes instance
 		echo "vibes stopped"; \
 	fi
 
-e2e: e2e-setup ## Run Playwright E2E tests against Pi (gpt-5-mini)
-	@bunx playwright test --reporter=list; \
+e2e: e2e-setup ## Run Playwright E2E tests with screenshots + PDF report
+	@bunx playwright test; \
 	RET=$$?; \
+	node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf 2>/dev/null || true; \
 	$(MAKE) e2e-teardown; \
+	echo "Report: test-results/vibes-ux-report.pdf"; \
+	echo "Screenshots: test-results/"; \
 	exit $$RET
+
+e2e-report: ## Generate PDF report from last test run (no re-run)
+	node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
 
 check: lint test coverage ## Run lint + tests + coverage
 
