@@ -162,7 +162,6 @@ export function ComposeBox({
     const modelPopupRef = useRef(null);
     const popupTypeaheadRef = useRef({ value: '', updatedAt: 0 });
     const slashRef = useRef(null);
-    const modelPopupRef = useRef(null);
     const modelHintRef = useRef(null);
     const dragCounterRef = useRef(0);
     const historyMax = 200;
