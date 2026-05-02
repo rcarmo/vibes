@@ -78,11 +78,8 @@ jobs:
       - name: Generate PDF test report
         if: always()
         run: |
-          node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf || {
-            echo "PDF generation failed; creating placeholder"
-            mkdir -p test-results
-            echo "PDF generation failed. Check test-results/results.json and playwright-report/ for details." > test-results/vibes-ux-report.txt
-          }
+          node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
+          ls -lh test-results/vibes-ux-report.* 2>/dev/null || true
 
       - name: Stop vibes server
         if: always()
@@ -98,7 +95,7 @@ jobs:
           name: ux-test-report-pdf
           path: |
             test-results/vibes-ux-report.pdf
-            test-results/vibes-ux-report.txt
+            test-results/vibes-ux-report.html
           retention-days: 30
           if-no-files-found: ignore
 
