@@ -44,6 +44,9 @@ VIBES_ACP_AGENT="claude-agent-acp"
 # Pi via ACP adapter
 VIBES_ACP_AGENT="pi-acp"
 
+# OpenCode (free models — ideal for CI/testing)
+VIBES_ACP_AGENT="opencode acp"
+
 # Pi native RPC (richer: streaming drafts, thinking, live model control)
 VIBES_DEFAULT_AGENT=pi VIBES_PI_ENABLED=true
 ```
@@ -55,6 +58,7 @@ npm install -g @github/copilot-language-server       # Copilot
 npm install -g @openai/codex                          # Codex (includes codex-acp)
 npm install -g @agentclientprotocol/claude-agent-acp  # Claude
 npm install -g pi-acp                                 # Pi ACP adapter
+npm install -g opencode-ai                            # OpenCode (free models)
 npm install -g @mariozechner/pi-coding-agent          # Pi (native RPC)
 ```
 

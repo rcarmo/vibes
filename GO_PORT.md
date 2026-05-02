@@ -23,6 +23,7 @@ All four ACP agents have been tested against our Go ACP client (via `cmd/acp-tes
 | **OpenAI Codex** | `codex-acp` | v0.11.1 | ✅ Responds to initialize |
 | **Claude Agent** | `claude-agent-acp` | v0.29.2 | ✅ Responds to initialize |
 | **Pi** | `pi-acp` | v0.0.26 | ✅ Responds to initialize |
+| **OpenCode** | `opencode acp` | v1.14.31 | ✅ Responds to initialize |
 
 ### Capability comparison
 

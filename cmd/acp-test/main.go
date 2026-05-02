@@ -38,6 +38,7 @@ func main() {
 		{"Codex (OpenAI)", "codex-acp", nil},
 		{"Claude Agent", "claude-agent-acp", nil},
 		{"Pi (via pi-acp)", "pi-acp", nil},
+		{"OpenCode", "opencode", []string{"acp"}},
 	}
 
 	fmt.Println("=== ACP Handshake Test ===")

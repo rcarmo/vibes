@@ -27,6 +27,11 @@ jobs:
         with:
           bun-version: latest
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Install frontend dependencies
         run: bun install
 
@@ -39,15 +44,17 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install chromium --with-deps
 
-      - name: Install Pi and pi-acp
+      - name: Install OpenCode (ACP agent with free models)
         run: |
-          npm install -g @mariozechner/pi-coding-agent pi-acp
-          which pi-acp
+          npm install -g opencode-ai
+          opencode --version
+          echo "Available free models:"
+          opencode models 2>/dev/null | head -5 || true
 
       - name: Start vibes server
         env:
           VIBES_PORT: 8765
-          VIBES_ACP_AGENT: "pi-acp"
+          VIBES_ACP_AGENT: "opencode acp"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"
         run: |

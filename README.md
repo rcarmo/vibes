@@ -22,7 +22,7 @@ Supports four [ACP](https://agentclientprotocol.com/) agents and [Pi](https://pi
 - **PWA** — installable, dark/light themes, responsive from phone to desktop
 - **Single binary** — no Python, no Node.js, no virtualenv, no runtime dependencies
 - **Extension system** — backend routes, SSE events, and frontend UI panels
-- **Multi-agent** — switch between Copilot, Codex, Claude, and Pi at runtime
+- **Multi-agent** — switch between Copilot, Codex, Claude, OpenCode, and Pi at runtime
 
 ---
 
@@ -34,20 +34,22 @@ Supports four [ACP](https://agentclientprotocol.com/) agents and [Pi](https://pi
 | **OpenAI Codex** | `codex-acp` | v0.11.1 | ✅ |
 | **Claude** | `claude-agent-acp` | v0.29.2 | ✅ |
 | **Pi** | `pi-acp` | v0.0.26 | ✅ |
+| **OpenCode** | `opencode acp` | v1.14.31 | ✅ |
 
 ### Capability matrix
 
-| Feature | Copilot | Codex | Claude | Pi |
-|---|---|---|---|---|
-| Image support | ✅ | ✅ | ✅ | ✅ |
-| Embedded context | ✅ | ✅ | ✅ | — |
-| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) | — |
-| Session list/close | ✅ | ✅ | ✅ | ✅ |
-| Session fork/resume | — | — | ✅ | — |
-| Prompt queueing | — | — | ✅ | — |
-| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured | Terminal login |
+| Feature | Copilot | Codex | Claude | Pi | OpenCode |
+|---|---|---|---|---|---|
+| Image support | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Embedded context | ✅ | ✅ | ✅ | — | ✅ |
+| MCP support | — | ✅ (HTTP) | ✅ (HTTP + SSE) | — | ✅ (HTTP + SSE) |
+| Session list/close | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Session fork/resume | — | — | ✅ | — | ✅ |
+| Prompt queueing | — | — | ✅ | — | — |
+| Free models | — | — | — | — | ✅ |
+| Auth | GitHub OAuth | ChatGPT / API key | Pre-configured | Terminal login | `opencode auth` |
 
-All four implement ACP protocol v1 over stdio JSON-RPC. Pi also supports a richer native RPC mode with streaming drafts, thinking traces, tool events, and live model control.
+All five implement ACP protocol v1 over stdio JSON-RPC. OpenCode provides free models (gpt-5-nano, hy3-preview-free, etc.) making it ideal for CI testing. Pi also supports a richer native RPC mode with streaming drafts, thinking traces, tool events, and live model control.
 
 ---
 
@@ -65,6 +67,7 @@ make build
 VIBES_ACP_AGENT="codex-acp" ./vibes
 VIBES_ACP_AGENT="claude-agent-acp" ./vibes
 VIBES_ACP_AGENT="pi-acp" ./vibes
+VIBES_ACP_AGENT="opencode acp" ./vibes     # free models available
 
 # Run with Pi native RPC (richer features)
 VIBES_DEFAULT_AGENT=pi ./vibes
@@ -111,6 +114,7 @@ npm install -g @github/copilot-language-server    # GitHub Copilot
 npm install -g @openai/codex                       # OpenAI Codex (includes codex-acp)
 npm install -g @agentclientprotocol/claude-agent-acp  # Claude
 npm install -g pi-acp                              # Pi (ACP adapter)
+npm install -g opencode-ai                         # OpenCode (free models)
 npm install -g @mariozechner/pi-coding-agent       # Pi (native, for RPC mode)
 ```
 
