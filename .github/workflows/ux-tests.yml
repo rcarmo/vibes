@@ -55,23 +55,20 @@ jobs:
           echo "Available free models:"
           opencode models 2>/dev/null || true
 
-      - name: Configure OpenCode for CI
+      - name: Configure and verify OpenCode ACP
         run: |
-          # OpenCode ZEN provider works without any auth.
-          # Set the default model to a fast free model for CI tests.
-          mkdir -p ~/.config/opencode
-          cat > ~/.config/opencode/config.json << 'EOF'
-          {
-            "provider": "opencode",
-            "model": "opencode/gpt-5-nano"
-          }
-          EOF
-          echo "OpenCode configured with gpt-5-nano (free, no auth)"
+          # Run opencode once to trigger database migration
+          opencode models 2>/dev/null || true
+          # Verify ACP handshake works
+          echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"clientInfo":{"name":"ci","version":"0.1.0"},"clientCapabilities":{}}}' | timeout 10 opencode acp 2>/dev/null | head -c 200
+          echo
+          echo "OpenCode ACP handshake OK"
 
       - name: Start vibes server with OpenCode ACP
         env:
           VIBES_PORT: "8765"
           VIBES_ACP_AGENT: "opencode acp"
+          VIBES_ACP_DEBUG: "true"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"
         run: |

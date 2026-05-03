@@ -81,11 +81,25 @@ func New(cfg *config.Config) (*App, error) {
 	// Register ACP agent from config
 	if cfg.ACPAgent != "" {
 		parts := splitCommand(cfg.ACPAgent)
+		// Pass through env vars the agent might need (e.g., OpenCode needs
+		// XDG_DATA_HOME, GITHUB_TOKEN; Copilot needs GH_COPILOT_TOKEN)
+		agentEnv := map[string]string{}
+		for _, key := range []string{
+			"GITHUB_TOKEN", "GH_COPILOT_TOKEN", "GITHUB_COPILOT_TOKEN",
+			"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY",
+			"XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR",
+			"NODE_OPTIONS", "npm_config_prefix",
+		} {
+			if v := os.Getenv(key); v != "" {
+				agentEnv[key] = v
+			}
+		}
 		acpProvider := acp.New(acp.Config{
 			ID:      "acp",
 			Command: parts[0],
 			Args:    parts[1:],
 			WorkDir: workspaceDir(),
+			Env:     agentEnv,
 			Debug:   cfg.ACPDebug,
 		})
 		agentRegistry.Register("acp", acpProvider)
