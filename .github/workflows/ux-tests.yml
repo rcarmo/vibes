@@ -9,13 +9,12 @@ on:
 
 permissions:
   contents: read
-  models: read
 
 jobs:
   ux-tests:
     name: BDD User Stories (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
 
     steps:
       - name: Checkout
@@ -49,51 +48,75 @@ jobs:
       - name: Install Playwright browsers
         run: bunx playwright install chromium --with-deps
 
-      - name: Install ACP agents
+      - name: Install OpenCode (ACP agent with free ZEN models)
         run: |
-          npm install -g @github/copilot-language-server opencode-ai
-          echo "copilot-language-server: $(copilot-language-server --version 2>/dev/null || echo installed)"
-          echo "opencode: $(opencode --version 2>/dev/null || echo installed)"
+          npm install -g opencode-ai
+          echo "OpenCode version: $(opencode --version)"
+          echo "Available free models:"
+          opencode models 2>/dev/null || true
 
-      - name: Configure GitHub Models for Copilot ACP
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Configure OpenCode for CI
         run: |
-          # GitHub Models auth: $GITHUB_TOKEN is auto-available in runners
-          # copilot-language-server uses it for model access
-          echo "GITHUB_TOKEN is set: $([ -n "$GITHUB_TOKEN" ] && echo yes || echo no)"
-          # Set GH_COPILOT_TOKEN for copilot-language-server
-          echo "GH_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
-          echo "GITHUB_COPILOT_TOKEN=$GITHUB_TOKEN" >> "$GITHUB_ENV"
+          # OpenCode ZEN provider works without any auth.
+          # Set the default model to a fast free model for CI tests.
+          mkdir -p ~/.config/opencode
+          cat > ~/.config/opencode/config.json << 'EOF'
+          {
+            "provider": "opencode",
+            "model": "opencode/gpt-5-nano"
+          }
+          EOF
+          echo "OpenCode configured with gpt-5-nano (free, no auth)"
 
-      - name: Start vibes server
+      - name: Start vibes server with OpenCode ACP
         env:
           VIBES_PORT: "8765"
-          VIBES_ACP_AGENT: "copilot-language-server --acp --stdio"
+          VIBES_ACP_AGENT: "opencode acp"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"
         run: |
-          # Server starts even if agent init fails (non-fatal)
           ./vibes > /tmp/vibes-bdd.log 2>&1 &
           echo $! > /tmp/vibes.pid
           sleep 5
-          # Retry health check (agent init may take a moment)
           for i in 1 2 3 4 5; do
             curl -fsS http://127.0.0.1:8765/health && break || sleep 2
           done
           curl -fsS http://127.0.0.1:8765/health || { echo "=== Server log ==="; cat /tmp/vibes-bdd.log; exit 1; }
           echo "Vibes server started (PID $(cat /tmp/vibes.pid))"
+          echo "Server log tail:"
+          tail -5 /tmp/vibes-bdd.log
 
-      - name: Run all BDD Playwright tests
+      - name: Run ALL BDD Playwright tests
         env:
           VIBES_TEST_URL: "http://127.0.0.1:8765"
-        run: bunx playwright test || true
+        run: |
+          bunx playwright test 2>&1 | tee /tmp/playwright-output.txt
+          EXIT_CODE=${PIPESTATUS[0]}
+          echo "Playwright exit code: $EXIT_CODE"
+          # Fail the step only if tests actually errored (not just some failures)
+          exit $EXIT_CODE
 
       - name: Generate PDF + HTML test report
         if: always()
         run: |
           node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
           ls -lh test-results/vibes-ux-report.* 2>/dev/null || true
+
+      - name: Print test summary
+        if: always()
+        run: |
+          if [ -f test-results/results.json ]; then
+            node -e "
+              const d = require('./test-results/results.json');
+              const s = d.stats || {};
+              console.log('=== Test Summary ===');
+              console.log('Passed:', s.expected || 0);
+              console.log('Failed:', s.unexpected || 0);
+              console.log('Skipped:', s.skipped || 0);
+              console.log('Total:', (s.expected||0) + (s.unexpected||0) + (s.skipped||0));
+              console.log('Duration:', ((s.duration||0)/1000).toFixed(1) + 's');
+            "
+          fi
 
       - name: Stop vibes server
         if: always()
@@ -143,8 +166,8 @@ jobs:
           retention-days: 30
           if-no-files-found: ignore
 
-      - name: Upload server log (on failure)
-        if: failure()
+      - name: Upload server log
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: vibes-server-log
