@@ -1,62 +1,57 @@
 // Package acp implements the ACP (Agent Client Protocol) provider for Vibes.
 //
-// It wraps keepmind9/acp-sdk-go to manage stdio-based agent subprocesses
-// (copilot-language-server --acp --stdio, codex-acp, claude-agent-acp)
-// with streaming support.
+// Uses raw JSON-RPC 2.0 over stdio instead of the acp-sdk-go typed client,
+// because the SDK's strict union schema rejects valid responses from several
+// agents (OpenCode, Copilot) that omit the 'type' discriminator on authMethods.
 package acp
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 
-	acpclient "github.com/keepmind9/acp-sdk-go/client"
-	"github.com/keepmind9/acp-sdk-go/core"
-	"github.com/keepmind9/acp-sdk-go/helpers"
-	"github.com/keepmind9/acp-sdk-go/schema"
 	"github.com/keepmind9/acp-sdk-go/transport"
-
 	"github.com/rcarmo/vibes/internal/agent"
 )
 
 // Config configures an ACP agent provider.
 type Config struct {
-	ID      string            // provider identifier (e.g., "copilot")
-	Command string            // agent binary name (e.g., "copilot-language-server")
-	Args    []string          // agent binary arguments (e.g., ["--acp", "--stdio"])
-	WorkDir string            // working directory for the agent
-	Env     map[string]string // additional environment variables
-	Debug   bool              // enable wire-level logging (fixes #11)
+	ID      string
+	Command string
+	Args    []string
+	WorkDir string
+	Env     map[string]string
+	Debug   bool
 }
 
-// Provider implements agent.Provider for ACP agents.
+// Provider implements agent.Provider for ACP agents using raw JSON-RPC.
 type Provider struct {
 	cfg       Config
-	conn      *acpclient.ClientSideConnection
 	proc      *transport.Subprocess
+	writer    io.Writer
+	scanner   *bufio.Scanner
 	events    chan agent.Event
 	sessionID string
-
-	// Per-turn state for tool call tracking and content classification.
-	turnMu    sync.Mutex
-	toolCalls map[string]*schema.ToolCall
+	nextID    atomic.Int64
+	pending   sync.Map // id → chan json.RawMessage
 
 	mu     sync.RWMutex
 	status agent.ProviderStatus
 }
 
-// New creates a new ACP provider with the given configuration.
 func New(cfg Config) *Provider {
 	return &Provider{
-		cfg:       cfg,
-		events:    make(chan agent.Event, 256),
-		toolCalls: make(map[string]*schema.ToolCall),
-		status:    agent.ProviderStatus{State: "stopped"},
+		cfg:    cfg,
+		events: make(chan agent.Event, 256),
+		status: agent.ProviderStatus{State: "stopped"},
 	}
 }
 
@@ -75,15 +70,10 @@ func (p *Provider) setStatus(s agent.ProviderStatus) {
 	p.status = s
 }
 
-// Initialize spawns the ACP agent subprocess and performs the ACP handshake.
+// Initialize spawns the agent, performs the ACP handshake, and creates a session.
 func (p *Provider) Initialize(ctx context.Context) error {
-	slog.Info("spawning ACP agent",
-		"id", p.cfg.ID,
-		"command", p.cfg.Command,
-		"args", strings.Join(p.cfg.Args, " "),
-	)
+	slog.Info("spawning ACP agent", "id", p.cfg.ID, "command", p.cfg.Command, "args", strings.Join(p.cfg.Args, " "))
 
-	// Build spawn options
 	opts := []transport.SpawnOption{transport.WithArgs(p.cfg.Args...)}
 	if p.cfg.WorkDir != "" {
 		opts = append(opts, transport.WithCwd(p.cfg.WorkDir))
@@ -94,210 +84,289 @@ func (p *Provider) Initialize(ctx context.Context) error {
 
 	proc, err := transport.Spawn(p.cfg.Command, opts...)
 	if err != nil {
-		return fmt.Errorf("spawn ACP agent %s: %w", p.cfg.ID, err)
+		return fmt.Errorf("spawn: %w", err)
 	}
 	p.proc = proc
+	p.writer = proc.Stdin
+	p.scanner = bufio.NewScanner(proc.Stdout)
+	p.scanner.Buffer(make([]byte, 1<<20), 1<<20) // 1 MB lines
 
-	// Perform ACP initialize handshake.
-	// We do this as raw JSON-RPC because some agents (OpenCode) return
-	// authMethods without a 'type' discriminator, which the SDK's strict
-	// schema rejects. The raw approach is more tolerant.
-	resp, err := rawInitialize(proc, p.cfg.ID)
+	// Initialize
+	initResult, err := p.sendRequest("initialize", map[string]interface{}{
+		"protocolVersion":    1,
+		"clientInfo":         map[string]string{"name": "vibes-go", "version": "0.1.0"},
+		"clientCapabilities": map[string]interface{}{},
+	})
 	if err != nil {
 		proc.Close()
-		return fmt.Errorf("ACP initialize: %w", err)
+		return fmt.Errorf("initialize: %w", err)
 	}
 
 	model := ""
-	if name, ok := resp["agentInfo"].(map[string]interface{})["name"].(string); ok {
-		model = name
+	if result, ok := initResult.(map[string]interface{}); ok {
+		if ai, ok := result["agentInfo"].(map[string]interface{}); ok {
+			model, _ = ai["name"].(string)
+		}
 	}
 
-	// Connect using the SDK for session/prompt/cancel (post-init).
-	impl := &clientImpl{provider: p, Base: &acpclient.Base{}}
-	conn := core.ConnectToAgent(impl, proc)
-	go conn.ReceiveLoop()
-	p.conn = conn
+	// Start receive loop (must be after init since init reads synchronously)
+	go p.receiveLoop()
 
-	// Create a new session
+	// Create session
 	cwd := p.cfg.WorkDir
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	session, err := conn.NewSession(&schema.NewSessionRequest{
-		Cwd:        cwd,
-		McpServers: []*schema.McpServer{},
+	sessResult, err := p.sendRequestAsync("session/new", map[string]interface{}{
+		"cwd":        cwd,
+		"mcpServers": []interface{}{},
 	})
 	if err != nil {
-		slog.Warn("ACP new_session failed (agent may need auth)", "id", p.cfg.ID, "error", err)
-		// Continue — some agents work without a session for basic prompts
-	}
-	if session != nil && session.SessionId != nil {
-		p.sessionID = string(*session.SessionId)
+		slog.Warn("new_session failed (agent may need auth)", "id", p.cfg.ID, "error", err)
+	} else if result, ok := sessResult.(map[string]interface{}); ok {
+		if sid, ok := result["sessionId"].(string); ok {
+			p.sessionID = sid
+		}
 	}
 
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: model})
-	slog.Info("ACP agent initialized",
-		"id", p.cfg.ID,
-		"agent", model,
-		"session", p.sessionID,
-	)
-
+	slog.Info("ACP agent initialized", "id", p.cfg.ID, "agent", model, "session", p.sessionID)
 	return nil
 }
 
 // Prompt sends a user message to the ACP agent.
 func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) error {
-	if p.conn == nil || p.sessionID == "" {
+	if p.writer == nil {
 		return fmt.Errorf("ACP agent %s is not initialized", p.cfg.ID)
 	}
-
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
 	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
 
-	// Reset per-turn tool call state
-	p.turnMu.Lock()
-	p.toolCalls = make(map[string]*schema.ToolCall)
-	p.turnMu.Unlock()
+	params := map[string]interface{}{
+		"prompt": []interface{}{
+			map[string]interface{}{"type": "text", "text": message},
+		},
+	}
+	if p.sessionID != "" {
+		params["sessionId"] = p.sessionID
+	}
 
-	block := helpers.TextBlock(message)
-	sessID := schema.SessionId(p.sessionID)
-	resp, err := p.conn.Prompt(&schema.PromptRequest{
-		SessionId: &sessID,
-		Prompt:    []*schema.ContentBlock{&block},
-	})
-
+	_, err := p.sendRequestAsync("session/prompt", params)
 	if err != nil {
 		p.events <- agent.Event{Type: "error", Data: err.Error()}
 		return err
 	}
-
-	p.events <- agent.Event{Type: "response", Data: resp}
 	return nil
 }
 
 // Cancel aborts the current prompt.
 func (p *Provider) Cancel() error {
-	if p.conn == nil || p.sessionID == "" {
+	if p.sessionID == "" {
 		return nil
 	}
-	return p.conn.Cancel(p.sessionID)
+	return p.sendNotification("session/cancel", map[string]interface{}{
+		"sessionId": p.sessionID,
+	})
 }
 
 // Shutdown stops the ACP agent subprocess.
 func (p *Provider) Shutdown(ctx context.Context) error {
 	p.setStatus(agent.ProviderStatus{State: "stopped"})
-	if p.conn != nil {
-		p.conn.Close()
-	}
 	if p.proc != nil {
 		return p.proc.Close()
 	}
 	return nil
 }
 
-// clientImpl implements the ACP Client interface to receive session updates.
-type clientImpl struct {
-	*acpclient.Base
-	provider *Provider
-}
+// ── Raw JSON-RPC transport ───────────────────────────────────────
 
-// SessionUpdate is called for every streaming session/update notification.
-// We classify by metadata only (per docs/ACP_ROUTING.md) and fan out to events.
-func (c *clientImpl) SessionUpdate(_ context.Context, notif *schema.SessionNotification) error {
-	switch notif.Update.SessionUpdate {
-	case schema.SessionUpdateKindAgentMessageChunk:
-		c.provider.events <- agent.Event{Type: "draft", Data: notif.Update.AgentMessageChunk}
-
-	case schema.SessionUpdateKindAgentThoughtChunk:
-		c.provider.events <- agent.Event{Type: "thought", Data: notif.Update.AgentThoughtChunk}
-
-	case schema.SessionUpdateKindToolCall:
-		if notif.Update.ToolCall != nil {
-			c.provider.turnMu.Lock()
-			id := ""
-			if notif.Update.ToolCall.ToolCallId != nil {
-				id = string(*notif.Update.ToolCall.ToolCallId)
-			}
-			c.provider.toolCalls[id] = notif.Update.ToolCall
-			c.provider.turnMu.Unlock()
-			c.provider.events <- agent.Event{Type: "status", Data: notif.Update.ToolCall}
-		}
-
-	case schema.SessionUpdateKindToolCallUpdate:
-		if notif.Update.ToolCallUpdate != nil {
-			c.provider.events <- agent.Event{Type: "status", Data: notif.Update.ToolCallUpdate}
-		}
-
-	case schema.SessionUpdateKindPlan:
-		if notif.Update.Plan != nil {
-			c.provider.events <- agent.Event{Type: "plan", Data: notif.Update.Plan}
-		}
-	}
-	return nil
-}
-
-// rawInitialize performs the ACP initialize handshake using raw JSON-RPC,
-// bypassing the SDK's strict schema deserialization. This is needed because
-// some agents (OpenCode, Copilot) return authMethods without the 'type'
-// discriminator that the SDK's generated union types require.
-func rawInitialize(proc *transport.Subprocess, agentID string) (map[string]interface{}, error) {
+// sendRequest sends a synchronous JSON-RPC request (reads response directly).
+// Used only during initialization before the receive loop starts.
+func (p *Provider) sendRequest(method string, params interface{}) (interface{}, error) {
+	id := p.nextID.Add(1)
 	req := map[string]interface{}{
 		"jsonrpc": "2.0",
-		"id":      1,
-		"method":  "initialize",
-		"params": map[string]interface{}{
-			"protocolVersion":    1,
-			"clientInfo":         map[string]string{"name": "vibes-go", "version": "0.1.0"},
-			"clientCapabilities": map[string]interface{}{},
-		},
+		"id":      id,
+		"method":  method,
+		"params":  params,
 	}
-
-	data, err := json.Marshal(req)
-	if err != nil {
+	data, _ := json.Marshal(req)
+	if p.cfg.Debug {
+		slog.Debug("ACP wire →", "data", truncate(string(data), 500))
+	}
+	if _, err := p.writer.Write(append(data, '\n')); err != nil {
 		return nil, err
 	}
-	data = append(data, '\n')
 
-	if _, err := proc.Stdin.Write(data); err != nil {
-		return nil, fmt.Errorf("write initialize: %w", err)
+	// Read response synchronously
+	if !p.scanner.Scan() {
+		return nil, fmt.Errorf("connection closed")
 	}
-
-	// Read response line
-	buf := make([]byte, 0, 64*1024)
-	tmp := make([]byte, 4096)
-	for {
-		n, err := proc.Stdout.Read(tmp)
-		if n > 0 {
-			buf = append(buf, tmp[:n]...)
-			if bytes.Contains(buf, []byte("\n")) {
-				break
-			}
-		}
-		if err != nil {
-			return nil, fmt.Errorf("read initialize response: %w (got %d bytes)", err, len(buf))
-		}
-	}
-
-	// Parse the first complete JSON line
-	line := buf
-	if idx := bytes.IndexByte(buf, '\n'); idx >= 0 {
-		line = buf[:idx]
+	line := p.scanner.Bytes()
+	if p.cfg.Debug {
+		slog.Debug("ACP wire ←", "data", truncate(string(line), 500))
 	}
 
 	var resp map[string]interface{}
 	if err := json.Unmarshal(line, &resp); err != nil {
-		return nil, fmt.Errorf("parse initialize response: %w", err)
+		return nil, fmt.Errorf("parse response: %w", err)
 	}
-
 	if errObj, ok := resp["error"]; ok {
 		return nil, fmt.Errorf("agent error: %v", errObj)
 	}
+	return resp["result"], nil
+}
 
-	result, ok := resp["result"].(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("invalid initialize response: no result field")
+// sendRequestAsync sends a JSON-RPC request via the write pipe and waits
+// for the matching response on the receive loop.
+func (p *Provider) sendRequestAsync(method string, params interface{}) (interface{}, error) {
+	id := p.nextID.Add(1)
+	ch := make(chan json.RawMessage, 1)
+	p.pending.Store(id, ch)
+	defer p.pending.Delete(id)
+
+	req := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      id,
+		"method":  method,
+		"params":  params,
+	}
+	data, _ := json.Marshal(req)
+	if p.cfg.Debug {
+		slog.Debug("ACP wire →", "data", truncate(string(data), 500))
+	}
+	if _, err := p.writer.Write(append(data, '\n')); err != nil {
+		return nil, err
 	}
 
-	return result, nil
+	// Wait for response
+	raw := <-ch
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(raw, &resp); err != nil {
+		return nil, err
+	}
+	if errObj, ok := resp["error"]; ok {
+		return nil, fmt.Errorf("agent error: %v", errObj)
+	}
+	return resp["result"], nil
 }
+
+func (p *Provider) sendNotification(method string, params interface{}) error {
+	notif := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"method":  method,
+		"params":  params,
+	}
+	data, _ := json.Marshal(notif)
+	_, err := p.writer.Write(append(data, '\n'))
+	return err
+}
+
+// receiveLoop reads JSON-RPC messages from the agent and dispatches them.
+func (p *Provider) receiveLoop() {
+	for p.scanner.Scan() {
+		line := p.scanner.Bytes()
+		if len(line) == 0 {
+			continue
+		}
+		if p.cfg.Debug {
+			slog.Debug("ACP wire ←", "data", truncate(string(line), 500))
+		}
+
+		var msg map[string]json.RawMessage
+		if err := json.Unmarshal(line, &msg); err != nil {
+			continue
+		}
+
+		// Check if this is a response (has "id" and "result" or "error")
+		if idRaw, ok := msg["id"]; ok {
+			if _, hasResult := msg["result"]; hasResult {
+				var id int64
+				json.Unmarshal(idRaw, &id)
+				if ch, ok := p.pending.Load(id); ok {
+					ch.(chan json.RawMessage) <- json.RawMessage(line)
+					continue
+				}
+			}
+			if _, hasError := msg["error"]; hasError {
+				var id int64
+				json.Unmarshal(idRaw, &id)
+				if ch, ok := p.pending.Load(id); ok {
+					ch.(chan json.RawMessage) <- json.RawMessage(line)
+					continue
+				}
+			}
+		}
+
+		// It's a notification — route it
+		var methodName string
+		if m, ok := msg["method"]; ok {
+			json.Unmarshal(m, &methodName)
+		}
+
+		if methodName == "session/update" {
+			p.routeSessionUpdate(msg["params"])
+		}
+	}
+}
+
+func (p *Provider) routeSessionUpdate(paramsRaw json.RawMessage) {
+	var params map[string]json.RawMessage
+	if err := json.Unmarshal(paramsRaw, &params); err != nil {
+		return
+	}
+
+	var update map[string]json.RawMessage
+	if u, ok := params["update"]; ok {
+		json.Unmarshal(u, &update)
+	}
+	if update == nil {
+		return
+	}
+
+	var kind string
+	if k, ok := update["sessionUpdate"]; ok {
+		json.Unmarshal(k, &kind)
+	}
+
+	switch kind {
+	case "agent_message_chunk":
+		// Extract text from the content block
+		if content, ok := update["content"]; ok {
+			var cb map[string]interface{}
+			json.Unmarshal(content, &cb)
+			if text, ok := cb["text"].(map[string]interface{}); ok {
+				if t, ok := text["text"].(string); ok {
+					p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": t}}
+				}
+			}
+		}
+	case "agent_thought_chunk":
+		if content, ok := update["content"]; ok {
+			var cb map[string]interface{}
+			json.Unmarshal(content, &cb)
+			if text, ok := cb["text"].(map[string]interface{}); ok {
+				if t, ok := text["text"].(string); ok {
+					p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": t}}
+				}
+			}
+		}
+	case "tool_call":
+		p.events <- agent.Event{Type: "status", Data: string(update["title"])}
+	case "tool_call_update":
+		p.events <- agent.Event{Type: "status", Data: string(update["status"])}
+	case "plan":
+		p.events <- agent.Event{Type: "plan", Data: string(paramsRaw)}
+	}
+}
+
+func truncate(s string, max int) string {
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "..."
+}
+
+// Unused import suppression
+var _ = bytes.Contains
