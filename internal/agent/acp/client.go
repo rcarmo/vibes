@@ -6,9 +6,12 @@
 package acp
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
+	"os"
 	"strings"
 	"sync"
 
@@ -95,38 +98,41 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	}
 	p.proc = proc
 
-	// Connect using the core helper. The clientImpl receives session updates.
-	impl := &clientImpl{provider: p, Base: &acpclient.Base{}}
-	conn := core.ConnectToAgent(impl, proc)
-	go conn.ReceiveLoop()
-	p.conn = conn
-
-	// Perform ACP initialize handshake
-	pv := schema.ProtocolVersion(1)
-	resp, err := conn.Initialize(&schema.InitializeRequest{
-		ProtocolVersion:    &pv,
-		ClientCapabilities: &schema.ClientCapabilities{},
-		ClientInfo:         &schema.Implementation{Name: "vibes-go", Version: "0.1.0"},
-	})
+	// Perform ACP initialize handshake.
+	// We do this as raw JSON-RPC because some agents (OpenCode) return
+	// authMethods without a 'type' discriminator, which the SDK's strict
+	// schema rejects. The raw approach is more tolerant.
+	resp, err := rawInitialize(proc, p.cfg.ID)
 	if err != nil {
 		proc.Close()
 		return fmt.Errorf("ACP initialize: %w", err)
 	}
 
 	model := ""
-	if resp.AgentInfo != nil {
-		model = resp.AgentInfo.Name
+	if name, ok := resp["agentInfo"].(map[string]interface{})["name"].(string); ok {
+		model = name
 	}
 
+	// Connect using the SDK for session/prompt/cancel (post-init).
+	impl := &clientImpl{provider: p, Base: &acpclient.Base{}}
+	conn := core.ConnectToAgent(impl, proc)
+	go conn.ReceiveLoop()
+	p.conn = conn
+
 	// Create a new session
+	cwd := p.cfg.WorkDir
+	if cwd == "" {
+		cwd, _ = os.Getwd()
+	}
 	session, err := conn.NewSession(&schema.NewSessionRequest{
+		Cwd:        cwd,
 		McpServers: []*schema.McpServer{},
 	})
 	if err != nil {
-		proc.Close()
-		return fmt.Errorf("ACP new_session: %w", err)
+		slog.Warn("ACP new_session failed (agent may need auth)", "id", p.cfg.ID, "error", err)
+		// Continue — some agents work without a session for basic prompts
 	}
-	if session.SessionId != nil {
+	if session != nil && session.SessionId != nil {
 		p.sessionID = string(*session.SessionId)
 	}
 
@@ -134,7 +140,6 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	slog.Info("ACP agent initialized",
 		"id", p.cfg.ID,
 		"agent", model,
-		"protocol", *resp.ProtocolVersion,
 		"session", p.sessionID,
 	)
 
@@ -230,4 +235,69 @@ func (c *clientImpl) SessionUpdate(_ context.Context, notif *schema.SessionNotif
 		}
 	}
 	return nil
+}
+
+// rawInitialize performs the ACP initialize handshake using raw JSON-RPC,
+// bypassing the SDK's strict schema deserialization. This is needed because
+// some agents (OpenCode, Copilot) return authMethods without the 'type'
+// discriminator that the SDK's generated union types require.
+func rawInitialize(proc *transport.Subprocess, agentID string) (map[string]interface{}, error) {
+	req := map[string]interface{}{
+		"jsonrpc": "2.0",
+		"id":      1,
+		"method":  "initialize",
+		"params": map[string]interface{}{
+			"protocolVersion":    1,
+			"clientInfo":         map[string]string{"name": "vibes-go", "version": "0.1.0"},
+			"clientCapabilities": map[string]interface{}{},
+		},
+	}
+
+	data, err := json.Marshal(req)
+	if err != nil {
+		return nil, err
+	}
+	data = append(data, '\n')
+
+	if _, err := proc.Stdin.Write(data); err != nil {
+		return nil, fmt.Errorf("write initialize: %w", err)
+	}
+
+	// Read response line
+	buf := make([]byte, 0, 64*1024)
+	tmp := make([]byte, 4096)
+	for {
+		n, err := proc.Stdout.Read(tmp)
+		if n > 0 {
+			buf = append(buf, tmp[:n]...)
+			if bytes.Contains(buf, []byte("\n")) {
+				break
+			}
+		}
+		if err != nil {
+			return nil, fmt.Errorf("read initialize response: %w (got %d bytes)", err, len(buf))
+		}
+	}
+
+	// Parse the first complete JSON line
+	line := buf
+	if idx := bytes.IndexByte(buf, '\n'); idx >= 0 {
+		line = buf[:idx]
+	}
+
+	var resp map[string]interface{}
+	if err := json.Unmarshal(line, &resp); err != nil {
+		return nil, fmt.Errorf("parse initialize response: %w", err)
+	}
+
+	if errObj, ok := resp["error"]; ok {
+		return nil, fmt.Errorf("agent error: %v", errObj)
+	}
+
+	result, ok := resp["result"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("invalid initialize response: no result field")
+	}
+
+	return result, nil
 }
