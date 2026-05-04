@@ -344,23 +344,20 @@ func (p *Provider) routeSessionUpdate(paramsRaw json.RawMessage) {
 		if content, ok := update["content"]; ok {
 			var cb map[string]interface{}
 			json.Unmarshal(content, &cb)
-			if text, ok := cb["text"].(map[string]interface{}); ok {
-				if t, ok := text["text"].(string); ok {
-					p.draftMu.Lock()
-					p.draftText.WriteString(t)
-					p.draftMu.Unlock()
-					p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": t}}
-				}
+			// Content block is {"type": "text", "text": "Hello"}
+			if t, ok := cb["text"].(string); ok && t != "" {
+				p.draftMu.Lock()
+				p.draftText.WriteString(t)
+				p.draftMu.Unlock()
+				p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": t}}
 			}
 		}
 	case "agent_thought_chunk":
 		if content, ok := update["content"]; ok {
 			var cb map[string]interface{}
 			json.Unmarshal(content, &cb)
-			if text, ok := cb["text"].(map[string]interface{}); ok {
-				if t, ok := text["text"].(string); ok {
-					p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": t}}
-				}
+			if t, ok := cb["text"].(string); ok && t != "" {
+				p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": t}}
 			}
 		}
 	case "tool_call":
