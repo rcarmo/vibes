@@ -134,10 +134,21 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				return
 			}
 
+			// Collect final content from the provider's draft accumulator
+			type draftCollector interface {
+				CollectedDraft() string
+			}
+			finalContent := "(response delivered via streaming)"
+			if dc, ok := provider.(draftCollector); ok {
+				if draft := dc.CollectedDraft(); draft != "" {
+					finalContent = draft
+				}
+			}
+
 			// Store agent response (content was streamed via SSE draft events)
 			agentData := db.InteractionData{
 				Type:     "agent_response",
-				Content:  "(response delivered via streaming)",
+				Content:  finalContent,
 				AgentID:  provider.ID(),
 				ThreadID: &threadID,
 				Model:    provider.Status().Model,

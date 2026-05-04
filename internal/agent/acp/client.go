@@ -41,7 +41,11 @@ type Provider struct {
 	events    chan agent.Event
 	sessionID string
 	nextID    atomic.Int64
-	pending   sync.Map // id → chan json.RawMessage
+	pending   sync.Map
+
+	// Accumulated draft text for the current turn
+	draftMu   sync.Mutex
+	draftText strings.Builder
 
 	mu     sync.RWMutex
 	status agent.ProviderStatus
@@ -141,6 +145,11 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 	}
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
 	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
+
+	// Reset draft accumulator
+	p.draftMu.Lock()
+	p.draftText.Reset()
+	p.draftMu.Unlock()
 
 	params := map[string]interface{}{
 		"prompt": []interface{}{
@@ -332,12 +341,14 @@ func (p *Provider) routeSessionUpdate(paramsRaw json.RawMessage) {
 
 	switch kind {
 	case "agent_message_chunk":
-		// Extract text from the content block
 		if content, ok := update["content"]; ok {
 			var cb map[string]interface{}
 			json.Unmarshal(content, &cb)
 			if text, ok := cb["text"].(map[string]interface{}); ok {
 				if t, ok := text["text"].(string); ok {
+					p.draftMu.Lock()
+					p.draftText.WriteString(t)
+					p.draftMu.Unlock()
 					p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": t}}
 				}
 			}
@@ -370,3 +381,10 @@ func truncate(s string, max int) string {
 
 // Unused import suppression
 var _ = bytes.Contains
+
+// CollectedDraft returns the accumulated draft text from the last prompt turn.
+func (p *Provider) CollectedDraft() string {
+	p.draftMu.Lock()
+	defer p.draftMu.Unlock()
+	return p.draftText.String()
+}
