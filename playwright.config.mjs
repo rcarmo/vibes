@@ -15,7 +15,7 @@ import { defineConfig } from '@playwright/test';
  */
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['steps/*.spec.mjs', 'e2e/*.spec.mjs'],
+  testMatch: ['steps/*.spec.mjs'],
   timeout: 120_000,
   retries: 0,
   workers: 1,

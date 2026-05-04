@@ -112,13 +112,8 @@ func TestDeletePost(t *testing.T) {
 
 	// Delete
 	w = doJSON(r, "DELETE", "/post/"+itoa(id), nil)
-	if w.Code != 200 {
-		t.Errorf("delete status = %d, want 200", w.Code)
-	}
-	json.Unmarshal(w.Body.Bytes(), &resp)
-	ids := resp["ids"].([]interface{})
-	if len(ids) != 1 || int(ids[0].(float64)) != id {
-		t.Errorf("delete ids = %v, want [%d]", ids, id)
+	if w.Code != 204 {
+		t.Errorf("delete status = %d, want 204", w.Code)
 	}
 
 	// Verify gone

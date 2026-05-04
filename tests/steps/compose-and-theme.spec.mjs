@@ -15,16 +15,17 @@ test.describe('Feature: Compose Box UX', () => {
     test('Scenario: Compose history with arrow keys', async ({ page }) => {
         await page.goto(BASE_URL);
         await waitForConnection(page);
+        // Send messages and wait briefly (don't require agent response for history test)
         await sendMessage(page, 'BDD history msg one');
-        await waitForAgentResponse(page);
-        await waitForAgentIdle(page);
+        await page.waitForTimeout(3000);
         await sendMessage(page, 'BDD history msg two');
-        await waitForAgentResponse(page);
-        await waitForAgentIdle(page);
+        await page.waitForTimeout(3000);
         const textarea = page.locator('.compose-box textarea');
         await textarea.click();
         await textarea.press('ArrowUp');
-        expect((await textarea.inputValue()).length).toBeGreaterThan(0);
+        // History should recall something
+        const value = await textarea.inputValue();
+        expect(value.length).toBeGreaterThan(0);
     });
 
     test('Scenario: Model picker typeahead', async ({ page }) => {

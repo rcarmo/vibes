@@ -215,7 +215,7 @@ func deletePost(database *db.DB) http.HandlerFunc {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		jsonResp(w, map[string]interface{}{"ids": ids})
+		w.WriteHeader(http.StatusNoContent)
 	}
 }
 
