@@ -15,15 +15,17 @@ test.describe('Feature: Compose Box UX', () => {
     test('Scenario: Compose history with arrow keys', async ({ page }) => {
         await page.goto(BASE_URL);
         await waitForConnection(page);
-        // Send messages and wait briefly (don't require agent response for history test)
-        await sendMessage(page, 'BDD history msg one');
-        await page.waitForTimeout(3000);
-        await sendMessage(page, 'BDD history msg two');
-        await page.waitForTimeout(3000);
+        // Send two messages quickly (compose history is client-side, no agent needed)
         const textarea = page.locator('.compose-box textarea');
+        await textarea.fill('History test one');
+        await textarea.press('Enter');
+        await page.waitForTimeout(500);
+        await textarea.fill('History test two');
+        await textarea.press('Enter');
+        await page.waitForTimeout(500);
+        // Arrow up should recall a previous message
         await textarea.click();
         await textarea.press('ArrowUp');
-        // History should recall something
         const value = await textarea.inputValue();
         expect(value.length).toBeGreaterThan(0);
     });
