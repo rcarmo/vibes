@@ -13,10 +13,12 @@ test.describe('Feature: Compose Box UX', () => {
     });
 
     test('Scenario: Compose history with arrow keys', async ({ page }) => {
+        test.setTimeout(30000);
         await page.goto(BASE_URL);
-        await waitForConnection(page);
-        // Send two messages quickly (compose history is client-side, no agent needed)
+        // Wait for the page to load (textarea exists), don't need full SSE connection
+        await page.waitForSelector('.compose-box textarea', { timeout: 10000 });
         const textarea = page.locator('.compose-box textarea');
+        // Type and send two messages
         await textarea.fill('History test one');
         await textarea.press('Enter');
         await page.waitForTimeout(500);
