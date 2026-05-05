@@ -3237,12 +3237,45 @@ body {
     z-index: 1000;
     cursor: zoom-out;
     animation: fadeIn 0.2s ease-out;
+    overflow: hidden;
 }
 
-.image-modal img {
+.image-modal-img {
     max-width: 95vw;
     max-height: 95vh;
     object-fit: contain;
+    transform-origin: center center;
+    transition: none;
+    user-select: none;
+}
+
+.image-modal-controls {
+    position: absolute;
+    top: 16px;
+    right: 16px;
+    display: flex;
+    gap: 4px;
+    z-index: 1001;
+}
+
+.image-modal-controls button {
+    background: rgba(255, 255, 255, 0.15);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: white;
+    border-radius: var(--radius-md);
+    width: 36px;
+    height: 36px;
+    font-size: 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(8px);
+    transition: background 0.15s;
+}
+
+.image-modal-controls button:hover {
+    background: rgba(255, 255, 255, 0.25);
 }
 
 /* Responsive breakpoints */

@@ -172,6 +172,12 @@ function enhanceCodeBlocks(container) {
 }
 
 function ImageModal({ src, onClose }) {
+    const [scale, setScale] = useState(1);
+    const [translate, setTranslate] = useState({ x: 0, y: 0 });
+    const [dragging, setDragging] = useState(false);
+    const dragStart = useRef({ x: 0, y: 0 });
+    const imgRef = useRef(null);
+
     useEffect(() => {
         const handleEsc = (e) => {
             if (e.key === 'Escape') onClose();
@@ -180,9 +186,58 @@ function ImageModal({ src, onClose }) {
         return () => document.removeEventListener('keydown', handleEsc);
     }, [onClose]);
 
+    const handleWheel = (e) => {
+        e.preventDefault();
+        const delta = e.deltaY > 0 ? 0.9 : 1.1;
+        setScale((s) => Math.max(0.5, Math.min(10, s * delta)));
+    };
+
+    const handlePointerDown = (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        setDragging(true);
+        dragStart.current = { x: e.clientX - translate.x, y: e.clientY - translate.y };
+        e.target.setPointerCapture(e.pointerId);
+    };
+
+    const handlePointerMove = (e) => {
+        if (!dragging) return;
+        setTranslate({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
+    };
+
+    const handlePointerUp = () => setDragging(false);
+
+    const handleDoubleClick = (e) => {
+        e.stopPropagation();
+        setScale(scale === 1 ? 2 : 1);
+        setTranslate({ x: 0, y: 0 });
+    };
+
+    const zoomIn = (e) => { e.stopPropagation(); setScale((s) => Math.min(10, s * 1.3)); };
+    const zoomOut = (e) => { e.stopPropagation(); setScale((s) => Math.max(0.5, s / 1.3)); };
+    const resetZoom = (e) => { e.stopPropagation(); setScale(1); setTranslate({ x: 0, y: 0 }); };
+
     return html`
-        <div class="image-modal" onClick=${onClose}>
-            <img src=${src} alt="Full size" />
+        <div class="image-modal" onClick=${onClose} onWheel=${handleWheel}>
+            <div class="image-modal-controls" onClick=${(e) => e.stopPropagation()}>
+                <button onClick=${zoomOut} title="Zoom out">−</button>
+                <button onClick=${resetZoom} title="Reset">${Math.round(scale * 100)}%</button>
+                <button onClick=${zoomIn} title="Zoom in">+</button>
+                <button onClick=${onClose} title="Close">✕</button>
+            </div>
+            <img
+                ref=${imgRef}
+                src=${src}
+                alt="Full size"
+                class="image-modal-img"
+                style=${{ transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`, cursor: dragging ? 'grabbing' : 'grab' }}
+                onClick=${(e) => e.stopPropagation()}
+                onDblClick=${handleDoubleClick}
+                onPointerDown=${handlePointerDown}
+                onPointerMove=${handlePointerMove}
+                onPointerUp=${handlePointerUp}
+                draggable="false"
+            />
         </div>
     `;
 }
