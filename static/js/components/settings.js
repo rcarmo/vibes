@@ -10,6 +10,7 @@ const TABS = [
     { id: 'models', label: 'Models', icon: '🤖' },
     { id: 'editor', label: 'Editor', icon: '✏️' },
     { id: 'permissions', label: 'Permissions', icon: '🔒' },
+    { id: 'actions', label: 'Quick Actions', icon: '⚡' },
     { id: 'developer', label: 'Developer', icon: '🛠️' },
     { id: 'workspace', label: 'Workspace', icon: '📁' },
 ];
@@ -224,12 +225,60 @@ function PermissionsTab() {
     `;
 }
 
+function QuickActionsTab() {
+    const [agents, setAgents] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        fetch('/agents')
+            .then(r => r.json())
+            .then(data => {
+                const list = Array.isArray(data) ? data : data.agents || [];
+                setAgents(list);
+            })
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, []);
+
+    const triggerAction = async (agentId, actionId) => {
+        try {
+            await fetch(`/agent/${agentId}/action/${actionId}`, { method: 'POST' });
+        } catch (e) { console.error('Action failed', e); }
+    };
+
+    return html`
+        <div class="settings-section">
+            <h3>Quick Actions</h3>
+            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: 12px;">
+                Custom endpoints configured in config/endpoints.json. Actions are triggered against the active agent.
+            </p>
+            ${loading && html`<div style="color: var(--text-secondary)">Loading...</div>`}
+            ${!loading && agents.length === 0 && html`<div style="color: var(--text-secondary); font-size: var(--font-size-sm)">No agents configured.</div>`}
+            ${agents.map(a => html`
+                <div style="margin-bottom: 12px">
+                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 4px">${a.name || a.id}</div>
+                    ${(a.actions || []).length === 0
+                        ? html`<div style="color: var(--text-secondary); font-size: var(--font-size-xs)">No actions available</div>`
+                        : (a.actions || []).map(action => html`
+                            <button onClick=${() => triggerAction(a.id, action.id)}
+                                style="margin: 2px 4px 2px 0; padding: 4px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-primary); cursor: pointer; font-size: var(--font-size-sm);">
+                                ${action.label || action.id}
+                            </button>
+                        `)
+                    }
+                </div>
+            `)}
+        </div>
+    `;
+}
+
 const TAB_COMPONENTS = {
     general: GeneralTab,
     appearance: AppearanceTab,
     models: ModelsTab,
     editor: EditorTab,
     permissions: PermissionsTab,
+    actions: QuickActionsTab,
     developer: DeveloperTab,
     workspace: WorkspaceTab,
 };
@@ -309,4 +358,79 @@ export function SettingsDialog({ open, onClose }) {
 
 export function getSettings() {
     return loadSettings();
+}
+
+const OOBE_KEY = 'vibes-oobe-done';
+
+export function FirstRunWizard({ onComplete }) {
+    const [step, setStep] = useState(0);
+    const [agentName, setAgentName] = useState('');
+    const [testing, setTesting] = useState(false);
+    const [testResult, setTestResult] = useState(null);
+
+    if (localStorage.getItem(OOBE_KEY)) return null;
+
+    const handleTest = async () => {
+        setTesting(true);
+        setTestResult(null);
+        try {
+            const resp = await fetch('/health');
+            if (resp.ok) {
+                const data = await resp.json();
+                setTestResult({ ok: true, agent: data.agent || 'connected' });
+            } else {
+                setTestResult({ ok: false, error: 'Server returned ' + resp.status });
+            }
+        } catch (e) {
+            setTestResult({ ok: false, error: e.message });
+        }
+        setTesting(false);
+    };
+
+    const handleFinish = () => {
+        if (agentName) {
+            const s = loadSettings();
+            s.agentName = agentName;
+            saveSettings(s);
+        }
+        localStorage.setItem(OOBE_KEY, '1');
+        onComplete?.();
+    };
+
+    return html`
+        <div class="settings-overlay">
+            <div class="settings-dialog" style="max-width: 480px; height: auto; max-height: 400px;" onClick=${(e) => e.stopPropagation()}>
+                <div class="settings-content" style="width: 100%">
+                    <div class="settings-content-header">
+                        <h2>Welcome to Vibes 🌟</h2>
+                    </div>
+                    <div class="settings-content-body">
+                        ${step === 0 && html`
+                            <div class="settings-section">
+                                <p style="color: var(--text-secondary); margin-bottom: 16px;">Let's make sure everything is connected.</p>
+                                <${SettingRow} label="Agent name" description="Give your AI assistant a name">
+                                    <input type="text" value=${agentName} placeholder="Agent"
+                                        onInput=${(e) => setAgentName(e.target.value)} />
+                                <//>
+                                <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
+                                    <button onClick=${handleTest} disabled=${testing}
+                                        style="padding: 8px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer;">
+                                        ${testing ? 'Testing...' : 'Test Connection'}
+                                    </button>
+                                    ${testResult?.ok && html`<span style="color: #4ec9b0;">✓ Connected (${testResult.agent})</span>`}
+                                    ${testResult && !testResult.ok && html`<span style="color: var(--danger-color);">✗ ${testResult.error}</span>`}
+                                </div>
+                            </div>
+                        `}
+                        <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;">
+                            <button onClick=${handleFinish}
+                                style="padding: 8px 20px; border: none; border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer; font-weight: 500;">
+                                ${testResult?.ok ? 'Get Started' : 'Skip'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
 }
