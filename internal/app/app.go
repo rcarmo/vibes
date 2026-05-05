@@ -228,6 +228,7 @@ func New(cfg *config.Config) (*App, error) {
 
 	// SSE stream
 	r.Get("/sse/stream", broker.Handler())
+	r.Get("/terminal/ws", routes.TerminalHandler())
 
 	// Extension routes
 	for _, route := range app.Extensions.AllRoutes() {

@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Terminal</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5/css/xterm.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: #1e1e1e; }
+        .toolbar {
+            height: 36px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+        }
+        .toolbar .title { color: #ccc; font-family: system-ui, sans-serif; font-size: 13px; flex: 1; }
+        .toolbar .status { font-size: 11px; font-family: system-ui, sans-serif; }
+        .toolbar .status.connected { color: #4ec9b0; }
+        .toolbar .status.disconnected { color: #f48771; }
+        #terminal-container {
+            height: calc(100% - 36px);
+            padding: 4px;
+        }
+        .xterm { height: 100%; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <span class="title">Terminal</span>
+        <span class="status disconnected" id="status">connecting…</span>
+    </div>
+    <div id="terminal-container"></div>
+    <script type="module">
+        import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@5/+esm';
+        import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0/+esm';
+        import { WebLinksAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@0/+esm';
+
+        const term = new Terminal({
+            fontSize: 14,
+            fontFamily: "'SF Mono', 'Fira Code', 'Cascadia Code', Menlo, monospace",
+            theme: {
+                background: '#1e1e1e',
+                foreground: '#d4d4d4',
+                cursor: '#d4d4d4',
+                selectionBackground: '#264f78',
+            },
+            cursorBlink: true,
+            allowTransparency: true,
+        });
+
+        const fitAddon = new FitAddon();
+        term.loadAddon(fitAddon);
+        term.loadAddon(new WebLinksAddon());
+
+        const container = document.getElementById('terminal-container');
+        term.open(container);
+        fitAddon.fit();
+
+        const statusEl = document.getElementById('status');
+
+        // Connect WebSocket
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(`${proto}//${location.host}/terminal/ws`);
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = () => {
+            statusEl.textContent = 'connected';
+            statusEl.className = 'status connected';
+            // Send initial resize
+            const dims = fitAddon.proposeDimensions();
+            if (dims) {
+                ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+            }
+        };
+
+        ws.onmessage = (event) => {
+            if (event.data instanceof ArrayBuffer) {
+                term.write(new Uint8Array(event.data));
+            } else {
+                term.write(event.data);
+            }
+        };
+
+        ws.onclose = () => {
+            statusEl.textContent = 'disconnected';
+            statusEl.className = 'status disconnected';
+            term.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+        };
+
+        ws.onerror = () => {
+            statusEl.textContent = 'error';
+            statusEl.className = 'status disconnected';
+        };
+
+        // Terminal input → WebSocket
+        term.onData((data) => {
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.send(data);
+            }
+        });
+
+        // Handle resize
+        const handleResize = () => {
+            fitAddon.fit();
+            const dims = fitAddon.proposeDimensions();
+            if (dims && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'resize', cols: dims.cols, rows: dims.rows }));
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        new ResizeObserver(handleResize).observe(container);
+    </script>
+</body>
+</html>
