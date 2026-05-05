@@ -1,5 +1,8 @@
 # Vibes
 
+[![UX Tests](https://github.com/rcarmo/vibes/actions/workflows/ux-tests.yml/badge.svg)](https://github.com/rcarmo/vibes/actions/workflows/ux-tests.yml)
+[![CI](https://github.com/rcarmo/vibes/actions/workflows/ci.yml/badge.svg)](https://github.com/rcarmo/vibes/actions/workflows/ci.yml)
+
 A mobile-friendly web UI for coding agents, written in Go. Ships as a single static binary (~24 MB) with zero runtime dependencies.
 
 Supports four [ACP](https://agentclientprotocol.com/) agents and [Pi](https://pi.dev) native RPC. Built for personal use over Tailscale.
