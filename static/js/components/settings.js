@@ -9,6 +9,7 @@ const TABS = [
     { id: 'appearance', label: 'Appearance', icon: '🎨' },
     { id: 'models', label: 'Models', icon: '🤖' },
     { id: 'editor', label: 'Editor', icon: '✏️' },
+    { id: 'permissions', label: 'Permissions', icon: '🔒' },
     { id: 'developer', label: 'Developer', icon: '🛠️' },
     { id: 'workspace', label: 'Workspace', icon: '📁' },
 ];
@@ -152,11 +153,83 @@ function WorkspaceTab({ settings, onChange }) {
     `;
 }
 
+function PermissionsTab() {
+    const [patterns, setPatterns] = useState([]);
+    const [newPattern, setNewPattern] = useState('');
+    const [loading, setLoading] = useState(true);
+
+    const loadWhitelist = useCallback(async () => {
+        try {
+            const resp = await fetch('/agent/whitelist');
+            if (resp.ok) {
+                const data = await resp.json();
+                setPatterns(data.patterns || []);
+            }
+        } catch (e) { console.error('Failed to load whitelist', e); }
+        setLoading(false);
+    }, []);
+
+    useEffect(() => { loadWhitelist(); }, []);
+
+    const handleAdd = async () => {
+        const pattern = newPattern.trim();
+        if (!pattern) return;
+        try {
+            const resp = await fetch('/agent/whitelist', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pattern }),
+            });
+            if (resp.ok) {
+                setNewPattern('');
+                loadWhitelist();
+            }
+        } catch (e) { console.error('Failed to add pattern', e); }
+    };
+
+    const handleRemove = async (pattern) => {
+        try {
+            await fetch('/agent/whitelist', {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pattern }),
+            });
+            loadWhitelist();
+        } catch (e) { console.error('Failed to remove pattern', e); }
+    };
+
+    return html`
+        <div class="settings-section">
+            <h3>Tool Whitelist</h3>
+            <p style="color: var(--text-secondary); font-size: var(--font-size-sm); margin-bottom: 12px;">
+                Patterns that auto-approve agent tool requests without prompting.
+            </p>
+            <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                <input type="text" value=${newPattern}
+                    onInput=${(e) => setNewPattern(e.target.value)}
+                    onKeyDown=${(e) => e.key === 'Enter' && handleAdd()}
+                    placeholder="e.g. tools/read_file, bash*"
+                    style="flex: 1; padding: 6px 10px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--bg-secondary); color: var(--text-primary); font-size: var(--font-size-sm);" />
+                <button onClick=${handleAdd} style="padding: 6px 12px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer; font-size: var(--font-size-sm);">Add</button>
+            </div>
+            ${loading && html`<div style="color: var(--text-secondary)">Loading...</div>`}
+            ${!loading && patterns.length === 0 && html`<div style="color: var(--text-secondary); font-size: var(--font-size-sm)">No patterns configured. All tool requests will prompt.</div>`}
+            ${patterns.map((p) => html`
+                <div class="settings-row">
+                    <code style="font-size: var(--font-size-sm); color: var(--text-primary)">${p}</code>
+                    <button onClick=${() => handleRemove(p)} style="border: none; background: none; color: var(--danger-color); cursor: pointer; font-size: 16px;" title="Remove">✕</button>
+                </div>
+            `)}
+        </div>
+    `;
+}
+
 const TAB_COMPONENTS = {
     general: GeneralTab,
     appearance: AppearanceTab,
     models: ModelsTab,
     editor: EditorTab,
+    permissions: PermissionsTab,
     developer: DeveloperTab,
     workspace: WorkspaceTab,
 };
