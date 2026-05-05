@@ -7,6 +7,7 @@ import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
 import { TabStrip } from './components/tab-strip.js';
 import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
+import { SettingsDialog, getSettings } from './components/settings.js';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
@@ -709,6 +710,7 @@ function App() {
     const [editorTabs, setEditorTabs] = useState([]);
     const [activeEditorTabId, setActiveEditorTabId] = useState(null);
     const [previewTabs, setPreviewTabs] = useState(() => new Set());
+    const [settingsOpen, setSettingsOpen] = useState(false);
     const [userProfile, setUserProfile] = useState({ name: 'You', avatar_url: null, avatar_background: null });
     const hasConnectedOnceRef = useRef(false);
     const wasAgentActiveRef = useRef(false);
@@ -2332,9 +2334,11 @@ function App() {
                     notificationsEnabled=${notificationsEnabled}
                     notificationPermission=${notificationPermission}
                     onToggleNotifications=${handleToggleNotifications}
+                    onOpenSettings=${() => setSettingsOpen(true)}
                 />
                 <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
+                <${SettingsDialog} open=${settingsOpen} onClose=${() => setSettingsOpen(false)} />
             </div>`}
         </div>
     `;
