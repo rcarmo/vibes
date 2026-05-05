@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>CSV Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: #1e1e1e; color: #d4d4d4; font-family: system-ui, sans-serif; }
+        .toolbar {
+            height: 40px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+        }
+        .toolbar .filename { color: #ccc; font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .toolbar .meta { color: #888; font-size: 12px; }
+        .table-container {
+            height: calc(100% - 40px);
+            overflow: auto;
+            padding: 8px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            font-size: 13px;
+            font-family: 'SF Mono', 'Fira Code', monospace;
+        }
+        th, td {
+            border: 1px solid #444;
+            padding: 4px 8px;
+            text-align: left;
+            white-space: nowrap;
+            max-width: 400px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        th {
+            background: #2d2d2d;
+            position: sticky;
+            top: 0;
+            font-weight: 600;
+            color: #7cb3f5;
+        }
+        tr:hover td { background: #2a2d2e; }
+        .error { padding: 24px; color: #f48771; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <span class="filename" id="filename">Loading...</span>
+        <span class="meta" id="meta"></span>
+    </div>
+    <div class="table-container" id="container">
+        <div class="error" id="error" style="display:none"></div>
+        <table id="table" style="display:none">
+            <thead id="thead"></thead>
+            <tbody id="tbody"></tbody>
+        </table>
+    </div>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const path = params.get('path') || '';
+        document.getElementById('filename').textContent = path.split('/').pop() || 'CSV';
+
+        function parseCSV(text) {
+            const lines = text.split(/\r?\n/).filter(l => l.trim());
+            const rows = [];
+            for (const line of lines) {
+                const row = [];
+                let i = 0, inQuote = false, cell = '';
+                while (i < line.length) {
+                    const ch = line[i];
+                    if (ch === '"' && !inQuote) { inQuote = true; i++; continue; }
+                    if (ch === '"' && inQuote) {
+                        if (line[i+1] === '"') { cell += '"'; i += 2; continue; }
+                        inQuote = false; i++; continue;
+                    }
+                    if (ch === ',' && !inQuote) { row.push(cell); cell = ''; i++; continue; }
+                    cell += ch; i++;
+                }
+                row.push(cell);
+                rows.push(row);
+            }
+            return rows;
+        }
+
+        fetch('/workspace/raw?path=' + encodeURIComponent(path))
+            .then(r => { if (!r.ok) throw new Error(r.status + ' ' + r.statusText); return r.text(); })
+            .then(text => {
+                const rows = parseCSV(text);
+                if (rows.length === 0) throw new Error('Empty file');
+                const headers = rows[0];
+                const data = rows.slice(1);
+                document.getElementById('meta').textContent = `${data.length} rows × ${headers.length} cols`;
+                const thead = document.getElementById('thead');
+                thead.innerHTML = '<tr>' + headers.map(h => `<th title="${h}">${h}</th>`).join('') + '</tr>';
+                const tbody = document.getElementById('tbody');
+                const MAX = 5000;
+                const slice = data.slice(0, MAX);
+                tbody.innerHTML = slice.map(row =>
+                    '<tr>' + row.map(cell => `<td title="${cell}">${cell}</td>`).join('') + '</tr>'
+                ).join('');
+                if (data.length > MAX) {
+                    document.getElementById('meta').textContent += ` (showing first ${MAX})`;
+                }
+                document.getElementById('table').style.display = '';
+            })
+            .catch(err => {
+                document.getElementById('error').textContent = err.message;
+                document.getElementById('error').style.display = '';
+            });
+    </script>
+</body>
+</html>

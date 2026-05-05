@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Video Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: #1e1e1e; }
+        .toolbar {
+            height: 40px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+        }
+        .toolbar .filename { color: #ccc; font-family: system-ui, sans-serif; font-size: 13px; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .video-container {
+            height: calc(100% - 40px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #000;
+        }
+        video {
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <span class="filename" id="filename">Loading...</span>
+    </div>
+    <div class="video-container">
+        <video id="player" controls autoplay></video>
+    </div>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const path = params.get('path') || '';
+        const rawUrl = '/workspace/raw?path=' + encodeURIComponent(path);
+        document.getElementById('filename').textContent = path.split('/').pop() || 'Video';
+        document.getElementById('player').src = rawUrl;
+    </script>
+</body>
+</html>

@@ -5,6 +5,8 @@ const CSV_EXTENSIONS = /\.(csv|tsv)$/i;
 const PDF_EXTENSIONS = /\.pdf$/i;
 const IMAGE_EXTENSIONS = /\.(png|jpe?g|gif|webp|bmp|ico|svg)$/i;
 const DRAWIO_EXTENSIONS = /\.drawio(\.xml|\.svg|\.png)?$/i;
+const HTML_EXTENSIONS = /\.html?$/i;
+const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogv|avi|mkv)$/i;
 
 /**
  * Resolve a standalone (new-tab) URL for a given file path, or null if the
@@ -22,7 +24,13 @@ export function getStandaloneTabUrl(path, { hasPopOutTab = false } = {}) {
         return '/csv-viewer/?path=' + encodeURIComponent(normalizedPath);
     }
     if (PDF_EXTENSIONS.test(normalizedPath)) {
-        return '/workspace/raw?path=' + encodeURIComponent(normalizedPath);
+        return '/pdf-viewer/?path=' + encodeURIComponent(normalizedPath);
+    }
+    if (HTML_EXTENSIONS.test(normalizedPath)) {
+        return '/html-viewer/?path=' + encodeURIComponent(normalizedPath);
+    }
+    if (VIDEO_EXTENSIONS.test(normalizedPath)) {
+        return '/video-viewer/?path=' + encodeURIComponent(normalizedPath);
     }
     if (IMAGE_EXTENSIONS.test(normalizedPath) && !DRAWIO_EXTENSIONS.test(normalizedPath)) {
         return '/image-viewer/?path=' + encodeURIComponent(normalizedPath);

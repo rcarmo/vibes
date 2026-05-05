@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PDF Viewer</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        html, body { height: 100%; overflow: hidden; background: #1e1e1e; }
+        .toolbar {
+            height: 40px;
+            background: #2d2d2d;
+            border-bottom: 1px solid #444;
+            display: flex;
+            align-items: center;
+            padding: 0 12px;
+            gap: 8px;
+        }
+        .toolbar .filename {
+            color: #ccc;
+            font-family: system-ui, sans-serif;
+            font-size: 13px;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .toolbar a {
+            color: #7cb3f5;
+            text-decoration: none;
+            font-size: 13px;
+            font-family: system-ui, sans-serif;
+        }
+        .toolbar a:hover { text-decoration: underline; }
+        iframe {
+            width: 100%;
+            height: calc(100% - 40px);
+            border: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <span class="filename" id="filename">Loading...</span>
+        <a id="download-link" href="#" download>Download</a>
+    </div>
+    <iframe id="pdf-frame"></iframe>
+    <script>
+        const params = new URLSearchParams(location.search);
+        const path = params.get('path') || '';
+        const rawUrl = '/workspace/raw?path=' + encodeURIComponent(path);
+        document.getElementById('filename').textContent = path.split('/').pop() || 'PDF';
+        document.getElementById('download-link').href = rawUrl;
+        document.getElementById('pdf-frame').src = rawUrl;
+    </script>
+</body>
+</html>
