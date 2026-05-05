@@ -19,7 +19,7 @@ jobs:
           cache: true
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        run: curl -fsSL https://bun.sh/install | bash && echo "$HOME/.bun/bin" >> $GITHUB_PATH
         with:
           bun-version: latest
 
