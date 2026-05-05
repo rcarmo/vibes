@@ -502,6 +502,44 @@ function Post({
         onDelete?.(post);
     };
 
+    const [menuOpen, setMenuOpen] = useState(false);
+    const menuRef = useRef(null);
+
+    // Close menu on outside click
+    useEffect(() => {
+        if (!menuOpen) return;
+        const close = (e) => {
+            if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
+        };
+        document.addEventListener('click', close, true);
+        return () => document.removeEventListener('click', close, true);
+    }, [menuOpen]);
+
+    const handleCopyText = (e) => {
+        e.stopPropagation();
+        const text = contentRef.current?.innerText || displayContent || '';
+        navigator.clipboard.writeText(text).catch(() => {});
+        setMenuOpen(false);
+    };
+
+    const handleCopyMarkdown = (e) => {
+        e.stopPropagation();
+        navigator.clipboard.writeText(displayContent || '').catch(() => {});
+        setMenuOpen(false);
+    };
+
+    const handleReply = (e) => {
+        e.stopPropagation();
+        if (onMessageRef) onMessageRef(String(post.id));
+        setMenuOpen(false);
+    };
+
+    const handleMenuDelete = (e) => {
+        e.stopPropagation();
+        onDelete?.(post);
+        setMenuOpen(false);
+    };
+
     const resolveInlineAttachments = (content, attachments) => {
         const usedIds = new Set();
         if (!content || attachments.length === 0) {
@@ -635,17 +673,44 @@ function Post({
                 ${avatarInfo.image ? html`<img src=${avatarInfo.image} alt=${displayName} />` : avatarInfo.letter}
             </div>
             <div class="post-body">
-                <button
-                    class="post-delete-btn"
-                    type="button"
-                    title="Delete message"
-                    aria-label="Delete message"
-                    onClick=${handleDeleteClick}
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                </button>
+                <div class="post-context-menu" ref=${menuRef}>
+                    <button
+                        class="post-menu-btn"
+                        type="button"
+                        title="More actions"
+                        aria-label="More actions"
+                        onClick=${(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                            <circle cx="12" cy="5" r="1.5" />
+                            <circle cx="12" cy="12" r="1.5" />
+                            <circle cx="12" cy="19" r="1.5" />
+                        </svg>
+                    </button>
+                    ${menuOpen && html`
+                        <div class="post-menu-dropdown">
+                            <button onClick=${handleCopyText}>
+                                <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+                                Copy text
+                            </button>
+                            <button onClick=${handleCopyMarkdown}>
+                                <svg viewBox="0 0 24 24"><path d="M14.59 2.59c-.38-.38-.89-.59-1.42-.59H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8.83c0-.53-.21-1.04-.59-1.41l-4.82-4.83zM15 18H9v-2h6v2zm0-4H9v-2h6v2zm-2-6V3.5L18.5 9H13z"/></svg>
+                                Copy as markdown
+                            </button>
+                            ${onMessageRef && html`
+                                <button onClick=${handleReply}>
+                                    <svg viewBox="0 0 24 24"><path d="M10 9V5l-7 7 7 7v-4.1c5 0 8.5 1.6 11 5.1-1-5-4-10-11-11z"/></svg>
+                                    Reply
+                                </button>
+                            `}
+                            <hr />
+                            <button class="danger" onClick=${handleMenuDelete}>
+                                <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                                Delete
+                            </button>
+                        </div>
+                    `}
+                </div>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
                     <span class="post-time" onClick=${(e) => {

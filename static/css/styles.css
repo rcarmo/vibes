@@ -1971,44 +1971,100 @@ body {
     position: relative;
 }
 
-.post-delete-btn {
+/* Post context menu */
+.post-context-menu {
     position: absolute;
     top: 0;
     right: 0;
+    z-index: 10;
+}
+
+.post-menu-btn {
     border: 1px solid transparent;
     background: var(--bg-secondary);
     color: var(--text-secondary);
     border-radius: var(--radius-full);
-    width: 22px;
-    height: 22px;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     opacity: 0;
     pointer-events: none;
-    cursor: pointer;
-    font-size: 13px;
-    line-height: 1;
-    transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+    transition: opacity 0.15s, background-color 0.15s;
 }
 
-.post-delete-btn svg {
-    width: 12px;
-    height: 12px;
-    stroke: currentColor;
-    stroke-width: 2;
-    fill: none;
+.post-menu-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
 }
 
-.post:hover .post-delete-btn {
+.post:hover .post-menu-btn {
     opacity: 1;
     pointer-events: auto;
+    border-color: var(--border-color);
 }
 
-.post-delete-btn:hover {
+.post-menu-btn:hover {
+    background: var(--bg-tertiary);
+    color: var(--text-primary);
+}
+
+.post-menu-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    min-width: 160px;
+    padding: 4px;
+    z-index: 100;
+}
+
+.post-menu-dropdown button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: var(--font-size-sm);
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    text-align: left;
+}
+
+.post-menu-dropdown button:hover {
+    background: var(--bg-tertiary);
+}
+
+.post-menu-dropdown button.danger {
     color: var(--danger-color);
-    border-color: var(--border-color);
-    background-color: var(--bg-hover);
+}
+
+.post-menu-dropdown button.danger:hover {
+    background: color-mix(in srgb, var(--danger-color) 10%, var(--bg-tertiary));
+}
+
+.post-menu-dropdown button svg {
+    width: 16px;
+    height: 16px;
+    fill: currentColor;
+    flex-shrink: 0;
+}
+
+.post-menu-dropdown hr {
+    border: none;
+    border-top: 1px solid var(--border-color);
+    margin: 4px 0;
 }
 
 .post-meta {
