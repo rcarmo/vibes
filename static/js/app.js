@@ -2345,5 +2345,18 @@ function App() {
     `;
 }
 
+// Mobile viewport: handle virtual keyboard resize
+if (typeof window !== 'undefined' && window.visualViewport) {
+    const vv = window.visualViewport;
+    const updateViewport = () => {
+        const keyboardHeight = window.innerHeight - vv.height;
+        document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
+        document.documentElement.style.setProperty('--viewport-height', `${vv.height}px`);
+    };
+    vv.addEventListener('resize', updateViewport);
+    vv.addEventListener('scroll', updateViewport);
+    updateViewport();
+}
+
 // Mount the app
 render(html`<${App} />`, document.getElementById('app'));

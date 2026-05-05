@@ -3612,3 +3612,19 @@ body {
     .settings-tab-btn span:not(.settings-tab-icon) { display: none; }
     .settings-tab-btn { justify-content: center; padding: 10px; }
 }
+
+/* Mobile keyboard-aware layout */
+:root {
+    --keyboard-height: 0px;
+    --viewport-height: 100vh;
+}
+
+@supports (height: 100dvh) {
+    :root { --viewport-height: 100dvh; }
+}
+
+.app-shell {
+    height: var(--viewport-height, 100vh);
+    max-height: calc(var(--viewport-height, 100vh) - var(--keyboard-height, 0px));
+    transition: max-height 0.1s ease-out;
+}

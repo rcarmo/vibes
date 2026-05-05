@@ -261,10 +261,12 @@ export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
 /**
  * Update workspace file contents.
  */
-export async function updateWorkspaceFile(path, content) {
+export async function updateWorkspaceFile(path, content, mtime = null) {
+    const body = { path, content };
+    if (mtime) body.mtime = mtime;
     return request('/workspace/file', {
         method: 'PUT',
-        body: JSON.stringify({ path, content }),
+        body: JSON.stringify(body),
     });
 }
 
@@ -491,6 +493,10 @@ export class SSEClient {
 
         this.eventSource.addEventListener('ui_theme', (e) => {
             this.onEvent('ui_theme', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('extension_event', (e) => {
+            this.onEvent('extension_event', JSON.parse(e.data));
         });
     }
     

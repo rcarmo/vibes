@@ -153,6 +153,7 @@ func getFile(workDir string) http.HandlerFunc {
 			"size":         info.Size(),
 			"content_type": contentType,
 			"truncated":    info.Size() > maxBytes,
+			"mtime":        info.ModTime().UnixMilli(),
 		}
 		if isBinary {
 			resp["content"] = base64.StdEncoding.EncodeToString(data)
@@ -179,6 +180,7 @@ func putFile(workDir string) http.HandlerFunc {
 		var req struct {
 			Path    string `json:"path"`
 			Content string `json:"content"`
+			Mtime   int64  `json:"mtime,omitempty"` // expected mtime for conflict detection
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			jsonError(w, "invalid body", http.StatusBadRequest)
@@ -189,6 +191,16 @@ func putFile(workDir string) http.HandlerFunc {
 		if fullPath == "" {
 			jsonError(w, "invalid path", http.StatusBadRequest)
 			return
+		}
+
+		// Conflict detection: if client sends mtime, compare with current file
+		if req.Mtime > 0 {
+			if info, err := os.Stat(fullPath); err == nil {
+				if info.ModTime().UnixMilli() != req.Mtime {
+					jsonError(w, "file modified since last read (conflict)", http.StatusConflict)
+					return
+				}
+			}
 		}
 
 		if err := os.MkdirAll(filepath.Dir(fullPath), 0o755); err != nil {
