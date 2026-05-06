@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/rcarmo/vibes/internal/db"
@@ -213,7 +214,11 @@ func putFile(workDir string) http.HandlerFunc {
 			return
 		}
 
-		jsonResp(w, map[string]string{"status": "ok", "path": req.Path})
+		mtime := time.Now().UnixMilli()
+		if info, err := os.Stat(fullPath); err == nil {
+			mtime = info.ModTime().UnixMilli()
+		}
+		jsonResp(w, map[string]interface{}{"status": "ok", "path": req.Path, "mtime": mtime})
 	}
 }
 

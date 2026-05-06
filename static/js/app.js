@@ -827,6 +827,7 @@ function App() {
                 saving: false,
                 saveError: null,
                 savedAt: null,
+                mtime: null,
                 isMarkdown: isMarkdownPath(path),
             }];
         });
@@ -843,6 +844,7 @@ function App() {
                             error: null,
                             dirty: false,
                             saveError: null,
+                            mtime: data.mtime || null,
                         }
                         : tab
                 )));
@@ -892,11 +894,12 @@ function App() {
             tab.id === path ? { ...tab, saving: true, saveError: null } : tab
         )));
         try {
-            await updateWorkspaceFile(path, content);
+            const currentTab = editorTabs.find((tab) => tab.id === path);
+            const resp = await updateWorkspaceFile(path, content, currentTab?.mtime || null);
             const savedAt = Date.now();
             setEditorTabs((prev) => prev.map((tab) => (
                 tab.id === path
-                    ? { ...tab, content, savedContent: content, dirty: false, saving: false, saveError: null, savedAt }
+                    ? { ...tab, content, savedContent: content, dirty: false, saving: false, saveError: null, savedAt, mtime: resp?.mtime || tab.mtime }
                     : tab
             )));
         } catch (err) {
@@ -904,7 +907,7 @@ function App() {
                 tab.id === path ? { ...tab, saving: false, saveError: err?.message || 'Save failed' } : tab
             )));
         }
-    }, [activeEditorTabId]);
+    }, [activeEditorTabId, editorTabs]);
 
     const handleEditorChange = useCallback((nextContent, nextDirty) => {
         const path = activeEditorTabId;

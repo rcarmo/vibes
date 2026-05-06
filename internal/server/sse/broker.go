@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"sync"
 )
 
@@ -114,7 +115,17 @@ func (b *Broker) Handler() http.HandlerFunc {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if allowOrigin := os.Getenv("VIBES_CORS_ALLOW_ORIGIN"); allowOrigin != "" {
+			origin := r.Header.Get("Origin")
+			if allowOrigin == "*" || origin == allowOrigin {
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+				}
+				w.Header().Set("Vary", "Origin")
+			}
+		}
 
 		clientID := r.RemoteAddr
 		if id := r.URL.Query().Get("client_id"); id != "" {

@@ -206,24 +206,42 @@ func New(cfg *config.Config) (*App, error) {
 	r.Get("/agents", func(w http.ResponseWriter, r *http.Request) {
 		// Alias for /agent/ list
 		ids := agentRegistry.List()
-		agents := make([]map[string]interface{}, 0)
+		agents := make([]map[string]interface{}, 0, len(ids))
+
+		// Expose configured custom actions so the frontend can render quick actions.
+		actionDefs := make([]map[string]interface{}, 0, len(actions.Endpoints))
+		for actionID, def := range actions.Endpoints {
+			label := def.Description
+			if label == "" {
+				label = actionID
+			}
+			actionDefs = append(actionDefs, map[string]interface{}{
+				"id":       actionID,
+				"label":    label,
+				"agent_id": def.AgentID,
+			})
+		}
+
 		for _, id := range ids {
 			p, _ := agentRegistry.Get(id)
 			s := p.Status()
+			agentActions := make([]map[string]interface{}, 0, len(actionDefs))
+			for _, a := range actionDefs {
+				agentID, _ := a["agent_id"].(string)
+				if agentID == "" || agentID == id {
+					agentActions = append(agentActions, a)
+				}
+			}
 			agents = append(agents, map[string]interface{}{
-				"id": id, "status": s.State, "model": s.Model, "active": id == agentRegistry.Active(),
+				"id":      id,
+				"status":  s.State,
+				"model":   s.Model,
+				"active":  id == agentRegistry.Active(),
+				"actions": agentActions,
 			})
 		}
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `[`)
-		for i, a := range agents {
-			if i > 0 {
-				fmt.Fprintf(w, ",")
-			}
-			b, _ := json.Marshal(a)
-			w.Write(b)
-		}
-		fmt.Fprintf(w, `]`)
+		_ = json.NewEncoder(w).Encode(agents)
 	})
 
 	// SSE stream
@@ -311,7 +329,7 @@ func (app *App) initializeAgents(ctx context.Context) error {
 			continue
 		}
 		if err := p.Initialize(ctx); err != nil {
-			// Log but don't fail — server should start even if agent init fails.
+			// Log but don't fail - server should start even if agent init fails.
 			// This allows API/UI tests to run in CI without a working agent.
 			slog.Warn("agent initialization failed (server will start without it)",
 				"id", id, "error", err)
@@ -359,10 +377,21 @@ func (app *App) forwardAgentEvents(ctx context.Context) {
 }
 
 func corsMiddleware(next http.Handler) http.Handler {
+	allowOrigin := os.Getenv("VIBES_CORS_ALLOW_ORIGIN")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		if allowOrigin != "" {
+			origin := r.Header.Get("Origin")
+			if allowOrigin == "*" || origin == allowOrigin {
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				} else {
+					w.Header().Set("Access-Control-Allow-Origin", allowOrigin)
+				}
+				w.Header().Set("Vary", "Origin")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			}
+		}
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
