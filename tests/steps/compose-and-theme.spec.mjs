@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { BASE_URL, waitForConnection, sendMessage, waitForAgentResponse, waitForAgentIdle } from './helpers.mjs';
+import { BASE_URL, waitForConnection } from './helpers.mjs';
 
 test.describe('Feature: Compose Box UX', () => {
     test('Scenario: Enter sends message, Shift+Enter inserts newline', async ({ page }) => {
@@ -13,25 +13,29 @@ test.describe('Feature: Compose Box UX', () => {
     });
 
     test('Scenario: Compose history with arrow keys', async ({ page }) => {
-        test.setTimeout(15000);
+        test.setTimeout(30000);
+
+        // Seed compose history deterministically before app boot
+        await page.addInitScript(() => {
+            localStorage.setItem('vibes_compose_history', JSON.stringify(['history one', 'history two']));
+        });
+
         await page.goto(BASE_URL);
         await page.waitForSelector('.compose-box textarea', { timeout: 10000 });
         const textarea = page.locator('.compose-box textarea');
 
-        // Inject compose history directly into the component's state
-        // The compose box stores history in a ref array
-        await page.evaluate(() => {
-            // Simulate typing two messages into the compose input and pressing Enter
-            // without actually sending to the server (which would disable the textarea)
-            const event = new KeyboardEvent('keydown', { key: 'ArrowUp', bubbles: true });
-            document.querySelector('.compose-box textarea')?.dispatchEvent(event);
-        });
-
-        // ArrowUp on empty history should leave textarea empty or unchanged
+        // Cursor at start + ArrowUp should recall the latest history item
         await textarea.click();
         await textarea.press('ArrowUp');
-        // Pass: the ArrowUp handler ran without crashing
-        expect(true).toBe(true);
+        await expect(textarea).toHaveValue('history two');
+
+        // Second ArrowUp should recall the previous history item
+        await textarea.press('ArrowUp');
+        await expect(textarea).toHaveValue('history one');
+
+        // ArrowDown should move forward in history
+        await textarea.press('ArrowDown');
+        await expect(textarea).toHaveValue('history two');
     });
 
     test('Scenario: Model picker typeahead', async ({ page }) => {

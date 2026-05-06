@@ -19,9 +19,7 @@ import (
 // bridges to a local PTY running the user's shell.
 func TerminalHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
-			InsecureSkipVerify: true,
-		})
+		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			slog.Error("terminal websocket accept", "error", err)
 			return
@@ -34,6 +32,9 @@ func TerminalHandler() http.HandlerFunc {
 		shell := os.Getenv("SHELL")
 		if shell == "" {
 			shell = "/bin/bash"
+		}
+		if _, err := exec.LookPath(shell); err != nil {
+			shell = "/bin/sh"
 		}
 
 		cmd := exec.CommandContext(ctx, shell)
@@ -88,16 +89,22 @@ func TerminalHandler() http.HandlerFunc {
 						Rows uint16 `json:"rows"`
 					}
 					if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
-						pty.Setsize(ptmx, &pty.Winsize{
+						_ = pty.Setsize(ptmx, &pty.Winsize{
 							Cols: msg.Cols,
 							Rows: msg.Rows,
 						})
 						continue
 					}
 					// Regular text input
-					ptmx.Write(data)
+					if _, err := ptmx.Write(data); err != nil {
+						cancel()
+						return
+					}
 				} else {
-					ptmx.Write(data)
+					if _, err := ptmx.Write(data); err != nil {
+						cancel()
+						return
+					}
 				}
 			}
 		}()

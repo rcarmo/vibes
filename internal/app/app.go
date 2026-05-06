@@ -228,7 +228,12 @@ func New(cfg *config.Config) (*App, error) {
 
 	// SSE stream
 	r.Get("/sse/stream", broker.Handler())
-	r.Get("/terminal/ws", routes.TerminalHandler())
+	if os.Getenv("VIBES_ENABLE_TERMINAL") == "1" || os.Getenv("VIBES_ENABLE_TERMINAL") == "true" {
+		r.Get("/terminal/ws", routes.TerminalHandler())
+		slog.Info("terminal websocket enabled", "route", "/terminal/ws")
+	} else {
+		slog.Info("terminal websocket disabled (set VIBES_ENABLE_TERMINAL=1 to enable)")
+	}
 
 	// Extension routes
 	for _, route := range app.Extensions.AllRoutes() {
