@@ -8,7 +8,7 @@
     "globals": "16.5.0"
   },
   "scripts": {
-    "lint:frontend": "eslint \"src/vibes/static/js/**/*.js\"",
+    "lint:frontend": "eslint \"static/js/**/*.js\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\"", 
     "build:frontend": "bun run build.js"
   },
   "dependencies": {

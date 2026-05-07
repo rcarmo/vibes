@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -136,6 +138,7 @@ func New(cfg *config.Config) (*App, error) {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(corsMiddleware)
+	r.Use(optionalAPITokenMiddleware)
 
 	// Health
 	r.Get("/health", func(w http.ResponseWriter, r *http.Request) {
@@ -251,6 +254,15 @@ func New(cfg *config.Config) (*App, error) {
 		slog.Info("terminal websocket enabled", "route", "/terminal/ws")
 	} else {
 		slog.Info("terminal websocket disabled (set VIBES_ENABLE_TERMINAL=1 to enable)")
+	}
+
+	if os.Getenv("VIBES_ENABLE_PPROF") == "1" || os.Getenv("VIBES_ENABLE_PPROF") == "true" {
+		r.Mount("/debug/pprof", pprofAuthHandler(http.HandlerFunc(pprof.Index)))
+		r.Get("/debug/pprof/cmdline", pprofAuthHandler(http.HandlerFunc(pprof.Cmdline)).ServeHTTP)
+		r.Get("/debug/pprof/profile", pprofAuthHandler(http.HandlerFunc(pprof.Profile)).ServeHTTP)
+		r.Get("/debug/pprof/symbol", pprofAuthHandler(http.HandlerFunc(pprof.Symbol)).ServeHTTP)
+		r.Get("/debug/pprof/trace", pprofAuthHandler(http.HandlerFunc(pprof.Trace)).ServeHTTP)
+		slog.Info("pprof endpoints enabled", "prefix", "/debug/pprof")
 	}
 
 	// Extension routes
@@ -389,7 +401,7 @@ func corsMiddleware(next http.Handler) http.Handler {
 				}
 				w.Header().Set("Vary", "Origin")
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Token")
 			}
 		}
 		if r.Method == "OPTIONS" {
@@ -398,6 +410,56 @@ func corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// optionalAPITokenMiddleware protects mutating and sensitive endpoints when
+// VIBES_API_TOKEN is configured. Default remains open for local development.
+func optionalAPITokenMiddleware(next http.Handler) http.Handler {
+	requiredToken := os.Getenv("VIBES_API_TOKEN")
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if requiredToken == "" {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		path := r.URL.Path
+		sensitivePath := strings.HasPrefix(path, "/workspace") ||
+			strings.HasPrefix(path, "/agent") ||
+			strings.HasPrefix(path, "/post") ||
+			strings.HasPrefix(path, "/thread") ||
+			strings.HasPrefix(path, "/media") ||
+			strings.HasPrefix(path, "/terminal/ws") ||
+			strings.HasPrefix(path, "/debug/pprof")
+		mutatingMethod := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch || r.Method == http.MethodDelete
+
+		if !sensitivePath && !mutatingMethod {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		token := r.Header.Get("X-API-Token")
+		if token == "" {
+			auth := r.Header.Get("Authorization")
+			if strings.HasPrefix(auth, "Bearer ") {
+				token = strings.TrimPrefix(auth, "Bearer ")
+			}
+		}
+		if token == "" {
+			token = r.URL.Query().Get("token")
+		}
+		if token != requiredToken {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusUnauthorized)
+			_ = json.NewEncoder(w).Encode(map[string]string{"error": "unauthorized"})
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func pprofAuthHandler(h http.Handler) http.Handler {
+	return optionalAPITokenMiddleware(h)
 }
 
 // serveStaticFile returns a handler that serves a single file from the embedded FS.

@@ -177,7 +177,12 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         const input = renameInputRef.current;
         if (!input) return;
         const timer = requestAnimationFrame(() => {
-            try { input.focus(); input.select(); } catch {}
+            try {
+                input.focus();
+                input.select();
+            } catch (err) {
+                console.debug('rename input focus skipped', err);
+            }
         });
         return () => cancelAnimationFrame(timer);
     }, [renamingPath]);
@@ -504,7 +509,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         if (type === 'dir') {
             setSelectedPath(path);
             setPreview(null);
-            setDownloadId(null);
             setLoadingPreview(false);
             const wasExpanded = expandedRef.current.has(path);
             if (!wasExpanded) loadSubtreeRef.current?.(path);
@@ -533,7 +537,6 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
     const clearSelection = useRef(() => {
         setSelectedPath(null);
         setPreview(null);
-        setDownloadId(null);
         setLoadingPreview(false);
     }).current;
 

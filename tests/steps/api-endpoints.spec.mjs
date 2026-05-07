@@ -20,7 +20,7 @@ test.describe('Feature: API Health and Endpoints', () => {
         expect(await resp.json()).toHaveProperty('posts');
     });
 
-    test('Scenario: SSE stream endpoint connects', async ({}) => {
+    test('Scenario: SSE stream endpoint connects', async () => {
         // SSE is a long-lived stream — use AbortController to test just the headers
         const controller = new AbortController();
         setTimeout(() => controller.abort(), 3000);

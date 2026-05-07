@@ -9,7 +9,7 @@
  */
 
 import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
-import { join, basename, dirname } from 'path';
+import { join, dirname } from 'path';
 
 const OUTPUT = process.argv.includes('--output')
     ? process.argv[process.argv.indexOf('--output') + 1]
@@ -23,21 +23,6 @@ if (!existsSync(RESULTS_PATH)) {
 }
 
 const results = JSON.parse(readFileSync(RESULTS_PATH, 'utf-8'));
-
-// ── Collect screenshots ──────────────────────────────────────────
-
-function findImages(dir) {
-    const images = [];
-    if (!existsSync(dir)) return images;
-    try {
-        for (const entry of readdirSync(dir, { withFileTypes: true })) {
-            const full = join(dir, entry.name);
-            if (entry.isDirectory()) images.push(...findImages(full));
-            else if (entry.name.endsWith('.png')) images.push(full);
-        }
-    } catch {}
-    return images;
-}
 
 // ── Helpers ──────────────────────────────────────────────────────
 

@@ -1091,7 +1091,7 @@ function App() {
         const existing = document.getElementById('post-' + id);
         if (existing) { highlight(existing); return; }
         try {
-            const result = await api.getThread(id);
+            const result = await getThread(id);
             const msg = result?.thread?.[0];
             if (!msg) return;
             setPosts((prev) => {
