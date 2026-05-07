@@ -142,8 +142,27 @@ All configuration is via environment variables with `VIBES_` prefix:
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Agent keepalive after last SSE client disconnects |
 | `VIBES_ACP_DEBUG` | `false` | Wire-level ACP logging |
 | `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
+| `VIBES_CORS_ALLOW_ORIGIN` | _(unset)_ | Enable CORS for a specific origin (or `*`) |
+| `VIBES_API_TOKEN` | _(unset)_ | Optional API token for sensitive/mutating routes (`X-API-Token` or `Authorization: Bearer`) |
+| `VIBES_ENABLE_TERMINAL` | `false` | Enable terminal WebSocket endpoint (`/terminal/ws`) |
+| `VIBES_ENABLE_PPROF` | `false` | Enable pprof endpoints under `/debug/pprof` (guarded by token when set) |
 
 See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full reference.
+
+### Security hardening (recommended for remote deployments)
+
+```bash
+# Require token auth on sensitive/mutating endpoints
+export VIBES_API_TOKEN="change-me"
+
+# Restrict browser CORS to your UI origin
+export VIBES_CORS_ALLOW_ORIGIN="https://your-ui.example"
+
+# Keep dangerous debug/shell surfaces disabled unless needed
+export VIBES_ENABLE_TERMINAL=false
+export VIBES_ENABLE_PPROF=false
+```
+
 
 ---
 
@@ -395,8 +414,8 @@ vibes/
 | GET | `/media/{id}/thumbnail` | Serve thumbnail |
 | GET | `/media/{id}/info` | Media metadata |
 | GET | `/workspace/tree` | File tree |
-| GET | `/workspace/file?path=` | Read file content |
-| PUT | `/workspace/file` | Write file |
+| GET | `/workspace/file?path=` | Read file content (includes `mtime`) |
+| PUT | `/workspace/file` | Write file (optional optimistic-lock `mtime`) |
 | DELETE | `/workspace/file?path=` | Delete file |
 | POST | `/workspace/create` | Create file/directory |
 | POST | `/workspace/rename` | Rename/move |
@@ -414,6 +433,8 @@ vibes/
 | POST | `/agent/respond` | Respond to permission request |
 | GET | `/avatar/{kind}` | Agent/user avatar |
 | GET | `/sse/stream` | SSE event stream |
+| GET | `/terminal/ws` | Terminal WebSocket (only when `VIBES_ENABLE_TERMINAL=true`) |
+| GET | `/debug/pprof/*` | pprof profiling endpoints (only when `VIBES_ENABLE_PPROF=true`) |
 
 ---
 

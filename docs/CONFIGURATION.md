@@ -24,8 +24,23 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Custom action definitions |
 | `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
 | `VIBES_WORKSPACE` | `<cwd>` | Workspace root for file explorer |
+| `VIBES_CORS_ALLOW_ORIGIN` | _(unset)_ | Enable CORS for a specific origin (or `*`) |
+| `VIBES_API_TOKEN` | _(unset)_ | Optional token required for sensitive/mutating routes |
+| `VIBES_ENABLE_TERMINAL` | `false` | Enable `/terminal/ws` PTY WebSocket endpoint |
+| `VIBES_ENABLE_PPROF` | `false` | Enable `/debug/pprof/*` profiling endpoints |
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
+
+## API token auth (optional)
+
+If `VIBES_API_TOKEN` is set, sensitive/mutating routes require a token via one of:
+
+- `X-API-Token: <token>`
+- `Authorization: Bearer <token>`
+- `?token=<token>` (fallback)
+
+This includes `/workspace*`, `/agent*`, `/post*`, `/thread*`, `/media*`, and optional `/terminal/ws` + `/debug/pprof*`.
+
 
 ## Agent selection
 

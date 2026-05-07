@@ -32,8 +32,20 @@
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/workspace/tree` | Get workspace file tree |
-| GET | `/workspace/file?path={path}` | Get file content (text preview, base64 for binary) |
-| PUT | `/workspace/file` | Update (save) a file |
+| GET | `/workspace/file?path={path}` | Get file content (text preview, base64 for binary, includes `mtime`) |
+| PUT | `/workspace/file` | Update (save) a file (supports optimistic lock via `mtime`) |
+
+### Workspace save conflict detection
+
+`PUT /workspace/file` accepts optional `mtime` in the request body:
+
+```json
+{ "path": "notes/todo.md", "content": "...", "mtime": 1715112345678 }
+```
+
+If the server-side file `mtime` no longer matches, the API returns `409 Conflict`.
+On success, the response includes refreshed `mtime`.
+
 | DELETE | `/workspace/file?path={path}` | Delete a file |
 | POST | `/workspace/create` | Create a new file or directory |
 | POST | `/workspace/rename` | Rename a file or directory |
@@ -47,7 +59,7 @@
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/agents` | List available agents |
+| GET | `/agents` | List available agents (includes `actions[]` metadata for quick actions UI) |
 | GET | `/agent/status` | Get current agent status (busy, idle, queue) |
 | GET | `/agent/context` | Get agent context-window usage |
 | GET | `/agent/models` | List available models (Pi mode) |
@@ -68,6 +80,21 @@
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/avatar/{kind}` | Get user or agent avatar (`kind` = `user` or `agent`) |
+
+## Terminal & Profiling (optional)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| WS | `/terminal/ws` | PTY terminal WebSocket (only when `VIBES_ENABLE_TERMINAL=true`) |
+| GET | `/debug/pprof/*` | Go pprof endpoints (only when `VIBES_ENABLE_PPROF=true`) |
+
+## Authentication (optional)
+
+If `VIBES_API_TOKEN` is set, sensitive/mutating routes require a token in one of:
+
+- `X-API-Token: <token>`
+- `Authorization: Bearer <token>`
+- `?token=<token>` (fallback)
 
 ## Real-time
 
