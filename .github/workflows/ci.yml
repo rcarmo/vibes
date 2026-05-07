@@ -8,6 +8,8 @@ on:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -57,7 +59,11 @@ jobs:
         run: |
           set -e
           if [ -f Dockerfile ]; then
-            docker build --target runtime --tag vibes:ci .
+            if grep -qE '^FROM .* AS runtime$' Dockerfile; then
+              docker build --target runtime --tag vibes:ci .
+            else
+              docker build --tag vibes:ci .
+            fi
           else
             echo "No Dockerfile found; skipping."
           fi
