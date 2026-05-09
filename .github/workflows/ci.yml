@@ -40,8 +40,8 @@ jobs:
             echo "No Makefile check/lint/test targets found; skipping."
           fi
 
-      - name: Run fuzz tests (1s each)
-        run: make fuzz
+      - name: Run fuzz tests (3s each)
+        run: make FUZZTIME=3s fuzz
 
       - name: Build Go binary
         run: make build-go

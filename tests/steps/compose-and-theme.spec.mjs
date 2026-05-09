@@ -18,6 +18,7 @@ test.describe('Feature: Compose Box UX', () => {
         // Seed compose history deterministically before app boot
         await page.addInitScript(() => {
             localStorage.setItem('vibes_compose_history', JSON.stringify(['history one', 'history two']));
+            localStorage.setItem('vibes-oobe-done', '1');
         });
 
         await page.goto(BASE_URL);
