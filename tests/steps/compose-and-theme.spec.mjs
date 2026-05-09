@@ -21,21 +21,22 @@ test.describe('Feature: Compose Box UX', () => {
         });
 
         await page.goto(BASE_URL);
-        await page.waitForSelector('.compose-box textarea', { timeout: 10000 });
+        await waitForConnection(page);
         const textarea = page.locator('.compose-box textarea');
 
-        // Cursor at start + ArrowUp should recall the latest history item
         await textarea.click();
+        await textarea.fill('');
+
+        // Up at start -> newest
         await textarea.press('ArrowUp');
         await expect(textarea).toHaveValue('history two');
 
-        // Second ArrowUp should recall the previous history item.
-        // History navigation triggers only when cursor is at start.
+        // Up at start again -> older
         await textarea.press('Home');
         await textarea.press('ArrowUp');
         await expect(textarea).toHaveValue('history one');
 
-        // ArrowDown should move forward in history (cursor must be at end)
+        // Down at end -> newer
         await textarea.press('End');
         await textarea.press('ArrowDown');
         await expect(textarea).toHaveValue('history two');
