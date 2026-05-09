@@ -29,11 +29,14 @@ test.describe('Feature: Compose Box UX', () => {
         await textarea.press('ArrowUp');
         await expect(textarea).toHaveValue('history two');
 
-        // Second ArrowUp should recall the previous history item
+        // Second ArrowUp should recall the previous history item.
+        // History navigation triggers only when cursor is at start.
+        await textarea.press('Home');
         await textarea.press('ArrowUp');
         await expect(textarea).toHaveValue('history one');
 
-        // ArrowDown should move forward in history
+        // ArrowDown should move forward in history (cursor must be at end)
+        await textarea.press('End');
         await textarea.press('ArrowDown');
         await expect(textarea).toHaveValue('history two');
     });
