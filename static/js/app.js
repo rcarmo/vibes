@@ -1,5 +1,5 @@
-import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
+import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -12,8 +12,6 @@ import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
 
-// URL regex for linkifying text
-const URL_REGEX = /(https?:\/\/[^\s<>"{}|\\^`\[\]]+)/g;
 // Hashtag regex
 const HASHTAG_REGEX = /#(\w+)/g;
 
@@ -314,7 +312,7 @@ function decodeTextEntities(html) {
 /**
  * Render markdown and then linkify hashtags
  */
-function renderMarkdown(text, onHashtagClick) {
+function renderMarkdown(text) {
     if (!text) return '';
 
     const normalizedMath = normalizeMathFences(text);
@@ -422,36 +420,6 @@ async function renderMermaidDiagrams(container) {
             el.removeAttribute('data-mermaid');
         }
     }
-}
-
-/**
- * Linkify text - convert URLs and hashtags to clickable elements (for non-markdown contexts)
- */
-function linkifyContent(text, onHashtagClick) {
-    if (!text) return text;
-    
-    // First split by URLs
-    const urlParts = text.split(URL_REGEX);
-    
-    return urlParts.map((part, i) => {
-        // Check if this part is a URL
-        if (URL_REGEX.test(part)) {
-            URL_REGEX.lastIndex = 0;
-            return html`<a href=${part} target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()} class="content-link">${part}</a>`;
-        }
-        
-        // Process hashtags in non-URL parts
-        const hashtagParts = part.split(HASHTAG_REGEX);
-        if (hashtagParts.length === 1) return part;
-        
-        return hashtagParts.map((hpart, j) => {
-            // Every odd index is a captured hashtag (without #)
-            if (j % 2 === 1) {
-                return html`<a href="#" class="hashtag" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); onHashtagClick?.(hpart); }}>#${hpart}</a>`;
-            }
-            return hpart;
-        });
-    });
 }
 
 /**
@@ -590,24 +558,6 @@ function ensureMetaTag(name) {
         document.head.appendChild(tag);
     }
     return tag;
-}
-
-/**
- * Update browser theme color (affects mobile chrome and PWA title bar)
- */
-function updateThemeColor(dark) {
-    const color = dark ? '#000000' : '#ffffff';
-    const themeMeta = ensureMetaTag('theme-color');
-    if (themeMeta) themeMeta.setAttribute('content', color);
-
-    const tileMeta = ensureMetaTag('msapplication-TileColor');
-    if (tileMeta) tileMeta.setAttribute('content', color);
-
-    const navMeta = ensureMetaTag('msapplication-navbutton-color');
-    if (navMeta) navMeta.setAttribute('content', color);
-
-    const statusMeta = ensureMetaTag('apple-mobile-web-app-status-bar-style');
-    if (statusMeta) statusMeta.setAttribute('content', dark ? 'black-translucent' : 'default');
 }
 
 /**
@@ -969,7 +919,7 @@ function App() {
         });
     }, []);
 
-    const handlePopOutTab = useCallback((tabId, label) => {
+    const handlePopOutTab = useCallback((tabId) => {
         if (!tabId) return;
         const tab = editorTabs.find((t) => t.id === tabId);
         const transferPayload = stashEditorPopoutState({
@@ -1272,7 +1222,9 @@ function App() {
         setAgentStatus((prev) => {
             if (!prev) return prev;
             if (!(prev.last_activity || prev.lastActivity)) return prev;
-            const { last_activity, lastActivity, ...rest } = prev;
+            const rest = { ...prev };
+            delete rest.last_activity;
+            delete rest.lastActivity;
             return Object.keys(rest).length ? rest : null;
         });
         const token = Date.now();
@@ -1516,8 +1468,6 @@ function App() {
         setSearchQuery(null);
         loadPosts();
     }, [loadPosts]);
-
-    const navigateToSearchResult = useCallback(() => {}, []);
 
     const animateAndRemovePosts = useCallback((ids) => {
         if (!ids?.length) return;

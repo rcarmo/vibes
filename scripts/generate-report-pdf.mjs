@@ -8,8 +8,8 @@
  * Falls back to HTML-only output if Chromium is not available.
  */
 
-import { readFileSync, existsSync, readdirSync, writeFileSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
+import { dirname } from 'path';
 
 const OUTPUT = process.argv.includes('--output')
     ? process.argv[process.argv.indexOf('--output') + 1]

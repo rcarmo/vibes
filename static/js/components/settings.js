@@ -1,4 +1,4 @@
-import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
+import { html, useCallback, useEffect, useState } from '../vendor/preact-htm.js';
 
 /**
  * Settings dialog — a tabbed modal for all app configuration.
@@ -363,7 +363,6 @@ export function getSettings() {
 const OOBE_KEY = 'vibes-oobe-done';
 
 export function FirstRunWizard({ onComplete }) {
-    const [step, setStep] = useState(0);
     const [agentName, setAgentName] = useState('');
     const [testing, setTesting] = useState(false);
     const [testResult, setTestResult] = useState(null);
@@ -405,23 +404,21 @@ export function FirstRunWizard({ onComplete }) {
                         <h2>Welcome to Vibes 🌟</h2>
                     </div>
                     <div class="settings-content-body">
-                        ${step === 0 && html`
-                            <div class="settings-section">
-                                <p style="color: var(--text-secondary); margin-bottom: 16px;">Let's make sure everything is connected.</p>
-                                <${SettingRow} label="Agent name" description="Give your AI assistant a name">
-                                    <input type="text" value=${agentName} placeholder="Agent"
-                                        onInput=${(e) => setAgentName(e.target.value)} />
-                                <//>
-                                <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
-                                    <button onClick=${handleTest} disabled=${testing}
-                                        style="padding: 8px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer;">
-                                        ${testing ? 'Testing...' : 'Test Connection'}
-                                    </button>
-                                    ${testResult?.ok && html`<span style="color: #4ec9b0;">✓ Connected (${testResult.agent})</span>`}
-                                    ${testResult && !testResult.ok && html`<span style="color: var(--danger-color);">✗ ${testResult.error}</span>`}
-                                </div>
+                        <div class="settings-section">
+                            <p style="color: var(--text-secondary); margin-bottom: 16px;">Let's make sure everything is connected.</p>
+                            <${SettingRow} label="Agent name" description="Give your AI assistant a name">
+                                <input type="text" value=${agentName} placeholder="Agent"
+                                    onInput=${(e) => setAgentName(e.target.value)} />
+                            <//>
+                            <div style="margin-top: 16px; display: flex; gap: 8px; align-items: center;">
+                                <button onClick=${handleTest} disabled=${testing}
+                                    style="padding: 8px 16px; border: 1px solid var(--border-color); border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer;">
+                                    ${testing ? 'Testing...' : 'Test Connection'}
+                                </button>
+                                ${testResult?.ok && html`<span style="color: #4ec9b0;">✓ Connected (${testResult.agent})</span>`}
+                                ${testResult && !testResult.ok && html`<span style="color: var(--danger-color);">✗ ${testResult.error}</span>`}
                             </div>
-                        `}
+                        </div>
                         <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 8px;">
                             <button onClick=${handleFinish}
                                 style="padding: 8px 20px; border: none; border-radius: var(--radius-md); background: var(--accent-color); color: white; cursor: pointer; font-weight: 500;">

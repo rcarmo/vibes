@@ -1,4 +1,4 @@
-import { html, useRef, useState, useEffect, useCallback, useMemo } from '../vendor/preact-htm.js';
+import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
 

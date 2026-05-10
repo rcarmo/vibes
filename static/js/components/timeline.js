@@ -503,7 +503,6 @@ function Post({
     agentAvatarUrl,
     userName,
     userAvatarUrl,
-    userAvatarBackground,
     onDelete,
     isThreadReply,
     isRemoving,
@@ -525,10 +524,6 @@ function Post({
     const avatarInfo = isAgent
         ? (getAvatarInfo?.(agentName, agentAvatarUrl) || fallbackAvatarInfo(agentName, agentAvatarUrl))
         : (getAvatarInfo?.(resolvedUserName, userAvatarUrl) || fallbackAvatarInfo(resolvedUserName, userAvatarUrl));
-    const normalizedUserBackground = typeof userAvatarBackground === 'string'
-        ? userAvatarBackground.trim().toLowerCase() : '';
-    const clearUserBackground = !isAgent && avatarInfo.image
-        && (normalizedUserBackground === 'clear' || normalizedUserBackground === 'transparent');
     const avatarBgColor = avatarInfo.image ? 'transparent' : avatarInfo.color;
     const formatTimeLabel = formatTime || ((value) => String(value || ''));
     const formatCountLabel = formatCount || ((value) => String(value ?? 0));
@@ -550,11 +545,6 @@ function Post({
     const handleImageClick = (e, mediaId) => {
         e.stopPropagation();
         setZoomedImage(getMediaUrl(mediaId));
-    };
-
-    const handleDeleteClick = (e) => {
-        e.stopPropagation();
-        onDelete?.(post);
     };
 
     const [menuOpen, setMenuOpen] = useState(false);
@@ -1050,7 +1040,6 @@ export function Timeline({
                         agentAvatarUrl=${getAgentAvatar ? getAgentAvatar(post.data?.agent_id, agents) : null}
                         userName=${user?.name || user?.user_name}
                         userAvatarUrl=${user?.avatar_url || user?.avatarUrl || user?.avatar}
-                        userAvatarBackground=${user?.avatar_background || user?.avatarBackground}
                         isThreadReply=${isThreadReply}
                         isRemoving=${removingPostIds?.has(post.id)}
                         highlightQuery=${searchQuery}
