@@ -1,5 +1,15 @@
 # API
 
+This document describes the current HTTP/SSE/WS surface of the Go implementation.
+
+## Authentication (optional)
+
+If `VIBES_API_TOKEN` is set, sensitive and mutating endpoints require one of:
+
+- `X-API-Token: <token>`
+- `Authorization: Bearer <token>`
+- `?token=<token>` (fallback)
+
 ## Health
 
 | Method | Endpoint | Description |
@@ -33,27 +43,26 @@
 |--------|----------|-------------|
 | GET | `/workspace/tree` | Get workspace file tree |
 | GET | `/workspace/file?path={path}` | Get file content (text preview, base64 for binary, includes `mtime`) |
-| PUT | `/workspace/file` | Update (save) a file (supports optimistic lock via `mtime`) |
+| PUT | `/workspace/file` | Update a file (supports optimistic lock via `mtime`) |
+| DELETE | `/workspace/file?path={path}` | Delete a file |
+| POST | `/workspace/create` | Create a new file or directory |
+| POST | `/workspace/rename` | Rename a file or directory |
+| POST | `/workspace/move` | Move a file or directory |
+| GET | `/workspace/raw?path={path}` | Get raw file content |
+| GET | `/workspace/download?path={path}` | Download file/folder (folders as ZIP) |
+| POST | `/workspace/upload` | Upload a file to the workspace |
+| POST | `/workspace/visibility` | Toggle hidden-files visibility |
 
 ### Workspace save conflict detection
 
-`PUT /workspace/file` accepts optional `mtime` in the request body:
+`PUT /workspace/file` accepts optional `mtime`:
 
 ```json
 { "path": "notes/todo.md", "content": "...", "mtime": 1715112345678 }
 ```
 
-If the server-side file `mtime` no longer matches, the API returns `409 Conflict`.
-On success, the response includes refreshed `mtime`.
-
-| DELETE | `/workspace/file?path={path}` | Delete a file |
-| POST | `/workspace/create` | Create a new file or directory |
-| POST | `/workspace/rename` | Rename a file or directory |
-| POST | `/workspace/move` | Move a file or directory |
-| GET | `/workspace/raw?path={path}` | Get raw file content (served as-is) |
-| GET | `/workspace/download?path={path}` | Download a file or folder (folders as ZIP) |
-| POST | `/workspace/upload` | Upload a file to the workspace |
-| POST | `/workspace/visibility` | Toggle hidden-files visibility |
+If server-side mtime no longer matches, API returns `409 Conflict`.
+On success, response includes refreshed `mtime`.
 
 ## Agents
 
@@ -68,12 +77,12 @@ On success, the response includes refreshed `mtime`.
 | GET | `/agent/turn/{turn_id}` | Get turn content preview |
 | POST | `/agent/turn/{turn_id}/panel` | Set panel collapse state for a turn |
 | POST | `/agent/{id}/message` | Send message to agent |
-| POST | `/agent/queue-remove` | Remove an item from the queue |
-| POST | `/agent/queue-steer` | Promote a queued item to steering |
+| POST | `/agent/queue-remove` | Remove an item from queue |
+| POST | `/agent/queue-steer` | Promote queued item to steering |
 | POST | `/agent/respond` | Respond to agent permission request |
 | GET | `/agent/whitelist` | Get permission whitelist |
-| POST | `/agent/whitelist` | Add pattern to whitelist |
-| DELETE | `/agent/whitelist` | Remove pattern from whitelist |
+| POST | `/agent/whitelist` | Add whitelist pattern |
+| DELETE | `/agent/whitelist` | Remove whitelist pattern |
 
 ## Avatars
 
@@ -88,15 +97,7 @@ On success, the response includes refreshed `mtime`.
 | WS | `/terminal/ws` | PTY terminal WebSocket (only when `VIBES_ENABLE_TERMINAL=true`) |
 | GET | `/debug/pprof/*` | Go pprof endpoints (only when `VIBES_ENABLE_PPROF=true`) |
 
-## Authentication (optional)
-
-If `VIBES_API_TOKEN` is set, sensitive/mutating routes require a token in one of:
-
-- `X-API-Token: <token>`
-- `Authorization: Bearer <token>`
-- `?token=<token>` (fallback)
-
-## Real-time
+## Real-time (SSE)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
@@ -110,9 +111,16 @@ If `VIBES_API_TOKEN` is set, sensitive/mutating routes require a token in one of
 | `new_post` | New post created |
 | `new_reply` | New reply in thread |
 | `agent_response` | Agent posted a response |
-| `agent_status` | Agent status update (thinking, tool calls) |
+| `agent_status` | Agent status update |
 | `agent_draft` | Agent draft text update |
+| `agent_thought` | Agent thought stream update |
+| `agent_plan` | Agent plan update |
 | `agent_request` | Agent permission request |
 | `agent_request_timeout` | Permission request timed out |
 | `interaction_updated` | Post/reply metadata updated |
 | `interaction_deleted` | Post/reply deleted |
+| `model_changed` | Active model changed |
+| `agents_changed` | Agent inventory changed |
+| `workspace_update` | Workspace update event |
+| `ui_theme` | UI theme/tint update |
+| `extension_event` | Extension UI event payload |

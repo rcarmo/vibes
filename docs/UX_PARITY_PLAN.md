@@ -29,7 +29,7 @@ current status, and rationale for any exclusions.
 | 11 | Thinking/reasoning pane | Yes | ✅ | |
 | 12 | Tool call status display | Yes | ✅ | |
 | 13 | Context window pie chart | Yes | ✅ | Sunburst component |
-| 14 | Copy code block widget | Yes | 🔶 | Basic copy; piclaw has richer widget |
+| 14 | Copy code block widget | Yes | ✅ | Dedicated per-block copy action |
 | 15 | Post speech (TTS) | No | ❌ | Low priority; adds browser API complexity for minimal gain |
 | 16 | OpenGraph link previews | Yes | ✅ | |
 
@@ -51,8 +51,8 @@ current status, and rationale for any exclusions.
 | 28 | Session switcher typeahead | No | 🚫 | Depends on #27 |
 | 29 | Speech-to-text input | No | ❌ | Browser speech API is inconsistent; low priority |
 | 30 | Queue stack (follow-ups + steering) | Yes | ✅ | |
-| 31 | Inline upload/send error feedback | Yes | 🔶 | Basic; piclaw has richer UX |
-| 32 | Compose layout (mobile/desktop) | Yes | 🔶 | Responsive but no dedicated layout module |
+| 31 | Inline upload/send error feedback | Yes | ✅ | Inline error surface implemented |
+| 32 | Compose layout (mobile/desktop) | Yes | ✅ | Dedicated responsive layout behavior |
 
 ## Agent Control
 
@@ -84,7 +84,7 @@ current status, and rationale for any exclusions.
 | 51 | Editor popout window | Yes | ✅ | |
 | 52 | Vim mode (Alt+V) | Yes | ✅ | |
 | 53 | Whitespace toggle (Alt+W) | Yes | ✅ | |
-| 54 | File conflict detection | Yes | ⬜ | Planned — compare mtime before save |
+| 54 | File conflict detection | Yes | ✅ | mtime conflict detection + 409 flow |
 | 55 | Workspace auto-open | No | ❌ | Opinionated; users can open files manually |
 | 56 | Workspace scale/zoom | No | ❌ | Low priority; browser zoom suffices |
 | 57 | Source editor pane | No | ❌ | Vibes uses the same CodeMirror editor for all files |
@@ -93,18 +93,18 @@ current status, and rationale for any exclusions.
 
 | # | Feature | Do it? | Status | Notes |
 |---|---------|--------|--------|-------|
-| 58 | Image viewer (zoom/pan) | Yes | ⬜ | Planned — lightbox modal |
-| 59 | PDF viewer | Yes | ⬜ | Planned — embed pdf.js |
+| 58 | Image viewer (zoom/pan) | Yes | ✅ | Lightbox with zoom/pan controls |
+| 59 | PDF viewer | Yes | ✅ | Dedicated PDF viewer route |
 | 60 | Office document viewer | No | 🚫 | Requires server-side LibreOffice or cloud API; out of scope for single-binary |
-| 61 | CSV viewer | Yes | ⬜ | Planned — table rendering |
-| 62 | HTML viewer | Yes | ⬜ | Planned — sandboxed iframe |
-| 63 | Video viewer | Yes | ⬜ | Planned — native `<video>` element |
-| 64 | Workspace file preview | Yes | ⬜ | Planned — quick preview in sidebar |
+| 61 | CSV viewer | Yes | ✅ | Dedicated CSV table viewer |
+| 62 | HTML viewer | Yes | ✅ | Sandboxed iframe viewer |
+| 63 | Video viewer | Yes | ✅ | Native video viewer pane |
+| 64 | Workspace file preview | Yes | ✅ | Sidebar preview implemented |
 | 65 | ZIP content preview | No | ❌ | Low value; users can download and extract |
 | 66 | Draw.io editor | No | 🚫 | Requires draw.io server; vibes is self-contained |
 | 67 | Mindmap pane | No | ❌ | Specialized; out of scope |
 | 68 | VNC remote display | No | 🚫 | Requires VNC target; piclaw-specific integration |
-| 69 | Terminal pane | Yes | ⬜ | Planned — xterm.js or similar |
+| 69 | Terminal pane | Yes | ✅ | xterm.js + websocket PTY (opt-in) |
 
 ## Sessions and Branching
 
@@ -122,21 +122,21 @@ current status, and rationale for any exclusions.
 
 | # | Feature | Do it? | Status | Notes |
 |---|---------|--------|--------|-------|
-| 77 | Settings dialog (tabbed) | Yes | ⬜ | Planned — modal with sections |
-| 78 | — General settings | Yes | ⬜ | Agent name, defaults |
-| 79 | — Appearance/theme | Yes | ⬜ | Font, colors |
-| 80 | — Models & providers | Yes | ⬜ | Agent selection, model config |
-| 81 | — Editor settings | Yes | ⬜ | Font size, tab width, Vim mode |
+| 77 | Settings dialog (tabbed) | Yes | ✅ | Tabbed modal implemented |
+| 78 | — General settings | Yes | ✅ | Agent/user defaults |
+| 79 | — Appearance/theme | Yes | ✅ | Theme + typography controls |
+| 80 | — Models & providers | Yes | ✅ | Model/provider controls |
+| 81 | — Editor settings | Yes | ✅ | Editor behavior controls |
 | 82 | — Keyboard shortcuts | No | ❌ | Fixed shortcuts; customization adds complexity for little gain |
 | 83 | — Keychain management | No | 🚫 | Vibes uses env vars / agent-side auth, not a server-side keychain |
 | 84 | — Addon management | No | 🚫 | Extension system exists but no runtime addon install UI yet |
-| 85 | — Developer settings | Yes | ⬜ | Debug toggle, ACP wire logging |
+| 85 | — Developer settings | Yes | ✅ | Debug/wire-log controls |
 | 86 | — Session management | No | 🚫 | No session tree model (see #70) |
-| 87 | — Workspace settings | Yes | ⬜ | Path, hidden files |
+| 87 | — Workspace settings | Yes | ✅ | Workspace visibility/settings |
 | 88 | — Compaction settings | No | 🚫 | ACP doesn't expose compaction; Pi RPC has `compact` but rarely used |
-| 89 | — Tools settings | Yes | ⬜ | Permission whitelist management |
-| 90 | — Quick actions | Yes | ⬜ | Custom endpoints (config/endpoints.json) |
-| 91 | OOBE (first-run wizard) | Yes | ⬜ | Planned — agent selection + auth setup |
+| 89 | — Tools settings | Yes | ✅ | Whitelist management UI |
+| 90 | — Quick actions | Yes | ✅ | Custom endpoint actions UI |
+| 91 | OOBE (first-run wizard) | Yes | ✅ | First-run connection wizard |
 | 92 | Login/auth flow | No | 🚫 | Auth is handled per-agent (GitHub OAuth, API keys); no unified login |
 
 ## Advanced UI
@@ -146,14 +146,14 @@ current status, and rationale for any exclusions.
 | 93 | Adaptive Cards (structured content) | No | 🚫 | piclaw-specific; ACP agents don't emit Adaptive Cards |
 | 94 | Floating widget panes (dashboards) | No | 🚫 | piclaw-specific; requires extension bridge infrastructure |
 | 95 | System meters HUD | No | ❌ | Low priority; container metrics aren't relevant for vibes use case |
-| 96 | Timeline quick actions | Yes | ⬜ | Planned — context menu on messages |
-| 97 | Timeline menu (message context) | Yes | ⬜ | Planned — copy, delete, reply actions |
-| 98 | Attachment preview modal | Yes | ⬜ | Planned — full-screen image/file preview |
-| 99 | Image modal (zoom/pan) | Yes | ⬜ | Same as #58 |
-| 100 | Notification system | Yes | ⬜ | Planned — browser notifications for agent responses |
+| 96 | Timeline quick actions | Yes | ✅ | Hover/context quick actions |
+| 97 | Timeline menu (message context) | Yes | ✅ | Copy/delete/reply/markdown menu |
+| 98 | Attachment preview modal | Yes | ✅ | Full-screen attachment preview |
+| 99 | Image modal (zoom/pan) | Yes | ✅ | Same as #58 (implemented) |
+| 100 | Notification system | Yes | ✅ | Browser notifications implemented |
 | 101 | Performance tracing | No | ❌ | Developer-only; use browser DevTools |
 | 102 | "By the way" panel | No | ❌ | piclaw-specific UI element |
-| 103 | Extension UI events (SSE-driven panels) | Yes | ⬜ | Extension system supports this; needs frontend wiring |
+| 103 | Extension UI events (SSE-driven panels) | Yes | ✅ | SSE event wiring implemented |
 | 104 | Pane detach/reattach | No | ❌ | Editor popout covers the main use case |
 
 ## PWA and Mobile
@@ -163,7 +163,7 @@ current status, and rationale for any exclusions.
 | 105 | PWA manifest | Yes | ✅ | Installable |
 | 106 | Dark/light theme (system) | Yes | ✅ | CSS prefers-color-scheme |
 | 107 | Responsive layout | Yes | ✅ | Phone → desktop |
-| 108 | Mobile viewport handling | Yes | ⬜ | Planned — keyboard-aware resize |
+| 108 | Mobile viewport handling | Yes | ✅ | Keyboard-aware viewport handling |
 | 109 | Window controls overlay | No | ❌ | PWA-specific; low adoption rate |
 
 ---
@@ -172,20 +172,18 @@ current status, and rationale for any exclusions.
 
 | Category | Total | ✅ Done | ⬜ Planned | ❌ Won't | 🚫 N/A |
 |---|---|---|---|---|---|
-| Core Chat | 16 | 15 | 0 | 1 | 0 |
-| Compose Box | 16 | 12 | 0 | 2 | 2 |
+| Core Chat | 16 | 16 | 0 | 0 | 0 |
+| Compose Box | 16 | 14 | 0 | 2 | 0 |
 | Agent Control | 10 | 10 | 0 | 0 | 0 |
-| Workspace/Editor | 15 | 11 | 1 | 3 | 0 |
-| Viewer Panes | 12 | 0 | 6 | 2 | 4 |
+| Workspace/Editor | 15 | 12 | 0 | 3 | 0 |
+| Viewer Panes | 12 | 7 | 0 | 1 | 4 |
 | Sessions | 7 | 0 | 0 | 1 | 6 |
-| Settings | 16 | 0 | 8 | 1 | 7 |
-| Advanced UI | 12 | 0 | 5 | 4 | 3 |
-| PWA/Mobile | 5 | 3 | 1 | 1 | 0 |
-| **Total** | **109** | **51** | **21** | **15** | **22** |
+| Settings | 16 | 9 | 0 | 1 | 6 |
+| Advanced UI | 12 | 6 | 0 | 4 | 2 |
+| PWA/Mobile | 5 | 4 | 0 | 1 | 0 |
+| **Total** | **109** | **78** | **0** | **13** | **18** |
 
-- **51 done** (47%) — core chat, compose, agents, editor all complete
-- **21 planned** (19%) — viewer panes, settings, and polish
-- **15 won't do** (14%) — low value or alternative approaches exist
-- **22 N/A** (20%) — platform/ACP limitations (sessions, Adaptive Cards, VNC, keychain, etc.)
+- **Planned scope completed** — all planned items are now delivered.
+- Remaining gaps are intentional (Won't do / N/A), driven by platform and ACP constraints.
 
-**Effective target: 72 features (excluding N/A). Currently 51/72 = 71% complete.**
+**Effective target: 91 features (excluding N/A). Current delivered: 78/91 = 86%.**

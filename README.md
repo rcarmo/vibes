@@ -384,7 +384,8 @@ vibes/
 │   │   ├── panes/                    # Popout editor
 │   │   └── vendor/                   # Vendored Preact, CodeMirror, KaTeX
 │   └── fonts/                        # KaTeX math fonts
-├── tests/e2e/ui.spec.mjs            # Playwright E2E tests (14 tests)
+├── tests/features/*.feature          # BDD user stories (Gherkin)
+├── tests/steps/*.spec.mjs            # Playwright implementations (46 scenarios)
 ├── config/endpoints.json             # Custom action definitions
 ├── docs/                             # Protocol and integration docs
 ├── embed.go                          # //go:embed all:static
@@ -451,7 +452,7 @@ make coverage        # Coverage report
 make fuzz            # All 9 fuzz targets
 make check           # lint + test + coverage
 make test-acp        # Verify ACP agent handshakes
-make e2e             # Playwright E2E tests against Pi
+make e2e             # Playwright BDD UX suite + PDF report
 make build-all       # Cross-compile (linux-amd64, linux-arm64, darwin-arm64)
 make clean           # Remove artifacts
 ```
@@ -469,7 +470,7 @@ make clean           # Remove artifacts
 | `internal/routes` | 20 unit + 2 fuzz | 41% |
 | **Total** | **55+ tests, 9 fuzz targets** | **52%** |
 
-Plus 14 Playwright E2E tests for UI validation.
+Plus 46 Playwright BDD scenarios for end-to-end UX validation.
 
 ---
 
