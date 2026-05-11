@@ -39,7 +39,7 @@ If `VIBES_API_TOKEN` is set, sensitive/mutating routes require a token via one o
 - `Authorization: Bearer <token>`
 - `?token=<token>` (fallback)
 
-This includes `/workspace*`, `/agent*`, `/post*`, `/thread*`, `/media*`, and optional `/terminal/ws` + `/debug/pprof*`.
+This includes all mutating routes (`POST`/`PUT`/`PATCH`/`DELETE`) plus sensitive read routes like `/workspace*`, optional `/terminal/ws`, and optional `/debug/pprof*`.
 
 
 ## Agent selection

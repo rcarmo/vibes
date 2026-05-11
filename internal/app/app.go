@@ -423,16 +423,16 @@ func optionalAPITokenMiddleware(next http.Handler) http.Handler {
 		}
 
 		path := r.URL.Path
-		sensitivePath := strings.HasPrefix(path, "/workspace") ||
-			strings.HasPrefix(path, "/agent") ||
-			strings.HasPrefix(path, "/post") ||
-			strings.HasPrefix(path, "/thread") ||
-			strings.HasPrefix(path, "/media") ||
-			strings.HasPrefix(path, "/terminal/ws") ||
-			strings.HasPrefix(path, "/debug/pprof")
 		mutatingMethod := r.Method == http.MethodPost || r.Method == http.MethodPut || r.Method == http.MethodPatch || r.Method == http.MethodDelete
 
-		if !sensitivePath && !mutatingMethod {
+		// Protect all mutating routes, plus selected sensitive read routes.
+		// Keep read-only media/timeline endpoints public so UI asset rendering doesn't break
+		// when API token auth is enabled.
+		sensitiveReadPath := strings.HasPrefix(path, "/workspace") ||
+			strings.HasPrefix(path, "/terminal/ws") ||
+			strings.HasPrefix(path, "/debug/pprof")
+
+		if !mutatingMethod && !sensitiveReadPath {
 			next.ServeHTTP(w, r)
 			return
 		}

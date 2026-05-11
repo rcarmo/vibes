@@ -151,7 +151,9 @@ func (p *Provider) send(cmd interface{}) error {
 // readEvents reads NDJSON events from Pi's stdout and routes them.
 func (p *Provider) readEvents() {
 	scanner := bufio.NewScanner(p.stdout)
-	scanner.Buffer(make([]byte, 1<<20), 1<<20) // 1 MB buffer
+	// Pi events can occasionally include large payloads (tool output / blocks),
+	// so keep a larger scanner ceiling to avoid silent token-too-long exits.
+	scanner.Buffer(make([]byte, 1<<20), 16<<20) // 16 MB max token
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
@@ -161,10 +163,16 @@ func (p *Provider) readEvents() {
 
 		var event map[string]interface{}
 		if err := json.Unmarshal(line, &event); err != nil {
+			slog.Debug("Pi event decode failed", "error", err)
 			continue
 		}
 
 		p.routeEvent(event)
+	}
+
+	if err := scanner.Err(); err != nil {
+		slog.Warn("Pi event stream terminated", "error", err)
+		p.events <- agent.Event{Type: "status", Data: map[string]string{"state": "error", "error": err.Error()}}
 	}
 }
 
