@@ -925,7 +925,7 @@ function App() {
         const transferPayload = stashEditorPopoutState({
             path: tabId,
             content: tab?.content,
-            mtime: tab?.savedAt ? new Date(tab.savedAt).toISOString() : null,
+            mtime: tab?.mtime || null,
         });
         const params = new URLSearchParams();
         params.set('editor', tabId);

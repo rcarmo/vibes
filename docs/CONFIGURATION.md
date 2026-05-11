@@ -24,9 +24,9 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Custom action definitions |
 | `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
 | `VIBES_WORKSPACE` | `<cwd>` | Workspace root for file explorer |
-| `VIBES_CORS_ALLOW_ORIGIN` | _(unset)_ | Enable CORS for a specific origin (or `*`) |
+| `VIBES_CORS_ALLOW_ORIGIN` | _(unset)_ | Enable CORS for a specific origin (or `*`); also used as terminal WS origin allowlist override |
 | `VIBES_API_TOKEN` | _(unset)_ | Optional token required for sensitive/mutating routes |
-| `VIBES_ENABLE_TERMINAL` | `false` | Enable `/terminal/ws` PTY WebSocket endpoint |
+| `VIBES_ENABLE_TERMINAL` | `false` | Enable `/terminal/ws` PTY WebSocket endpoint (same-origin by default) |
 | `VIBES_ENABLE_PPROF` | `false` | Enable `/debug/pprof/*` profiling endpoints |
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).

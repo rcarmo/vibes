@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"sync"
@@ -19,6 +20,11 @@ import (
 // bridges to a local PTY running the user's shell.
 func TerminalHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if !terminalOriginAllowed(r) {
+			http.Error(w, "forbidden origin", http.StatusForbidden)
+			return
+		}
+
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			slog.Error("terminal websocket accept", "error", err)
@@ -119,4 +125,27 @@ func TerminalHandler() http.HandlerFunc {
 		<-ctx.Done()
 		wg.Wait()
 	}
+}
+
+func terminalOriginAllowed(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		// Non-browser clients (or same-process tests) may omit Origin.
+		return true
+	}
+
+	// Explicit allowlist takes precedence.
+	if allow := os.Getenv("VIBES_CORS_ALLOW_ORIGIN"); allow != "" {
+		if allow == "*" {
+			return true
+		}
+		return origin == allow
+	}
+
+	// Default: same-host origin only.
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return u.Host == r.Host
 }

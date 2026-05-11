@@ -85,7 +85,10 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("pi stdout: %w", err)
 	}
-	cmd.Stderr = nil // discard stderr
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return fmt.Errorf("pi stderr: %w", err)
+	}
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("pi start: %w", err)
@@ -95,8 +98,9 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	p.stdin = stdin
 	p.stdout = stdout
 
-	// Start event reader
+	// Start stream readers
 	go p.readEvents()
+	go p.readStderr(stderr)
 
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: "pi"})
 	slog.Info("Pi RPC agent started", "pid", cmd.Process.Pid)
@@ -173,6 +177,21 @@ func (p *Provider) readEvents() {
 	if err := scanner.Err(); err != nil {
 		slog.Warn("Pi event stream terminated", "error", err)
 		p.events <- agent.Event{Type: "status", Data: map[string]string{"state": "error", "error": err.Error()}}
+	}
+}
+
+func (p *Provider) readStderr(stderr io.Reader) {
+	scanner := bufio.NewScanner(stderr)
+	scanner.Buffer(make([]byte, 64<<10), 1<<20) // 1 MB line limit
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		slog.Debug("Pi stderr", "line", line)
+	}
+	if err := scanner.Err(); err != nil {
+		slog.Debug("Pi stderr stream terminated", "error", err)
 	}
 }
 
