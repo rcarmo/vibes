@@ -102,11 +102,17 @@ make build-all            # all platforms
 ### Docker
 
 ```bash
+# Local build
 docker build -t vibes .
 docker run -p 8080:8080 vibes
+
+# Prebuilt release images from GHCR
+docker pull ghcr.io/rcarmo/vibes:vX.Y.Z
+docker run -p 8080:8080 ghcr.io/rcarmo/vibes:vX.Y.Z
 ```
 
 The Dockerfile produces a **scratch-based image** (~24 MB) — just the binary + CA certificates.
+Release tags publish multi-arch images (`linux/amd64`, `linux/arm64`) to GHCR.
 
 ### Agent binaries
 
