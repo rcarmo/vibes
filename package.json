@@ -3,17 +3,17 @@
   "private": true,
   "type": "module",
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "1.60.0",
     "eslint": "9.39.4",
-    "globals": "16.5.0"
+    "globals": "17.6.0"
   },
   "scripts": {
-    "lint:frontend": "eslint \"static/js/**/*.js\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\"", 
+    "lint:frontend": "eslint \"static/js/**/*.js\" \"tests/**/*.mjs\" \"scripts/**/*.mjs\"",
     "build:frontend": "bun run build.js"
   },
   "dependencies": {
     "beautiful-mermaid": "1.1.3",
-    "katex": "0.16.37",
-    "marked": "17.0.4"
+    "katex": "0.17.0",
+    "marked": "18.0.4"
   }
 }
