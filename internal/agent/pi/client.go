@@ -13,8 +13,10 @@ import (
 	"io"
 	"log/slog"
 	"os/exec"
+	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/rcarmo/vibes/internal/agent"
 )
@@ -37,6 +39,7 @@ type Provider struct {
 	mu     sync.RWMutex
 	status agent.ProviderStatus
 	cancel context.CancelFunc
+	nextID atomic.Int64
 }
 
 // New creates a new Pi RPC provider.
@@ -61,6 +64,16 @@ func (p *Provider) setStatus(s agent.ProviderStatus) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.status = s
+}
+
+func (p *Provider) updateStatus(mut func(*agent.ProviderStatus)) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	mut(&p.status)
+}
+
+func (p *Provider) requestID() string {
+	return strconv.FormatInt(p.nextID.Add(1), 10)
 }
 
 // Initialize spawns the Pi subprocess and waits for readiness.
@@ -113,10 +126,12 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 		return fmt.Errorf("Pi RPC agent is not initialized")
 	}
 
-	p.setStatus(agent.ProviderStatus{State: "busy", Model: p.status.Model})
-	defer p.setStatus(agent.ProviderStatus{State: "idle", Model: p.status.Model})
+	p.updateStatus(func(s *agent.ProviderStatus) {
+		s.State = "busy"
+	})
 
 	cmd := map[string]interface{}{
+		"id":      p.requestID(),
 		"type":    "prompt",
 		"message": message,
 	}
@@ -125,7 +140,7 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 
 // Cancel aborts the current Pi request.
 func (p *Provider) Cancel() error {
-	return p.send(map[string]string{"type": "abort"})
+	return p.send(map[string]string{"id": p.requestID(), "type": "abort"})
 }
 
 // Shutdown stops the Pi subprocess.
@@ -201,57 +216,148 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 
 	switch eventType {
 	case "response":
-		// Acknowledgement — ignore
+		p.routeResponse(event)
 
 	case "agent_start":
+		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "busy" })
 		p.events <- agent.Event{Type: "status", Data: map[string]string{"state": "active"}}
 
 	case "agent_end":
+		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "idle" })
 		p.events <- agent.Event{Type: "response", Data: event}
 
 	case "message_start", "message_update", "message_end":
-		// Check for delta type
-		if delta, ok := event["delta"].(map[string]interface{}); ok {
-			deltaType, _ := delta["type"].(string)
-			switch deltaType {
-			case "text_delta":
-				text, _ := delta["text"].(string)
-				p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text}}
-			case "thinking_delta":
-				text, _ := delta["text"].(string)
-				p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text}}
-			}
-		}
+		p.routeMessageEvent(event)
 
-	case "tool_execution_start":
-		p.events <- agent.Event{Type: "status", Data: event}
-
-	case "tool_execution_update":
-		p.events <- agent.Event{Type: "status", Data: event}
-
-	case "tool_execution_end":
-		p.events <- agent.Event{Type: "status", Data: event}
-
-	case "turn_start", "turn_end":
+	case "tool_call", "tool_result",
+		"tool_execution_start", "tool_execution_update", "tool_execution_end",
+		"turn_start", "turn_end", "queue_update", "auto_retry_start", "auto_retry_end", "session":
 		p.events <- agent.Event{Type: "status", Data: event}
 
 	case "extension_ui_request":
 		p.events <- agent.Event{Type: "permission", Data: event}
 
+	case "error", "backend_exited":
+		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "error" })
+		p.events <- agent.Event{Type: "error", Data: event}
+
 	default:
-		// Unknown events forwarded as status
+		// Unknown events are still useful for diagnostics and future Pi protocol additions.
 		p.events <- agent.Event{Type: "status", Data: event}
 	}
 }
 
+func (p *Provider) routeMessageEvent(event map[string]interface{}) {
+	// Current Pi RPC emits message_update.assistantMessageEvent, while older
+	// builds emitted message_update.delta. Accept both so Vibes can interoperate
+	// with Pi versions across the protocol transition.
+	payload, _ := event["assistantMessageEvent"].(map[string]interface{})
+	if payload == nil {
+		payload, _ = event["delta"].(map[string]interface{})
+	}
+	if payload == nil {
+		return
+	}
+
+	deltaType, _ := payload["type"].(string)
+	text := firstString(payload, "delta", "text", "content")
+	switch deltaType {
+	case "text_delta":
+		if text != "" {
+			p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text}}
+		}
+	case "thinking_delta":
+		if text != "" {
+			p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text}}
+		}
+	}
+}
+
+func (p *Provider) routeResponse(event map[string]interface{}) {
+	if success, ok := event["success"].(bool); ok && !success {
+		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "error" })
+		p.events <- agent.Event{Type: "error", Data: event}
+		return
+	}
+
+	command, _ := event["command"].(string)
+	switch command {
+	case "set_model":
+		if data, ok := event["data"].(map[string]interface{}); ok {
+			provider, _ := data["provider"].(string)
+			modelID, _ := data["id"].(string)
+			model := strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
+			if model != "" {
+				p.updateStatus(func(s *agent.ProviderStatus) { s.Model = model })
+			}
+		}
+	case "get_state":
+		p.updateStatusFromState(event["data"])
+	}
+
+	p.events <- agent.Event{Type: "status", Data: event}
+}
+
+func (p *Provider) updateStatusFromState(data interface{}) {
+	state, ok := data.(map[string]interface{})
+	if !ok {
+		return
+	}
+	p.updateStatus(func(s *agent.ProviderStatus) {
+		if model, ok := state["model"].(map[string]interface{}); ok {
+			provider, _ := model["provider"].(string)
+			modelID, _ := model["id"].(string)
+			label := strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
+			if label != "" {
+				s.Model = label
+			}
+		}
+		if pct, ok := numericContextPct(state); ok {
+			s.ContextPct = pct
+		}
+	})
+}
+
+func firstString(m map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := m[key].(string); ok {
+			return value
+		}
+	}
+	return ""
+}
+
+func numericContextPct(state map[string]interface{}) (float64, bool) {
+	for _, key := range []string{"contextPct", "contextPercent", "contextPercentage"} {
+		if value, ok := state[key].(float64); ok {
+			if value > 1 {
+				value /= 100
+			}
+			return value, true
+		}
+	}
+	if context, ok := state["context"].(map[string]interface{}); ok {
+		for _, key := range []string{"pct", "percent", "percentage", "usage"} {
+			if value, ok := context[key].(float64); ok {
+				if value > 1 {
+					value /= 100
+				}
+				return value, true
+			}
+		}
+	}
+	return 0, false
+}
+
 // Steer sends a mid-turn steering message.
 func (p *Provider) Steer(message string) error {
-	return p.send(map[string]string{"type": "steer", "message": message})
+	return p.send(map[string]string{"id": p.requestID(), "type": "steer", "message": message})
 }
 
 // SetModel changes the model live.
 func (p *Provider) SetModel(provider, modelID string) error {
 	return p.send(map[string]interface{}{
+		"id":       p.requestID(),
 		"type":     "set_model",
 		"provider": provider,
 		"modelId":  modelID,
@@ -261,6 +367,7 @@ func (p *Provider) SetModel(provider, modelID string) error {
 // SetThinkingLevel changes the thinking level live.
 func (p *Provider) SetThinkingLevel(level string) error {
 	return p.send(map[string]interface{}{
+		"id":    p.requestID(),
 		"type":  "set_thinking_level",
 		"level": level,
 	})
@@ -268,5 +375,5 @@ func (p *Provider) SetThinkingLevel(level string) error {
 
 // NewSession resets the Pi session.
 func (p *Provider) NewSession() error {
-	return p.send(map[string]string{"type": "new_session"})
+	return p.send(map[string]string{"id": p.requestID(), "type": "new_session"})
 }
