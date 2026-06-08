@@ -19,45 +19,6 @@ func TestNewProvider(t *testing.T) {
 	}
 }
 
-func TestRouteEvent(t *testing.T) {
-	p := New(Config{Command: "pi"})
-
-	// Test text_delta routing
-	event := map[string]interface{}{
-		"type": "message_update",
-		"delta": map[string]interface{}{
-			"type": "text_delta",
-			"text": "hello",
-		},
-	}
-
-	go p.routeEvent(event)
-
-	e := <-p.events
-	if e.Type != "draft" {
-		t.Errorf("event type = %q, want draft", e.Type)
-	}
-}
-
-func TestRouteThinkingDelta(t *testing.T) {
-	p := New(Config{Command: "pi"})
-
-	event := map[string]interface{}{
-		"type": "message_update",
-		"delta": map[string]interface{}{
-			"type": "thinking_delta",
-			"text": "thinking...",
-		},
-	}
-
-	go p.routeEvent(event)
-
-	e := <-p.events
-	if e.Type != "thought" {
-		t.Errorf("event type = %q, want thought", e.Type)
-	}
-}
-
 func TestRouteAssistantMessageEventTextDelta(t *testing.T) {
 	p := New(Config{Command: "pi"})
 

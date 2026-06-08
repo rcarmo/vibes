@@ -248,19 +248,13 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 }
 
 func (p *Provider) routeMessageEvent(event map[string]interface{}) {
-	// Current Pi RPC emits message_update.assistantMessageEvent, while older
-	// builds emitted message_update.delta. Accept both so Vibes can interoperate
-	// with Pi versions across the protocol transition.
 	payload, _ := event["assistantMessageEvent"].(map[string]interface{})
-	if payload == nil {
-		payload, _ = event["delta"].(map[string]interface{})
-	}
 	if payload == nil {
 		return
 	}
 
 	deltaType, _ := payload["type"].(string)
-	text := firstString(payload, "delta", "text", "content")
+	text := firstString(payload, "delta", "content")
 	switch deltaType {
 	case "text_delta":
 		if text != "" {
