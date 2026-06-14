@@ -93,7 +93,7 @@ Current ACP client-service limitations:
 - Vibes negotiates and stores ACP prompt/MCP/session/auth capabilities.
 - Vibes passes configured MCP servers to `session/new`, filtering unsupported HTTP/SSE transports.
 - Vibes still advertises no ACP client filesystem or terminal capabilities; `fs/*`, `terminal/*`, and ACP permission request handling are planned but disabled until explicit safety gates are implemented.
-- Prompt payloads are still text-only; resource links, embedded resources, image, and audio blocks are planned follow-up work.
+- Prompt payloads are still text-only; resource links, embedded resources, image, and audio blocks are planned follow-up work tracked in [ACP_EXTRAS_PLAN.md](ACP_EXTRAS_PLAN.md).
 
 ### Installing agent binaries
 
