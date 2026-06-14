@@ -16,6 +16,7 @@ import (
 // Agents mounts agent-related routes.
 func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(r chi.Router) {
 	permissionBroker := NewPermissionBroker(broker, 30*time.Second, database)
+	wireACPPermissionHandlers(registry, permissionBroker)
 	queue := NewFollowUpQueue()
 	turnMgr := NewTurnManager()
 	return func(r chi.Router) {

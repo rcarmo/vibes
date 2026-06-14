@@ -28,7 +28,14 @@ func (p *Provider) handleClientRequest(idRaw json.RawMessage, msg map[string]jso
 			return
 		}
 		p.sendResultResponse(id, result)
-	case "fs/write_text_file", "terminal/create", "terminal/output", "terminal/kill", "session/request_permission":
+	case "session/request_permission":
+		result, err := p.requestPermission(params)
+		if err != nil && result == nil {
+			p.sendErrorResponse(id, -32000, err.Error())
+			return
+		}
+		p.sendResultResponse(id, result)
+	case "fs/write_text_file", "terminal/create", "terminal/output", "terminal/kill":
 		p.sendErrorResponse(id, -32601, fmt.Sprintf("%s is not implemented by Vibes", method))
 	default:
 		p.sendErrorResponse(id, -32601, fmt.Sprintf("method not found: %s", method))

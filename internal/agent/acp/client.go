@@ -52,9 +52,10 @@ type Provider struct {
 	draftMu   sync.Mutex
 	draftText strings.Builder
 
-	mu           sync.RWMutex
-	status       agent.ProviderStatus
-	capabilities AgentCapabilities
+	mu                sync.RWMutex
+	status            agent.ProviderStatus
+	capabilities      AgentCapabilities
+	permissionHandler PermissionHandler
 }
 
 func New(cfg Config) *Provider {

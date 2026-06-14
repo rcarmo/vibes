@@ -30,10 +30,10 @@ type Option struct {
 
 // PermissionBroker manages pending permission requests from agents.
 type PermissionBroker struct {
-	mu       sync.RWMutex
-	pending  map[string]*PermissionRequest
-	sseBrk   *sse.Broker
-	timeout  time.Duration
+	mu          sync.RWMutex
+	pending     map[string]*PermissionRequest
+	sseBrk      *sse.Broker
+	timeout     time.Duration
 	whitelistDB *db.DB // for auto-approve (fixes #8)
 }
 
@@ -151,8 +151,8 @@ type QueueItem struct {
 
 // FollowUpQueue manages queued messages and steering messages.
 type FollowUpQueue struct {
-	mu    sync.Mutex
-	items []QueueItem
+	mu     sync.Mutex
+	items  []QueueItem
 	nextID int64
 }
 

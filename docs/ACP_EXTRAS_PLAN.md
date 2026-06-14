@@ -42,25 +42,25 @@ Goal: enrich `session/prompt` without sending content block types the agent did 
 - No binary/media payloads until size/type limits and UI affordances exist.
 - Unsupported prompt block types are dropped with debug logging, not sent.
 
-## In progress: Milestone C — permission mediation and `fs/read_text_file`
+## Completed: Milestone C — permission mediation and `fs/read_text_file`
 
 Goal: support ACP-native permission requests and a read-only filesystem service behind explicit local safety gates.
 
-### Delivered read-only slice
+### Delivered
 
 1. Handle incoming ACP client-side requests in the provider receive loop and return JSON-RPC responses instead of dropping them.
-2. Advertise `clientCapabilities.fs.readTextFile` only when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
-3. Keep `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false` unconditionally.
-4. Implement `fs/read_text_file` with path normalization, workspace-root confinement, symlink escape prevention, directory rejection, file size limits, and ACP line/limit slicing.
-5. Surface provider descriptor booleans for read/write filesystem and terminal services so UI controls can stay capability-driven.
-6. Return explicit `method not found`/disabled errors for unimplemented ACP client methods rather than silently allowing them.
+2. Route `session/request_permission` through the existing Vibes permission dialog, whitelist, and timeout policy.
+3. Return ACP `selected` outcomes for approved option IDs and ACP `cancelled` outcomes for broker timeouts/errors.
+4. Advertise `clientCapabilities.fs.readTextFile` only when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
+5. Keep `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false` unconditionally.
+6. Implement `fs/read_text_file` with path normalization, workspace-root confinement, symlink escape prevention, directory rejection, file size limits, and ACP line/limit slicing.
+7. Surface provider descriptor booleans for read/write filesystem and terminal services so UI controls can stay capability-driven.
+8. Return explicit `method not found`/disabled errors for unimplemented ACP client methods rather than silently allowing them.
 
-### Remaining permission-mediation work
+### Follow-up hardening
 
-1. Route `session/request_permission` through the existing Vibes permission UX and timeout policy.
-2. Add operation-specific permission decisions before enabling broader filesystem or terminal services.
-3. Add audit UI entries for approved/denied client-service calls.
-4. Add timeout/denial tests once the provider-level permission broker is introduced.
+1. Add richer audit UI entries for approved/denied ACP client-service calls.
+2. Add operation-specific permission policy before enabling write filesystem or terminal services.
 
 ### Safety gates
 
