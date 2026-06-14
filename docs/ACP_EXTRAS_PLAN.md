@@ -70,16 +70,24 @@ Goal: support ACP-native permission requests and a read-only filesystem service 
 - Files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are rejected.
 - Write and terminal services are not advertised or implemented.
 
-## Milestone D — writes and terminal services
+## Design complete: Milestone D — writes and terminal services
 
 Goal: add mutating local services only behind stronger opt-in controls.
 
-### Scope
+### Delivered design-only slice
 
-1. Add `fs/write_text_file` only after read service hardening is complete.
-2. Require explicit opt-in for write support and per-operation permission mediation.
-3. Add terminal service support only when `/terminal/ws` is enabled and an ACP-specific terminal policy is configured.
-4. Add tests for write confinement, overwrite behavior, terminal command denial, and session cleanup.
+1. Added [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) for `fs/write_text_file` and `terminal/*`.
+2. Defined separate default-off opt-in configuration for ACP write and ACP terminal services.
+3. Defined workspace/root confinement, symlink handling, overwrite policy, terminal root/environment/session constraints, per-operation permission mediation, audit event shape, UI gating, and test coverage requirements.
+4. Kept `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false`; no write or terminal implementation is enabled by this milestone.
+
+### Future implementation rollout
+
+1. Add write config parsing without advertising write capability.
+2. Add write path validation/audit plumbing and tests.
+3. Enable `fs/write_text_file` only behind config and per-operation approval.
+4. Reassess and implement terminal separately with lifecycle limits, minimal env, audit, and explicit ACP-specific config.
+5. Advertise `clientCapabilities.terminal=true` only after terminal policy enforcement is complete.
 
 ### Safety gates
 
@@ -87,6 +95,7 @@ Goal: add mutating local services only behind stronger opt-in controls.
 - Workspace-root allowlist only.
 - Per-operation approval by default.
 - Terminal environment is minimal and audited.
+- `/terminal/ws` enablement never implies ACP terminal enablement.
 
 ## In progress: Milestone E — ACP-native UI controls
 

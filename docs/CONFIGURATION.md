@@ -94,7 +94,7 @@ Keep secrets out of committed files. Prefer wrapper commands or inherited proces
 
 `fs/read_text_file` is disabled by default. Set `VIBES_ACP_FS_READ_TEXT_ENABLED=true` to advertise `clientCapabilities.fs.readTextFile` and allow an ACP agent to request text reads inside the Vibes workspace root. Reads are path-normalized, symlinks are resolved before the root-confinement check, directories are rejected, and files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are refused.
 
-Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Those services remain unavailable until a stronger operation-specific permission UX and safety policy are implemented.
+Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Those services remain unavailable until the safety requirements in [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) are implemented and validated.
 
 Current ACP client-service limitations:
 
