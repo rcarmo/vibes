@@ -88,11 +88,17 @@ Goal: add mutating local services only behind stronger opt-in controls.
 - Per-operation approval by default.
 - Terminal environment is minimal and audited.
 
-## Milestone E — ACP-native UI controls
+## In progress: Milestone E — ACP-native UI controls
 
 Goal: expose negotiated ACP controls in the frontend without leaking unsupported actions.
 
-### Scope
+### Delivered safe UI metadata slice
+
+1. Provider descriptors expose explicit filesystem and terminal service booleans.
+2. Frontend provider utilities understand `permission_requests`, `fs_read_text_file`, `fs_write_text_file`, and `terminal_services` capability flags.
+3. Provider summaries can display read-only filesystem and permission support while write filesystem and terminal affordances remain hidden/disabled unless a provider explicitly advertises them.
+
+### Remaining scope
 
 1. Surface `session/new` result `modes` and `configOptions` in provider descriptors or a provider details endpoint.
 2. Reflect usage/session updates from `session/update` events when present.
@@ -104,3 +110,4 @@ Goal: expose negotiated ACP controls in the frontend without leaking unsupported
 - UI controls are capability-driven.
 - Unknown ACP update payloads are ignored safely and logged in debug mode.
 - No frontend action assumes Copilot/Codex/Pi parity.
+- Write filesystem and terminal controls stay unavailable until Milestone D implements explicit policies.

@@ -16,6 +16,9 @@ export interface ProviderCapabilities {
     follow_up_queue?: boolean;
     working_directory?: boolean;
     tools_mode?: string[];
+    fs_read_text_file?: boolean;
+    fs_write_text_file?: boolean;
+    terminal_services?: boolean;
 }
 
 export interface ProviderDescriptor {
@@ -72,12 +75,28 @@ export function canSetThinking(provider: ProviderDescriptor | null | undefined):
     return Array.isArray(caps.thinking_levels) && caps.thinking_levels.length > 0;
 }
 
+export function canReadTextFiles(provider: ProviderDescriptor | null | undefined): boolean {
+    return Boolean(provider?.capabilities?.fs_read_text_file);
+}
+
+export function canWriteTextFiles(provider: ProviderDescriptor | null | undefined): boolean {
+    return Boolean(provider?.capabilities?.fs_write_text_file);
+}
+
+export function canUseTerminalServices(provider: ProviderDescriptor | null | undefined): boolean {
+    return Boolean(provider?.capabilities?.terminal_services);
+}
+
 export function providerCapabilitySummary(provider: ProviderDescriptor | null | undefined): string[] {
     const caps = provider?.capabilities || {};
     const summary: string[] = [];
     if (caps.model_list || caps.model_switch) summary.push('models');
     if (Array.isArray(caps.thinking_levels) && caps.thinking_levels.length > 0) summary.push('thinking');
     if (caps.tool_events) summary.push('tools');
+    if (caps.permission_requests) summary.push('permissions');
+    if (caps.fs_read_text_file) summary.push('read-only fs');
+    if (caps.fs_write_text_file) summary.push('write fs');
+    if (caps.terminal_services) summary.push('terminal');
     if (caps.steering) summary.push('steering');
     if (caps.follow_up_queue) summary.push('queue');
     if (caps.session_stats || caps.session_compact) summary.push('sessions');
