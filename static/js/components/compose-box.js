@@ -227,8 +227,8 @@ export function ComposeBox({
     const notificationActive = notificationPermission === 'granted' && notificationsEnabled;
     const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
 
-    const providerOptions = (providers || []).filter((provider) => provider);
-    const availableProviders = getAvailableProviders(providerOptions);
+    const providerOptions = getAvailableProviders(providers || []);
+    const availableProviders = providerOptions;
     const selectedProvider = getProviderById(providerOptions, activeBackendId)
         || availableProviders[0]
         || providerOptions[0]

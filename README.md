@@ -66,13 +66,11 @@ make build
 # Run with GitHub Copilot (default)
 ./vibes
 
-# Run with any ACP agent
-VIBES_ACP_AGENT="codex-acp" ./vibes
-VIBES_ACP_AGENT="claude-agent-acp" ./vibes
-VIBES_ACP_AGENT="pi-acp" ./vibes
-VIBES_ACP_AGENT="opencode acp" ./vibes     # free models available
+# Override detected ACP backends if needed
+VIBES_CODEX_AGENT="codex-acp" ./vibes
+VIBES_COPILOT_AGENT="copilot-language-server --acp --stdio" ./vibes
 
-# Run with Pi native RPC (richer features)
+# Run with Pi native RPC selected by default (richer features)
 VIBES_DEFAULT_AGENT=pi ./vibes
 
 # Open in browser
@@ -139,9 +137,12 @@ All configuration is via environment variables with `VIBES_` prefix:
 | `VIBES_PORT` | `8080` | Port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database |
 | `VIBES_DEBUG` | `false` | Verbose logging |
-| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | ACP agent command |
-| `VIBES_DEFAULT_AGENT` | `acp` | Default agent (`acp` or `pi`) |
-| `VIBES_PI_ENABLED` | `false` | Enable Pi native RPC |
+| `VIBES_COPILOT_AGENT` | `copilot-language-server --acp --stdio` | Copilot ACP command |
+| `VIBES_COPILOT_ENABLED` | `true` | Enable Copilot backend discovery |
+| `VIBES_CODEX_AGENT` | `codex-acp` | Codex ACP command |
+| `VIBES_CODEX_ENABLED` | `true` | Enable Codex backend discovery |
+| `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
+| `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC discovery/probing (set `false` to disable) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path |
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Permission request timeout (seconds) |
 | `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all tool calls |

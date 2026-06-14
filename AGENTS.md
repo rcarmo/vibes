@@ -12,11 +12,31 @@ Vibes is a Go backend with an embedded Bun-built frontend:
 - Frontend build script: `build.js`
 - E2E tests: `tests/`
 
-Always treat `static/dist/*` as generated output. Change source files first, then rebuild with:
+Always treat `static/dist/*` as generated output. Change source files first, then rebuild through the Makefile:
 
 ```bash
-bun run build:frontend
+make frontend
 ```
+
+## Use the Makefile
+
+Use `make` targets for normal development, validation, builds and serving. Do not run ad-hoc `go`, `bun`, or `node` commands when an equivalent Makefile target exists.
+
+Common targets:
+
+```bash
+make frontend      # rebuild generated frontend assets under static/dist/
+make build         # frontend + Go binary
+make build-go      # Go binary only, assumes static/dist exists
+make test          # Go tests
+make lint          # Go vet
+make check         # lint + test + coverage
+make serve         # build and run
+make dev           # run from source for local development
+make e2e           # Playwright E2E flow
+```
+
+If a workflow needs a raw command that is not represented in `Makefile`, prefer adding or updating a Makefile target first. Use raw `go`, `bun`, or `node` commands only for one-off diagnostics, dependency maintenance, or when explicitly requested, and mention why in your notes.
 
 ## Frontend development principles
 
@@ -139,28 +159,36 @@ For provider-specific features:
 
 ### Bundling
 
-`build.js` is intentionally simple today. As TypeScript and CSS modules are introduced, update the build in small steps:
+`build.js` is intentionally simple today and should normally be invoked via `make frontend`. As TypeScript and CSS modules are introduced, update the build in small steps:
 
 - support `.ts` entry/imports first
 - then support CSS splitting/imports
 - keep sourcemaps enabled
 - preserve embedded output paths under `static/dist/`
-- make `bun run lint:frontend` and `bun run build:frontend` the minimum validation for frontend changes
+- expose frontend lint/build/typecheck through Makefile targets rather than relying on direct `bun` invocations
 
 ## Testing expectations
 
-For frontend changes, run at least:
+For frontend changes, run the relevant Makefile target(s), at minimum:
 
 ```bash
-bun run lint:frontend
-bun run build:frontend
+make frontend
 ```
 
-For backend/API changes, run:
+If frontend linting/typechecking is needed and no Makefile target exists yet, add one instead of calling `bun` directly.
+
+For backend/API changes, use Makefile targets:
 
 ```bash
-go test ./...
-go build -o /tmp/vibes-check ./cmd/vibes
+make test
+make build-go
+```
+
+For broad validation, prefer:
+
+```bash
+make check
+make build
 ```
 
 For changes affecting user flows, update or add Playwright tests under `tests/steps/` and `tests/features/`.

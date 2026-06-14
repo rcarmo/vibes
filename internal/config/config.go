@@ -1,10 +1,6 @@
 package config
 
-import (
-	"os"
-
-	"github.com/caarlos0/env/v11"
-)
+import "github.com/caarlos0/env/v11"
 
 // Config holds all application configuration, loaded from environment variables.
 // Field names match the Python vibes VIBES_* env vars for compatibility.
@@ -22,7 +18,6 @@ type Config struct {
 	AgentName    string `env:"VIBES_AGENT_NAME"`
 
 	// ACP
-	ACPAgent       string `env:"VIBES_ACP_AGENT" envDefault:"copilot-language-server --acp --stdio"`
 	CopilotAgent   string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
 	CopilotEnabled bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
 	CodexAgent     string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
@@ -32,7 +27,7 @@ type Config struct {
 
 	// Pi
 	PiAgent               string `env:"VIBES_PI_AGENT"`
-	PiEnabled             bool   `env:"VIBES_PI_ENABLED" envDefault:"false"`
+	PiEnabled             bool   `env:"VIBES_PI_ENABLED" envDefault:"true"`
 	PiRestartOnDisconnect bool   `env:"VIBES_PI_RESTART_ON_DISCONNECT" envDefault:"false"`
 
 	// Permissions
@@ -55,13 +50,6 @@ func Load() (*Config, error) {
 	if err := env.Parse(cfg); err != nil {
 		return nil, err
 	}
-	if value, ok := os.LookupEnv("VIBES_ACP_AGENT"); ok {
-		cfg.ACPAgent = value
-		if _, hasCopilot := os.LookupEnv("VIBES_COPILOT_AGENT"); !hasCopilot {
-			cfg.CopilotAgent = value
-		}
-	}
-
 	// Auto-enable Pi if default agent is pi
 	if cfg.DefaultAgent == "pi" {
 		cfg.PiEnabled = true

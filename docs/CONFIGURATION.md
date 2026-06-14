@@ -10,7 +10,6 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database path |
 | `VIBES_DEBUG` | `false` | Enable debug mode (verbose structured logging) |
-| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | Legacy ACP command; also used as Copilot command unless `VIBES_COPILOT_AGENT` is set |
 | `VIBES_COPILOT_AGENT` | `copilot-language-server --acp --stdio` | GitHub Copilot ACP command to probe/spawn |
 | `VIBES_COPILOT_ENABLED` | `true` | Enable Copilot backend discovery |
 | `VIBES_CODEX_AGENT` | `codex-acp` | Codex ACP command to probe/spawn |
@@ -21,9 +20,9 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to keep agent alive after last SSE client disconnects |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = unlimited) |
-| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) |
+| `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
-| `VIBES_PI_ENABLED` | `false` | Enable Pi native RPC provider (auto-enabled when `DEFAULT_AGENT=pi`) |
+| `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
 | `VIBES_PI_RESTART_ON_DISCONNECT` | `false` | Restart Pi when all SSE clients disconnect |
 | `VIBES_CONFIG_PATH` | `config/endpoints.json` | Custom action definitions |
 | `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
@@ -59,17 +58,8 @@ VIBES_COPILOT_AGENT="copilot-language-server --acp --stdio"
 # OpenAI Codex
 VIBES_CODEX_AGENT="codex-acp"
 
-# Claude
-VIBES_ACP_AGENT="claude-agent-acp"
-
-# Pi via ACP adapter
-VIBES_ACP_AGENT="pi-acp"
-
-# OpenCode (free models — ideal for CI/testing)
-VIBES_ACP_AGENT="opencode acp"
-
 # Pi native RPC (richer: streaming drafts, thinking, live model control)
-VIBES_DEFAULT_AGENT=pi VIBES_PI_ENABLED=true
+VIBES_DEFAULT_AGENT=pi
 ```
 
 ### Installing agent binaries

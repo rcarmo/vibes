@@ -28,8 +28,8 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.DefaultAgent != "acp" {
 		t.Errorf("DefaultAgent = %q, want acp", cfg.DefaultAgent)
 	}
-	if cfg.PiEnabled {
-		t.Error("PiEnabled should be false by default")
+	if !cfg.PiEnabled {
+		t.Error("PiEnabled should be true by default for hybrid discovery")
 	}
 }
 
@@ -56,19 +56,27 @@ func TestLoadFromEnv(t *testing.T) {
 	if !cfg.Debug {
 		t.Error("Debug should be true")
 	}
-	// Auto-enabled when default agent is pi
+	// Pi is enabled by default for hybrid discovery and remains enabled when default agent is pi.
 	if !cfg.PiEnabled {
-		t.Error("PiEnabled should auto-enable when DEFAULT_AGENT=pi")
+		t.Error("PiEnabled should be enabled when DEFAULT_AGENT=pi")
 	}
 }
 
-func TestACPAgentDefault(t *testing.T) {
+func TestPiCanBeDisabled(t *testing.T) {
+	t.Setenv("VIBES_PI_ENABLED", "false")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
 	}
-	if cfg.ACPAgent == "" {
-		t.Error("ACPAgent should have a non-empty default")
+	if cfg.PiEnabled {
+		t.Error("PiEnabled should be false when explicitly disabled")
+	}
+}
+
+func TestBackendDefaults(t *testing.T) {
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
 	}
 	if cfg.CopilotAgent == "" {
 		t.Error("CopilotAgent should have a non-empty default")
@@ -104,17 +112,6 @@ func TestBackendEnvOverrides(t *testing.T) {
 	}
 	if cfg.CodexEnabled {
 		t.Error("CodexEnabled should be false")
-	}
-}
-
-func TestACPAgentCanBeDisabled(t *testing.T) {
-	t.Setenv("VIBES_ACP_AGENT", "")
-	cfg, err := Load()
-	if err != nil {
-		t.Fatalf("Load failed: %v", err)
-	}
-	if cfg.ACPAgent != "" {
-		t.Errorf("ACPAgent = %q, want empty when explicitly disabled", cfg.ACPAgent)
 	}
 }
 

@@ -76,9 +76,9 @@ fuzz: ## Run all fuzz tests briefly (override with FUZZTIME=10s)
 test-acp: ## Run ACP integration test (spawns copilot/codex/claude/pi agents)
 	go run cmd/acp-test/main.go
 
-e2e-setup: build ## Start vibes for E2E testing (Pi via ACP, gpt-5-mini)
+e2e-setup: build ## Start vibes for E2E testing
 	@echo "Starting vibes for E2E tests..."
-	@VIBES_ACP_AGENT="pi-acp" VIBES_PORT=8765 VIBES_DEBUG=true \
+	@VIBES_PORT=8765 VIBES_DEBUG=true \
 		./$(BINARY) > /tmp/vibes-e2e.log 2>&1 & echo $$! > /tmp/vibes-e2e.pid
 	@sleep 2
 	@curl -fsS http://127.0.0.1:8765/health > /dev/null && echo "vibes ready (PID $$(cat /tmp/vibes-e2e.pid))" || \
