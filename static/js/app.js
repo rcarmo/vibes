@@ -1608,6 +1608,24 @@ function App() {
         if (payload.supports_thinking !== undefined) setSupportsThinking(Boolean(payload.supports_thinking));
     }, []);
 
+    const handleCommandResult = useCallback((payload) => {
+        if (!payload || typeof payload !== 'object') return;
+        applyModelState(payload);
+        const nextName = payload.user_name;
+        const nextAvatar = payload.user_avatar;
+        const nextBg = payload.user_avatar_background;
+        if (nextName !== undefined || nextAvatar !== undefined || nextBg !== undefined) {
+            setUserProfile((prev) => ({
+                name: typeof nextName === 'string' && nextName.trim() ? nextName.trim() : prev.name,
+                avatar_url: nextAvatar !== undefined ? (typeof nextAvatar === 'string' && nextAvatar.trim() ? nextAvatar.trim() : null) : prev.avatar_url,
+                avatar_background: nextBg !== undefined ? (typeof nextBg === 'string' && nextBg.trim() ? nextBg.trim() : null) : prev.avatar_background,
+            }));
+        }
+        if (payload.action === 'clear') {
+            setPosts([]);
+        }
+    }, [applyModelState]);
+
     useEffect(() => {
         loadAgents();
 
@@ -2284,6 +2302,7 @@ function App() {
                     onQueueSteer=${handleQueueSteer}
                     onModelChange=${setActiveModel}
                     onModelStateChange=${applyModelState}
+                    onCommandResult=${handleCommandResult}
                     notificationsEnabled=${notificationsEnabled}
                     notificationPermission=${notificationPermission}
                     onToggleNotifications=${handleToggleNotifications}

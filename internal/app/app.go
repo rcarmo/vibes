@@ -207,7 +207,7 @@ func New(cfg *config.Config) (*App, error) {
 		json.NewEncoder(w).Encode(map[string]interface{}{"used": 0, "total": 1000000, "pct": s.ContextPct})
 	})
 	r.Get("/agents", func(w http.ResponseWriter, r *http.Request) {
-		// Alias for /agent/ list
+		// Alias for /agent/ list plus persisted user profile metadata.
 		ids := agentRegistry.List()
 		agents := make([]map[string]interface{}, 0, len(ids))
 
@@ -243,8 +243,18 @@ func New(cfg *config.Config) (*App, error) {
 				"actions": agentActions,
 			})
 		}
+
+		userProfile, err := database.GetUserProfile()
+		if err != nil {
+			slog.Warn("failed to load user profile", "error", err)
+			userProfile = db.UserProfile{Name: "You"}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(agents)
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{
+			"agents": agents,
+			"user":   userProfile,
+		})
 	})
 
 	// SSE stream

@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -174,6 +175,58 @@ func (db *DB) GetMediaInfo(id int64) (*MediaInfo, error) {
 		m.Metadata = json.RawMessage(metadata.String)
 	}
 	return m, nil
+}
+
+// UserProfile stores persisted user display metadata.
+type UserProfile struct {
+	Name             string `json:"name"`
+	AvatarURL        string `json:"avatar_url,omitempty"`
+	AvatarBackground string `json:"avatar_background,omitempty"`
+}
+
+// GetUserProfile returns the persisted user profile, or sensible defaults.
+func (db *DB) GetUserProfile() (UserProfile, error) {
+	profile := UserProfile{Name: "You"}
+	var raw string
+	err := db.QueryRow("SELECT value FROM settings WHERE key = ?", "user_profile").Scan(&raw)
+	if err == sql.ErrNoRows {
+		return profile, nil
+	}
+	if err != nil {
+		return profile, err
+	}
+	if raw != "" {
+		if err := json.Unmarshal([]byte(raw), &profile); err != nil {
+			return UserProfile{Name: "You"}, err
+		}
+	}
+	profile.Name = strings.TrimSpace(profile.Name)
+	if profile.Name == "" {
+		profile.Name = "You"
+	}
+	profile.AvatarURL = strings.TrimSpace(profile.AvatarURL)
+	profile.AvatarBackground = strings.TrimSpace(profile.AvatarBackground)
+	return profile, nil
+}
+
+// SetUserProfile stores the user profile in the settings table.
+func (db *DB) SetUserProfile(profile UserProfile) error {
+	profile.Name = strings.TrimSpace(profile.Name)
+	if profile.Name == "" {
+		profile.Name = "You"
+	}
+	profile.AvatarURL = strings.TrimSpace(profile.AvatarURL)
+	profile.AvatarBackground = strings.TrimSpace(profile.AvatarBackground)
+	payload, err := json.Marshal(profile)
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		INSERT INTO settings (key, value, updated_at)
+		VALUES (?, ?, datetime('now'))
+		ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = datetime('now')
+	`, "user_profile", string(payload))
+	return err
 }
 
 // ── Whitelist ────────────────────────────────────────────────────

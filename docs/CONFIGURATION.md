@@ -89,9 +89,13 @@ Available via the compose box (type `/` to see autocomplete):
 | `/restart` | Reset agent session |
 | `/abort` | Cancel current request |
 | `/steer <message>` | Send mid-turn steering guidance |
+| `/user-name [name]` | Show or set your display name |
+| `/user-avatar [url]` | Show or set your avatar URL |
+| `/user-github <username>` | Set your name/avatar from a GitHub profile |
 | `/commands` | List all slash commands |
 | `/clear` | Clear the timeline display |
 | `/shell <command>` | Run a shell command (30s timeout) |
+| `/bash <command>` | Alias for `/shell` |
 
 ## Permission whitelist
 

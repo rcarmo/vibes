@@ -7,29 +7,19 @@ import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadM
  * Base set — merged with dynamic commands from the server on connect.
  */
 const SLASH_COMMANDS = [
-    { name: '/model', description: 'Show or set the model' },
-    { name: '/models', description: 'Alias for /model' },
-    { name: '/cycle-model', description: 'Cycle to the next available model' },
-    { name: '/thinking', description: 'Show or set thinking level' },
-    { name: '/cycle-thinking', description: 'Cycle to the next thinking level' },
-    { name: '/context', description: 'Show context window usage' },
-    { name: '/ctx', description: 'Alias for /context' },
-    { name: '/state', description: 'Show current agent/session state' },
-    { name: '/prompt', description: 'Show or set the user system prompt' },
-    { name: '/theme', description: 'Show or set the UI theme' },
-    { name: '/tint', description: 'Set or clear a UI colour tint' },
-    { name: '/name', description: 'Show or set the agent display name' },
-    { name: '/agent-name', description: 'Show or set the agent display name' },
-    { name: '/agent-avatar', description: 'Set or show the agent avatar URL' },
-    { name: '/user-name', description: 'Set or show your display name' },
-    { name: '/user-avatar', description: 'Set or show your avatar URL' },
+    { name: '/model', description: 'Show or change the active model' },
+    { name: '/model list', description: 'List available models' },
+    { name: '/thinking', description: 'Show or change thinking level' },
+    { name: '/restart', description: 'Reset agent session' },
+    { name: '/abort', description: 'Cancel current request' },
+    { name: '/steer', description: 'Send mid-turn steering guidance' },
+    { name: '/user-name', description: 'Show or set your display name' },
+    { name: '/user-avatar', description: 'Show or set your avatar URL' },
     { name: '/user-github', description: 'Set name/avatar from GitHub profile' },
-    { name: '/queue', description: 'Queue a message for after the current turn' },
-    { name: '/abort', description: 'Cancel the current agent operation' },
-    { name: '/restart', description: 'Restart the active agent' },
-    { name: '/shell', description: 'Run a shell command' },
-    { name: '/bash', description: 'Run a shell command and return output inline' },
-    { name: '/commands', description: 'List available commands' },
+    { name: '/commands', description: 'List all slash commands' },
+    { name: '/clear', description: 'Clear the timeline display' },
+    { name: '/shell', description: 'Run a shell command (30s timeout)' },
+    { name: '/bash', description: 'Alias for /shell' },
 ];
 
 function formatK(n) {
@@ -139,6 +129,7 @@ export function ComposeBox({
     onQueueSteer,
     onModelChange,
     onModelStateChange,
+    onCommandResult,
     notificationsEnabled = false,
     notificationPermission = 'default',
     onToggleNotifications,
@@ -206,16 +197,14 @@ export function ComposeBox({
     useEffect(() => {
         getAgentCommands()
             .then((data) => {
-                if (data?.commands?.length) {
-                    const existing = new Set(SLASH_COMMANDS.map(c => c.name));
-                    const merged = [...SLASH_COMMANDS];
-                    for (const cmd of data.commands) {
-                        if (!existing.has(cmd.name)) {
-                            merged.push({ name: cmd.name, description: cmd.description || '' });
-                            existing.add(cmd.name);
-                        }
-                    }
-                    setSlashCommands(merged);
+                const commands = Array.isArray(data)
+                    ? data
+                    : (Array.isArray(data?.commands) ? data.commands : []);
+                if (commands.length) {
+                    setSlashCommands(commands.map((cmd) => ({
+                        name: cmd.name,
+                        description: cmd.description || '',
+                    })));
                 }
             })
             .catch(() => {});
@@ -470,6 +459,7 @@ export function ComposeBox({
                     thinking_level: response.command.thinking_level,
                     supports_thinking: response.command.supports_thinking,
                 });
+                onCommandResult?.(response.command);
             }
 
             if (baseContent) {
@@ -489,7 +479,9 @@ export function ComposeBox({
             setMediaFiles([]);
             onClearFileRefs?.();
             onClearMessageRefs?.();
-            onPost?.();
+            if (response?.command?.action !== 'clear') {
+                onPost?.();
+            }
         } catch (error) {
             console.error('Failed to post:', error);
             setSubmitError(error?.message || 'Failed to send message.');

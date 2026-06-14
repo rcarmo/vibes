@@ -68,7 +68,7 @@ On success, response includes refreshed `mtime`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/agents` | List available agents (includes `actions[]` metadata for quick actions UI) |
+| GET | `/agents` | List available agents plus persisted `user` profile metadata (includes `actions[]`) |
 | GET | `/agent/status` | Get current agent status (busy, idle, queue) |
 | GET | `/agent/context` | Get agent context-window usage |
 | GET | `/agent/models` | List available models (Pi mode) |

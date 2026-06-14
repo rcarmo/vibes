@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -90,6 +91,43 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			return
 		}
 
+		// Handle built-in slash commands locally before touching the timeline/agent.
+		if cmd, handled := HandleSlashCommand(req.Content, SlashCommandEnv{Registry: registry, DB: database}); handled {
+			if cmd.Action == "clear" {
+				jsonResp(w, map[string]interface{}{
+					"status":  "command",
+					"command": cmd,
+				})
+				return
+			}
+			if strings.TrimSpace(cmd.Message) != "" {
+				provider, _ := registry.Get(agentID)
+				providerID := registry.Active()
+				model := ""
+				if provider != nil {
+					providerID = provider.ID()
+					model = provider.Status().Model
+				}
+				postID, eventData, err := storeLocalAgentResponse(database, cmd, providerID, model)
+				if err != nil {
+					jsonError(w, err.Error(), http.StatusInternalServerError)
+					return
+				}
+				broker.Broadcast(sse.Event{Type: "agent_response", Data: eventData})
+				jsonResp(w, map[string]interface{}{
+					"id":      postID,
+					"status":  "command",
+					"command": cmd,
+				})
+				return
+			}
+			jsonResp(w, map[string]interface{}{
+				"status":  "command",
+				"command": cmd,
+			})
+			return
+		}
+
 		// Validate the provider before storing the user message.
 		provider, err := registry.Get(agentID)
 		if err != nil {
@@ -172,6 +210,51 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			"status":    "queued",
 		})
 	}
+}
+
+func storeLocalAgentResponse(database *db.DB, cmd *SlashCommandResult, providerID, model string) (int64, map[string]interface{}, error) {
+	payload := db.InteractionData{
+		Type:    "agent_response",
+		Content: cmd.Message,
+		AgentID: providerID,
+		Model:   model,
+	}
+	data, err := db.MarshalInteraction(payload)
+	if err != nil {
+		return 0, nil, err
+	}
+	id, err := database.InsertInteraction(data)
+	if err != nil {
+		return 0, nil, err
+	}
+	interaction, err := database.GetInteraction(id)
+	if err != nil {
+		return 0, nil, err
+	}
+	eventData := map[string]interface{}{
+		"id":        interaction.ID,
+		"timestamp": interaction.Timestamp,
+		"data":      interaction.Data,
+	}
+	if cmd.UserName != "" {
+		eventData["user_name"] = cmd.UserName
+	}
+	if cmd.UserAvatar != "" {
+		eventData["user_avatar"] = cmd.UserAvatar
+	}
+	if cmd.UserAvatarBackground != "" {
+		eventData["user_avatar_background"] = cmd.UserAvatarBackground
+	}
+	if cmd.ModelLabel != "" {
+		eventData["model"] = cmd.ModelLabel
+	}
+	if cmd.ThinkingLevel != "" {
+		eventData["thinking_level"] = cmd.ThinkingLevel
+	}
+	if cmd.SupportsThinking {
+		eventData["supports_thinking"] = true
+	}
+	return id, eventData, nil
 }
 
 func getAgentModels(registry *agent.Registry) http.HandlerFunc {

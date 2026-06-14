@@ -8,10 +8,12 @@ test.describe('Feature: API Health and Endpoints', () => {
         expect(await resp.json()).toMatchObject({ status: 'ok' });
     });
 
-    test('Scenario: Agents endpoint returns a list', async ({ request }) => {
+    test('Scenario: Agents endpoint returns agent metadata', async ({ request }) => {
         const resp = await request.get(`${BASE_URL}/agents`);
         expect(resp.ok()).toBeTruthy();
-        expect(Array.isArray(await resp.json())).toBeTruthy();
+        const body = await resp.json();
+        expect(Array.isArray(body.agents)).toBeTruthy();
+        expect(body).toHaveProperty('user');
     });
 
     test('Scenario: Timeline endpoint returns posts', async ({ request }) => {
