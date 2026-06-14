@@ -8,7 +8,7 @@ import { WorkspaceEditor } from './components/editor.js';
 import { TabStrip } from './components/tab-strip.js';
 import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
 import { SettingsDialog, FirstRunWizard } from './components/settings.js';
-import { normalizeProviders, resolveActiveProviderId, getProviderById } from './features/backends/provider-utils.js';
+import { normalizeProviders, resolveActiveProviderId, getProviderById } from './features/backends/provider-utils.ts';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';

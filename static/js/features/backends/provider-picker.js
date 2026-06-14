@@ -1,5 +1,5 @@
 import { html } from '../../vendor/preact-htm.js';
-import { describeProvider } from './provider-utils.js';
+import { describeProvider } from './provider-utils.ts';
 
 export function ProviderPicker({
     providers = [],

@@ -1,4 +1,4 @@
-.PHONY: help install lint format test race coverage fuzz check serve dev frontend frontend-fast bundle clean clean-all build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push test-acp e2e e2e-setup e2e-teardown
+.PHONY: help install lint lint-frontend typecheck-frontend format test race coverage fuzz check serve dev frontend frontend-fast bundle clean clean-all build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push test-acp e2e e2e-setup e2e-teardown
 
 BINARY = vibes
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -17,7 +17,13 @@ node_modules: package.json
 	bun install
 	@touch node_modules
 
-frontend: node_modules ## Build frontend bundle (typecheck + build)
+lint-frontend: node_modules ## Run frontend ESLint
+	bun run lint:frontend
+
+typecheck-frontend: node_modules ## Type-check converted TypeScript frontend modules
+	bun run typecheck:frontend
+
+frontend: node_modules typecheck-frontend ## Build frontend bundle (typecheck + build)
 	bun run build.js
 
 frontend-fast: node_modules ## Build frontend without typecheck (dev iteration)

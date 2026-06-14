@@ -2,7 +2,7 @@ import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
 import { ProviderPicker } from '../features/backends/provider-picker.js';
-import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.js';
+import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.ts';
 
 /**
  * Slash command definitions for autocomplete.

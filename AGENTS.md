@@ -25,7 +25,9 @@ Use `make` targets for normal development, validation, builds and serving. Do no
 Common targets:
 
 ```bash
-make frontend      # rebuild generated frontend assets under static/dist/
+make frontend      # typecheck converted TS modules + rebuild static/dist/
+make lint-frontend # run frontend ESLint
+make typecheck-frontend # type-check converted TypeScript frontend modules
 make build         # frontend + Go binary
 make build-go      # Go binary only, assumes static/dist exists
 make test          # Go tests
@@ -165,7 +167,7 @@ For provider-specific features:
 - then support CSS splitting/imports
 - keep sourcemaps enabled
 - preserve embedded output paths under `static/dist/`
-- expose frontend lint/build/typecheck through Makefile targets rather than relying on direct `bun` invocations
+- keep frontend lint/build/typecheck exposed through Makefile targets rather than relying on direct `bun` invocations
 
 ## Testing expectations
 
@@ -175,7 +177,7 @@ For frontend changes, run the relevant Makefile target(s), at minimum:
 make frontend
 ```
 
-If frontend linting/typechecking is needed and no Makefile target exists yet, add one instead of calling `bun` directly.
+For frontend linting/typechecking, use `make lint-frontend` and `make typecheck-frontend`.
 
 For backend/API changes, use Makefile targets:
 
