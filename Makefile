@@ -1,4 +1,4 @@
-.PHONY: help install lint lint-frontend typecheck-frontend format test race coverage fuzz check serve dev frontend frontend-fast bundle clean clean-all build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push test-acp e2e e2e-setup e2e-teardown
+.PHONY: help install lint lint-frontend typecheck-frontend test-frontend format test race coverage fuzz check serve dev frontend frontend-fast bundle clean clean-all build build-go build-all build-linux-amd64 build-linux-arm64 build-darwin-arm64 push test-acp e2e e2e-setup e2e-teardown
 
 BINARY = vibes
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
@@ -22,6 +22,9 @@ lint-frontend: node_modules ## Run frontend ESLint
 
 typecheck-frontend: node_modules ## Type-check converted TypeScript frontend modules
 	bun run typecheck:frontend
+
+test-frontend: node_modules ## Run frontend unit tests
+	bun run test:frontend
 
 frontend: node_modules typecheck-frontend ## Build frontend bundle (typecheck + build)
 	bun run build.js
@@ -109,7 +112,7 @@ e2e: e2e-setup ## Run Playwright E2E tests with screenshots + PDF report
 e2e-report: ## Generate PDF report from last test run (no re-run)
 	node scripts/generate-report-pdf.mjs --output test-results/vibes-ux-report.pdf
 
-check: lint test coverage ## Run lint + tests + coverage
+check: lint lint-frontend typecheck-frontend test test-frontend coverage ## Run lint + tests + coverage
 
 serve: build ## Build and run with debug logging
 	VIBES_DEBUG=true ./$(BINARY)

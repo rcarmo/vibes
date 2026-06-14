@@ -1,28 +1,11 @@
+// @ts-nocheck
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
-import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
-import { ProviderPicker } from '../features/backends/provider-picker.js';
+import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.ts';
+import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.ts';
+import { ProviderPicker } from '../features/backends/provider-picker.ts';
 import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.ts';
-
-/**
- * Slash command definitions for autocomplete.
- * Base set — merged with dynamic commands from the server on connect.
- */
-const SLASH_COMMANDS = [
-    { name: '/model', description: 'Show or change the active model' },
-    { name: '/model list', description: 'List available models' },
-    { name: '/thinking', description: 'Show or change thinking level' },
-    { name: '/restart', description: 'Reset agent session' },
-    { name: '/abort', description: 'Cancel current request' },
-    { name: '/steer', description: 'Send mid-turn steering guidance' },
-    { name: '/user-name', description: 'Show or set your display name' },
-    { name: '/user-avatar', description: 'Show or set your avatar URL' },
-    { name: '/user-github', description: 'Set name/avatar from GitHub profile' },
-    { name: '/commands', description: 'List all slash commands' },
-    { name: '/clear', description: 'Clear the timeline display' },
-    { name: '/shell', description: 'Run a shell command (30s timeout)' },
-    { name: '/bash', description: 'Alias for /shell' },
-];
+import { COMPOSE_HISTORY_MAX, loadComposeHistory, normaliseComposeHistory, saveComposeHistory } from '../features/compose/compose-history.ts';
+import { DEFAULT_SLASH_COMMANDS, normalizeSlashCommands } from '../features/compose/slash-commands.ts';
 
 function formatK(n) {
     if (n == null) return '?';
@@ -154,47 +137,14 @@ export function ComposeBox({
     const [modelOptions, setModelOptions] = useState([]);
     const [modelPopupIndex, setModelPopupIndex] = useState(0);
     const [loadingModels, setLoadingModels] = useState(false);
-    const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
+    const [slashCommands, setSlashCommands] = useState(DEFAULT_SLASH_COMMANDS);
     const textareaRef = useRef(null);
     const modelPopupRef = useRef(null);
     const popupTypeaheadRef = useRef({ value: '', updatedAt: 0 });
     const slashRef = useRef(null);
     const modelHintRef = useRef(null);
     const dragCounterRef = useRef(0);
-    const historyMax = 200;
-    const normaliseHistory = (items) => {
-        const seen = new Set();
-        const cleaned = [];
-        for (const item of items || []) {
-            if (typeof item !== 'string') continue;
-            const trimmed = item.trim();
-            if (!trimmed || seen.has(trimmed)) continue;
-            seen.add(trimmed);
-            cleaned.push(trimmed);
-        }
-        return cleaned;
-    };
-    const loadHistory = () => {
-        if (typeof window === 'undefined') return [];
-        try {
-            const raw = localStorage.getItem('vibes_compose_history');
-            if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return normaliseHistory(parsed);
-        } catch {
-            return [];
-        }
-    };
-    const saveHistory = (history) => {
-        if (typeof window === 'undefined') return;
-        try {
-            localStorage.setItem('vibes_compose_history', JSON.stringify(history));
-        } catch {
-            // ignore
-        }
-    };
-    const historyRef = useRef(loadHistory());
+    const historyRef = useRef(loadComposeHistory());
     const historyIndexRef = useRef(-1);
     const historyDraftRef = useRef('');
 
@@ -202,15 +152,8 @@ export function ComposeBox({
     useEffect(() => {
         getAgentCommands()
             .then((data) => {
-                const commands = Array.isArray(data)
-                    ? data
-                    : (Array.isArray(data?.commands) ? data.commands : []);
-                if (commands.length) {
-                    setSlashCommands(commands.map((cmd) => ({
-                        name: cmd.name,
-                        description: cmd.description || '',
-                    })));
-                }
+                const commands = normalizeSlashCommands(data);
+                if (commands.length) setSlashCommands(commands);
             })
             .catch(() => {});
     }, []);
@@ -478,13 +421,13 @@ export function ComposeBox({
 
             if (baseContent) {
                 const current = historyRef.current;
-                const deduped = normaliseHistory(current.filter((item) => item !== baseContent));
+                const deduped = normaliseComposeHistory(current.filter((item) => item !== baseContent));
                 deduped.push(baseContent);
-                if (deduped.length > historyMax) {
-                    deduped.splice(0, deduped.length - historyMax);
+                if (deduped.length > COMPOSE_HISTORY_MAX) {
+                    deduped.splice(0, deduped.length - COMPOSE_HISTORY_MAX);
                 }
                 historyRef.current = deduped;
-                saveHistory(deduped);
+                saveComposeHistory(deduped);
                 historyIndexRef.current = -1;
                 historyDraftRef.current = '';
             }

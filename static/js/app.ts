@@ -1,13 +1,15 @@
+// @ts-nocheck
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentProviders, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
-import { ComposeBox } from './components/compose-box.js';
-import { Timeline } from './components/timeline.js';
-import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
-import { WorkspaceExplorer } from './components/workspace-explorer.js';
-import { WorkspaceEditor } from './components/editor.js';
-import { TabStrip } from './components/tab-strip.js';
-import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
-import { SettingsDialog, FirstRunWizard } from './components/settings.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.ts';
+import { getAgentProviders } from './features/backends/backend-api.ts';
+import { ComposeBox } from './components/compose-box.ts';
+import { Timeline } from './components/timeline.ts';
+import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.ts';
+import { WorkspaceExplorer } from './components/workspace-explorer.ts';
+import { WorkspaceEditor } from './components/editor.ts';
+import { TabStrip } from './components/tab-strip.ts';
+import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.ts';
+import { SettingsDialog, FirstRunWizard } from './components/settings.ts';
 import { normalizeProviders, resolveActiveProviderId, getProviderById } from './features/backends/provider-utils.ts';
 import katex from 'katex';
 import { marked } from 'marked';

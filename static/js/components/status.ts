@@ -1,13 +1,97 @@
 import { html, useEffect, useState } from '../vendor/preact-htm.js';
-import { addToWhitelist, respondToAgentRequest } from '../api.js';
+import { addToWhitelist, respondToAgentRequest } from '../api.ts';
+import { describeRateLimit } from '../features/agent/status-utils.ts';
 
-const RATE_LIMIT_RE = /429|rate.?limit|too many requests|requests per minute|tokens per minute|rpm|tpm/i;
+type PanelKey = 'plan' | 'thought' | 'draft';
 
-function describeRateLimit(text) {
-    if (!text || !RATE_LIMIT_RE.test(text)) return null;
-    if (/tokens?\s*per\s*minute|tpm/i.test(text)) return '⚠ Rate limited (TPM — tokens per minute)';
-    if (/requests?\s*per\s*minute|rpm/i.test(text)) return '⚠ Rate limited (RPM — requests per minute)';
-    return '⚠ Rate limited';
+interface PreviewPayload {
+    text?: string;
+    fullText?: string;
+    full_text?: string;
+    totalLines?: number;
+}
+
+interface NormalizedPreview {
+    text: string;
+    totalLines: number;
+    fullText: string;
+}
+
+interface TruncatedPreview {
+    text: string;
+    omitted: number;
+    totalLines: number;
+    visibleLines?: number;
+}
+
+interface AgentStatusPayload {
+    type?: string;
+    title?: string;
+    status?: string;
+    last_activity?: boolean;
+    lastActivity?: boolean;
+    turn_id?: string;
+}
+
+interface ToolCallPayload {
+    title?: string;
+    description?: string;
+    rawInput?: {
+        command?: string;
+        commands?: string[];
+        diff?: string;
+        fileName?: string;
+        path?: string;
+        description?: string;
+        explanation?: string;
+    };
+    locations?: Array<{ path?: string }>;
+}
+
+interface AgentRequestOption {
+    optionId?: string;
+    id?: string;
+    kind?: string;
+    name?: string;
+    label?: string;
+}
+
+interface PendingAgentRequest {
+    request_id: string;
+    tool_call?: ToolCallPayload;
+    options?: AgentRequestOption[];
+}
+
+interface AgentStatusProps {
+    status?: AgentStatusPayload | null;
+    draft?: string | PreviewPayload | null;
+    plan?: string | PreviewPayload | null;
+    thought?: string | PreviewPayload | null;
+    pendingRequest?: PendingAgentRequest | null;
+    turnId?: string | null;
+    steerQueued?: boolean;
+    renderThinkingMarkdown?: (value: string) => string;
+    getTurnColor?: (turnId?: string | null) => string | null;
+    onExpandPanel?: (panel: 'draft' | 'thought', turnId?: string | null) => Promise<unknown> | unknown;
+    onPanelExpandedChange?: (panel: 'draft' | 'thought', expanded: boolean, turnId?: string | null) => void;
+}
+
+interface ThinkingPanelArgs {
+    panelTitle: string;
+    text: string;
+    totalLines: number;
+    maxLines?: number;
+    titleClass?: string;
+    panelKey: PanelKey;
+}
+
+interface AgentRequestModalProps {
+    request?: PendingAgentRequest | null;
+    onRespond?: () => void;
+}
+
+interface ConnectionStatusProps {
+    status?: string;
 }
 
 export function AgentStatus({
@@ -22,12 +106,12 @@ export function AgentStatus({
     getTurnColor,
     onExpandPanel,
     onPanelExpandedChange,
-}) {
+}: AgentStatusProps) {
     const THOUGHT_MAX_LINES = 8;
     const DRAFT_MAX_LINES = 8;
     const PREVIEW_MAX_CHARS_PER_LINE = 160;
 
-    const normalizePreview = (value) => {
+    const normalizePreview = (value: string | PreviewPayload | null | undefined): NormalizedPreview => {
         if (!value) return { text: '', totalLines: 0, fullText: '' };
         if (typeof value === 'string') {
             const totalLines = value ? value.replace(/\r\n/g, '\n').split('\n').length : 0;
@@ -36,27 +120,27 @@ export function AgentStatus({
         const text = value.text || '';
         const fullText = value.fullText || value.full_text || text;
         const totalLines = Number.isFinite(value.totalLines)
-            ? value.totalLines
+            ? Number(value.totalLines)
             : (fullText ? fullText.replace(/\r\n/g, '\n').split('\n').length : 0);
         return { text, totalLines, fullText };
     };
 
-    const countSoftLines = (line) => {
+    const countSoftLines = (line: string): number => {
         if (!line) return 1;
         return Math.max(1, Math.ceil(line.length / PREVIEW_MAX_CHARS_PER_LINE));
     };
 
-    const truncateLines = (text, maxLines, totalLinesOverride) => {
+    const truncateLines = (text: string, maxLines: number, totalLinesOverride?: number): TruncatedPreview => {
         const value = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         if (!value) {
-            const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : 0;
+            const totalLines = Number.isFinite(totalLinesOverride) ? Number(totalLinesOverride) : 0;
             return { text: '', omitted: 0, totalLines, visibleLines: 0 };
         }
         const lines = value.split('\n');
         const clipped = lines.length > maxLines ? lines.slice(0, maxLines).join('\n') : value;
-        const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : lines.reduce((acc, line) => acc + countSoftLines(line), 0);
+        const totalLines = Number.isFinite(totalLinesOverride) ? Number(totalLinesOverride) : lines.reduce((acc: number, line: string) => acc + countSoftLines(line), 0);
         const visibleLines = clipped
-            ? clipped.split('\n').reduce((acc, line) => acc + countSoftLines(line), 0)
+            ? clipped.split('\n').reduce((acc: number, line: string) => acc + countSoftLines(line), 0)
             : 0;
         const omitted = Math.max(totalLines - visibleLines, 0);
         return { text: clipped, omitted, totalLines, visibleLines };
@@ -69,9 +153,9 @@ export function AgentStatus({
     const hasThought = Boolean(thoughtInfo.text) || thoughtInfo.totalLines > 0;
     const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
 
-    const [expandedPanels, setExpandedPanels] = useState(new Set());
-    const toggleExpand = (key) => {
-        setExpandedPanels((prev) => {
+    const [expandedPanels, setExpandedPanels] = useState(new Set() as Set<PanelKey>);
+    const toggleExpand = (key: PanelKey) => {
+        setExpandedPanels((prev: Set<PanelKey>) => {
             const next = new Set(prev);
             if (next.has(key)) next.delete(key);
             else next.add(key);
@@ -111,9 +195,9 @@ export function AgentStatus({
     const activeTurn = status?.turn_id || turnId;
     const turnColor = getTurnColor ? getTurnColor(activeTurn) : null;
     const dotClass = steerQueued ? 'turn-dot turn-dot-queued' : 'turn-dot';
-    const renderThinking = renderThinkingMarkdown || ((value) => value || '');
+    const renderThinking = renderThinkingMarkdown || ((value: string) => value || '');
 
-    const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass, panelKey }) => {
+    const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass, panelKey }: ThinkingPanelArgs) => {
         const isExpanded = expandedPanels.has(panelKey);
         const handleExpand = async () => {
             if (!isExpanded && onExpandPanel && (panelKey === 'draft' || panelKey === 'thought')) {
@@ -210,7 +294,7 @@ export function AgentStatus({
     `;
 }
 
-export function AgentRequestModal({ request, onRespond }) {
+export function AgentRequestModal({ request, onRespond }: AgentRequestModalProps) {
     if (!request) return null;
 
     const { request_id, tool_call, options } = request;
@@ -223,14 +307,14 @@ export function AgentRequestModal({ request, onRespond }) {
     const explanation = tool_call?.description || rawInput.description || rawInput.explanation || null;
     const locations = Array.isArray(tool_call?.locations) ? tool_call.locations : [];
     const locationPaths = locations
-        .map((loc) => loc?.path)
-        .filter((path) => Boolean(path));
+        .map((loc: { path?: string }) => loc?.path)
+        .filter((path): path is string => Boolean(path));
     const uniquePaths = Array.from(new Set([fileName, ...locationPaths].filter(Boolean)));
 
-    const handleResponse = async (outcome) => {
+    const handleResponse = async (outcome: string) => {
         try {
             await respondToAgentRequest(request_id, outcome);
-            onRespond();
+            onRespond?.();
         } catch (e) {
             console.error('Failed to respond to agent request:', e);
         }
@@ -240,7 +324,7 @@ export function AgentRequestModal({ request, onRespond }) {
         try {
             await addToWhitelist(title, `Auto-approved: ${title}`);
             await respondToAgentRequest(request_id, 'approved');
-            onRespond();
+            onRespond?.();
         } catch (e) {
             console.error('Failed to add to whitelist:', e);
         }
@@ -285,11 +369,11 @@ export function AgentRequestModal({ request, onRespond }) {
                 `}
                 <div class="agent-request-actions">
                     ${hasOptions ? (
-                        options.map((opt) => html`
+                        options.map((opt: AgentRequestOption) => html`
                             <button
                                 key=${opt.optionId || opt.id || String(opt)}
                                 class="agent-request-btn ${opt.kind === 'allow_once' || opt.kind === 'allow_always' ? 'primary' : ''}"
-                                onClick=${() => handleResponse(opt.optionId || opt.id || opt)}
+                                onClick=${() => handleResponse(opt.optionId || opt.id || String(opt))}
                             >
                                 ${opt.name || opt.label || opt.optionId || opt.id || String(opt)}
                             </button>
@@ -311,7 +395,7 @@ export function AgentRequestModal({ request, onRespond }) {
     `;
 }
 
-export function ConnectionStatus({ status }) {
+export function ConnectionStatus({ status }: ConnectionStatusProps) {
     if (status === 'connected') return null;
 
     return html`

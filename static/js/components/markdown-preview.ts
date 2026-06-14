@@ -4,7 +4,22 @@ const DEFAULT_HEIGHT = 220;
 const MIN_HEIGHT = 60;
 const STORAGE_KEY = 'vibes_md_preview_height';
 
-function getStoredHeight() {
+type RenderMarkdown = (content: string) => string;
+type RenderMermaidDiagrams = (root: HTMLElement) => Promise<unknown> | void;
+
+export interface MarkdownPreviewProps {
+    content?: string | null;
+    onClose?: () => void;
+    renderMarkdown?: RenderMarkdown;
+    renderMermaidDiagrams?: RenderMermaidDiagrams;
+}
+
+interface ResizeSession {
+    apply(clientY: number): void;
+    finish(): void;
+}
+
+function getStoredHeight(): number {
     try {
         const raw = localStorage.getItem(STORAGE_KEY);
         const value = raw ? Number(raw) : NaN;
@@ -14,26 +29,28 @@ function getStoredHeight() {
     }
 }
 
-export function MarkdownPreview({ content, onClose, renderMarkdown, renderMermaidDiagrams }) {
+export function MarkdownPreview({ content, onClose, renderMarkdown, renderMermaidDiagrams }: MarkdownPreviewProps) {
     const [height, setHeight] = useState(getStoredHeight);
     const panelRef = useRef(null);
     const previewRef = useRef(null);
 
     useEffect(() => {
-        if (!previewRef.current) return;
-        previewRef.current.innerHTML = renderMarkdown ? renderMarkdown(content || '') : '';
-        renderMermaidDiagrams?.(previewRef.current).catch(() => {});
+        const previewEl = previewRef.current as HTMLElement | null;
+        if (!previewEl) return;
+        previewEl.innerHTML = renderMarkdown ? renderMarkdown(content || '') : '';
+        Promise.resolve(renderMermaidDiagrams?.(previewEl)).catch(() => {});
     }, [content, renderMarkdown, renderMermaidDiagrams]);
 
-    const beginResize = (originY, splitter) => {
-        const startHeight = panelRef.current?.offsetHeight || height;
-        const container = panelRef.current?.parentElement;
+    const beginResize = (originY: number, splitter: HTMLElement): ResizeSession => {
+        const panelEl = panelRef.current as HTMLElement | null;
+        const startHeight = panelEl?.offsetHeight || height;
+        const container = panelEl?.parentElement;
         const maxHeight = container ? container.offsetHeight * 0.7 : 500;
         splitter.classList.add('dragging');
         document.body.style.cursor = 'row-resize';
         document.body.style.userSelect = 'none';
 
-        const apply = (clientY) => {
+        const apply = (clientY: number) => {
             const nextHeight = Math.min(Math.max(startHeight - (clientY - originY), MIN_HEIGHT), maxHeight);
             setHeight(nextHeight);
         };
@@ -43,7 +60,8 @@ export function MarkdownPreview({ content, onClose, renderMarkdown, renderMermai
             document.body.style.cursor = '';
             document.body.style.userSelect = '';
             try {
-                localStorage.setItem(STORAGE_KEY, String(Math.round(panelRef.current?.offsetHeight || height)));
+                const panelEl = panelRef.current as HTMLElement | null;
+                localStorage.setItem(STORAGE_KEY, String(Math.round(panelEl?.offsetHeight || height)));
             } catch {
                 // ignore
             }
@@ -52,10 +70,10 @@ export function MarkdownPreview({ content, onClose, renderMarkdown, renderMermai
         return { apply, finish };
     };
 
-    const handleMouseDown = (event) => {
+    const handleMouseDown = (event: MouseEvent) => {
         event.preventDefault();
-        const resize = beginResize(event.clientY, event.currentTarget);
-        const onMove = (moveEvent) => resize.apply(moveEvent.clientY);
+        const resize = beginResize(event.clientY, event.currentTarget as HTMLElement);
+        const onMove = (moveEvent: MouseEvent) => resize.apply(moveEvent.clientY);
         const onUp = () => {
             resize.finish();
             document.removeEventListener('mousemove', onMove);
@@ -65,12 +83,12 @@ export function MarkdownPreview({ content, onClose, renderMarkdown, renderMermai
         document.addEventListener('mouseup', onUp);
     };
 
-    const handleTouchStart = (event) => {
+    const handleTouchStart = (event: TouchEvent) => {
         event.preventDefault();
         const touch = event.touches[0];
         if (!touch) return;
-        const resize = beginResize(touch.clientY, event.currentTarget);
-        const onMove = (moveEvent) => {
+        const resize = beginResize(touch.clientY, event.currentTarget as HTMLElement);
+        const onMove = (moveEvent: TouchEvent) => {
             const nextTouch = moveEvent.touches[0];
             if (!nextTouch) return;
             moveEvent.preventDefault();

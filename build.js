@@ -18,7 +18,7 @@ const distDir = resolve(staticDir, "dist");
 
 // ── JS bundle ─────────────────────────────────────────────────────────────
 const jsResult = await Bun.build({
-  entrypoints: [resolve(staticDir, "js/app.js")],
+  entrypoints: [resolve(staticDir, "js/app.ts")],
   outdir: distDir,
   format: "esm",
   minify: true,

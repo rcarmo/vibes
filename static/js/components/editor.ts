@@ -42,10 +42,57 @@ import {
     githubLight,
     githubDark,
 } from '../vendor/codemirror.js';
-import { MarkdownPreview } from './markdown-preview.js';
+import { MarkdownPreview } from './markdown-preview.ts';
 
 const MONO_STACK = 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace';
 const shellLanguage = StreamLanguage.define(shell);
+
+type CodeMirrorExtension = unknown;
+
+interface MutableRef<T> {
+    current: T;
+}
+
+interface CodeMirrorDocLike {
+    length: number;
+    toString(): string;
+    lineAt(pos: number): { from: number; number: number };
+}
+
+interface CodeMirrorViewLike {
+    state: {
+        selection: { main: { head: number } };
+        doc: CodeMirrorDocLike;
+        facet(extension: unknown): string;
+    };
+    dom: HTMLElement;
+    dispatch(spec: unknown): void;
+    destroy(): void;
+}
+
+interface WorkspaceEditorProps {
+    path?: string;
+    content?: string;
+    savedContent?: string;
+    loading?: boolean;
+    error?: string | null;
+    saving?: boolean;
+    saveError?: string | null;
+    savedAt?: unknown;
+    onSave?: (content: string) => void;
+    onClose?: () => void;
+    onChange?: (content: string, dirty: boolean) => void;
+    showPreview?: boolean;
+    onClosePreview?: () => void;
+    renderMarkdown?: (content: string) => string;
+    renderMermaidDiagrams?: (root: HTMLElement) => Promise<unknown> | void;
+}
+
+interface CodeMirrorUpdateLike {
+    docChanged?: boolean;
+    selectionSet?: boolean;
+    viewportChanged?: boolean;
+}
 
 const headingStyle = HighlightStyle.define([
     { tag: tags.heading1, fontWeight: 'bold', fontSize: '1.3em', textDecoration: 'none' },
@@ -56,8 +103,8 @@ const headingStyle = HighlightStyle.define([
     { tag: tags.heading6, fontWeight: 'bold', textDecoration: 'none' },
 ]);
 
-const createStatusPanel = (vimEnabledRef) => {
-    return (view) => {
+const createStatusPanel = (vimEnabledRef: MutableRef<boolean>) => {
+    return (view: CodeMirrorViewLike) => {
         const dom = document.createElement('div');
         dom.className = 'cm-statusbar';
 
@@ -85,7 +132,7 @@ const createStatusPanel = (vimEnabledRef) => {
 
         return {
             dom,
-            update: (updateEvent) => {
+            update: (updateEvent: CodeMirrorUpdateLike) => {
                 if (updateEvent.docChanged || updateEvent.selectionSet || updateEvent.viewportChanged) {
                     update();
                 }
@@ -95,7 +142,7 @@ const createStatusPanel = (vimEnabledRef) => {
     };
 };
 
-const languageForPath = (path) => {
+const languageForPath = (path: string | undefined): CodeMirrorExtension | null => {
     const lower = String(path || '').toLowerCase();
     if (lower.endsWith('.py')) return python();
     if (lower.endsWith('.ts') || lower.endsWith('.tsx')) return javascript({ typescript: true, jsx: lower.endsWith('.tsx') });
@@ -131,10 +178,10 @@ export function WorkspaceEditor({
     onClosePreview,
     renderMarkdown,
     renderMermaidDiagrams,
-}) {
+}: WorkspaceEditorProps) {
     const hostRef = useRef(null);
-    const viewRef = useRef(null);
-    const paneRef = useRef(null);
+    const viewRef = useRef(null as CodeMirrorViewLike | null);
+    const paneRef = useRef(null as HTMLElement | null);
     const initialContentRef = useRef(savedContent ?? content ?? '');
     const [dirty, setDirty] = useState(false);
     const resettingRef = useRef(false);
@@ -230,7 +277,7 @@ export function WorkspaceEditor({
         onChange?.(current, nextDirty);
     }, [onChange]);
 
-    const resetContent = useCallback((nextContent) => {
+    const resetContent = useCallback((nextContent: string) => {
         const view = viewRef.current;
         if (!view) return;
         const current = view.state.doc.toString();
@@ -269,10 +316,10 @@ export function WorkspaceEditor({
     useEffect(() => { handleCloseRef.current = handleClose; }, [handleClose]);
 
     useEffect(() => {
-        const host = hostRef.current;
+        const host = hostRef.current as HTMLElement | null;
         if (!host) return;
 
-        const extensions = [
+        const extensions: CodeMirrorExtension[] = [
             minimalSetup,
             lineNumbers(),
             highlightActiveLine(),
@@ -298,7 +345,7 @@ export function WorkspaceEditor({
                 indentWithTab,
                 { key: 'Mod-s', run: () => { handleSaveRef.current(); return true; } },
             ]),
-            EditorView.updateListener.of((update) => {
+            EditorView.updateListener.of((update: CodeMirrorUpdateLike) => {
                 if (update.docChanged) updateDirty();
             }),
             EditorView.theme({
@@ -316,7 +363,7 @@ export function WorkspaceEditor({
             extensions,
         });
 
-        const view = new EditorView({ state, parent: host });
+        const view = new EditorView({ state, parent: host }) as CodeMirrorViewLike;
         viewRef.current = view;
         initialContentRef.current = savedContent ?? content ?? '';
         setDirty(false);
@@ -358,16 +405,16 @@ export function WorkspaceEditor({
     }, [savedContent, updateDirty]);
 
     const handleToggleVim = useCallback(() => {
-        setVimEnabled((prev) => !prev);
+        setVimEnabled((prev: boolean) => !prev);
     }, []);
 
     const handleToggleWhitespace = useCallback(() => {
-        setShowWhitespace((prev) => !prev);
+        setShowWhitespace((prev: boolean) => !prev);
     }, []);
 
     // Escape to close when clean. Cmd/Ctrl+S to save (intercepts browser dialog).
     useEffect(() => {
-        const onKeyDown = (e) => {
+        const onKeyDown = (e: KeyboardEvent) => {
             if ((e.metaKey || e.ctrlKey) && e.key === 's') {
                 e.preventDefault();
                 handleSaveRef.current();

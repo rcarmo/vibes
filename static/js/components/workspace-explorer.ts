@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { html, useCallback, useEffect, useMemo, useRef, useState } from '../vendor/preact-htm.js';
 import {
     createWorkspaceFile,
@@ -10,109 +11,23 @@ import {
     renameWorkspaceFile,
     setWorkspaceVisibility,
     uploadWorkspaceFile,
-} from '../api.js';
-import { DiskUsageSunburst } from './sunburst.js';
+} from '../api.ts';
+import { DiskUsageSunburst } from './sunburst.ts';
+import {
+    flattenTree,
+    formatWorkspaceFileSize as formatFileSize,
+    formatWorkspaceTimestamp as formatTimestamp,
+    mergeTree,
+    replaceNodeAtPath,
+    rewriteRelativeUrls as rewriteWorkspaceRelativeUrls,
+    treeSignature,
+} from '../features/workspace/explorer-utils.ts';
 
 const INDENT = 16;
 const REFRESH_INTERVAL_MS = 60_000;
 
-/**
- * Rewrite relative src/href attributes in rendered HTML so images and links
- * inside markdown previews resolve against the workspace raw endpoint.
- */
 function rewriteRelativeUrls(htmlStr, filePath) {
-    if (!filePath) return htmlStr;
-    const dir = filePath.includes('/') ? filePath.slice(0, filePath.lastIndexOf('/')) : '.';
-    return htmlStr.replace(
-        /(<(?:img|source)\s[^>]*?\bsrc\s*=\s*["'])([^"']+)(["'])/gi,
-        (match, pre, url, post) => {
-            if (/^(?:https?:|data:|\/)/i.test(url)) return match;
-            const clean = url.replace(/^\.\//, '');
-            const resolved = dir === '.' ? clean : `${dir}/${clean}`;
-            return `${pre}${getWorkspaceRawUrl(resolved)}${post}`;
-        }
-    );
-}
-
-function formatFileSize(bytes) {
-    if (!Number.isFinite(bytes)) return '';
-    if (bytes < 1024) return `${bytes} B`;
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-}
-
-function formatTimestamp(value) {
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return value || '';
-    return date.toLocaleString();
-}
-
-const isHiddenNode = (node) => {
-    if (!node || !node.name) return false;
-    if (node.path === '.') return false;
-    return node.name.startsWith('.');
-};
-
-function flattenTree(node, expanded, showHidden, depth = 0, rows = []) {
-    if (!node) return rows;
-    if (!showHidden && isHiddenNode(node)) return rows;
-    rows.push({ node, depth });
-    if (node.type === 'dir' && Array.isArray(node.children) && expanded.has(node.path)) {
-        for (const child of node.children) flattenTree(child, expanded, showHidden, depth + 1, rows);
-    }
-    return rows;
-}
-
-/**
- * Signature of *visible* structure only: path + type for expanded nodes.
- */
-function treeSignature(node, expanded, showHidden) {
-    if (!node) return '';
-    const parts = [];
-    const walk = (item) => {
-        if (!item) return;
-        if (!showHidden && isHiddenNode(item)) return;
-        parts.push(item.path, item.type);
-        if (item.children && expanded?.has(item.path)) {
-            for (const child of item.children) walk(child);
-        }
-    };
-    walk(node);
-    return parts.join('|');
-}
-
-function mergeTree(prev, next) {
-    if (!next) return null;
-    if (!prev) return next;
-    if (prev.path !== next.path || prev.type !== next.type) return next;
-
-    const prevKids = Array.isArray(prev.children) ? prev.children : null;
-    const nextKids = Array.isArray(next.children) ? next.children : null;
-
-    // Server hit depth limit and returned no children – keep what we had.
-    if (!nextKids) return prev;
-
-    const prevMap = prevKids ? new Map(prevKids.map((c) => [c?.path, c])) : new Map();
-    let changed = !prevKids || prevKids.length !== nextKids.length;
-    const merged = nextKids.map((child) => {
-        const m = mergeTree(prevMap.get(child.path), child);
-        if (m !== prevMap.get(child.path)) changed = true;
-        return m;
-    });
-    return changed ? { ...next, children: merged } : prev;
-}
-
-function replaceNodeAtPath(node, targetPath, nextNode) {
-    if (!node) return node;
-    if (node.path === targetPath) return mergeTree(node, nextNode);
-    if (!Array.isArray(node.children)) return node;
-    let changed = false;
-    const children = node.children.map((child) => {
-        const updated = replaceNodeAtPath(child, targetPath, nextNode);
-        if (updated !== child) changed = true;
-        return updated;
-    });
-    return changed ? { ...node, children } : node;
+    return rewriteWorkspaceRelativeUrls(htmlStr, filePath, getWorkspaceRawUrl);
 }
 
 export function WorkspaceExplorer({ onFileSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {

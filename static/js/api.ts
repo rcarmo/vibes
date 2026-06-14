@@ -1,13 +1,32 @@
 /**
- * API client for Vibes backend
+ * API client for Vibes backend.
  */
 
 const API_BASE = '';
 
+type JsonRecord = Record<string, unknown>;
+type RequestOptions = RequestInit & { headers?: HeadersInit };
+
+export interface ApiError extends Error {
+    status?: number;
+    code?: unknown;
+}
+
+function errorMessage(payload: unknown, fallback: string): string {
+    if (payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string') {
+        return (payload as { error: string }).error;
+    }
+    return fallback;
+}
+
+async function readJsonError(response: Response, fallback: string): Promise<unknown> {
+    return response.json().catch(() => ({ error: fallback }));
+}
+
 /**
- * Fetch wrapper with error handling
+ * Fetch wrapper with error handling.
  */
-async function request(url, options = {}) {
+export async function request<T = unknown>(url: string, options: RequestOptions = {}): Promise<T> {
     const response = await fetch(API_BASE + url, {
         ...options,
         headers: {
@@ -15,21 +34,21 @@ async function request(url, options = {}) {
             ...options.headers,
         },
     });
-    
+
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const error = await readJsonError(response, 'Unknown error');
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
     }
-    
-    if (response.status === 204) return {};
+
+    if (response.status === 204) return {} as T;
     const text = await response.text();
-    return text ? JSON.parse(text) : {};
+    return (text ? JSON.parse(text) : {}) as T;
 }
 
 /**
- * Get timeline posts (chat style - returns oldest first)
+ * Get timeline posts (chat style - returns oldest first).
  */
-export async function getTimeline(limit = 10, beforeId = null) {
+export async function getTimeline(limit = 10, beforeId: string | number | null = null): Promise<unknown> {
     let url = `/timeline?limit=${limit}`;
     if (beforeId) {
         url += `&before_id=${beforeId}`;
@@ -38,30 +57,30 @@ export async function getTimeline(limit = 10, beforeId = null) {
 }
 
 /**
- * Get posts by hashtag
+ * Get posts by hashtag.
  */
-export async function getPostsByHashtag(hashtag, limit = 50, offset = 0) {
+export async function getPostsByHashtag(hashtag: string, limit = 50, offset = 0): Promise<unknown> {
     return request(`/hashtag/${encodeURIComponent(hashtag)}?limit=${limit}&offset=${offset}`);
 }
 
 /**
- * Search posts
+ * Search posts.
  */
-export async function searchPosts(query, limit = 50, offset = 0) {
+export async function searchPosts(query: string, limit = 50, offset = 0): Promise<unknown> {
     return request(`/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
 }
 
 /**
- * Get a thread by ID
+ * Get a thread by ID.
  */
-export async function getThread(threadId) {
+export async function getThread(threadId: string | number): Promise<unknown> {
     return request(`/thread/${threadId}`);
 }
 
 /**
- * Create a new post
+ * Create a new post.
  */
-export async function createPost(content, mediaIds = []) {
+export async function createPost(content: string, mediaIds: unknown[] = []): Promise<unknown> {
     return request('/post', {
         method: 'POST',
         body: JSON.stringify({ content, media_ids: mediaIds }),
@@ -69,9 +88,9 @@ export async function createPost(content, mediaIds = []) {
 }
 
 /**
- * Reply to a thread
+ * Reply to a thread.
  */
-export async function createReply(threadId, content, mediaIds = []) {
+export async function createReply(threadId: string | number, content: string, mediaIds: unknown[] = []): Promise<unknown> {
     return request('/thread', {
         method: 'POST',
         body: JSON.stringify({ thread_id: threadId, content, media_ids: mediaIds }),
@@ -79,17 +98,24 @@ export async function createReply(threadId, content, mediaIds = []) {
 }
 
 /**
- * Delete a post (optionally cascade replies)
+ * Delete a post (optionally cascade replies).
  */
-export async function deletePost(postId, cascade = false) {
+export async function deletePost(postId: string | number, cascade = false): Promise<unknown> {
     const url = `/post/${postId}?cascade=${cascade ? 'true' : 'false'}`;
     return request(url, { method: 'DELETE' });
 }
 
 /**
- * Send message to agent
+ * Send message to agent.
  */
-export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, backendId = null) {
+export async function sendAgentMessage(
+    agentId: string,
+    content: string,
+    threadId: string | number | null = null,
+    mediaIds: unknown[] = [],
+    mode: string | null = null,
+    backendId: string | null = null,
+): Promise<unknown> {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
         body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, backend_id: backendId }),
@@ -97,45 +123,28 @@ export async function sendAgentMessage(agentId, content, threadId = null, mediaI
 }
 
 /**
- * Get configured/detected backend providers and capabilities.
+ * Get available agents.
  */
-export async function getAgentProviders() {
-    return request('/agent/providers');
-}
-
-/**
- * Switch backend affinity for a thread.
- */
-export async function setThreadBackend(threadId, backendId) {
-    return request(`/thread/${encodeURIComponent(threadId)}/backend`, {
-        method: 'POST',
-        body: JSON.stringify({ backend_id: backendId }),
-    });
-}
-
-/**
- * Get available agents
- */
-export async function getAgents() {
-    const data = await request('/agents');
+export async function getAgents(): Promise<unknown> {
+    const data = await request<unknown>('/agents');
     return Array.isArray(data) ? { agents: data } : data;
 }
 
 /**
  * Get context window usage (tokens, contextWindow, percent).
  */
-export async function getAgentContext() {
+export async function getAgentContext(): Promise<unknown> {
     return request('/agent/context');
 }
 
 /**
  * Get current agent busy state and active turns (for polling on SSE reconnect).
  */
-export async function getAgentStatus() {
+export async function getAgentStatus(): Promise<unknown> {
     return request('/agent/status');
 }
 
-export async function getAgentQueue(agentId = null, threadId = null) {
+export async function getAgentQueue(agentId: string | null = null, threadId: string | number | null = null): Promise<unknown> {
     const params = new URLSearchParams();
     if (agentId) params.set('agent_id', agentId);
     if (threadId != null) params.set('thread_id', String(threadId));
@@ -143,14 +152,14 @@ export async function getAgentQueue(agentId = null, threadId = null) {
     return request(query ? `/agent/queue?${query}` : '/agent/queue');
 }
 
-export async function removeAgentQueueItem(rowId) {
+export async function removeAgentQueueItem(rowId: string | number): Promise<unknown> {
     return request('/agent/queue-remove', {
         method: 'POST',
         body: JSON.stringify({ row_id: rowId }),
     });
 }
 
-export async function steerAgentQueueItem(rowId) {
+export async function steerAgentQueueItem(rowId: string | number): Promise<unknown> {
     return request('/agent/queue-steer', {
         method: 'POST',
         body: JSON.stringify({ row_id: rowId }),
@@ -160,101 +169,101 @@ export async function steerAgentQueueItem(rowId) {
 /**
  * Get available models and current selection.
  */
-export async function getAgentModels() {
+export async function getAgentModels(): Promise<unknown> {
     return request('/agent/models');
 }
 
 /**
  * Get full draft/thought text for a live agent turn.
  */
-export async function getAgentTurnPreview(turnId) {
-    return request(`/agent/turn/${encodeURIComponent(turnId)}`);
+export async function getAgentTurnPreview(turnId: string | number): Promise<unknown> {
+    return request(`/agent/turn/${encodeURIComponent(String(turnId))}`);
 }
 
 /**
  * Set expanded state for a live draft/thought panel.
  */
-export async function setAgentTurnPanelExpanded(turnId, panel, expanded) {
-    return request(`/agent/turn/${encodeURIComponent(turnId)}/panel`, {
+export async function setAgentTurnPanelExpanded(turnId: string | number, panel: string, expanded: boolean): Promise<unknown> {
+    return request(`/agent/turn/${encodeURIComponent(String(turnId))}/panel`, {
         method: 'POST',
         body: JSON.stringify({ panel, expanded: Boolean(expanded) }),
     });
 }
 
 /**
- * Upload media file
+ * Upload media file.
  */
-export async function uploadMedia(file) {
+export async function uploadMedia(file: Blob): Promise<unknown> {
     const formData = new FormData();
     formData.append('file', file);
-    
+
     const response = await fetch(API_BASE + '/media/upload', {
         method: 'POST',
         body: formData,
     });
-    
+
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Upload failed' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const error = await readJsonError(response, 'Upload failed');
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
     }
-    
+
     return response.json();
 }
 
 /**
- * Respond to an agent request (permission, choice)
+ * Respond to an agent request (permission, choice).
  */
-export async function respondToAgentRequest(requestId, outcome) {
+export async function respondToAgentRequest(requestId: string, outcome: string): Promise<unknown> {
     const response = await fetch(API_BASE + '/agent/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ request_id: requestId, outcome }),
     });
-    
+
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to respond' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const error = await readJsonError(response, 'Failed to respond');
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
     }
-    
+
     return response.json();
 }
 
 /**
- * Add pattern to permission whitelist
+ * Add pattern to permission whitelist.
  */
-export async function addToWhitelist(pattern, description) {
+export async function addToWhitelist(pattern: string, description: string): Promise<unknown> {
     const response = await fetch(API_BASE + '/agent/whitelist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pattern, description }),
     });
-    
+
     if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to add to whitelist' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const error = await readJsonError(response, 'Failed to add to whitelist');
+        throw new Error(errorMessage(error, `HTTP ${response.status}`));
     }
-    
+
     return response.json();
 }
 
 /**
- * Get media URL
+ * Get media URL.
  */
-export function getMediaUrl(mediaId) {
+export function getMediaUrl(mediaId: string | number): string {
     return `${API_BASE}/media/${mediaId}`;
 }
 
 /**
- * Get media thumbnail URL
+ * Get media thumbnail URL.
  */
-export function getThumbnailUrl(mediaId) {
+export function getThumbnailUrl(mediaId: string | number): string {
     return `${API_BASE}/media/${mediaId}/thumbnail`;
 }
 
 /**
- * Get media info (metadata without data)
+ * Get media info (metadata without data).
  */
-export async function getMediaInfo(mediaId) {
+export async function getMediaInfo(mediaId: string | number): Promise<unknown> {
     const response = await fetch(`${API_BASE}/media/${mediaId}/info`);
     if (!response.ok) throw new Error('Failed to get media info');
     return response.json();
@@ -263,14 +272,14 @@ export async function getMediaInfo(mediaId) {
 /**
  * Get workspace tree.
  */
-export async function getWorkspaceTree(path = '', depth = 2, showHidden = false) {
+export async function getWorkspaceTree(path = '', depth = 2, showHidden = false): Promise<unknown> {
     return request(`/workspace/tree?path=${encodeURIComponent(path)}&depth=${depth}&show_hidden=${showHidden ? 'true' : 'false'}`);
 }
 
 /**
  * Get workspace file preview.
  */
-export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
+export async function getWorkspaceFile(path: string, maxBytes = 20_000, mode: string | null = null): Promise<unknown> {
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
     return request(`/workspace/file?path=${encodeURIComponent(path)}&max_bytes=${maxBytes}${modeParam}`);
 }
@@ -278,8 +287,8 @@ export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
 /**
  * Update workspace file contents.
  */
-export async function updateWorkspaceFile(path, content, mtime = null) {
-    const body = { path, content };
+export async function updateWorkspaceFile(path: string, content: string, mtime: string | null = null): Promise<unknown> {
+    const body: JsonRecord = { path, content };
     if (mtime) body.mtime = mtime;
     return request('/workspace/file', {
         method: 'PUT',
@@ -287,10 +296,14 @@ export async function updateWorkspaceFile(path, content, mtime = null) {
     });
 }
 
+export interface UploadWorkspaceOptions {
+    overwrite?: boolean;
+}
+
 /**
  * Upload a file to the workspace via multipart form data.
  */
-export async function uploadWorkspaceFile(file, targetPath = '', options = {}) {
+export async function uploadWorkspaceFile(file: Blob, targetPath = '', options: UploadWorkspaceOptions = {}): Promise<unknown> {
     const formData = new FormData();
     formData.append('file', file);
     const params = new URLSearchParams();
@@ -303,8 +316,8 @@ export async function uploadWorkspaceFile(file, targetPath = '', options = {}) {
         body: formData,
     });
     if (!response.ok) {
-        const body = await response.json().catch(() => ({ error: 'Upload failed' }));
-        const err = new Error(body.error || `HTTP ${response.status}`);
+        const body = await readJsonError(response, 'Upload failed') as { error?: string; code?: unknown };
+        const err = new Error(body.error || `HTTP ${response.status}`) as ApiError;
         err.status = response.status;
         err.code = body.code;
         throw err;
@@ -315,7 +328,7 @@ export async function uploadWorkspaceFile(file, targetPath = '', options = {}) {
 /**
  * Delete a file from the workspace.
  */
-export async function deleteWorkspaceFile(path) {
+export async function deleteWorkspaceFile(path: string): Promise<unknown> {
     const url = `/workspace/file?path=${encodeURIComponent(path || '')}`;
     return request(url, { method: 'DELETE' });
 }
@@ -323,7 +336,7 @@ export async function deleteWorkspaceFile(path) {
 /**
  * Create a new workspace file.
  */
-export async function createWorkspaceFile(path, name, content = '') {
+export async function createWorkspaceFile(path: string, name: string, content = ''): Promise<unknown> {
     return request('/workspace/create', {
         method: 'POST',
         body: JSON.stringify({ path, name, content }),
@@ -333,7 +346,7 @@ export async function createWorkspaceFile(path, name, content = '') {
 /**
  * Rename a workspace file or folder.
  */
-export async function renameWorkspaceFile(path, name) {
+export async function renameWorkspaceFile(path: string, name: string): Promise<unknown> {
     const parts = String(path || '').split('/');
     parts.pop();
     const parent = parts.join('/');
@@ -347,7 +360,7 @@ export async function renameWorkspaceFile(path, name) {
 /**
  * Move a workspace file or folder into another directory.
  */
-export async function moveWorkspaceEntry(path, target) {
+export async function moveWorkspaceEntry(path: string, target: string): Promise<unknown> {
     return request('/workspace/move', {
         method: 'POST',
         body: JSON.stringify({ path, target }),
@@ -357,7 +370,7 @@ export async function moveWorkspaceEntry(path, target) {
 /**
  * Toggle workspace visibility state.
  */
-export async function setWorkspaceVisibility(visible, showHidden = false) {
+export async function setWorkspaceVisibility(visible: boolean, showHidden = false): Promise<unknown> {
     return request('/workspace/visibility', {
         method: 'POST',
         body: JSON.stringify({ visible: Boolean(visible), show_hidden: Boolean(showHidden) }),
@@ -367,48 +380,55 @@ export async function setWorkspaceVisibility(visible, showHidden = false) {
 /**
  * Get raw workspace file URL.
  */
-export function getWorkspaceRawUrl(path) {
+export function getWorkspaceRawUrl(path: string): string {
     return `${API_BASE}/workspace/raw?path=${encodeURIComponent(path)}`;
 }
 
 /**
- * Get workspace folder download URL (zip)
+ * Get workspace folder download URL (zip).
  */
-export function getWorkspaceDownloadUrl(path, showHidden = false) {
+export function getWorkspaceDownloadUrl(path: string, showHidden = false): string {
     const query = `path=${encodeURIComponent(path || '')}&show_hidden=${showHidden ? 'true' : 'false'}`;
     return `${API_BASE}/workspace/download?${query}`;
 }
 
-export async function getAgentCommands() {
+export async function getAgentCommands(): Promise<unknown> {
     return request('/agent/commands');
 }
 
+export type SSEStatus = 'connected' | 'disconnected';
+export type SSEEventHandler = (type: string, payload: unknown) => void;
+export type SSEStatusHandler = (status: SSEStatus) => void;
+
 /**
- * SSE client for live updates
+ * SSE client for live updates.
  */
 export class SSEClient {
-    constructor(onEvent, onStatusChange) {
+    private onEvent: SSEEventHandler;
+    private onStatusChange: SSEStatusHandler;
+    private eventSource: EventSource | null = null;
+    private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    private reconnectDelay = 1000;
+    private status: SSEStatus = 'disconnected';
+    private reconnectAttempts = 0;
+    private cooldownUntil = 0;
+    private connecting = false;
+
+    constructor(onEvent: SSEEventHandler, onStatusChange: SSEStatusHandler) {
         this.onEvent = onEvent;
         this.onStatusChange = onStatusChange;
-        this.eventSource = null;
-        this.reconnectTimeout = null;
-        this.reconnectDelay = 1000;
-        this.status = 'disconnected';
-        this.reconnectAttempts = 0;
-        this.cooldownUntil = 0;
-        this.connecting = false;
     }
-    
-    connect() {
+
+    connect(): void {
         if (this.connecting) return;
         if (this.eventSource && this.status === 'connected') return;
         this.connecting = true;
         if (this.eventSource) {
             this.eventSource.close();
         }
-        
+
         this.eventSource = new EventSource(API_BASE + '/sse/stream');
-        
+
         this.eventSource.onopen = () => {
             this.connecting = false;
             this.reconnectDelay = 1000;
@@ -417,7 +437,7 @@ export class SSEClient {
             this.status = 'connected';
             this.onStatusChange('connected');
         };
-        
+
         this.eventSource.onerror = () => {
             this.connecting = false;
             this.status = 'disconnected';
@@ -425,99 +445,43 @@ export class SSEClient {
             this.reconnectAttempts += 1;
             this.scheduleReconnect();
         };
-        
-        // Event handlers
+
         this.eventSource.addEventListener('connected', () => {
             console.log('SSE connected');
             this.onEvent('connected', {});
         });
-        
-        this.eventSource.addEventListener('new_post', (e) => {
-            this.onEvent('new_post', JSON.parse(e.data));
-        });
-        
-        this.eventSource.addEventListener('new_reply', (e) => {
-            this.onEvent('new_reply', JSON.parse(e.data));
-        });
-        
-        this.eventSource.addEventListener('agent_response', (e) => {
-            this.onEvent('agent_response', JSON.parse(e.data));
-        });
-        
-        this.eventSource.addEventListener('interaction_updated', (e) => {
-            this.onEvent('interaction_updated', JSON.parse(e.data));
-        });
 
-        this.eventSource.addEventListener('interaction_deleted', (e) => {
-            this.onEvent('interaction_deleted', JSON.parse(e.data));
-        });
-        
-        this.eventSource.addEventListener('agent_status', (e) => {
-            this.onEvent('agent_status', JSON.parse(e.data));
-        });
-        
-        this.eventSource.addEventListener('agent_request', (e) => {
-            this.onEvent('agent_request', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_request_timeout', (e) => {
-            this.onEvent('agent_request_timeout', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_draft', (e) => {
-            this.onEvent('agent_draft', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_thought', (e) => {
-            this.onEvent('agent_thought', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_draft_delta', (e) => {
-            this.onEvent('agent_draft_delta', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_thought_delta', (e) => {
-            this.onEvent('agent_thought_delta', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_steer_queued', (e) => {
-            this.onEvent('agent_steer_queued', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_followup_queued', (e) => {
-            this.onEvent('agent_followup_queued', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_followup_consumed', (e) => {
-            this.onEvent('agent_followup_consumed', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agent_followup_removed', (e) => {
-            this.onEvent('agent_followup_removed', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('model_changed', (e) => {
-            this.onEvent('model_changed', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('agents_changed', (e) => {
-            this.onEvent('agents_changed', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('workspace_update', (e) => {
-            this.onEvent('workspace_update', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('ui_theme', (e) => {
-            this.onEvent('ui_theme', JSON.parse(e.data));
-        });
-
-        this.eventSource.addEventListener('extension_event', (e) => {
-            this.onEvent('extension_event', JSON.parse(e.data));
-        });
+        const jsonEvents = [
+            'new_post',
+            'new_reply',
+            'agent_response',
+            'interaction_updated',
+            'interaction_deleted',
+            'agent_status',
+            'agent_request',
+            'agent_request_timeout',
+            'agent_draft',
+            'agent_thought',
+            'agent_draft_delta',
+            'agent_thought_delta',
+            'agent_steer_queued',
+            'agent_followup_queued',
+            'agent_followup_consumed',
+            'agent_followup_removed',
+            'model_changed',
+            'agents_changed',
+            'workspace_update',
+            'ui_theme',
+            'extension_event',
+        ];
+        for (const eventName of jsonEvents) {
+            this.eventSource.addEventListener(eventName, (event) => {
+                this.onEvent(eventName, JSON.parse((event as MessageEvent).data));
+            });
+        }
     }
-    
-    scheduleReconnect() {
+
+    scheduleReconnect(): void {
         if (this.reconnectTimeout) {
             clearTimeout(this.reconnectTimeout);
         }
@@ -531,17 +495,17 @@ export class SSEClient {
         }
         const cooldownDelay = Math.max(this.cooldownUntil - now, 0);
         const delay = Math.max(this.reconnectDelay, cooldownDelay);
-        
+
         this.reconnectTimeout = setTimeout(() => {
             console.log('Reconnecting SSE...');
             this.connect();
         }, delay);
-        
-        // Exponential backoff, max 30 seconds
+
+        // Exponential backoff, max 30 seconds.
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
     }
 
-    reconnectIfNeeded() {
+    reconnectIfNeeded(): void {
         if (this.status === 'connected') return;
         const now = Date.now();
         if (this.cooldownUntil && now < this.cooldownUntil) return;
@@ -551,8 +515,8 @@ export class SSEClient {
         }
         this.connect();
     }
-    
-    disconnect() {
+
+    disconnect(): void {
         this.connecting = false;
         if (this.eventSource) {
             this.eventSource.close();

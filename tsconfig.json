@@ -5,12 +5,15 @@
     "moduleResolution": "Bundler",
     "strict": true,
     "noEmit": true,
-    "allowJs": false,
+    "allowJs": true,
+    "checkJs": false,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "types": ["bun"]
   },
   "include": [
-    "static/js/**/*.ts"
+    "static/js/**/*.ts",
+    "tests/frontend/**/*.ts"
   ]
 }

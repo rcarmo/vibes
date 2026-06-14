@@ -8,11 +8,46 @@ const DRAWIO_EXTENSIONS = /\.drawio(\.xml|\.svg|\.png)?$/i;
 const HTML_EXTENSIONS = /\.html?$/i;
 const VIDEO_EXTENSIONS = /\.(mp4|webm|mov|ogv|avi|mkv)$/i;
 
+export interface EditorTab {
+    id: string;
+    path?: string;
+    label?: string;
+    dirty?: boolean;
+    pinned?: boolean;
+}
+
+export interface StandaloneTabOptions {
+    hasPopOutTab?: boolean;
+}
+
+export interface TabStripProps {
+    tabs?: EditorTab[];
+    activeId?: string | null;
+    onActivate?: (id: string) => void;
+    onClose?: (id: string) => void;
+    onCloseOthers?: (id: string) => void;
+    onCloseAll?: () => void;
+    onTogglePin?: (id: string) => void;
+    onTogglePreview?: (id: string) => void;
+    previewTabs?: Set<string>;
+    onPopOutTab?: (id: string, label?: string) => void;
+    onToggleDock?: () => void;
+    dockVisible?: boolean;
+    onToggleZen?: () => void;
+    zenMode?: boolean;
+}
+
+interface ContextMenuState {
+    id: string;
+    x: number;
+    y: number;
+}
+
 /**
  * Resolve a standalone (new-tab) URL for a given file path, or null if the
  * file type should be opened inside the pane system instead.
  */
-export function getStandaloneTabUrl(path, { hasPopOutTab = false } = {}) {
+export function getStandaloneTabUrl(path: unknown, { hasPopOutTab = false }: StandaloneTabOptions = {}): string | null {
     const normalizedPath = typeof path === 'string' ? path.trim() : '';
     if (!normalizedPath) return null;
     if (OFFICE_EXTENSIONS.test(normalizedPath)) {
@@ -43,25 +78,9 @@ export function getStandaloneTabUrl(path, { hasPopOutTab = false } = {}) {
 
 /**
  * TabStrip — horizontal tab bar for open editor files.
- *
- * @param {Object} props
- * @param {Array} props.tabs
- * @param {string|null} props.activeId
- * @param {(id: string) => void} props.onActivate
- * @param {(id: string) => void} props.onClose
- * @param {(id: string) => void} props.onCloseOthers
- * @param {() => void} props.onCloseAll
- * @param {(id: string) => void} props.onTogglePin
- * @param {(id: string) => void} [props.onTogglePreview]
- * @param {Set<string>} [props.previewTabs]
- * @param {(id: string, label?: string) => void} [props.onPopOutTab] - Open a tab in a standalone window.
- * @param {() => void} [props.onToggleDock] - Toggle terminal dock visibility.
- * @param {boolean} [props.dockVisible] - Whether the terminal dock is currently visible.
- * @param {() => void} [props.onToggleZen] - Toggle zen mode.
- * @param {boolean} [props.zenMode] - Whether zen mode is active.
  */
 export function TabStrip({
-    tabs,
+    tabs = [],
     activeId,
     onActivate,
     onClose,
@@ -75,15 +94,15 @@ export function TabStrip({
     dockVisible,
     onToggleZen,
     zenMode,
-}) {
-    const [contextMenu, setContextMenu] = useState(null);
+}: TabStripProps) {
+    const [contextMenu, setContextMenu] = useState(null as ContextMenuState | null);
     const stripRef = useRef(null);
 
-    // Close context menu on outside click or Escape
+    // Close context menu on outside click or Escape.
     useEffect(() => {
         if (!contextMenu) return;
-        const dismiss = (event) => {
-            if (event.type === 'keydown' && event.key !== 'Escape') return;
+        const dismiss = (event: MouseEvent | KeyboardEvent) => {
+            if (event.type === 'keydown' && (event as KeyboardEvent).key !== 'Escape') return;
             setContextMenu(null);
         };
         document.addEventListener('click', dismiss);
@@ -94,19 +113,19 @@ export function TabStrip({
         };
     }, [contextMenu]);
 
-    // Keyboard shortcuts: Ctrl+Tab (next), Ctrl+Shift+Tab (prev), Ctrl+W (close)
+    // Keyboard shortcuts: Ctrl+Tab (next), Ctrl+Shift+Tab (prev), Ctrl+W (close).
     useEffect(() => {
-        const onKeyDown = (event) => {
+        const onKeyDown = (event: KeyboardEvent) => {
             if (event.ctrlKey && event.key === 'Tab') {
                 event.preventDefault();
                 if (!tabs.length) return;
                 const idx = tabs.findIndex((tab) => tab.id === activeId);
                 if (event.shiftKey) {
                     const prev = tabs[(idx - 1 + tabs.length) % tabs.length];
-                    onActivate?.(prev.id);
+                    if (prev) onActivate?.(prev.id);
                 } else {
                     const next = tabs[(idx + 1) % tabs.length];
-                    onActivate?.(next.id);
+                    if (next) onActivate?.(next.id);
                 }
                 return;
             }
@@ -123,10 +142,11 @@ export function TabStrip({
         return () => document.removeEventListener('keydown', onKeyDown);
     }, [tabs, activeId, onActivate, onClose]);
 
-    // Scroll active tab into view
+    // Scroll active tab into view.
     useEffect(() => {
-        if (!activeId || !stripRef.current) return;
-        stripRef.current.querySelector('.tab-item.active')?.scrollIntoView({
+        const stripEl = stripRef.current as HTMLElement | null;
+        if (!activeId || !stripEl) return;
+        stripEl.querySelector('.tab-item.active')?.scrollIntoView({
             block: 'nearest',
             inline: 'nearest',
             behavior: 'smooth',
@@ -134,33 +154,33 @@ export function TabStrip({
     }, [activeId]);
 
     // Middle-click closes immediately so the tab never becomes active.
-    const handleTabMouseDown = useCallback((event, id) => {
+    const handleTabMouseDown = useCallback((event: MouseEvent, id: string) => {
         if (event.button === 1) {
             event.preventDefault();
             onClose?.(id);
         }
     }, [onClose]);
 
-    const handleTabClick = useCallback((event, id) => {
+    const handleTabClick = useCallback((event: MouseEvent, id: string) => {
         if (event.defaultPrevented) return;
         if (event.button === 0) {
             onActivate?.(id);
         }
     }, [onActivate]);
 
-    const handleContextMenu = useCallback((event, id) => {
+    const handleContextMenu = useCallback((event: MouseEvent, id: string) => {
         event.preventDefault();
         setContextMenu({ id, x: event.clientX, y: event.clientY });
     }, []);
 
     // Keep close-button pointer presses isolated from the parent tab so the
     // tab never activates before the close click lands.
-    const handleClosePointerDown = useCallback((event) => {
+    const handleClosePointerDown = useCallback((event: Event) => {
         event.preventDefault();
         event.stopPropagation();
     }, []);
 
-    const handleCloseClick = useCallback((event, id) => {
+    const handleCloseClick = useCallback((event: MouseEvent, id: string) => {
         event.preventDefault();
         event.stopPropagation();
         onClose?.(id);
@@ -181,9 +201,9 @@ export function TabStrip({
                     role="tab"
                     aria-selected=${tab.id === activeId}
                     title=${tab.path}
-                    onMouseDown=${(event) => handleTabMouseDown(event, tab.id)}
-                    onClick=${(event) => handleTabClick(event, tab.id)}
-                    onContextMenu=${(event) => handleContextMenu(event, tab.id)}
+                    onMouseDown=${(event: MouseEvent) => handleTabMouseDown(event, tab.id)}
+                    onClick=${(event: MouseEvent) => handleTabClick(event, tab.id)}
+                    onContextMenu=${(event: MouseEvent) => handleContextMenu(event, tab.id)}
                 >
                     ${tab.pinned && html`
                         <span class="tab-pin-icon" aria-label="Pinned">
@@ -198,7 +218,7 @@ export function TabStrip({
                         class="tab-close"
                         onPointerDown=${handleClosePointerDown}
                         onMouseDown=${handleClosePointerDown}
-                        onClick=${(event) => handleCloseClick(event, tab.id)}
+                        onClick=${(event: MouseEvent) => handleCloseClick(event, tab.id)}
                         title=${tab.dirty ? 'Unsaved changes' : 'Close'}
                         aria-label=${tab.dirty ? 'Unsaved changes' : `Close ${tab.label}`}
                     >

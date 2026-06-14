@@ -1,127 +1,52 @@
 import { html, useState, useEffect, useCallback, useMemo, useRef } from '../vendor/preact-htm.js';
-import { getWorkspaceTree } from '../api.js';
-
-const PALETTE = [
-    '#4e79a7', '#f28e2b', '#e15759', '#76b7b2', '#59a14f',
-    '#edc948', '#b07aa1', '#ff9da7', '#9c755f', '#bab0ac',
-];
+import { getWorkspaceTree } from '../api.ts';
+import {
+    arcPath,
+    buildSunburstArcs,
+    computeSize,
+    findNode,
+    formatSize,
+    type SunburstArc,
+    type WorkspaceTreeNode,
+} from '../features/workspace/sunburst-utils.ts';
 
 const FETCH_DEPTH = 8;
-const MAX_DEPTH = 4;
 const CX = 100;
 const CY = 100;
 const INNER_R = 20;
 const RING_W = 18;
-const TAU = 2 * Math.PI;
 
-function formatSize(bytes) {
-    if (bytes == null || bytes === 0) return '0 B';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
-    const val = bytes / Math.pow(1024, i);
-    return `${val < 10 ? val.toFixed(1) : Math.round(val)} ${units[i]}`;
+interface WorkspaceTreePayload {
+    root?: WorkspaceTreeNode;
 }
 
-function computeSize(node) {
-    if (!node) return 0;
-    if (node.type !== 'dir') return node.size || 0;
-    const children = node.children;
-    if (!children || children.length === 0) return 0;
-    let total = 0;
-    for (const child of children) {
-        total += computeSize(child);
-    }
-    return total;
+interface DiskUsageSunburstProps {
+    node?: WorkspaceTreeNode | null;
+    showHidden?: boolean;
 }
 
-function buildArcs(node, startAngle, endAngle, depth, parentIndex, result) {
-    if (depth >= MAX_DEPTH) return;
-    const children = node.children;
-    if (!children || children.length === 0) return;
-
-    const resolved = [];
-    for (const child of children) {
-        if (!child) continue;
-        const s = computeSize(child);
-        if (s > 0) resolved.push({ node: child, size: s });
-    }
-    if (resolved.length === 0) return;
-
-    const totalSize = resolved.reduce((a, b) => a + b.size, 0);
-    if (totalSize === 0) return;
-    const span = endAngle - startAngle;
-    let angle = startAngle;
-
-    for (let i = 0; i < resolved.length; i++) {
-        const { node: child, size } = resolved[i];
-        const sweep = (size / totalSize) * span;
-        if (sweep < 0.005) { angle += sweep; continue; }
-        const colorIdx = depth === 0 ? i % PALETTE.length : parentIndex;
-        result.push({
-            node: child,
-            size,
-            depth,
-            startAngle: angle,
-            endAngle: angle + sweep,
-            color: PALETTE[colorIdx],
-        });
-        if (child.type === 'dir') {
-            buildArcs(child, angle, angle + sweep, depth + 1, colorIdx, result);
-        }
-        angle += sweep;
-    }
-}
-
-function arcPath(cx, cy, r1, r2, a0, a1) {
-    const cos0 = Math.cos(a0), sin0 = Math.sin(a0);
-    const cos1 = Math.cos(a1), sin1 = Math.sin(a1);
-    const large = a1 - a0 > Math.PI ? 1 : 0;
-    const ox1 = cx + r1 * cos0, oy1 = cy + r1 * sin0;
-    const ox2 = cx + r2 * cos0, oy2 = cy + r2 * sin0;
-    const ix1 = cx + r1 * cos1, iy1 = cy + r1 * sin1;
-    const ix2 = cx + r2 * cos1, iy2 = cy + r2 * sin1;
-    return [
-        `M ${ox2} ${oy2}`,
-        `A ${r2} ${r2} 0 ${large} 1 ${ix2} ${iy2}`,
-        `L ${ix1} ${iy1}`,
-        `A ${r1} ${r1} 0 ${large} 0 ${ox1} ${oy1}`,
-        'Z',
-    ].join(' ');
-}
-
-function findNode(root, targetPath) {
-    if (!root) return null;
-    if (root.path === targetPath) return root;
-    if (!Array.isArray(root.children)) return null;
-    for (const child of root.children) {
-        const found = findNode(child, targetPath);
-        if (found) return found;
-    }
-    return null;
-}
-
-// Simple LRU cache for deep tree fetches
-const _treeCache = new Map();
+// Simple LRU cache for deep tree fetches.
+const treeCache = new Map<string, WorkspaceTreeNode>();
 const CACHE_MAX = 16;
-function cacheGet(key) { return _treeCache.get(key) || null; }
-function cacheSet(key, value) {
-    _treeCache.delete(key); // move to end
-    _treeCache.set(key, value);
-    if (_treeCache.size > CACHE_MAX) {
-        const first = _treeCache.keys().next().value;
-        _treeCache.delete(first);
+function cacheGet(key: string): WorkspaceTreeNode | null { return treeCache.get(key) || null; }
+function cacheSet(key: string, value: WorkspaceTreeNode): void {
+    treeCache.delete(key); // move to end
+    treeCache.set(key, value);
+    if (treeCache.size > CACHE_MAX) {
+        const first = treeCache.keys().next().value;
+        if (first) treeCache.delete(first);
     }
 }
 
-export function DiskUsageSunburst({ node, showHidden = false }) {
-    const [deepTree, setDeepTree] = useState(null);
+export function DiskUsageSunburst({ node, showHidden = false }: DiskUsageSunburstProps) {
+    const [deepTree, setDeepTree] = useState(null as WorkspaceTreeNode | null);
     const [loading, setLoading] = useState(false);
-    const [drillPath, setDrillPath] = useState(null);
-    const [hovered, setHovered] = useState(null);
+    const [drillPath, setDrillPath] = useState(null as string | null);
+    const [hovered, setHovered] = useState(null as number | null);
     const folderPath = node?.path;
     const fetchIdRef = useRef(0);
 
-    // Fetch a deep tree for the selected folder (with cache)
+    // Fetch a deep tree for the selected folder (with cache).
     useEffect(() => {
         if (!folderPath) return;
         const id = ++fetchIdRef.current;
@@ -140,18 +65,19 @@ export function DiskUsageSunburst({ node, showHidden = false }) {
         getWorkspaceTree(folderPath, FETCH_DEPTH, showHidden)
             .then((data) => {
                 if (id !== fetchIdRef.current) return;
-                if (data?.root) {
-                    cacheSet(cacheKey, data.root);
-                    setDeepTree(data.root);
+                const payload = data as WorkspaceTreePayload;
+                if (payload?.root) {
+                    cacheSet(cacheKey, payload.root);
+                    setDeepTree(payload.root);
                 }
             })
             .catch(() => {})
             .finally(() => { if (id === fetchIdRef.current) setLoading(false); });
     }, [folderPath, showHidden]);
 
-    // Invalidate cache on workspace updates
+    // Invalidate cache on workspace updates.
     useEffect(() => {
-        const handler = () => { _treeCache.clear(); };
+        const handler = () => { treeCache.clear(); };
         window.addEventListener('workspace-update', handler);
         return () => window.removeEventListener('workspace-update', handler);
     }, []);
@@ -164,23 +90,18 @@ export function DiskUsageSunburst({ node, showHidden = false }) {
 
     const totalSize = useMemo(() => computeSize(root), [root]);
 
-    const arcs = useMemo(() => {
-        if (!root || totalSize === 0) return [];
-        const result = [];
-        buildArcs(root, -Math.PI / 2, -Math.PI / 2 + TAU, 0, 0, result);
-        return result;
-    }, [root, totalSize]);
+    const arcs = useMemo(() => buildSunburstArcs(root), [root]) as SunburstArc[];
 
-    const handleArcClick = useCallback((arc) => {
+    const handleArcClick = useCallback((arc: SunburstArc) => {
         if (arc.node.type === 'dir' && arc.node.children && arc.node.children.length > 0) {
-            setDrillPath(arc.node.path);
+            setDrillPath(arc.node.path || null);
             setHovered(null);
         }
     }, []);
 
     const handleCenterClick = useCallback(() => {
         if (!drillPath) return;
-        // Navigate up: find parent path, or null to return to deepTree root
+        // Navigate up: find parent path, or null to return to deepTree root.
         const parent = drillPath.includes('/')
             ? drillPath.substring(0, drillPath.lastIndexOf('/'))
             : null;
@@ -189,15 +110,20 @@ export function DiskUsageSunburst({ node, showHidden = false }) {
     }, [drillPath]);
 
     const legendEntries = useMemo(() => {
-        const seen = new Set();
-        return arcs.filter((a) => a.depth === 0 && !seen.has(a.node.path) && seen.add(a.node.path));
-    }, [arcs]);
+        const seen = new Set<string>();
+        return arcs.filter((arc) => {
+            const path = arc.node.path || '';
+            if (arc.depth !== 0 || seen.has(path)) return false;
+            seen.add(path);
+            return true;
+        });
+    }, [arcs]) as SunburstArc[];
 
     if (!node) return null;
     if (loading) return html`<div style="text-align:center;color:var(--text-secondary,#888);font-size:13px;padding:16px 0;">Loading disk usage…</div>`;
-    if (!deepTree) return null;
+    if (!deepTree || !root) return null;
 
-    const centerLabel = root.name === '.' ? 'root' : root.name;
+    const centerLabel = root.name === '.' ? 'root' : (root.name || 'root');
     const canGoUp = Boolean(drillPath);
 
     return html`

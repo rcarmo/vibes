@@ -1,5 +1,13 @@
 import { html } from '../../vendor/preact-htm.js';
-import { describeProvider } from './provider-utils.ts';
+import { describeProvider, type ProviderDescriptor } from './provider-utils.ts';
+
+export interface ProviderPickerProps {
+    providers?: ProviderDescriptor[];
+    selectedProvider?: ProviderDescriptor | null;
+    activeBackendId?: string | null;
+    disabled?: boolean;
+    onChange?: (providerId: string) => void;
+}
 
 export function ProviderPicker({
     providers = [],
@@ -7,12 +15,13 @@ export function ProviderPicker({
     activeBackendId = null,
     disabled = false,
     onChange,
-}) {
+}: ProviderPickerProps) {
     const providerOptions = (providers || []).filter(Boolean);
     if (providerOptions.length === 0) return null;
 
-    const handleChange = (event) => {
-        const next = event.target.value;
+    const handleChange = (event: Event) => {
+        const target = event.target as HTMLSelectElement | null;
+        const next = target?.value || '';
         if (!next || next === activeBackendId) return;
         const provider = providerOptions.find((item) => item.id === next);
         if (provider && !provider.available) return;
