@@ -19,6 +19,15 @@ func (s *stubProvider) Events() <-chan Event                                    
 func (s *stubProvider) Status() ProviderStatus                                       { return ProviderStatus{State: "idle"} }
 func (s *stubProvider) Shutdown(ctx context.Context) error                           { return nil }
 
+// capabilityStubProvider is a stub Provider that also exposes negotiated runtime
+// capabilities for descriptor refresh tests.
+type capabilityStubProvider struct {
+	*stubProvider
+	capabilities ProviderCapabilities
+}
+
+func (s *capabilityStubProvider) Capabilities() ProviderCapabilities { return s.capabilities }
+
 func newStub(id string) *stubProvider {
 	return &stubProvider{id: id, events: make(chan Event)}
 }
@@ -144,6 +153,28 @@ func TestRegistryDescriptorsIncludeUnavailableBackends(t *testing.T) {
 	}
 	if seen["codex"].Status != "missing_binary" {
 		t.Fatalf("codex status = %q", seen["codex"].Status)
+	}
+}
+
+func TestRegistryDescriptorUsesNegotiatedProviderCapabilities(t *testing.T) {
+	r := NewRegistry()
+	p := &capabilityStubProvider{
+		stubProvider: newStub("codex"),
+		capabilities: ProviderCapabilities{MCPServers: true, MCPHTTP: true, PromptImages: true},
+	}
+	r.RegisterWithDescriptor("codex", p, ProviderDescriptor{
+		ID:           "codex",
+		Label:        "Codex",
+		Available:    true,
+		Capabilities: ACPCapabilities(),
+	})
+
+	descriptor, ok := r.Descriptor("codex")
+	if !ok {
+		t.Fatal("codex descriptor missing")
+	}
+	if !descriptor.Capabilities.MCPServers || !descriptor.Capabilities.MCPHTTP || !descriptor.Capabilities.PromptImages {
+		t.Fatalf("descriptor capabilities were not refreshed: %#v", descriptor.Capabilities)
 	}
 }
 

@@ -20,6 +20,7 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to keep agent alive after last SSE client disconnects |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = unlimited) |
+| `VIBES_ACP_MCP_SERVERS_JSON` | _(unset)_ | JSON array of MCP servers to pass to ACP sessions |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
 | `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
@@ -61,6 +62,38 @@ VIBES_CODEX_AGENT="codex-acp"
 # Pi native RPC (richer: streaming drafts, thinking, live model control)
 VIBES_DEFAULT_AGENT=pi
 ```
+
+### ACP MCP servers
+
+ACP sessions can receive MCP server definitions through `VIBES_ACP_MCP_SERVERS_JSON`. This is the recommended portable way to provide extra tools/context to ACP agents.
+
+Stdio MCP servers are always eligible because ACP requires agents to support stdio MCP. HTTP and SSE MCP servers are passed only when the agent advertises the corresponding `mcpCapabilities.http` or `mcpCapabilities.sse` flag during `initialize`.
+
+```bash
+export VIBES_ACP_MCP_SERVERS_JSON='[
+  {
+    "name": "workspace-tools",
+    "command": "workspace-mcp-server",
+    "args": ["--root", "/path/to/workspace"],
+    "env": {"LOG_LEVEL": "info"}
+  },
+  {
+    "type": "http",
+    "name": "remote-tools",
+    "url": "https://example.test/mcp",
+    "headers": {"Authorization": "Bearer ${TOKEN_FROM_ENV_OR_WRAPPER}"}
+  }
+]'
+```
+
+Keep secrets out of committed files. Prefer wrapper commands or inherited process environment for secret material; if headers/env are included in the JSON, treat the environment variable as sensitive.
+
+Current ACP client-service limitations:
+
+- Vibes negotiates and stores ACP prompt/MCP/session/auth capabilities.
+- Vibes passes configured MCP servers to `session/new`, filtering unsupported HTTP/SSE transports.
+- Vibes still advertises no ACP client filesystem or terminal capabilities; `fs/*`, `terminal/*`, and ACP permission request handling are planned but disabled until explicit safety gates are implemented.
+- Prompt payloads are still text-only; resource links, embedded resources, image, and audio blocks are planned follow-up work.
 
 ### Installing agent binaries
 

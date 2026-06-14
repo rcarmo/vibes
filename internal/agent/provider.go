@@ -64,6 +64,21 @@ type ProviderCapabilities struct {
 	FollowUpQueue      bool     `json:"follow_up_queue"`
 	WorkingDirectory   bool     `json:"working_directory"`
 	ToolsMode          []string `json:"tools_mode,omitempty"`
+	PromptImages       bool     `json:"prompt_images"`
+	PromptAudio        bool     `json:"prompt_audio"`
+	EmbeddedContext    bool     `json:"embedded_context"`
+	MCPServers         bool     `json:"mcp_servers"`
+	MCPHTTP            bool     `json:"mcp_http"`
+	MCPSSE             bool     `json:"mcp_sse"`
+	SessionList        bool     `json:"session_list"`
+	SessionResume      bool     `json:"session_resume"`
+	SessionClose       bool     `json:"session_close"`
+}
+
+// CapabilityProvider can be implemented by providers that refine their
+// capabilities after runtime protocol negotiation.
+type CapabilityProvider interface {
+	Capabilities() ProviderCapabilities
 }
 
 // ProviderDescriptor is the public identity, transport, availability and
@@ -210,6 +225,9 @@ func (r *Registry) Descriptors() []ProviderDescriptor {
 			descriptor.Model = status.Model
 			descriptor.Ready = status.State == "idle" || status.State == "busy"
 			descriptor.Status = status.State
+			if cp, ok := p.(CapabilityProvider); ok {
+				descriptor.Capabilities = cp.Capabilities()
+			}
 		} else if descriptor.Status == "" {
 			descriptor.Status = "unavailable"
 		}
@@ -232,6 +250,9 @@ func (r *Registry) Descriptor(id string) (ProviderDescriptor, bool) {
 		descriptor.Model = status.Model
 		descriptor.Ready = status.State == "idle" || status.State == "busy"
 		descriptor.Status = status.State
+		if cp, ok := p.(CapabilityProvider); ok {
+			descriptor.Capabilities = cp.Capabilities()
+		}
 	} else if descriptor.Status == "" {
 		descriptor.Status = "unavailable"
 	}

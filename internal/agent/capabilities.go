@@ -38,5 +38,6 @@ func ACPCapabilities() ProviderCapabilities {
 		Steering:           false,
 		FollowUpQueue:      false,
 		WorkingDirectory:   true,
+		MCPServers:         true,
 	}
 }

@@ -97,6 +97,7 @@ func TestBackendEnvOverrides(t *testing.T) {
 	t.Setenv("VIBES_COPILOT_ENABLED", "false")
 	t.Setenv("VIBES_CODEX_AGENT", "custom-codex")
 	t.Setenv("VIBES_CODEX_ENABLED", "false")
+	t.Setenv("VIBES_ACP_MCP_SERVERS_JSON", `[{"name":"tools","command":"tools-mcp"}]`)
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
@@ -112,6 +113,9 @@ func TestBackendEnvOverrides(t *testing.T) {
 	}
 	if cfg.CodexEnabled {
 		t.Error("CodexEnabled should be false")
+	}
+	if cfg.ACPMCPServersJSON == "" {
+		t.Error("ACPMCPServersJSON should load from env")
 	}
 }
 

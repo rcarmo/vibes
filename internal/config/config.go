@@ -18,12 +18,13 @@ type Config struct {
 	AgentName    string `env:"VIBES_AGENT_NAME"`
 
 	// ACP
-	CopilotAgent   string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
-	CopilotEnabled bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
-	CodexAgent     string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
-	CodexEnabled   bool   `env:"VIBES_CODEX_ENABLED" envDefault:"true"`
-	ACPDebug       bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
-	ACPThrottle    int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
+	CopilotAgent      string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
+	CopilotEnabled    bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
+	CodexAgent        string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
+	CodexEnabled      bool   `env:"VIBES_CODEX_ENABLED" envDefault:"true"`
+	ACPDebug          bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
+	ACPThrottle       int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
+	ACPMCPServersJSON string `env:"VIBES_ACP_MCP_SERVERS_JSON"`
 
 	// Pi
 	PiAgent               string `env:"VIBES_PI_AGENT"`

@@ -84,9 +84,13 @@ func New(cfg *config.Config) (*App, error) {
 	// Register supported backends. Product identity is separated from transport:
 	// Pi uses native RPC, Copilot/Codex use ACP.
 	agentEnv := agentEnvironment()
+	mcpServers, err := acp.ParseMCPServersJSON(cfg.ACPMCPServersJSON)
+	if err != nil {
+		slog.Warn("invalid ACP MCP server configuration", "error", err)
+	}
 	registerPiBackend(agentRegistry, cfg, workspaceDir())
-	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug)
-	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug)
+	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers)
+	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers)
 	if cfg.DefaultAgent != "" {
 		defaultBackend := cfg.DefaultAgent
 		if defaultBackend == "acp" {
@@ -500,7 +504,7 @@ func commandDetected(command string) (bool, string) {
 	return true, ""
 }
 
-func registerACPBackend(registry *agent.Registry, id, label, command string, enabled bool, workDir string, env map[string]string, debug bool) {
+func registerACPBackend(registry *agent.Registry, id, label, command string, enabled bool, workDir string, env map[string]string, debug bool, mcpServers []acp.MCPServer) {
 	detected, detectErr := commandDetected(command)
 	descriptor := agent.ProviderDescriptor{
 		ID:           id,
@@ -528,12 +532,13 @@ func registerACPBackend(registry *agent.Registry, id, label, command string, ena
 	}
 	parts := splitCommand(command)
 	provider := acp.New(acp.Config{
-		ID:      id,
-		Command: parts[0],
-		Args:    parts[1:],
-		WorkDir: workDir,
-		Env:     env,
-		Debug:   debug,
+		ID:         id,
+		Command:    parts[0],
+		Args:       parts[1:],
+		WorkDir:    workDir,
+		Env:        env,
+		Debug:      debug,
+		MCPServers: mcpServers,
 	})
 	registry.RegisterWithDescriptor(id, provider, descriptor)
 }

@@ -148,13 +148,14 @@ All configuration is via environment variables with `VIBES_` prefix:
 | `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all tool calls |
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Agent keepalive after last SSE client disconnects |
 | `VIBES_ACP_DEBUG` | `false` | Wire-level ACP logging |
+| `VIBES_ACP_MCP_SERVERS_JSON` | _(unset)_ | JSON array of ACP MCP servers to pass to ACP sessions (`stdio` supported; `http`/`sse` filtered by negotiated agent capabilities) |
 | `VIBES_EXTENSIONS_DIR` | `extensions` | Extension scan directory |
 | `VIBES_CORS_ALLOW_ORIGIN` | _(unset)_ | Enable CORS for a specific origin (or `*`) |
 | `VIBES_API_TOKEN` | _(unset)_ | Optional API token for sensitive/mutating routes (`X-API-Token` or `Authorization: Bearer`) |
 | `VIBES_ENABLE_TERMINAL` | `false` | Enable terminal WebSocket endpoint (`/terminal/ws`) |
 | `VIBES_ENABLE_PPROF` | `false` | Enable pprof endpoints under `/debug/pprof` (guarded by token when set) |
 
-See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full reference.
+See [docs/CONFIGURATION.md](docs/CONFIGURATION.md) for full reference, including ACP MCP server JSON examples and current ACP client-service limitations.
 
 ### Security hardening (recommended for remote deployments)
 

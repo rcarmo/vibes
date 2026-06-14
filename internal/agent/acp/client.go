@@ -24,12 +24,13 @@ import (
 
 // Config configures an ACP agent provider.
 type Config struct {
-	ID      string
-	Command string
-	Args    []string
-	WorkDir string
-	Env     map[string]string
-	Debug   bool
+	ID         string
+	Command    string
+	Args       []string
+	WorkDir    string
+	Env        map[string]string
+	Debug      bool
+	MCPServers []MCPServer
 }
 
 // Provider implements agent.Provider for ACP agents using raw JSON-RPC.
@@ -47,8 +48,9 @@ type Provider struct {
 	draftMu   sync.Mutex
 	draftText strings.Builder
 
-	mu     sync.RWMutex
-	status agent.ProviderStatus
+	mu           sync.RWMutex
+	status       agent.ProviderStatus
+	capabilities AgentCapabilities
 }
 
 func New(cfg Config) *Provider {
@@ -72,6 +74,34 @@ func (p *Provider) setStatus(s agent.ProviderStatus) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.status = s
+}
+
+func (p *Provider) setCapabilities(caps AgentCapabilities) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.capabilities = caps
+}
+
+func (p *Provider) negotiatedCapabilities() AgentCapabilities {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.capabilities
+}
+
+func (p *Provider) Capabilities() agent.ProviderCapabilities {
+	caps := p.negotiatedCapabilities()
+	base := agent.ACPCapabilities()
+	base.StreamingThoughts = true
+	base.PromptImages = caps.Prompt.Image
+	base.PromptAudio = caps.Prompt.Audio
+	base.EmbeddedContext = caps.Prompt.EmbeddedContext
+	base.MCPServers = true
+	base.MCPHTTP = caps.MCP.HTTP
+	base.MCPSSE = caps.MCP.SSE
+	base.SessionList = caps.Session.List
+	base.SessionResume = caps.Session.Resume
+	base.SessionClose = caps.Session.Close
+	return base
 }
 
 // Initialize spawns the agent, performs the ACP handshake, and creates a session.
@@ -106,12 +136,9 @@ func (p *Provider) Initialize(ctx context.Context) error {
 		return fmt.Errorf("initialize: %w", err)
 	}
 
-	model := ""
-	if result, ok := initResult.(map[string]interface{}); ok {
-		if ai, ok := result["agentInfo"].(map[string]interface{}); ok {
-			model, _ = ai["name"].(string)
-		}
-	}
+	caps := parseCapabilities(initResult)
+	p.setCapabilities(caps)
+	model := caps.AgentInfo.Name
 
 	// Start receive loop (must be after init since init reads synchronously)
 	go p.receiveLoop()
@@ -121,10 +148,7 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	if cwd == "" {
 		cwd, _ = os.Getwd()
 	}
-	sessResult, err := p.sendRequestAsync("session/new", map[string]interface{}{
-		"cwd":        cwd,
-		"mcpServers": []interface{}{},
-	})
+	sessResult, err := p.sendRequestAsync("session/new", p.sessionNewParams(cwd, caps))
 	if err != nil {
 		slog.Warn("new_session failed (agent may need auth)", "id", p.cfg.ID, "error", err)
 	} else if result, ok := sessResult.(map[string]interface{}); ok {
