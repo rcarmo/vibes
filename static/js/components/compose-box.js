@@ -1,7 +1,8 @@
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
-import { canSetThinking, canSwitchModels, describeProvider, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.js';
+import { ProviderPicker } from '../features/backends/provider-picker.js';
+import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -436,14 +437,6 @@ export function ComposeBox({
         modelPopupIndex,
         handleSelectModel,
     ]);
-
-    const handleBackendSelect = (event) => {
-        const next = event.target.value;
-        if (!next || next === activeBackendId) return;
-        const provider = providerOptions.find((item) => item.id === next);
-        if (provider && !provider.available) return;
-        onBackendChange?.(next);
-    };
 
     const handleSubmit = async () => {
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
@@ -894,22 +887,13 @@ export function ComposeBox({
                     `}
                     ${!searchMode && (providerOptions.length > 0 || activeModel || supportsThinking || canSetSelectedThinking || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
-                            ${providerOptions.length > 0 && html`
-                                <select
-                                    class="compose-backend-picker"
-                                    value=${selectedProvider?.id || ''}
-                                    onChange=${handleBackendSelect}
-                                    title=${describeProvider(selectedProvider)}
-                                    aria-label="Backend for new turns"
-                                    disabled=${loading || switchingModel}
-                                >
-                                    ${providerOptions.map((provider) => html`
-                                        <option key=${provider.id} value=${provider.id} disabled=${!provider.available} title=${describeProvider(provider)}>
-                                            ${provider.label || provider.id}${provider.available ? '' : ` — ${provider.status || 'unavailable'}`}
-                                        </option>
-                                    `)}
-                                </select>
-                            `}
+                            <${ProviderPicker}
+                                providers=${providerOptions}
+                                selectedProvider=${selectedProvider}
+                                activeBackendId=${activeBackendId}
+                                disabled=${loading || switchingModel}
+                                onChange=${onBackendChange}
+                            />
                             ${activeModel && canSwitchSelectedModels && html`
                                 <button
                                     ref=${modelHintRef}

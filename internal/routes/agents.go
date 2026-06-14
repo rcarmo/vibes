@@ -174,12 +174,19 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 
 		backendMeta := backendMetadataFor(registry, selectedAgentID, provider.Status().Model, "prompt")
 		backendMeta.ThreadBackendGeneration = 1
+		threadID := int64(0)
 		if req.ThreadID != nil {
-			if tb, err := database.GetThreadBackend(*req.ThreadID); err == nil && tb != nil {
-				backendMeta.ThreadBackendGeneration = tb.BackendGeneration
-				if tb.Backend.ID != backendMeta.ID {
-					backendMeta.ThreadBackendGeneration++
-				}
+			threadID = *req.ThreadID
+			threadBackend, changedBackend, previousBackend, err := switchThreadBackend(database, registry, threadID, backendMeta.ID)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if threadBackend != nil {
+				backendMeta.ThreadBackendGeneration = threadBackend.BackendGeneration
+			}
+			if changedBackend && previousBackend != "" && previousBackend != backendMeta.ID {
+				_ = recordBackendSwitch(database, broker, threadID, previousBackend, backendMeta.ID, backendMeta.ThreadBackendGeneration)
 			}
 		}
 
@@ -200,20 +207,16 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			return
 		}
 
-		threadID := postID
-		if req.ThreadID != nil {
-			threadID = *req.ThreadID
-		}
-		threadBackend, changedBackend, previousBackend, err := switchThreadBackend(database, registry, threadID, backendMeta.ID)
-		if err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		if threadBackend != nil {
-			backendMeta.ThreadBackendGeneration = threadBackend.BackendGeneration
-		}
-		if changedBackend && previousBackend != "" && previousBackend != backendMeta.ID {
-			_ = recordBackendSwitch(database, broker, threadID, previousBackend, backendMeta.ID, backendMeta.ThreadBackendGeneration)
+		if threadID == 0 {
+			threadID = postID
+			threadBackend, _, _, err := switchThreadBackend(database, registry, threadID, backendMeta.ID)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if threadBackend != nil {
+				backendMeta.ThreadBackendGeneration = threadBackend.BackendGeneration
+			}
 		}
 
 		// Broadcast user message via SSE
