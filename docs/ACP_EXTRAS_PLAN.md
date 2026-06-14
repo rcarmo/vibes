@@ -42,24 +42,33 @@ Goal: enrich `session/prompt` without sending content block types the agent did 
 - No binary/media payloads until size/type limits and UI affordances exist.
 - Unsupported prompt block types are dropped with debug logging, not sent.
 
-## Milestone C — permission mediation and `fs/read_text_file`
+## In progress: Milestone C — permission mediation and `fs/read_text_file`
 
-Goal: support ACP-native permission requests and a read-only filesystem service behind user approval.
+Goal: support ACP-native permission requests and a read-only filesystem service behind explicit local safety gates.
 
-### Scope
+### Delivered read-only slice
 
-1. Handle `session/request_permission` in the ACP receive loop.
-2. Route permission prompts through the existing Vibes permission UX and timeout policy.
-3. Advertise `clientCapabilities.fs.readTextFile` only when read service is enabled.
-4. Implement `fs/read_text_file` with path normalization, workspace allowlisting, file size limits, and audit logging.
-5. Add tests for path traversal, denied permissions, timeout, and successful approved reads.
+1. Handle incoming ACP client-side requests in the provider receive loop and return JSON-RPC responses instead of dropping them.
+2. Advertise `clientCapabilities.fs.readTextFile` only when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
+3. Keep `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false` unconditionally.
+4. Implement `fs/read_text_file` with path normalization, workspace-root confinement, symlink escape prevention, directory rejection, file size limits, and ACP line/limit slicing.
+5. Surface provider descriptor booleans for read/write filesystem and terminal services so UI controls can stay capability-driven.
+6. Return explicit `method not found`/disabled errors for unimplemented ACP client methods rather than silently allowing them.
+
+### Remaining permission-mediation work
+
+1. Route `session/request_permission` through the existing Vibes permission UX and timeout policy.
+2. Add operation-specific permission decisions before enabling broader filesystem or terminal services.
+3. Add audit UI entries for approved/denied client-service calls.
+4. Add timeout/denial tests once the provider-level permission broker is introduced.
 
 ### Safety gates
 
-- Default disabled.
-- Workspace-root allowlist only.
-- No symlink escape.
-- Explicit user approval unless an administrator enables a documented auto-approve policy.
+- Read service is disabled by default.
+- Reads are confined to the active workspace root.
+- Symlinks must not escape the allowlisted root.
+- Files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are rejected.
+- Write and terminal services are not advertised or implemented.
 
 ## Milestone D — writes and terminal services
 

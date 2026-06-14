@@ -98,6 +98,8 @@ func TestBackendEnvOverrides(t *testing.T) {
 	t.Setenv("VIBES_CODEX_AGENT", "custom-codex")
 	t.Setenv("VIBES_CODEX_ENABLED", "false")
 	t.Setenv("VIBES_ACP_MCP_SERVERS_JSON", `[{"name":"tools","command":"tools-mcp"}]`)
+	t.Setenv("VIBES_ACP_FS_READ_TEXT_ENABLED", "true")
+	t.Setenv("VIBES_ACP_FS_READ_TEXT_MAX_BYTES", "1024")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
@@ -116,6 +118,12 @@ func TestBackendEnvOverrides(t *testing.T) {
 	}
 	if cfg.ACPMCPServersJSON == "" {
 		t.Error("ACPMCPServersJSON should load from env")
+	}
+	if !cfg.ACPFSReadTextEnabled {
+		t.Error("ACPFSReadTextEnabled should load from env")
+	}
+	if cfg.ACPFSReadTextMaxBytes != 1024 {
+		t.Errorf("ACPFSReadTextMaxBytes = %d", cfg.ACPFSReadTextMaxBytes)
 	}
 }
 

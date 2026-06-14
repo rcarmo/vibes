@@ -160,7 +160,7 @@ func TestRegistryDescriptorUsesNegotiatedProviderCapabilities(t *testing.T) {
 	r := NewRegistry()
 	p := &capabilityStubProvider{
 		stubProvider: newStub("codex"),
-		capabilities: ProviderCapabilities{MCPServers: true, MCPHTTP: true, PromptImages: true},
+		capabilities: ProviderCapabilities{MCPServers: true, MCPHTTP: true, PromptImages: true, FSReadTextFile: true},
 	}
 	r.RegisterWithDescriptor("codex", p, ProviderDescriptor{
 		ID:           "codex",
@@ -173,8 +173,11 @@ func TestRegistryDescriptorUsesNegotiatedProviderCapabilities(t *testing.T) {
 	if !ok {
 		t.Fatal("codex descriptor missing")
 	}
-	if !descriptor.Capabilities.MCPServers || !descriptor.Capabilities.MCPHTTP || !descriptor.Capabilities.PromptImages {
+	if !descriptor.Capabilities.MCPServers || !descriptor.Capabilities.MCPHTTP || !descriptor.Capabilities.PromptImages || !descriptor.Capabilities.FSReadTextFile {
 		t.Fatalf("descriptor capabilities were not refreshed: %#v", descriptor.Capabilities)
+	}
+	if descriptor.Capabilities.FSWriteTextFile || descriptor.Capabilities.TerminalServices {
+		t.Fatalf("unsafe capabilities should remain disabled: %#v", descriptor.Capabilities)
 	}
 }
 

@@ -21,6 +21,8 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = unlimited) |
 | `VIBES_ACP_MCP_SERVERS_JSON` | _(unset)_ | JSON array of MCP servers to pass to ACP sessions |
+| `VIBES_ACP_FS_READ_TEXT_ENABLED` | `false` | Opt in to ACP `fs/read_text_file` client requests |
+| `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` | `262144` | Maximum bytes for one ACP text-file read |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
 | `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
@@ -88,11 +90,18 @@ export VIBES_ACP_MCP_SERVERS_JSON='[
 
 Keep secrets out of committed files. Prefer wrapper commands or inherited process environment for secret material; if headers/env are included in the JSON, treat the environment variable as sensitive.
 
+### ACP client filesystem service
+
+`fs/read_text_file` is disabled by default. Set `VIBES_ACP_FS_READ_TEXT_ENABLED=true` to advertise `clientCapabilities.fs.readTextFile` and allow an ACP agent to request text reads inside the Vibes workspace root. Reads are path-normalized, symlinks are resolved before the root-confinement check, directories are rejected, and files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are refused.
+
+Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Those services remain unavailable until a stronger operation-specific permission UX and safety policy are implemented.
+
 Current ACP client-service limitations:
 
 - Vibes negotiates and stores ACP prompt/MCP/session/auth capabilities.
 - Vibes passes configured MCP servers to `session/new`, filtering unsupported HTTP/SSE transports.
-- Vibes still advertises no ACP client filesystem or terminal capabilities; `fs/*`, `terminal/*`, and ACP permission request handling are planned but disabled until explicit safety gates are implemented.
+- Vibes can optionally advertise read-only ACP filesystem access with `VIBES_ACP_FS_READ_TEXT_ENABLED=true`; write and terminal services remain disabled.
+- ACP permission requests currently receive an explicit “not implemented” response from the provider receive loop rather than bypassing Vibes safety gates.
 - Prompt payloads support text plus explicit `resource_link` context entries; embedded resources, image, and audio blocks are planned follow-up work tracked in [ACP_EXTRAS_PLAN.md](ACP_EXTRAS_PLAN.md).
 
 ### Installing agent binaries

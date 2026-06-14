@@ -73,6 +73,9 @@ type ProviderCapabilities struct {
 	SessionList        bool     `json:"session_list"`
 	SessionResume      bool     `json:"session_resume"`
 	SessionClose       bool     `json:"session_close"`
+	FSReadTextFile     bool     `json:"fs_read_text_file"`
+	FSWriteTextFile    bool     `json:"fs_write_text_file"`
+	TerminalServices   bool     `json:"terminal_services"`
 }
 
 // CapabilityProvider can be implemented by providers that refine their

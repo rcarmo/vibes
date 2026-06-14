@@ -24,13 +24,16 @@ import (
 
 // Config configures an ACP agent provider.
 type Config struct {
-	ID         string
-	Command    string
-	Args       []string
-	WorkDir    string
-	Env        map[string]string
-	Debug      bool
-	MCPServers []MCPServer
+	ID                 string
+	Command            string
+	Args               []string
+	WorkDir            string
+	Env                map[string]string
+	Debug              bool
+	MCPServers         []MCPServer
+	FSReadTextEnabled  bool
+	FSRoot             string
+	FSReadTextMaxBytes int64
 }
 
 // Provider implements agent.Provider for ACP agents using raw JSON-RPC.
@@ -43,6 +46,7 @@ type Provider struct {
 	sessionID string
 	nextID    atomic.Int64
 	pending   sync.Map
+	writeMu   sync.Mutex
 
 	// Accumulated draft text for the current turn
 	draftMu   sync.Mutex
@@ -101,6 +105,9 @@ func (p *Provider) Capabilities() agent.ProviderCapabilities {
 	base.SessionList = caps.Session.List
 	base.SessionResume = caps.Session.Resume
 	base.SessionClose = caps.Session.Close
+	base.FSReadTextFile = p.cfg.FSReadTextEnabled
+	base.FSWriteTextFile = false
+	base.TerminalServices = false
 	return base
 }
 
@@ -129,7 +136,7 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	initResult, err := p.sendRequest("initialize", map[string]interface{}{
 		"protocolVersion":    1,
 		"clientInfo":         map[string]string{"name": "vibes-go", "version": "0.1.0"},
-		"clientCapabilities": map[string]interface{}{},
+		"clientCapabilities": p.clientCapabilities(),
 	})
 	if err != nil {
 		proc.Close()
@@ -315,7 +322,8 @@ func (p *Provider) receiveLoop() {
 			continue
 		}
 
-		// Check if this is a response (has "id" and "result" or "error")
+		// Check if this is a response (has "id" and "result" or "error") or
+		// an incoming client-side request (has "id" and "method").
 		if idRaw, ok := msg["id"]; ok {
 			if _, hasResult := msg["result"]; hasResult {
 				var id int64
@@ -332,6 +340,10 @@ func (p *Provider) receiveLoop() {
 					ch.(chan json.RawMessage) <- json.RawMessage(line)
 					continue
 				}
+			}
+			if _, hasMethod := msg["method"]; hasMethod {
+				p.handleClientRequest(idRaw, msg)
+				continue
 			}
 		}
 
