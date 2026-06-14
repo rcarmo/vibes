@@ -14,10 +14,10 @@ type stubProvider struct {
 func (s *stubProvider) ID() string                                                   { return s.id }
 func (s *stubProvider) Initialize(ctx context.Context) error                         { return nil }
 func (s *stubProvider) Prompt(ctx context.Context, msg string, threadID int64) error { return nil }
-func (s *stubProvider) Cancel() error                                                 { return nil }
-func (s *stubProvider) Events() <-chan Event                                          { return s.events }
-func (s *stubProvider) Status() ProviderStatus                                        { return ProviderStatus{State: "idle"} }
-func (s *stubProvider) Shutdown(ctx context.Context) error                            { return nil }
+func (s *stubProvider) Cancel() error                                                { return nil }
+func (s *stubProvider) Events() <-chan Event                                         { return s.events }
+func (s *stubProvider) Status() ProviderStatus                                       { return ProviderStatus{State: "idle"} }
+func (s *stubProvider) Shutdown(ctx context.Context) error                           { return nil }
 
 func newStub(id string) *stubProvider {
 	return &stubProvider{id: id, events: make(chan Event)}
@@ -93,5 +93,42 @@ func TestRegistryList(t *testing.T) {
 	got := r.List()
 	if len(got) != 3 {
 		t.Errorf("List returned %d items, want 3", len(got))
+	}
+}
+
+func TestRegistryDescriptorsIncludeUnavailableBackends(t *testing.T) {
+	r := NewRegistry()
+	r.RegisterWithDescriptor("pi", newStub("pi"), ProviderDescriptor{
+		ID:           "pi",
+		Label:        "Pi",
+		Family:       "pi",
+		Transport:    "pi-rpc",
+		Capabilities: PiCapabilities(),
+	})
+	r.AddDescriptor(ProviderDescriptor{
+		ID:        "codex",
+		Label:     "Codex",
+		Family:    "codex",
+		Transport: "acp",
+		Status:    "missing_binary",
+		Error:     "not found",
+	})
+
+	descriptors := r.Descriptors()
+	if len(descriptors) != 2 {
+		t.Fatalf("Descriptors length = %d, want 2", len(descriptors))
+	}
+	seen := map[string]ProviderDescriptor{}
+	for _, descriptor := range descriptors {
+		seen[descriptor.ID] = descriptor
+	}
+	if !seen["pi"].Available || !seen["pi"].Ready {
+		t.Fatalf("pi descriptor not available/ready: %#v", seen["pi"])
+	}
+	if seen["codex"].Available {
+		t.Fatalf("codex descriptor should not be available: %#v", seen["codex"])
+	}
+	if seen["codex"].Status != "missing_binary" {
+		t.Fatalf("codex status = %q", seen["codex"].Status)
 	}
 }

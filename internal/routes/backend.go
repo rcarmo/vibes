@@ -31,47 +31,13 @@ func SetThreadBackend(database *db.DB, registry *agent.Registry, broker *sse.Bro
 			jsonError(w, "backend is not available", http.StatusBadRequest)
 			return
 		}
-		current, err := database.GetThreadBackend(threadID)
-		if err != nil {
-			jsonError(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		from := ""
-		if current != nil {
-			from = current.Backend.ID
-		}
-		backend := db.BackendMetadata{
-			ID:        descriptor.ID,
-			Family:    descriptor.Family,
-			Transport: descriptor.Transport,
-			Label:     descriptor.Label,
-			Model:     descriptor.Model,
-			Mode:      "thread_backend",
-		}
-		stored, changed, err := database.SetThreadBackend(threadID, backend)
+		stored, changed, from, err := switchThreadBackend(database, registry, threadID, req.BackendID)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if changed && from != "" && from != stored.Backend.ID {
-			content := fmt.Sprintf("Backend switched from %s to %s.", from, stored.Backend.ID)
-			payload := db.InteractionData{
-				Type:     "system",
-				Content:  content,
-				ThreadID: &threadID,
-				BackendSwitch: &db.BackendSwitch{
-					From:                    from,
-					To:                      stored.Backend.ID,
-					ThreadBackendGeneration: stored.BackendGeneration,
-				},
-			}
-			data, _ := db.MarshalInteraction(payload)
-			postID, err := database.InsertInteraction(data)
-			if err == nil {
-				if interaction, err := database.GetInteraction(postID); err == nil {
-					broker.Broadcast(sse.Event{Type: "new_post", Data: interaction})
-				}
-			}
+			_ = recordBackendSwitch(database, broker, threadID, from, stored.Backend.ID, stored.BackendGeneration)
 		}
 		jsonResp(w, map[string]interface{}{
 			"status":             "ok",
@@ -81,6 +47,59 @@ func SetThreadBackend(database *db.DB, registry *agent.Registry, broker *sse.Bro
 			"changed":            changed,
 		})
 	}
+}
+
+func switchThreadBackend(database *db.DB, registry *agent.Registry, threadID int64, backendID string) (*db.ThreadBackend, bool, string, error) {
+	descriptor, ok := registry.Descriptor(backendID)
+	if !ok || !descriptor.Available {
+		return nil, false, "", fmt.Errorf("backend is not available")
+	}
+	current, err := database.GetThreadBackend(threadID)
+	if err != nil {
+		return nil, false, "", err
+	}
+	from := ""
+	if current != nil {
+		from = current.Backend.ID
+	}
+	backend := db.BackendMetadata{
+		ID:        descriptor.ID,
+		Family:    descriptor.Family,
+		Transport: descriptor.Transport,
+		Label:     descriptor.Label,
+		Model:     descriptor.Model,
+		Mode:      "thread_backend",
+	}
+	stored, changed, err := database.SetThreadBackend(threadID, backend)
+	return stored, changed, from, err
+}
+
+func recordBackendSwitch(database *db.DB, broker *sse.Broker, threadID int64, from, to string, generation int) error {
+	content := fmt.Sprintf("Backend switched from %s to %s.", from, to)
+	payload := db.InteractionData{
+		Type:     "system",
+		Content:  content,
+		ThreadID: &threadID,
+		BackendSwitch: &db.BackendSwitch{
+			From:                    from,
+			To:                      to,
+			ThreadBackendGeneration: generation,
+		},
+	}
+	data, err := db.MarshalInteraction(payload)
+	if err != nil {
+		return err
+	}
+	postID, err := database.InsertInteraction(data)
+	if err != nil {
+		return err
+	}
+	if broker != nil {
+		if interaction, err := database.GetInteraction(postID); err == nil {
+			broker.Broadcast(sse.Event{Type: "new_post", Data: interaction})
+		}
+	}
+	return nil
 }
 
 // GetThreadBackend returns a handler for reading a thread's backend affinity.

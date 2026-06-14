@@ -70,6 +70,41 @@ func TestACPAgentDefault(t *testing.T) {
 	if cfg.ACPAgent == "" {
 		t.Error("ACPAgent should have a non-empty default")
 	}
+	if cfg.CopilotAgent == "" {
+		t.Error("CopilotAgent should have a non-empty default")
+	}
+	if cfg.CodexAgent == "" {
+		t.Error("CodexAgent should have a non-empty default")
+	}
+	if !cfg.CopilotEnabled {
+		t.Error("CopilotEnabled should default to true")
+	}
+	if !cfg.CodexEnabled {
+		t.Error("CodexEnabled should default to true")
+	}
+}
+
+func TestBackendEnvOverrides(t *testing.T) {
+	t.Setenv("VIBES_COPILOT_AGENT", "custom-copilot --acp")
+	t.Setenv("VIBES_COPILOT_ENABLED", "false")
+	t.Setenv("VIBES_CODEX_AGENT", "custom-codex")
+	t.Setenv("VIBES_CODEX_ENABLED", "false")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load failed: %v", err)
+	}
+	if cfg.CopilotAgent != "custom-copilot --acp" {
+		t.Errorf("CopilotAgent = %q", cfg.CopilotAgent)
+	}
+	if cfg.CopilotEnabled {
+		t.Error("CopilotEnabled should be false")
+	}
+	if cfg.CodexAgent != "custom-codex" {
+		t.Errorf("CodexAgent = %q", cfg.CodexAgent)
+	}
+	if cfg.CodexEnabled {
+		t.Error("CodexEnabled should be false")
+	}
 }
 
 func TestACPAgentCanBeDisabled(t *testing.T) {

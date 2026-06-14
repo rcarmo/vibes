@@ -522,7 +522,9 @@ function Post({
     const displayName = isAgent ? (agentName || 'Agent') : resolvedUserName;
     const backend = data.backend || null;
     const backendLabel = backend?.label || backend?.id || '';
-    const backendMode = backend?.model || backend?.transport || '';
+    const backendDetails = [backend?.transport, backend?.model, backend?.mode, backend?.thread_backend_generation ? `gen ${backend.thread_backend_generation}` : '']
+        .filter(Boolean)
+        .join(' · ');
 
     const avatarInfo = isAgent
         ? (getAvatarInfo?.(agentName, agentAvatarUrl) || fallbackAvatarInfo(agentName, agentAvatarUrl))
@@ -761,7 +763,7 @@ function Post({
                 </div>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
-                    ${backendLabel && html`<span class="post-backend" title=${backendMode ? `${backendLabel} · ${backendMode}` : backendLabel}>${backendLabel}</span>`}
+                    ${backendLabel && html`<span class="post-backend" title=${backendDetails ? `${backendLabel} · ${backendDetails}` : backendLabel}>${backendLabel}</span>`}
                     <span class="post-time" onClick=${(e) => {
                         if (onMessageRef) {
                             e.stopPropagation();

@@ -437,9 +437,26 @@ export function ComposeBox({
         handleSelectModel,
     ]);
 
+    const describeProvider = (provider) => {
+        if (!provider) return 'No backend selected';
+        const caps = provider.capabilities || {};
+        const summary = [];
+        if (caps.model_list || caps.model_switch) summary.push('models');
+        if (Array.isArray(caps.thinking_levels) && caps.thinking_levels.length > 0) summary.push('thinking');
+        if (caps.tool_events) summary.push('tools');
+        if (caps.steering) summary.push('steering');
+        if (caps.session_stats || caps.session_compact) summary.push('sessions');
+        const state = provider.available ? (provider.ready ? 'ready' : (provider.status || 'available')) : (provider.status || 'unavailable');
+        const detail = summary.length ? ` · ${summary.join(' · ')}` : '';
+        const error = provider.error ? ` — ${provider.error}` : '';
+        return `${provider.label || provider.id} (${provider.transport || provider.family || 'backend'}): ${state}${detail}${error}`;
+    };
+
     const handleBackendSelect = (event) => {
         const next = event.target.value;
         if (!next || next === activeBackendId) return;
+        const provider = providerOptions.find((item) => item.id === next);
+        if (provider && !provider.available) return;
         onBackendChange?.(next);
     };
 
@@ -897,12 +914,12 @@ export function ComposeBox({
                                     class="compose-backend-picker"
                                     value=${selectedProvider?.id || ''}
                                     onChange=${handleBackendSelect}
-                                    title="Backend for new turns"
+                                    title=${describeProvider(selectedProvider)}
                                     aria-label="Backend for new turns"
                                     disabled=${loading || switchingModel}
                                 >
                                     ${providerOptions.map((provider) => html`
-                                        <option key=${provider.id} value=${provider.id} disabled=${!provider.available}>
+                                        <option key=${provider.id} value=${provider.id} disabled=${!provider.available} title=${describeProvider(provider)}>
                                             ${provider.label || provider.id}${provider.available ? '' : ` — ${provider.status || 'unavailable'}`}
                                         </option>
                                     `)}

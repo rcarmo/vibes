@@ -204,13 +204,16 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		if req.ThreadID != nil {
 			threadID = *req.ThreadID
 		}
-		threadBackend, _, err := database.SetThreadBackend(threadID, backendMeta)
+		threadBackend, changedBackend, previousBackend, err := switchThreadBackend(database, registry, threadID, backendMeta.ID)
 		if err != nil {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		if threadBackend != nil {
 			backendMeta.ThreadBackendGeneration = threadBackend.BackendGeneration
+		}
+		if changedBackend && previousBackend != "" && previousBackend != backendMeta.ID {
+			_ = recordBackendSwitch(database, broker, threadID, previousBackend, backendMeta.ID, backendMeta.ThreadBackendGeneration)
 		}
 
 		// Broadcast user message via SSE
