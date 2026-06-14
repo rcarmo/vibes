@@ -10,7 +10,11 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_PORT` | `8080` | Server port |
 | `VIBES_DB_PATH` | `database/vibes.db` | SQLite database path |
 | `VIBES_DEBUG` | `false` | Enable debug mode (verbose structured logging) |
-| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | ACP agent command to spawn |
+| `VIBES_ACP_AGENT` | `copilot-language-server --acp --stdio` | Legacy ACP command; also used as Copilot command unless `VIBES_COPILOT_AGENT` is set |
+| `VIBES_COPILOT_AGENT` | `copilot-language-server --acp --stdio` | GitHub Copilot ACP command to probe/spawn |
+| `VIBES_COPILOT_ENABLED` | `true` | Enable Copilot backend discovery |
+| `VIBES_CODEX_AGENT` | `codex-acp` | Codex ACP command to probe/spawn |
+| `VIBES_CODEX_ENABLED` | `true` | Enable Codex backend discovery |
 | `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request auto-cancels |
 | `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all agent permission requests |
@@ -44,14 +48,16 @@ This includes all mutating routes (`POST`/`PUT`/`PATCH`/`DELETE`) plus sensitive
 
 ## Agent selection
 
-Vibes supports four ACP agents plus Pi native RPC:
+Vibes uses product-level backend identities (`pi`, `copilot`, `codex`) with transport metadata (`pi-rpc`, `acp`). Backend discovery is hybrid: defaults are probed on launch, and environment variables can override or disable each backend.
+
+Vibes supports ACP backends plus Pi native RPC:
 
 ```bash
-# GitHub Copilot (default)
-VIBES_ACP_AGENT="copilot-language-server --acp --stdio"
+# GitHub Copilot (default ACP backend)
+VIBES_COPILOT_AGENT="copilot-language-server --acp --stdio"
 
 # OpenAI Codex
-VIBES_ACP_AGENT="codex-acp"
+VIBES_CODEX_AGENT="codex-acp"
 
 # Claude
 VIBES_ACP_AGENT="claude-agent-acp"

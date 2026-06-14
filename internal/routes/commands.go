@@ -26,8 +26,9 @@ type SlashCommand struct {
 
 // SlashCommandEnv provides dependencies for local slash command handling.
 type SlashCommandEnv struct {
-	Registry *agent.Registry
-	DB       *db.DB
+	Registry  *agent.Registry
+	DB        *db.DB
+	BackendID string
 }
 
 // SlashCommandResult describes the outcome of a locally handled command.
@@ -76,6 +77,16 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 	}
 
 	registry := env.Registry
+	backendID := strings.TrimSpace(env.BackendID)
+	if backendID == "" {
+		backendID = "default"
+	}
+	getProvider := func() (agent.Provider, error) {
+		if registry == nil {
+			return nil, fmt.Errorf("no active agent")
+		}
+		return registry.Get(backendID)
+	}
 	result := &SlashCommandResult{}
 
 	switch {
@@ -84,10 +95,8 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 		return result, true
 
 	case msg == "/abort":
-		if registry != nil {
-			if p, err := registry.Get("default"); err == nil {
-				_ = p.Cancel()
-			}
+		if p, err := getProvider(); err == nil {
+			_ = p.Cancel()
 		}
 		result.Message = "Request cancelled."
 		return result, true
@@ -98,11 +107,7 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 
 	case startsWith(msg, "/model"):
 		arg := strings.TrimSpace(msg[6:])
-		if registry == nil {
-			result.Message = "No active agent."
-			return result, true
-		}
-		p, err := registry.Get("default")
+		p, err := getProvider()
 		if err != nil {
 			result.Message = "No active agent."
 			return result, true
@@ -134,11 +139,7 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 
 	case startsWith(msg, "/thinking"):
 		arg := strings.TrimSpace(msg[9:])
-		if registry == nil {
-			result.Message = "No active agent."
-			return result, true
-		}
-		p, err := registry.Get("default")
+		p, err := getProvider()
 		if err != nil {
 			result.Message = "No active agent."
 			return result, true
@@ -164,11 +165,7 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 		return result, true
 
 	case msg == "/restart":
-		if registry == nil {
-			result.Message = "No active agent."
-			return result, true
-		}
-		p, err := registry.Get("default")
+		p, err := getProvider()
 		if err != nil {
 			result.Message = "No active agent."
 			return result, true
@@ -193,11 +190,7 @@ func HandleSlashCommand(msg string, env SlashCommandEnv) (*SlashCommandResult, b
 			result.Message = "Usage: /steer <message>"
 			return result, true
 		}
-		if registry == nil {
-			result.Message = "No active agent."
-			return result, true
-		}
-		p, err := registry.Get("default")
+		p, err := getProvider()
 		if err != nil {
 			result.Message = "No active agent."
 			return result, true

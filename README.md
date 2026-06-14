@@ -429,7 +429,9 @@ vibes/
 | GET | `/workspace/raw?path=` | Raw file download |
 | GET | `/workspace/download?path=` | Download file/dir (ZIP) |
 | POST | `/workspace/upload` | Upload to workspace |
-| GET | `/agents` | List agents |
+| GET | `/agents` | List agents and backend provider metadata |
+| GET | `/agent/providers` | Backend discovery/capability map |
+| GET/POST | `/thread/{id}/backend` | Read or switch thread backend affinity |
 | GET | `/agent/status` | Current agent state |
 | GET | `/agent/context` | Context window usage |
 | GET | `/agent/commands` | List slash commands |

@@ -22,9 +22,13 @@ type Config struct {
 	AgentName    string `env:"VIBES_AGENT_NAME"`
 
 	// ACP
-	ACPAgent    string `env:"VIBES_ACP_AGENT" envDefault:"copilot-language-server --acp --stdio"`
-	ACPDebug    bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
-	ACPThrottle int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
+	ACPAgent       string `env:"VIBES_ACP_AGENT" envDefault:"copilot-language-server --acp --stdio"`
+	CopilotAgent   string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
+	CopilotEnabled bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
+	CodexAgent     string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
+	CodexEnabled   bool   `env:"VIBES_CODEX_ENABLED" envDefault:"true"`
+	ACPDebug       bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
+	ACPThrottle    int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
 
 	// Pi
 	PiAgent               string `env:"VIBES_PI_AGENT"`
@@ -53,6 +57,9 @@ func Load() (*Config, error) {
 	}
 	if value, ok := os.LookupEnv("VIBES_ACP_AGENT"); ok {
 		cfg.ACPAgent = value
+		if _, hasCopilot := os.LookupEnv("VIBES_COPILOT_AGENT"); !hasCopilot {
+			cfg.CopilotAgent = value
+		}
 	}
 
 	// Auto-enable Pi if default agent is pi

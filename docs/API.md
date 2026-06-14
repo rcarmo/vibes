@@ -68,7 +68,11 @@ On success, response includes refreshed `mtime`.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/agents` | List available agents plus persisted `user` profile metadata (includes `actions[]`) |
+| GET | `/agents` | List agents plus provider descriptors and persisted `user` profile metadata |
+| GET | `/agent/providers` | List configured/detected backend providers, diagnostics, and capabilities |
+| POST | `/agent/providers/{id}/activate` | Set the process-level default backend for new unbound turns |
+| GET | `/thread/{thread_id}/backend` | Get a thread's current backend affinity |
+| POST | `/thread/{thread_id}/backend` | Switch a thread's backend affinity for future turns |
 | GET | `/agent/status` | Get current agent status (busy, idle, queue) |
 | GET | `/agent/context` | Get agent context-window usage |
 | GET | `/agent/models` | List available models (Pi mode) |

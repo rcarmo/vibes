@@ -3,7 +3,7 @@ package db
 import "log/slog"
 
 // Schema version — bump when adding new migrations.
-const schemaVersion = 2
+const schemaVersion = 3
 
 func (db *DB) migrate() error {
 	// Create schema version table
@@ -37,6 +37,13 @@ func (db *DB) migrate() error {
 	// Migration 2: persisted settings/profile data
 	if current < 2 {
 		if err := db.migrateV2(); err != nil {
+			return err
+		}
+	}
+
+	// Migration 3: per-thread backend affinity
+	if current < 3 {
+		if err := db.migrateV3(); err != nil {
 			return err
 		}
 	}
@@ -119,6 +126,16 @@ func (db *DB) migrateV2() error {
 	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS settings (
 		key TEXT PRIMARY KEY,
 		value JSON NOT NULL,
+		updated_at DATETIME DEFAULT (datetime('now'))
+	)`)
+	return err
+}
+
+func (db *DB) migrateV3() error {
+	_, err := db.Exec(`CREATE TABLE IF NOT EXISTS thread_metadata (
+		thread_id INTEGER PRIMARY KEY,
+		backend JSON NOT NULL,
+		backend_generation INTEGER NOT NULL DEFAULT 1,
 		updated_at DATETIME DEFAULT (datetime('now'))
 	)`)
 	return err

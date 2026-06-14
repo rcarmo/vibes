@@ -89,10 +89,27 @@ export async function deletePost(postId, cascade = false) {
 /**
  * Send message to agent
  */
-export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null) {
+export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, backendId = null) {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
-        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode }),
+        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, backend_id: backendId }),
+    });
+}
+
+/**
+ * Get configured/detected backend providers and capabilities.
+ */
+export async function getAgentProviders() {
+    return request('/agent/providers');
+}
+
+/**
+ * Switch backend affinity for a thread.
+ */
+export async function setThreadBackend(threadId, backendId) {
+    return request(`/thread/${encodeURIComponent(threadId)}/backend`, {
+        method: 'POST',
+        body: JSON.stringify({ backend_id: backendId }),
     });
 }
 

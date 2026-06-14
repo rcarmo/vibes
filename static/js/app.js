@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentProviders, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -640,6 +640,8 @@ function App() {
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [queuedFollowups, setQueuedFollowups] = useState([]);
     const [agents, setAgents] = useState({});
+    const [providers, setProviders] = useState([]);
+    const [activeBackendId, setActiveBackendId] = useState(null);
     const [activeModel, setActiveModel] = useState(null);
     const [activeThinkingLevel, setActiveThinkingLevel] = useState(null);
     const [supportsThinking, setSupportsThinking] = useState(false);
@@ -1529,9 +1531,17 @@ function App() {
         try {
             const data = await getAgents();
             setAgents(buildAgentsMap(data));
-            const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
-            setActiveModel(resolveAgentModel(defaultAgent));
-            applyBranding(defaultAgent?.name, defaultAgent?.avatar_url);
+            const providerPayload = Array.isArray(data?.providers) && data.providers.length
+                ? { providers: data.providers, active: data.active }
+                : await getAgentProviders().catch(() => null);
+            const nextProviders = Array.isArray(providerPayload?.providers) ? providerPayload.providers : [];
+            setProviders(nextProviders);
+            const activeProviderId = providerPayload?.active || nextProviders.find((provider) => provider.active)?.id || nextProviders.find((provider) => provider.available)?.id || null;
+            setActiveBackendId((prev) => prev || activeProviderId);
+            const activeProvider = nextProviders.find((provider) => provider.id === activeProviderId) || null;
+            const defaultAgent = (data?.agents || []).find((agent) => agent.id === activeProviderId) || (data?.agents || []).find((agent) => agent.active) || null;
+            setActiveModel(activeProvider?.model || resolveAgentModel(defaultAgent));
+            applyBranding(defaultAgent?.name || activeProvider?.label, defaultAgent?.avatar_url);
             const nextUser = data?.user || {};
             setUserProfile((prev) => {
                 const nextName = typeof nextUser.name === 'string' && nextUser.name.trim() ? nextUser.name.trim() : 'You';
@@ -2293,6 +2303,9 @@ function App() {
                     messageRefs=${messageRefs}
                     onRemoveMessageRef=${removeMessageRef}
                     onClearMessageRefs=${clearMessageRefs}
+                    activeBackendId=${activeBackendId}
+                    providers=${providers}
+                    onBackendChange=${setActiveBackendId}
                     activeModel=${activeModel}
                     thinkingLevel=${activeThinkingLevel}
                     supportsThinking=${supportsThinking}

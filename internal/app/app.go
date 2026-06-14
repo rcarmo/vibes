@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"os/exec"
 	"strings"
 	"sync"
 	"time"
@@ -80,46 +81,19 @@ func New(cfg *config.Config) (*App, error) {
 		}
 	})
 
-	// Register ACP agent from config
-	if cfg.ACPAgent != "" {
-		parts := splitCommand(cfg.ACPAgent)
-		// Pass through env vars the agent might need (e.g., OpenCode needs
-		// XDG_DATA_HOME, GITHUB_TOKEN; Copilot needs GH_COPILOT_TOKEN)
-		agentEnv := map[string]string{}
-		for _, key := range []string{
-			"GITHUB_TOKEN", "GH_COPILOT_TOKEN", "GITHUB_COPILOT_TOKEN",
-			"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY",
-			"XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR",
-			"NODE_OPTIONS", "npm_config_prefix",
-		} {
-			if v := os.Getenv(key); v != "" {
-				agentEnv[key] = v
-			}
+	// Register supported backends. Product identity is separated from transport:
+	// Pi uses native RPC, Copilot/Codex use ACP.
+	agentEnv := agentEnvironment()
+	registerPiBackend(agentRegistry, cfg, workspaceDir())
+	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug)
+	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug)
+	if cfg.DefaultAgent != "" {
+		defaultBackend := cfg.DefaultAgent
+		if defaultBackend == "acp" {
+			defaultBackend = "copilot"
 		}
-		acpProvider := acp.New(acp.Config{
-			ID:      "acp",
-			Command: parts[0],
-			Args:    parts[1:],
-			WorkDir: workspaceDir(),
-			Env:     agentEnv,
-			Debug:   cfg.ACPDebug,
-		})
-		agentRegistry.Register("acp", acpProvider)
-	}
-
-	// Register Pi native RPC agent if enabled
-	if cfg.PiEnabled {
-		piCmd := cfg.PiAgent
-		if piCmd == "" {
-			piCmd = "pi"
-		}
-		piProvider := pi.New(pi.Config{
-			Command: piCmd,
-			WorkDir: workspaceDir(),
-		})
-		agentRegistry.Register("pi", piProvider)
-		if cfg.DefaultAgent == "pi" {
-			agentRegistry.SetActive("pi")
+		if err := agentRegistry.SetActive(defaultBackend); err != nil {
+			slog.Warn("default backend unavailable", "id", defaultBackend, "error", err)
 		}
 	}
 
@@ -150,6 +124,8 @@ func New(cfg *config.Config) (*App, error) {
 	r.Route("/timeline", routes.Timeline(database))
 	r.Route("/post", routes.Posts(database))
 	r.Route("/thread", routes.Threads(database))
+	r.Get("/thread/{id}/backend", routes.GetThreadBackend(database))
+	r.Post("/thread/{id}/backend", routes.SetThreadBackend(database, agentRegistry, broker))
 	r.Route("/search", routes.Search(database))
 	r.Route("/hashtag", routes.Hashtags(database))
 	r.Route("/media", routes.Media(database))
@@ -252,8 +228,10 @@ func New(cfg *config.Config) (*App, error) {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{
-			"agents": agents,
-			"user":   userProfile,
+			"agents":    agents,
+			"providers": agentRegistry.Descriptors(),
+			"active":    agentRegistry.Active(),
+			"user":      userProfile,
 		})
 	})
 
@@ -493,6 +471,105 @@ func serveStaticFile(fs http.FileSystem, name, contentType string) http.HandlerF
 		}
 		http.ServeContent(w, r, name, stat.ModTime(), f)
 	}
+}
+
+func agentEnvironment() map[string]string {
+	agentEnv := map[string]string{}
+	for _, key := range []string{
+		"GITHUB_TOKEN", "GH_COPILOT_TOKEN", "GITHUB_COPILOT_TOKEN",
+		"OPENAI_API_KEY", "ANTHROPIC_API_KEY", "CODEX_API_KEY",
+		"XDG_DATA_HOME", "XDG_CONFIG_HOME", "XDG_RUNTIME_DIR",
+		"NODE_OPTIONS", "npm_config_prefix",
+	} {
+		if v := os.Getenv(key); v != "" {
+			agentEnv[key] = v
+		}
+	}
+	return agentEnv
+}
+
+func commandDetected(command string) (bool, string) {
+	parts := splitCommand(command)
+	if len(parts) == 0 {
+		return false, "not configured"
+	}
+	if _, err := exec.LookPath(parts[0]); err != nil {
+		return false, err.Error()
+	}
+	return true, ""
+}
+
+func registerACPBackend(registry *agent.Registry, id, label, command string, enabled bool, workDir string, env map[string]string, debug bool) {
+	detected, detectErr := commandDetected(command)
+	descriptor := agent.ProviderDescriptor{
+		ID:           id,
+		Label:        label,
+		Family:       id,
+		Transport:    "acp",
+		Command:      command,
+		Configured:   enabled,
+		Detected:     detected,
+		Available:    enabled && detected,
+		Status:       "unavailable",
+		Error:        detectErr,
+		Capabilities: agent.ACPCapabilities(),
+	}
+	if !enabled {
+		descriptor.Status = "disabled"
+		descriptor.Error = "disabled by config"
+		registry.AddDescriptor(descriptor)
+		return
+	}
+	if !detected {
+		descriptor.Status = "missing_binary"
+		registry.AddDescriptor(descriptor)
+		return
+	}
+	parts := splitCommand(command)
+	provider := acp.New(acp.Config{
+		ID:      id,
+		Command: parts[0],
+		Args:    parts[1:],
+		WorkDir: workDir,
+		Env:     env,
+		Debug:   debug,
+	})
+	registry.RegisterWithDescriptor(id, provider, descriptor)
+}
+
+func registerPiBackend(registry *agent.Registry, cfg *config.Config, workDir string) {
+	piCmd := cfg.PiAgent
+	if piCmd == "" {
+		piCmd = "pi"
+	}
+	enabled := cfg.PiEnabled
+	detected, detectErr := commandDetected(piCmd)
+	descriptor := agent.ProviderDescriptor{
+		ID:           "pi",
+		Label:        "Pi",
+		Family:       "pi",
+		Transport:    "pi-rpc",
+		Command:      piCmd,
+		Configured:   enabled,
+		Detected:     detected,
+		Available:    enabled && detected,
+		Status:       "unavailable",
+		Error:        detectErr,
+		Capabilities: agent.PiCapabilities(),
+	}
+	if !enabled {
+		descriptor.Status = "disabled"
+		descriptor.Error = "disabled by config"
+		registry.AddDescriptor(descriptor)
+		return
+	}
+	if !detected {
+		descriptor.Status = "missing_binary"
+		registry.AddDescriptor(descriptor)
+		return
+	}
+	provider := pi.New(pi.Config{Command: piCmd, WorkDir: workDir})
+	registry.RegisterWithDescriptor("pi", provider, descriptor)
 }
 
 // splitCommand splits a command string by spaces (simple, no quotes).

@@ -229,6 +229,71 @@ func (db *DB) SetUserProfile(profile UserProfile) error {
 	return err
 }
 
+// ThreadBackend stores a thread's current backend affinity.
+type ThreadBackend struct {
+	ThreadID          int64           `json:"thread_id"`
+	Backend           BackendMetadata `json:"backend"`
+	BackendGeneration int             `json:"backend_generation"`
+}
+
+// GetThreadBackend returns the current backend affinity for a thread.
+func (db *DB) GetThreadBackend(threadID int64) (*ThreadBackend, error) {
+	var raw string
+	var generation int
+	err := db.QueryRow(
+		"SELECT backend, backend_generation FROM thread_metadata WHERE thread_id = ?",
+		threadID,
+	).Scan(&raw, &generation)
+	if err == sql.ErrNoRows {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	var backend BackendMetadata
+	if err := json.Unmarshal([]byte(raw), &backend); err != nil {
+		return nil, err
+	}
+	return &ThreadBackend{ThreadID: threadID, Backend: backend, BackendGeneration: generation}, nil
+}
+
+// SetThreadBackend stores backend affinity for a thread. If changed is true,
+// callers should record a timeline backend-switch event.
+func (db *DB) SetThreadBackend(threadID int64, backend BackendMetadata) (*ThreadBackend, bool, error) {
+	current, err := db.GetThreadBackend(threadID)
+	if err != nil {
+		return nil, false, err
+	}
+	generation := 1
+	changed := false
+	if current != nil {
+		generation = current.BackendGeneration
+		if current.Backend.ID != backend.ID {
+			generation++
+			changed = true
+		}
+	} else {
+		changed = true
+	}
+	backend.ThreadBackendGeneration = generation
+	payload, err := json.Marshal(backend)
+	if err != nil {
+		return nil, false, err
+	}
+	_, err = db.Exec(`
+		INSERT INTO thread_metadata (thread_id, backend, backend_generation, updated_at)
+		VALUES (?, ?, ?, datetime('now'))
+		ON CONFLICT(thread_id) DO UPDATE SET
+			backend = excluded.backend,
+			backend_generation = excluded.backend_generation,
+			updated_at = datetime('now')
+	`, threadID, string(payload), generation)
+	if err != nil {
+		return nil, false, err
+	}
+	return &ThreadBackend{ThreadID: threadID, Backend: backend, BackendGeneration: generation}, changed, nil
+}
+
 // ── Whitelist ────────────────────────────────────────────────────
 
 // AddWhitelistPattern adds a permission pattern.
@@ -348,13 +413,36 @@ func matchGlob(pattern, value string) bool {
 	return pattern == value
 }
 
+// BackendMetadata records rich per-turn backend provenance without adding
+// rigid generated columns for every future provider-specific field.
+type BackendMetadata struct {
+	ID                      string `json:"id"`
+	Family                  string `json:"family,omitempty"`
+	Transport               string `json:"transport,omitempty"`
+	Label                   string `json:"label,omitempty"`
+	Model                   string `json:"model,omitempty"`
+	Mode                    string `json:"mode,omitempty"`
+	ProviderSessionID       string `json:"provider_session_id,omitempty"`
+	ProviderTurnID          string `json:"provider_turn_id,omitempty"`
+	ThreadBackendGeneration int    `json:"thread_backend_generation,omitempty"`
+}
+
+// BackendSwitch records an explicit backend handoff point in a thread.
+type BackendSwitch struct {
+	From                    string `json:"from,omitempty"`
+	To                      string `json:"to"`
+	ThreadBackendGeneration int    `json:"thread_backend_generation"`
+}
+
 // InteractionData is the typed payload structure stored as JSON.
 type InteractionData struct {
-	Type     string  `json:"type"`               // "user_message", "agent_response", "system"
-	Content  string  `json:"content"`            // text content
-	AgentID  string  `json:"agent_id,omitempty"` // which agent responded
-	ThreadID *int64  `json:"thread_id,omitempty"`
-	MediaIDs []int64 `json:"media_ids,omitempty"`
+	Type          string           `json:"type"`               // "user_message", "agent_response", "system"
+	Content       string           `json:"content"`            // text content
+	AgentID       string           `json:"agent_id,omitempty"` // which agent responded
+	ThreadID      *int64           `json:"thread_id,omitempty"`
+	MediaIDs      []int64          `json:"media_ids,omitempty"`
+	Backend       *BackendMetadata `json:"backend,omitempty"`
+	BackendSwitch *BackendSwitch   `json:"backend_switch,omitempty"`
 	// Agent-specific fields
 	Model  string `json:"model,omitempty"`
 	Tokens *int   `json:"tokens,omitempty"`

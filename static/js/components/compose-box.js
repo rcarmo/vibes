@@ -120,6 +120,9 @@ export function ComposeBox({
     messageRefs = [],
     onRemoveMessageRef,
     onClearMessageRefs,
+    activeBackendId = null,
+    providers = [],
+    onBackendChange,
     activeModel = null,
     thinkingLevel = null,
     supportsThinking = false,
@@ -222,8 +225,18 @@ export function ComposeBox({
     const notificationActive = notificationPermission === 'granted' && notificationsEnabled;
     const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
 
+    const providerOptions = (providers || []).filter((provider) => provider);
+    const availableProviders = providerOptions.filter((provider) => provider.available);
+    const selectedProvider = providerOptions.find((provider) => provider.id === activeBackendId)
+        || availableProviders[0]
+        || providerOptions[0]
+        || null;
+    const selectedBackendId = selectedProvider?.available ? selectedProvider.id : null;
+    const selectedCapabilities = selectedProvider?.capabilities || {};
+    const canSwitchModels = Boolean(selectedCapabilities.model_list || selectedCapabilities.model_switch);
+    const canSetThinking = Array.isArray(selectedCapabilities.thinking_levels) && selectedCapabilities.thinking_levels.length > 0;
     const modelHintLabel = activeModel ? `${activeModel}` : '';
-    const thinkingLabel = supportsThinking
+    const thinkingLabel = (supportsThinking || canSetThinking)
         ? `Thinking: ${thinkingLevel || 'default'}`
         : '';
 
@@ -328,7 +341,7 @@ export function ComposeBox({
         if (searchMode || loading || switchingModel) return;
         setSwitchingModel(true);
         try {
-            const response = await sendAgentMessage('default', commandText, null, []);
+            const response = await sendAgentMessage('default', commandText, null, [], null, selectedBackendId || activeBackendId || null);
             const nextModel = extractCurrentModel(response);
             emitModelState({
                 model: nextModel ?? activeModel ?? null,
@@ -424,6 +437,12 @@ export function ComposeBox({
         handleSelectModel,
     ]);
 
+    const handleBackendSelect = (event) => {
+        const next = event.target.value;
+        if (!next || next === activeBackendId) return;
+        onBackendChange?.(next);
+    };
+
     const handleSubmit = async () => {
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
 
@@ -452,7 +471,7 @@ export function ComposeBox({
                 : '';
             const message = [baseContent, fileBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
 
-            const response = await sendAgentMessage('default', message, null, mediaIds);
+            const response = await sendAgentMessage('default', message, null, mediaIds, null, selectedBackendId || activeBackendId || null);
             if (response?.command) {
                 emitModelState({
                     model: response.command.model_label ?? activeModel ?? null,
@@ -871,9 +890,25 @@ export function ComposeBox({
                             `)}
                         </div>
                     `}
-                    ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
+                    ${!searchMode && (providerOptions.length > 0 || activeModel || supportsThinking || canSetThinking || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
-                            ${activeModel && html`
+                            ${providerOptions.length > 0 && html`
+                                <select
+                                    class="compose-backend-picker"
+                                    value=${selectedProvider?.id || ''}
+                                    onChange=${handleBackendSelect}
+                                    title="Backend for new turns"
+                                    aria-label="Backend for new turns"
+                                    disabled=${loading || switchingModel}
+                                >
+                                    ${providerOptions.map((provider) => html`
+                                        <option key=${provider.id} value=${provider.id} disabled=${!provider.available}>
+                                            ${provider.label || provider.id}${provider.available ? '' : ` — ${provider.status || 'unavailable'}`}
+                                        </option>
+                                    `)}
+                                </select>
+                            `}
+                            ${activeModel && canSwitchModels && html`
                                 <button
                                     ref=${modelHintRef}
                                     type="button"
@@ -886,7 +921,7 @@ export function ComposeBox({
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>
                             `}
-                            ${supportsThinking && html`
+                            ${(supportsThinking || canSetThinking) && html`
                                 <button
                                     type="button"
                                     class="compose-thinking-pill"

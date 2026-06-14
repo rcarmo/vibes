@@ -42,6 +42,13 @@ test.describe('Feature: API Health and Endpoints', () => {
         expect(Array.isArray(await resp.json())).toBeTruthy();
     });
 
+    test('Scenario: Agent providers endpoint returns backend capabilities', async ({ request }) => {
+        const resp = await request.get(`${BASE_URL}/agent/providers`);
+        expect(resp.ok()).toBeTruthy();
+        const body = await resp.json();
+        expect(Array.isArray(body.providers)).toBeTruthy();
+    });
+
     test('Scenario: Agent status endpoint returns state', async ({ request }) => {
         const resp = await request.get(`${BASE_URL}/agent/status`);
         expect(resp.ok()).toBeTruthy();

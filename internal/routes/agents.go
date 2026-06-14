@@ -21,6 +21,8 @@ func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(
 	return func(r chi.Router) {
 		r.Get("/", listAgents(registry))
 		r.Get("/status", getAgentStatus(registry))
+		r.Get("/providers", getProviders(registry))
+		r.Post("/providers/{id}/activate", activateProvider(registry))
 		r.Post("/{id}/message", sendAgentMessage(registry, database, broker))
 		r.Get("/models", getAgentModels(registry))
 		r.Get("/queue", getQueue(queue))
@@ -73,14 +75,39 @@ func getAgentStatus(registry *agent.Registry) http.HandlerFunc {
 	}
 }
 
+func getProviders(registry *agent.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		jsonResp(w, map[string]interface{}{
+			"providers": registry.Descriptors(),
+			"active":    registry.Active(),
+		})
+	}
+}
+
+func activateProvider(registry *agent.Registry) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			jsonError(w, "provider id is required", http.StatusBadRequest)
+			return
+		}
+		if err := registry.SetActive(id); err != nil {
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		jsonResp(w, map[string]interface{}{"status": "ok", "active": id})
+	}
+}
+
 func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Broker) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		agentID := chi.URLParam(r, "id")
 
 		var req struct {
-			Content  string  `json:"content"`
-			ThreadID *int64  `json:"thread_id"`
-			MediaIDs []int64 `json:"media_ids"`
+			Content   string  `json:"content"`
+			ThreadID  *int64  `json:"thread_id"`
+			MediaIDs  []int64 `json:"media_ids"`
+			BackendID string  `json:"backend_id"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			jsonError(w, "invalid body", http.StatusBadRequest)
@@ -91,8 +118,18 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			return
 		}
 
+		selectedAgentID := strings.TrimSpace(req.BackendID)
+		if selectedAgentID == "" {
+			selectedAgentID = agentID
+		}
+		if selectedAgentID == "default" && req.ThreadID != nil {
+			if tb, err := database.GetThreadBackend(*req.ThreadID); err == nil && tb != nil && tb.Backend.ID != "" {
+				selectedAgentID = tb.Backend.ID
+			}
+		}
+
 		// Handle built-in slash commands locally before touching the timeline/agent.
-		if cmd, handled := HandleSlashCommand(req.Content, SlashCommandEnv{Registry: registry, DB: database}); handled {
+		if cmd, handled := HandleSlashCommand(req.Content, SlashCommandEnv{Registry: registry, DB: database, BackendID: selectedAgentID}); handled {
 			if cmd.Action == "clear" {
 				jsonResp(w, map[string]interface{}{
 					"status":  "command",
@@ -101,14 +138,14 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				return
 			}
 			if strings.TrimSpace(cmd.Message) != "" {
-				provider, _ := registry.Get(agentID)
-				providerID := registry.Active()
+				provider, _ := registry.Get(selectedAgentID)
+				providerID := selectedAgentID
 				model := ""
 				if provider != nil {
 					providerID = provider.ID()
 					model = provider.Status().Model
 				}
-				postID, eventData, err := storeLocalAgentResponse(database, cmd, providerID, model)
+				postID, eventData, err := storeLocalAgentResponse(database, cmd, registry, providerID, model)
 				if err != nil {
 					jsonError(w, err.Error(), http.StatusInternalServerError)
 					return
@@ -129,10 +166,21 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		}
 
 		// Validate the provider before storing the user message.
-		provider, err := registry.Get(agentID)
+		provider, err := registry.Get(selectedAgentID)
 		if err != nil {
-			jsonError(w, "unknown agent: "+agentID, http.StatusBadRequest)
+			jsonError(w, "unknown agent: "+selectedAgentID, http.StatusBadRequest)
 			return
+		}
+
+		backendMeta := backendMetadataFor(registry, selectedAgentID, provider.Status().Model, "prompt")
+		backendMeta.ThreadBackendGeneration = 1
+		if req.ThreadID != nil {
+			if tb, err := database.GetThreadBackend(*req.ThreadID); err == nil && tb != nil {
+				backendMeta.ThreadBackendGeneration = tb.BackendGeneration
+				if tb.Backend.ID != backendMeta.ID {
+					backendMeta.ThreadBackendGeneration++
+				}
+			}
 		}
 
 		// Store the user message
@@ -140,6 +188,7 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			Type:     "user_message",
 			Content:  req.Content,
 			MediaIDs: req.MediaIDs,
+			Backend:  &backendMeta,
 		}
 		if req.ThreadID != nil {
 			interaction.ThreadID = req.ThreadID
@@ -151,16 +200,22 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 			return
 		}
 
-		// Broadcast user message via SSE
-		broker.Broadcast(sse.Event{Type: "new_post", Data: map[string]interface{}{
-			"id":      postID,
-			"content": req.Content,
-			"type":    "user_message",
-		}})
-
 		threadID := postID
 		if req.ThreadID != nil {
 			threadID = *req.ThreadID
+		}
+		threadBackend, _, err := database.SetThreadBackend(threadID, backendMeta)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if threadBackend != nil {
+			backendMeta.ThreadBackendGeneration = threadBackend.BackendGeneration
+		}
+
+		// Broadcast user message via SSE
+		if post, err := database.GetInteraction(postID); err == nil {
+			broker.Broadcast(sse.Event{Type: "new_post", Data: post})
 		}
 
 		// Launch agent prompt in background
@@ -183,6 +238,9 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				}
 			}
 
+			responseBackend := backendMetadataFor(registry, selectedAgentID, provider.Status().Model, "response")
+			responseBackend.ThreadBackendGeneration = backendMeta.ThreadBackendGeneration
+
 			// Store agent response (content was streamed via SSE draft events)
 			agentData := db.InteractionData{
 				Type:     "agent_response",
@@ -190,15 +248,14 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				AgentID:  provider.ID(),
 				ThreadID: &threadID,
 				Model:    provider.Status().Model,
+				Backend:  &responseBackend,
 			}
 			respData, _ := db.MarshalInteraction(agentData)
 			respID, _ := database.InsertInteraction(respData)
 
-			broker.Broadcast(sse.Event{Type: "agent_response", Data: map[string]interface{}{
-				"id":        respID,
-				"thread_id": threadID,
-				"agent_id":  provider.ID(),
-			}})
+			if post, err := database.GetInteraction(respID); err == nil {
+				broker.Broadcast(sse.Event{Type: "agent_response", Data: post})
+			}
 		}()
 
 		// Return immediately with the user post ID
@@ -206,18 +263,39 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		jsonResp(w, map[string]interface{}{
 			"id":        postID,
 			"thread_id": threadID,
-			"agent_id":  agentID,
+			"agent_id":  selectedAgentID,
+			"backend":   backendMeta,
 			"status":    "queued",
 		})
 	}
 }
 
-func storeLocalAgentResponse(database *db.DB, cmd *SlashCommandResult, providerID, model string) (int64, map[string]interface{}, error) {
+func backendMetadataFor(registry *agent.Registry, providerID, model, mode string) db.BackendMetadata {
+	descriptor, ok := registry.Descriptor(providerID)
+	if !ok && providerID == "default" {
+		descriptor, ok = registry.Descriptor(registry.Active())
+	}
+	meta := db.BackendMetadata{ID: providerID, Model: model, Mode: mode}
+	if ok {
+		meta.ID = descriptor.ID
+		meta.Family = descriptor.Family
+		meta.Transport = descriptor.Transport
+		meta.Label = descriptor.Label
+		if meta.Model == "" {
+			meta.Model = descriptor.Model
+		}
+	}
+	return meta
+}
+
+func storeLocalAgentResponse(database *db.DB, cmd *SlashCommandResult, registry *agent.Registry, providerID, model string) (int64, map[string]interface{}, error) {
+	backend := backendMetadataFor(registry, providerID, model, "local_command")
 	payload := db.InteractionData{
 		Type:    "agent_response",
 		Content: cmd.Message,
 		AgentID: providerID,
 		Model:   model,
+		Backend: &backend,
 	}
 	data, err := db.MarshalInteraction(payload)
 	if err != nil {
@@ -254,6 +332,7 @@ func storeLocalAgentResponse(database *db.DB, cmd *SlashCommandResult, providerI
 	if cmd.SupportsThinking {
 		eventData["supports_thinking"] = true
 	}
+	eventData["backend"] = backend
 	return id, eventData, nil
 }
 
