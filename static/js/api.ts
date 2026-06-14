@@ -19,14 +19,14 @@ function errorMessage(payload: unknown, fallback: string): string {
     return fallback;
 }
 
-async function readJsonError(response: Response, fallback: string): Promise<unknown> {
+async function readJsonError(response: Response, fallback: string): Promise<any> {
     return response.json().catch(() => ({ error: fallback }));
 }
 
 /**
  * Fetch wrapper with error handling.
  */
-export async function request<T = unknown>(url: string, options: RequestOptions = {}): Promise<T> {
+export async function request<T = any>(url: string, options: RequestOptions = {}): Promise<T> {
     const response = await fetch(API_BASE + url, {
         ...options,
         headers: {
@@ -48,7 +48,7 @@ export async function request<T = unknown>(url: string, options: RequestOptions 
 /**
  * Get timeline posts (chat style - returns oldest first).
  */
-export async function getTimeline(limit = 10, beforeId: string | number | null = null): Promise<unknown> {
+export async function getTimeline(limit = 10, beforeId: string | number | null = null): Promise<any> {
     let url = `/timeline?limit=${limit}`;
     if (beforeId) {
         url += `&before_id=${beforeId}`;
@@ -59,28 +59,28 @@ export async function getTimeline(limit = 10, beforeId: string | number | null =
 /**
  * Get posts by hashtag.
  */
-export async function getPostsByHashtag(hashtag: string, limit = 50, offset = 0): Promise<unknown> {
+export async function getPostsByHashtag(hashtag: string, limit = 50, offset = 0): Promise<any> {
     return request(`/hashtag/${encodeURIComponent(hashtag)}?limit=${limit}&offset=${offset}`);
 }
 
 /**
  * Search posts.
  */
-export async function searchPosts(query: string, limit = 50, offset = 0): Promise<unknown> {
+export async function searchPosts(query: string, limit = 50, offset = 0): Promise<any> {
     return request(`/search?q=${encodeURIComponent(query)}&limit=${limit}&offset=${offset}`);
 }
 
 /**
  * Get a thread by ID.
  */
-export async function getThread(threadId: string | number): Promise<unknown> {
+export async function getThread(threadId: string | number): Promise<any> {
     return request(`/thread/${threadId}`);
 }
 
 /**
  * Create a new post.
  */
-export async function createPost(content: string, mediaIds: unknown[] = []): Promise<unknown> {
+export async function createPost(content: string, mediaIds: unknown[] = []): Promise<any> {
     return request('/post', {
         method: 'POST',
         body: JSON.stringify({ content, media_ids: mediaIds }),
@@ -90,7 +90,7 @@ export async function createPost(content: string, mediaIds: unknown[] = []): Pro
 /**
  * Reply to a thread.
  */
-export async function createReply(threadId: string | number, content: string, mediaIds: unknown[] = []): Promise<unknown> {
+export async function createReply(threadId: string | number, content: string, mediaIds: unknown[] = []): Promise<any> {
     return request('/thread', {
         method: 'POST',
         body: JSON.stringify({ thread_id: threadId, content, media_ids: mediaIds }),
@@ -100,7 +100,7 @@ export async function createReply(threadId: string | number, content: string, me
 /**
  * Delete a post (optionally cascade replies).
  */
-export async function deletePost(postId: string | number, cascade = false): Promise<unknown> {
+export async function deletePost(postId: string | number, cascade = false): Promise<any> {
     const url = `/post/${postId}?cascade=${cascade ? 'true' : 'false'}`;
     return request(url, { method: 'DELETE' });
 }
@@ -115,7 +115,7 @@ export async function sendAgentMessage(
     mediaIds: unknown[] = [],
     mode: string | null = null,
     backendId: string | null = null,
-): Promise<unknown> {
+): Promise<any> {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
         body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, backend_id: backendId }),
@@ -125,7 +125,7 @@ export async function sendAgentMessage(
 /**
  * Get available agents.
  */
-export async function getAgents(): Promise<unknown> {
+export async function getAgents(): Promise<any> {
     const data = await request<unknown>('/agents');
     return Array.isArray(data) ? { agents: data } : data;
 }
@@ -133,18 +133,18 @@ export async function getAgents(): Promise<unknown> {
 /**
  * Get context window usage (tokens, contextWindow, percent).
  */
-export async function getAgentContext(): Promise<unknown> {
+export async function getAgentContext(): Promise<any> {
     return request('/agent/context');
 }
 
 /**
  * Get current agent busy state and active turns (for polling on SSE reconnect).
  */
-export async function getAgentStatus(): Promise<unknown> {
+export async function getAgentStatus(): Promise<any> {
     return request('/agent/status');
 }
 
-export async function getAgentQueue(agentId: string | null = null, threadId: string | number | null = null): Promise<unknown> {
+export async function getAgentQueue(agentId: string | null = null, threadId: string | number | null = null): Promise<any> {
     const params = new URLSearchParams();
     if (agentId) params.set('agent_id', agentId);
     if (threadId != null) params.set('thread_id', String(threadId));
@@ -152,14 +152,14 @@ export async function getAgentQueue(agentId: string | null = null, threadId: str
     return request(query ? `/agent/queue?${query}` : '/agent/queue');
 }
 
-export async function removeAgentQueueItem(rowId: string | number): Promise<unknown> {
+export async function removeAgentQueueItem(rowId: string | number): Promise<any> {
     return request('/agent/queue-remove', {
         method: 'POST',
         body: JSON.stringify({ row_id: rowId }),
     });
 }
 
-export async function steerAgentQueueItem(rowId: string | number): Promise<unknown> {
+export async function steerAgentQueueItem(rowId: string | number): Promise<any> {
     return request('/agent/queue-steer', {
         method: 'POST',
         body: JSON.stringify({ row_id: rowId }),
@@ -169,21 +169,21 @@ export async function steerAgentQueueItem(rowId: string | number): Promise<unkno
 /**
  * Get available models and current selection.
  */
-export async function getAgentModels(): Promise<unknown> {
+export async function getAgentModels(): Promise<any> {
     return request('/agent/models');
 }
 
 /**
  * Get full draft/thought text for a live agent turn.
  */
-export async function getAgentTurnPreview(turnId: string | number): Promise<unknown> {
+export async function getAgentTurnPreview(turnId: string | number): Promise<any> {
     return request(`/agent/turn/${encodeURIComponent(String(turnId))}`);
 }
 
 /**
  * Set expanded state for a live draft/thought panel.
  */
-export async function setAgentTurnPanelExpanded(turnId: string | number, panel: string, expanded: boolean): Promise<unknown> {
+export async function setAgentTurnPanelExpanded(turnId: string | number, panel: string, expanded: boolean): Promise<any> {
     return request(`/agent/turn/${encodeURIComponent(String(turnId))}/panel`, {
         method: 'POST',
         body: JSON.stringify({ panel, expanded: Boolean(expanded) }),
@@ -193,7 +193,7 @@ export async function setAgentTurnPanelExpanded(turnId: string | number, panel: 
 /**
  * Upload media file.
  */
-export async function uploadMedia(file: Blob): Promise<unknown> {
+export async function uploadMedia(file: Blob): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
 
@@ -213,7 +213,7 @@ export async function uploadMedia(file: Blob): Promise<unknown> {
 /**
  * Respond to an agent request (permission, choice).
  */
-export async function respondToAgentRequest(requestId: string, outcome: string): Promise<unknown> {
+export async function respondToAgentRequest(requestId: string, outcome: string): Promise<any> {
     const response = await fetch(API_BASE + '/agent/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -231,7 +231,7 @@ export async function respondToAgentRequest(requestId: string, outcome: string):
 /**
  * Add pattern to permission whitelist.
  */
-export async function addToWhitelist(pattern: string, description: string): Promise<unknown> {
+export async function addToWhitelist(pattern: string, description: string): Promise<any> {
     const response = await fetch(API_BASE + '/agent/whitelist', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -263,7 +263,7 @@ export function getThumbnailUrl(mediaId: string | number): string {
 /**
  * Get media info (metadata without data).
  */
-export async function getMediaInfo(mediaId: string | number): Promise<unknown> {
+export async function getMediaInfo(mediaId: string | number): Promise<any> {
     const response = await fetch(`${API_BASE}/media/${mediaId}/info`);
     if (!response.ok) throw new Error('Failed to get media info');
     return response.json();
@@ -272,14 +272,14 @@ export async function getMediaInfo(mediaId: string | number): Promise<unknown> {
 /**
  * Get workspace tree.
  */
-export async function getWorkspaceTree(path = '', depth = 2, showHidden = false): Promise<unknown> {
+export async function getWorkspaceTree(path = '', depth = 2, showHidden = false): Promise<any> {
     return request(`/workspace/tree?path=${encodeURIComponent(path)}&depth=${depth}&show_hidden=${showHidden ? 'true' : 'false'}`);
 }
 
 /**
  * Get workspace file preview.
  */
-export async function getWorkspaceFile(path: string, maxBytes = 20_000, mode: string | null = null): Promise<unknown> {
+export async function getWorkspaceFile(path: string, maxBytes = 20_000, mode: string | null = null): Promise<any> {
     const modeParam = mode ? `&mode=${encodeURIComponent(mode)}` : '';
     return request(`/workspace/file?path=${encodeURIComponent(path)}&max_bytes=${maxBytes}${modeParam}`);
 }
@@ -287,7 +287,7 @@ export async function getWorkspaceFile(path: string, maxBytes = 20_000, mode: st
 /**
  * Update workspace file contents.
  */
-export async function updateWorkspaceFile(path: string, content: string, mtime: string | null = null): Promise<unknown> {
+export async function updateWorkspaceFile(path: string, content: string, mtime: string | null = null): Promise<any> {
     const body: JsonRecord = { path, content };
     if (mtime) body.mtime = mtime;
     return request('/workspace/file', {
@@ -303,7 +303,7 @@ export interface UploadWorkspaceOptions {
 /**
  * Upload a file to the workspace via multipart form data.
  */
-export async function uploadWorkspaceFile(file: Blob, targetPath = '', options: UploadWorkspaceOptions = {}): Promise<unknown> {
+export async function uploadWorkspaceFile(file: Blob, targetPath = '', options: UploadWorkspaceOptions = {}): Promise<any> {
     const formData = new FormData();
     formData.append('file', file);
     const params = new URLSearchParams();
@@ -328,7 +328,7 @@ export async function uploadWorkspaceFile(file: Blob, targetPath = '', options: 
 /**
  * Delete a file from the workspace.
  */
-export async function deleteWorkspaceFile(path: string): Promise<unknown> {
+export async function deleteWorkspaceFile(path: string): Promise<any> {
     const url = `/workspace/file?path=${encodeURIComponent(path || '')}`;
     return request(url, { method: 'DELETE' });
 }
@@ -336,7 +336,7 @@ export async function deleteWorkspaceFile(path: string): Promise<unknown> {
 /**
  * Create a new workspace file.
  */
-export async function createWorkspaceFile(path: string, name: string, content = ''): Promise<unknown> {
+export async function createWorkspaceFile(path: string, name: string, content = ''): Promise<any> {
     return request('/workspace/create', {
         method: 'POST',
         body: JSON.stringify({ path, name, content }),
@@ -346,7 +346,7 @@ export async function createWorkspaceFile(path: string, name: string, content = 
 /**
  * Rename a workspace file or folder.
  */
-export async function renameWorkspaceFile(path: string, name: string): Promise<unknown> {
+export async function renameWorkspaceFile(path: string, name: string): Promise<any> {
     const parts = String(path || '').split('/');
     parts.pop();
     const parent = parts.join('/');
@@ -360,7 +360,7 @@ export async function renameWorkspaceFile(path: string, name: string): Promise<u
 /**
  * Move a workspace file or folder into another directory.
  */
-export async function moveWorkspaceEntry(path: string, target: string): Promise<unknown> {
+export async function moveWorkspaceEntry(path: string, target: string): Promise<any> {
     return request('/workspace/move', {
         method: 'POST',
         body: JSON.stringify({ path, target }),
@@ -370,7 +370,7 @@ export async function moveWorkspaceEntry(path: string, target: string): Promise<
 /**
  * Toggle workspace visibility state.
  */
-export async function setWorkspaceVisibility(visible: boolean, showHidden = false): Promise<unknown> {
+export async function setWorkspaceVisibility(visible: boolean, showHidden = false): Promise<any> {
     return request('/workspace/visibility', {
         method: 'POST',
         body: JSON.stringify({ visible: Boolean(visible), show_hidden: Boolean(showHidden) }),
@@ -392,7 +392,7 @@ export function getWorkspaceDownloadUrl(path: string, showHidden = false): strin
     return `${API_BASE}/workspace/download?${query}`;
 }
 
-export async function getAgentCommands(): Promise<unknown> {
+export async function getAgentCommands(): Promise<any> {
     return request('/agent/commands');
 }
 

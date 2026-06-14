@@ -1,13 +1,51 @@
-// @ts-nocheck
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.ts';
 import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.ts';
 import { ProviderPicker } from '../features/backends/provider-picker.ts';
-import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.ts';
+import { canSetThinking, canSwitchModels, getAvailableProviders, getProviderById, selectableBackendId, type ProviderDescriptor } from '../features/backends/provider-utils.ts';
 import { COMPOSE_HISTORY_MAX, loadComposeHistory, normaliseComposeHistory, saveComposeHistory } from '../features/compose/compose-history.ts';
-import { DEFAULT_SLASH_COMMANDS, normalizeSlashCommands } from '../features/compose/slash-commands.ts';
+import { DEFAULT_SLASH_COMMANDS, normalizeSlashCommands, type SlashCommand } from '../features/compose/slash-commands.ts';
 
-function formatK(n) {
+type ContextUsage = { percent?: number; tokens?: number; contextWindow?: number };
+type QueueItem = { row_id: string | number; content?: string; mode?: string };
+type FileRef = { path?: string; name?: string } | string;
+type MessageRef = { id?: string; label?: string; content?: string } | string;
+type ModelOption = { id?: string; name?: string; label?: string; model?: string } | string;
+type ModelStatePayload = { model?: string; current?: string; thinking_level?: string | null; supports_thinking?: boolean };
+
+type ComposeBoxProps = {
+    onPost?: (content?: string, mediaFiles?: File[], backendId?: string | null) => Promise<unknown> | unknown;
+    onFocus?: () => void;
+    searchMode?: boolean;
+    onSearch?: (query: string) => void;
+    onEnterSearch?: () => void;
+    onExitSearch?: () => void;
+    fileRefs?: FileRef[];
+    onRemoveFileRef?: (path: FileRef) => void;
+    onClearFileRefs?: () => void;
+    messageRefs?: MessageRef[];
+    onRemoveMessageRef?: (id: MessageRef) => void;
+    onClearMessageRefs?: () => void;
+    activeBackendId?: string | null;
+    providers?: ProviderDescriptor[];
+    onBackendChange?: (backendId: string) => void;
+    activeModel?: string | null;
+    thinkingLevel?: string | null;
+    supportsThinking?: boolean;
+    contextUsage?: ContextUsage | null;
+    queuedFollowups?: QueueItem[];
+    onQueueRemove?: (rowId: string | number) => void;
+    onQueueSteer?: (rowId: string | number) => void;
+    onModelChange?: (model: string) => void;
+    onModelStateChange?: (payload: ModelStatePayload) => void;
+    onCommandResult?: (payload: any) => void;
+    notificationsEnabled?: boolean;
+    notificationPermission?: NotificationPermission | string;
+    onToggleNotifications?: () => void;
+    onOpenSettings?: () => void;
+};
+
+function formatK(n: number | null | undefined): string {
     if (n == null) return '?';
     if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
     if (n >= 1000) return (n / 1000).toFixed(0) + 'K';
@@ -18,7 +56,7 @@ function formatK(n) {
  * Tiny SVG pie chart showing context window usage.
  * Green when <75%, amber 75–90%, red >90%. Tooltip shows exact numbers.
  */
-function ContextPie({ usage }) {
+function ContextPie({ usage }: { usage: ContextUsage }) {
     const pct = Math.min(100, Math.max(0, usage.percent || 0));
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
@@ -53,11 +91,11 @@ function ContextPie({ usage }) {
     `;
 }
 
-function FollowupQueue({ items, onRemove, onSteer }) {
+function FollowupQueue({ items, onRemove, onSteer }: { items?: QueueItem[]; onRemove?: (rowId: string | number) => void; onSteer?: (rowId: string | number) => void }) {
     if (!items || items.length === 0) return null;
     return html`
         <div class="compose-queue-stack" aria-label="Queued follow-ups" role="list">
-            ${items.map((item) => {
+            ${items.map((item: QueueItem) => {
                 const content = String(item.content || '').trim();
                 const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
                 const itemLabel = preview || 'Untitled follow-up';
@@ -122,22 +160,22 @@ export function ComposeBox({
     notificationPermission = 'default',
     onToggleNotifications,
     onOpenSettings,
-}) {
+}: ComposeBoxProps) {
     const [content, setContent] = useState('');
     const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [submitError, setSubmitError] = useState('');
-    const [mediaFiles, setMediaFiles] = useState([]);
+    const [mediaFiles, setMediaFiles] = useState([] as File[]);
     const [isDragActive, setIsDragActive] = useState(false);
-    const [slashMatches, setSlashMatches] = useState([]);
+    const [slashMatches, setSlashMatches] = useState([] as SlashCommand[]);
     const [slashIndex, setSlashIndex] = useState(0);
     const [showSlash, setShowSlash] = useState(false);
     const [switchingModel, setSwitchingModel] = useState(false);
     const [showModelPopup, setShowModelPopup] = useState(false);
-    const [modelOptions, setModelOptions] = useState([]);
+    const [modelOptions, setModelOptions] = useState([] as ModelOption[]);
     const [modelPopupIndex, setModelPopupIndex] = useState(0);
     const [loadingModels, setLoadingModels] = useState(false);
-    const [slashCommands, setSlashCommands] = useState(DEFAULT_SLASH_COMMANDS);
+    const [slashCommands, setSlashCommands] = useState(DEFAULT_SLASH_COMMANDS as SlashCommand[]);
     const textareaRef = useRef(null);
     const modelPopupRef = useRef(null);
     const popupTypeaheadRef = useRef({ value: '', updatedAt: 0 });
@@ -184,7 +222,7 @@ export function ComposeBox({
         ? `Thinking: ${thinkingLevel || 'default'}`
         : '';
 
-    const emitModelState = (payload) => {
+    const emitModelState = (payload: any) => {
         if (!payload || typeof payload !== 'object') return;
         const modelLabel = payload.model ?? payload.current;
         if (typeof onModelStateChange === 'function') {
@@ -207,7 +245,7 @@ export function ComposeBox({
     };
 
     /** Update slash autocomplete matches based on current input. */
-    const updateSlashAutocomplete = (value) => {
+    const updateSlashAutocomplete = (value: any) => {
         if (!value.startsWith('/') || value.includes('\n')) {
             setShowSlash(false);
             setSlashMatches([]);
@@ -219,7 +257,7 @@ export function ComposeBox({
             setSlashMatches([]);
             return;
         }
-        const matches = slashCommands.filter((cmd) =>
+        const matches = slashCommands.filter((cmd: any) =>
             cmd.name.startsWith(prefix) || cmd.name.replace(/-/g, '').startsWith(prefix.replace(/-/g, ''))
         );
         if (matches.length > 0 && !(matches.length === 1 && matches[0].name === prefix)) {
@@ -233,7 +271,7 @@ export function ComposeBox({
     };
 
     /** Accept the currently highlighted slash command. */
-    const acceptSlashCommand = (cmd) => {
+    const acceptSlashCommand = (cmd: any) => {
         const current = content;
         const spaceIdx = current.indexOf(' ');
         const args = spaceIdx >= 0 ? current.slice(spaceIdx) : '';
@@ -252,7 +290,7 @@ export function ComposeBox({
         });
     };
 
-    const updateValue = (value) => {
+    const updateValue = (value: any) => {
         setSubmitError('');
         if (searchMode) {
             setSearchText(value);
@@ -263,14 +301,14 @@ export function ComposeBox({
         requestAnimationFrame(resizeTextarea);
     };
 
-    const appendToValue = (snippet) => {
+    const appendToValue = (snippet: any) => {
         const current = searchMode ? searchText : content;
         const prefix = current && !current.endsWith('\n') ? '\n' : '';
         const next = `${current}${prefix}${snippet}`.trimStart();
         updateValue(next);
     };
 
-    const extractCurrentModel = (response) => {
+    const extractCurrentModel = (response: any) => {
         const fromLabel = response?.command?.model_label;
         if (fromLabel) return fromLabel;
         const message = response?.command?.message;
@@ -281,7 +319,7 @@ export function ComposeBox({
         return null;
     };
 
-    const runModelCommand = async (commandText) => {
+    const runModelCommand = async (commandText: any) => {
         if (searchMode || loading || switchingModel) return;
         setSwitchingModel(true);
         try {
@@ -311,17 +349,17 @@ export function ComposeBox({
         await runModelCommand('/cycle-thinking');
     };
 
-    const handleSelectModel = async (modelLabel) => {
+    const handleSelectModel = async (modelLabel: any) => {
         if (!modelLabel || switchingModel) return;
         const ok = await runModelCommand(`/model ${modelLabel}`);
         if (ok) setShowModelPopup(false);
     };
 
-    const toggleModelPopup = (event) => {
+    const toggleModelPopup = (event: any) => {
         event.preventDefault();
         event.stopPropagation();
         popupTypeaheadRef.current = { value: '', updatedAt: 0 };
-        setShowModelPopup((prev) => {
+        setShowModelPopup((prev: any) => {
             if (!prev) setModelPopupIndex(0);
             return !prev;
         });
@@ -329,7 +367,7 @@ export function ComposeBox({
 
     // Typeahead keyboard handler for model popup (ported from piclaw)
     // Unified popup keyboard handler — matches piclaw's handlePopupKeyboardEvent exactly
-    const handlePopupKeyboardEvent = useCallback((e) => {
+    const handlePopupKeyboardEvent = useCallback((e: any) => {
         if (searchMode || !showModelPopup || e?.isComposing) return false;
         const consume = () => {
             e.preventDefault?.();
@@ -348,13 +386,13 @@ export function ComposeBox({
             if (e.key === 'ArrowDown') {
                 consume();
                 resetPopupTypeahead();
-                if (modelOptions.length > 0) setModelPopupIndex((idx) => (idx + 1) % modelOptions.length);
+                if (modelOptions.length > 0) setModelPopupIndex((idx: any) => (idx + 1) % modelOptions.length);
                 return true;
             }
             if (e.key === 'ArrowUp') {
                 consume();
                 resetPopupTypeahead();
-                if (modelOptions.length > 0) setModelPopupIndex((idx) => (idx - 1 + modelOptions.length) % modelOptions.length);
+                if (modelOptions.length > 0) setModelPopupIndex((idx: any) => (idx - 1 + modelOptions.length) % modelOptions.length);
                 return true;
             }
             if ((e.key === 'Enter' || e.key === 'Tab') && modelOptions.length > 0) {
@@ -387,7 +425,7 @@ export function ComposeBox({
         setLoading(true);
         setSubmitError('');
         try {
-            const mediaIds = [];
+            const mediaIds: any[] = [];
             for (const file of mediaFiles) {
                 const result = await uploadMedia(file);
                 mediaIds.push(result.id);
@@ -421,7 +459,7 @@ export function ComposeBox({
 
             if (baseContent) {
                 const current = historyRef.current;
-                const deduped = normaliseComposeHistory(current.filter((item) => item !== baseContent));
+                const deduped = normaliseComposeHistory(current.filter((item: any) => item !== baseContent));
                 deduped.push(baseContent);
                 if (deduped.length > COMPOSE_HISTORY_MAX) {
                     deduped.splice(0, deduped.length - COMPOSE_HISTORY_MAX);
@@ -447,7 +485,7 @@ export function ComposeBox({
         }
     };
 
-    const handleKeyDown = (e) => {
+    const handleKeyDown = (e: any) => {
         if (e.isComposing) return;
         // Popup typeahead intercepts first (model picker, etc.)
         if (handlePopupKeyboardEvent(e)) {
@@ -463,12 +501,12 @@ export function ComposeBox({
         if (showSlash && slashMatches.length > 0) {
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                setSlashIndex((i) => (i + 1) % slashMatches.length);
+                setSlashIndex((i: any) => (i + 1) % slashMatches.length);
                 return;
             }
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                setSlashIndex((i) => (i - 1 + slashMatches.length) % slashMatches.length);
+                setSlashIndex((i: any) => (i - 1 + slashMatches.length) % slashMatches.length);
                 return;
             }
             if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) {
@@ -537,21 +575,21 @@ export function ComposeBox({
         }
     };
 
-    const addMediaFiles = (files) => {
-        const list = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+    const addMediaFiles = (files: any) => {
+        const list = Array.from(files || []).filter((file: any) => file && file.type && file.type.startsWith('image/'));
         if (!list.length) return;
         setSubmitError('');
-        setMediaFiles((current) => [...current, ...list]);
+        setMediaFiles((current: any) => [...current, ...list]);
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = (e: any) => {
         addMediaFiles(e.target.files);
         e.target.value = '';
     };
 
-    const removeMediaFile = (index) => {
+    const removeMediaFile = (index: any) => {
         setSubmitError('');
-        setMediaFiles((current) => current.filter((_, idx) => idx !== index));
+        setMediaFiles((current: any) => current.filter((_: any, idx: any) => idx !== index));
     };
 
     const clearAllAttachmentRefs = () => {
@@ -561,7 +599,7 @@ export function ComposeBox({
         setSubmitError('');
     };
 
-    const handleDragEnter = (e) => {
+    const handleDragEnter = (e: any) => {
         if (searchMode) return;
         e.preventDefault();
         e.stopPropagation();
@@ -569,7 +607,7 @@ export function ComposeBox({
         setIsDragActive(true);
     };
 
-    const handleDragLeave = (e) => {
+    const handleDragLeave = (e: any) => {
         if (searchMode) return;
         e.preventDefault();
         e.stopPropagation();
@@ -577,7 +615,7 @@ export function ComposeBox({
         if (dragCounterRef.current === 0) setIsDragActive(false);
     };
 
-    const handleDragOver = (e) => {
+    const handleDragOver = (e: any) => {
         if (searchMode) return;
         e.preventDefault();
         e.stopPropagation();
@@ -585,7 +623,7 @@ export function ComposeBox({
         setIsDragActive(true);
     };
 
-    const handleComposeDrop = (e) => {
+    const handleComposeDrop = (e: any) => {
         if (searchMode) return;
         e.preventDefault();
         e.stopPropagation();
@@ -594,10 +632,10 @@ export function ComposeBox({
         addMediaFiles(e.dataTransfer?.files || []);
     };
 
-    const handlePaste = (e) => {
+    const handlePaste = (e: any) => {
         const items = e.clipboardData?.items;
         if (!items) return;
-        const images = [];
+        const images: File[] = [];
         for (const item of items) {
             if (item.kind === 'file' && item.type.startsWith('image/')) {
                 const file = item.getAsFile();
@@ -610,7 +648,7 @@ export function ComposeBox({
         }
     };
 
-    const handleInput = (e) => {
+    const handleInput = (e: any) => {
         const value = e.target.value;
         updateValue(value);
     };
@@ -641,9 +679,9 @@ export function ComposeBox({
         if (!showModelPopup) return;
         setLoadingModels(true);
         getAgentModels()
-            .then((payload) => {
+            .then((payload: any) => {
                 const models = Array.isArray(payload?.models)
-                    ? payload.models.filter((m) => typeof m === 'string' && m.trim().length > 0)
+                    ? payload.models.filter((m: any) => typeof m === 'string' && m.trim().length > 0)
                     : [];
                 setModelOptions(models);
                 emitModelState(payload);
@@ -670,7 +708,7 @@ export function ComposeBox({
 
     useEffect(() => {
         if (!showModelPopup) return;
-        const onPointerDown = (event) => {
+        const onPointerDown = (event: any) => {
             const popup = modelPopupRef.current;
             const hint = modelHintRef.current;
             const target = event.target;
@@ -685,7 +723,7 @@ export function ComposeBox({
     // Global keydown listener for popup typeahead (piclaw pattern)
     useEffect(() => {
         if (searchMode || !showModelPopup) return;
-        const onKeyDown = (event) => {
+        const onKeyDown = (event: any) => {
             handlePopupKeyboardEvent(event);
         };
         document.addEventListener('keydown', onKeyDown, true);
@@ -723,7 +761,7 @@ export function ComposeBox({
                                         <span class="compose-file-name">${'msg:' + id}</span>
                                         <button
                                             class="compose-file-remove"
-                                            onClick=${(event) => {
+                                            onClick=${(event: any) => {
                                                 event.preventDefault();
                                                 event.stopPropagation();
                                                 onRemoveMessageRef?.(id);
@@ -738,10 +776,11 @@ export function ComposeBox({
                                     </span>
                                 `;
                             })}
-                            ${fileRefs.map((path) => {
-                                const label = path.split('/').pop() || path;
+                            ${fileRefs.map((path: FileRef) => {
+                                const pathLabel = typeof path === 'string' ? path : (path.path || path.name || 'file');
+                                const label = pathLabel.split('/').pop() || pathLabel;
                                 return html`
-                                    <span class="compose-file-pill" title=${path}>
+                                    <span class="compose-file-pill" title=${pathLabel}>
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                                             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                                             <polyline points="14 2 14 8 20 8"/>
@@ -749,7 +788,7 @@ export function ComposeBox({
                                         <span class="compose-file-name">${label}</span>
                                         <button
                                             class="compose-file-remove"
-                                            onClick=${(event) => {
+                                            onClick=${(event: any) => {
                                                 event.preventDefault();
                                                 event.stopPropagation();
                                                 onRemoveFileRef?.(path);
@@ -764,7 +803,7 @@ export function ComposeBox({
                                     </span>
                                 `;
                             })}
-                            ${mediaFiles.map((file, index) => {
+                            ${mediaFiles.map((file: any, index: any) => {
                                 const label = file?.name || `image-${index + 1}`;
                                 return html`
                                     <span key=${label + index} class="compose-file-pill" title=${label}>
@@ -775,7 +814,7 @@ export function ComposeBox({
                                         <span class="compose-file-name">${label}</span>
                                         <button
                                             class="compose-file-remove"
-                                            onClick=${(event) => {
+                                            onClick=${(event: any) => {
                                                 event.preventDefault();
                                                 event.stopPropagation();
                                                 removeMediaFile(index);
@@ -815,11 +854,11 @@ export function ComposeBox({
                     />
                     ${showSlash && slashMatches.length > 0 && html`
                         <div class="slash-autocomplete" ref=${slashRef}>
-                            ${slashMatches.map((cmd, i) => html`
+                            ${slashMatches.map((cmd: any, i: any) => html`
                                 <div
                                     key=${cmd.name}
                                     class=${`slash-item${i === slashIndex ? ' active' : ''}`}
-                                    onMouseDown=${(e) => { e.preventDefault(); acceptSlashCommand(cmd); }}
+                                    onMouseDown=${(e: any) => { e.preventDefault(); acceptSlashCommand(cmd); }}
                                     onMouseEnter=${() => setSlashIndex(i)}
                                 >
                                     <span class="slash-name">${cmd.name}</span>
@@ -876,7 +915,7 @@ export function ComposeBox({
                                 ${!loadingModels && modelOptions.length === 0 && html`
                                     <div class="compose-model-popup-empty">No models available.</div>
                                 `}
-                                ${!loadingModels && modelOptions.map((modelLabel, index) => html`
+                                ${!loadingModels && modelOptions.map((modelLabel: any, index: any) => html`
                                     <button
                                         key=${modelLabel}
                                         type="button"

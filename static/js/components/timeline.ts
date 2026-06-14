@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { getMediaInfo, getMediaUrl, getThumbnailUrl } from '../api.ts';
 import {
@@ -14,19 +13,92 @@ import {
     sanitizeUrl,
 } from '../features/timeline/timeline-utils.ts';
 
+type TimelineData = {
+    type?: string;
+    content?: string;
+    agent_id?: string;
+    backend?: any;
+    media_ids?: Array<string | number>;
+    link_previews?: any[];
+    annotations?: any;
+    resources?: any[];
+    resource_links?: any[];
+    blocks?: any[];
+    [key: string]: any;
+};
 
-function highlightHtml(htmlStr, query) {
+type TimelinePost = {
+    id: string | number;
+    parent_id?: string | number | null;
+    created_at?: string;
+    data: TimelineData;
+    reply_count?: number;
+    [key: string]: any;
+};
+
+type AvatarInfo = { letter?: string; color?: string; image?: string | null };
+type RenderMarkdown = (content: string, onHashtagClick?: (tag: string) => void) => string;
+type RenderMermaid = (root: HTMLElement) => Promise<unknown> | void;
+
+type PostProps = {
+    post: TimelinePost;
+    onClick?: (post: TimelinePost) => void;
+    onHashtagClick?: (tag: string) => void;
+    onMessageRef?: (id: string) => void;
+    onScrollToMessage?: (id: string) => void;
+    onOpenAttachmentPreview?: (id: any) => void;
+    agentName?: string;
+    agentAvatarUrl?: string | null;
+    userName?: string;
+    userAvatarUrl?: string | null;
+    onDelete?: (post: TimelinePost) => void;
+    isThreadReply?: boolean;
+    isRemoving?: boolean;
+    highlightQuery?: string;
+    renderMarkdown?: RenderMarkdown;
+    renderMermaidDiagrams?: RenderMermaid;
+    getAvatarInfo?: (name?: string, avatarUrl?: string | null) => AvatarInfo;
+    formatTime?: (value: string | undefined) => string;
+    formatCount?: (value: number | undefined) => string;
+};
+
+type TimelineProps = {
+    posts?: TimelinePost[];
+    hasMore?: boolean;
+    onLoadMore?: () => void;
+    onPostClick?: (post: TimelinePost) => void;
+    onHashtagClick?: (tag: string) => void;
+    onMessageRef?: (id: string) => void;
+    onScrollToMessage?: (id: string) => void;
+    onOpenAttachmentPreview?: (id: any) => void;
+    emptyMessage?: string;
+    timelineRef?: any;
+    agents?: Record<string, any>;
+    user?: any;
+    onDeletePost?: (post: TimelinePost) => void;
+    removingPostIds?: Set<string | number>;
+    searchQuery?: string;
+    renderMarkdown?: RenderMarkdown;
+    renderMermaidDiagrams?: RenderMermaid;
+    getAgentName?: (agentId?: string, agents?: Record<string, any>) => string;
+    getAgentAvatar?: (agentId?: string, agents?: Record<string, any>) => string | null;
+    getAvatarInfo?: (name?: string, avatarUrl?: string | null) => AvatarInfo;
+    formatTime?: (value: string | undefined) => string;
+    formatCount?: (value: number | undefined) => string;
+};
+
+function highlightHtml(htmlStr: string, query: string | undefined): string {
     if (!htmlStr || !query) return htmlStr;
     const terms = String(query).trim().split(/\s+/).filter(Boolean);
     if (terms.length === 0) return htmlStr;
 
-    const escapedTerms = terms.map(escapeRegex).sort((a, b) => b.length - a.length);
+    const escapedTerms = terms.map(escapeRegex).sort((a: any, b: any) => b.length - a.length);
     const pattern = new RegExp(`(${escapedTerms.join('|')})`, 'gi');
     const matcher = new RegExp(`^(${escapedTerms.join('|')})$`, 'i');
 
     const doc = new DOMParser().parseFromString(htmlStr, 'text/html');
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-    const nodes = [];
+    const nodes: Node[] = [];
     let node;
     while ((node = walker.nextNode())) nodes.push(node);
 
@@ -50,7 +122,7 @@ function highlightHtml(htmlStr, query) {
                 frag.appendChild(doc.createTextNode(part));
             }
         }
-        textNode.parentNode.replaceChild(frag, textNode);
+        textNode.parentNode?.replaceChild(frag, textNode);
     }
 
     return doc.body.innerHTML;
@@ -74,7 +146,7 @@ const COPY_ERROR_SVG = `
     </svg>
 `;
 
-async function copyCodeText(text) {
+async function copyCodeText(text: string): Promise<boolean> {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
         try {
             await navigator.clipboard.writeText(text);
@@ -100,15 +172,15 @@ async function copyCodeText(text) {
     }
 }
 
-function enhanceCodeBlocks(container) {
+function enhanceCodeBlocks(container: HTMLElement | null): () => void {
     if (!container) return () => {};
-    const blocks = Array.from(container.querySelectorAll('pre')).filter((pre) => pre.querySelector('code'));
+    const blocks = Array.from(container.querySelectorAll('pre')).filter((pre): pre is HTMLPreElement => Boolean(pre.querySelector('code')));
     if (blocks.length === 0) return () => {};
 
-    const resetTimers = new Map();
-    const cleanups = [];
+    const resetTimers = new Map<HTMLButtonElement, ReturnType<typeof setTimeout>>();
+    const cleanups: Array<() => void> = [];
 
-    const setButtonState = (button, state) => {
+    const setButtonState = (button: HTMLButtonElement, state: 'idle' | 'success' | 'error') => {
         const nextState = state || 'idle';
         button.dataset.copyState = nextState;
         if (nextState === 'success') {
@@ -143,7 +215,7 @@ function enhanceCodeBlocks(container) {
         setButtonState(button, 'idle');
         wrapper.appendChild(button);
 
-        const handleCopyClick = async (event) => {
+        const handleCopyClick = async (event: any) => {
             event.preventDefault();
             event.stopPropagation();
             const code = pre.querySelector('code');
@@ -175,7 +247,7 @@ function enhanceCodeBlocks(container) {
     };
 }
 
-function ImageModal({ src, onClose }) {
+function ImageModal({ src, onClose }: { src: string; onClose: () => void }) {
     const [scale, setScale] = useState(1);
     const [translate, setTranslate] = useState({ x: 0, y: 0 });
     const [dragging, setDragging] = useState(false);
@@ -183,20 +255,20 @@ function ImageModal({ src, onClose }) {
     const imgRef = useRef(null);
 
     useEffect(() => {
-        const handleEsc = (e) => {
+        const handleEsc = (e: any) => {
             if (e.key === 'Escape') onClose();
         };
         document.addEventListener('keydown', handleEsc);
         return () => document.removeEventListener('keydown', handleEsc);
     }, [onClose]);
 
-    const handleWheel = (e) => {
+    const handleWheel = (e: any) => {
         e.preventDefault();
         const delta = e.deltaY > 0 ? 0.9 : 1.1;
-        setScale((s) => Math.max(0.5, Math.min(10, s * delta)));
+        setScale((s: any) => Math.max(0.5, Math.min(10, s * delta)));
     };
 
-    const handlePointerDown = (e) => {
+    const handlePointerDown = (e: any) => {
         if (e.button !== 0) return;
         e.stopPropagation();
         setDragging(true);
@@ -204,26 +276,26 @@ function ImageModal({ src, onClose }) {
         e.target.setPointerCapture(e.pointerId);
     };
 
-    const handlePointerMove = (e) => {
+    const handlePointerMove = (e: any) => {
         if (!dragging) return;
         setTranslate({ x: e.clientX - dragStart.current.x, y: e.clientY - dragStart.current.y });
     };
 
     const handlePointerUp = () => setDragging(false);
 
-    const handleDoubleClick = (e) => {
+    const handleDoubleClick = (e: any) => {
         e.stopPropagation();
         setScale(scale === 1 ? 2 : 1);
         setTranslate({ x: 0, y: 0 });
     };
 
-    const zoomIn = (e) => { e.stopPropagation(); setScale((s) => Math.min(10, s * 1.3)); };
-    const zoomOut = (e) => { e.stopPropagation(); setScale((s) => Math.max(0.5, s / 1.3)); };
-    const resetZoom = (e) => { e.stopPropagation(); setScale(1); setTranslate({ x: 0, y: 0 }); };
+    const zoomIn = (e: any) => { e.stopPropagation(); setScale((s: any) => Math.min(10, s * 1.3)); };
+    const zoomOut = (e: any) => { e.stopPropagation(); setScale((s: any) => Math.max(0.5, s / 1.3)); };
+    const resetZoom = (e: any) => { e.stopPropagation(); setScale(1); setTranslate({ x: 0, y: 0 }); };
 
     return html`
         <div class="image-modal" onClick=${onClose} onWheel=${handleWheel}>
-            <div class="image-modal-controls" onClick=${(e) => e.stopPropagation()}>
+            <div class="image-modal-controls" onClick=${(e: any) => e.stopPropagation()}>
                 <button onClick=${zoomOut} title="Zoom out">−</button>
                 <button onClick=${resetZoom} title="Reset">${Math.round(scale * 100)}%</button>
                 <button onClick=${zoomIn} title="Zoom in">+</button>
@@ -235,7 +307,7 @@ function ImageModal({ src, onClose }) {
                 alt="Full size"
                 class="image-modal-img"
                 style=${{ transform: `translate(${translate.x}px, ${translate.y}px) scale(${scale})`, cursor: dragging ? 'grabbing' : 'grab' }}
-                onClick=${(e) => e.stopPropagation()}
+                onClick=${(e: any) => e.stopPropagation()}
                 onDblClick=${handleDoubleClick}
                 onPointerDown=${handlePointerDown}
                 onPointerMove=${handlePointerMove}
@@ -246,7 +318,7 @@ function ImageModal({ src, onClose }) {
     `;
 }
 
-function FileAttachment({ mediaId }) {
+function FileAttachment({ mediaId }: { mediaId: string | number }) {
     const [info, setInfo] = useState(null);
 
     useEffect(() => {
@@ -260,7 +332,7 @@ function FileAttachment({ mediaId }) {
     const sizeStr = size ? formatFileSize(size) : '';
 
     return html`
-        <a href=${getMediaUrl(mediaId)} download=${filename} class="file-attachment" onClick=${(e) => e.stopPropagation()}>
+        <a href=${getMediaUrl(mediaId)} download=${filename} class="file-attachment" onClick=${(e: any) => e.stopPropagation()}>
             <svg class="file-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                 <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
                 <polyline points="14 2 14 8 20 8"/>
@@ -281,7 +353,7 @@ function FileAttachment({ mediaId }) {
     `;
 }
 
-function AnnotationsBadge({ annotations }) {
+function AnnotationsBadge({ annotations }: { annotations: any }) {
     if (!annotations) return null;
     const { audience, priority, lastModified } = annotations;
     const formattedLastModified = lastModified ? formatTimestamp(lastModified) : null;
@@ -300,7 +372,7 @@ function AnnotationsBadge({ annotations }) {
     `;
 }
 
-function ResourceLinkBlock({ block }) {
+function ResourceLinkBlock({ block }: { block: any }) {
     const name = block.title || block.name || block.uri;
     const description = block.description;
     const sizeStr = block.size ? formatFileSize(block.size) : '';
@@ -311,7 +383,7 @@ function ResourceLinkBlock({ block }) {
         <a href=${safeUrl || '#'} class="resource-link"
             target=${safeUrl ? "_blank" : undefined}
             rel=${safeUrl ? "noopener noreferrer" : undefined}
-            onClick=${(e) => e.stopPropagation()}>
+            onClick=${(e: any) => e.stopPropagation()}>
             <div class="resource-link-main">
                 <div class="resource-link-header">
                     <span class="resource-link-icon-inline">${icon}</span>
@@ -328,7 +400,7 @@ function ResourceLinkBlock({ block }) {
     `;
 }
 
-function ResourceBlock({ block }) {
+function ResourceBlock({ block }: { block: any }) {
     const [open, setOpen] = useState(false);
     const title = block.uri || 'Embedded resource';
     const contentText = block.text || '';
@@ -336,7 +408,7 @@ function ResourceBlock({ block }) {
     const mimeType = block.mime_type || '';
     return html`
         <div class="resource-embed">
-            <button class="resource-embed-toggle" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>
+            <button class="resource-embed-toggle" onClick=${(e: any) => { e.preventDefault(); e.stopPropagation(); setOpen(!open); }}>
                 ${open ? '▼' : '▶'} ${title}
             </button>
             ${open && html`
@@ -345,7 +417,7 @@ function ResourceBlock({ block }) {
                     <div class="resource-embed-blob">
                         <span class="resource-embed-blob-label">Embedded blob</span>
                         ${mimeType && html`<span class="resource-embed-blob-meta">${mimeType}</span>`}
-                        <button class="resource-embed-blob-btn" onClick=${(e) => {
+                        <button class="resource-embed-blob-btn" onClick=${(e: any) => {
                             e.preventDefault();
                             e.stopPropagation();
                             const blob = new Blob([Uint8Array.from(atob(block.data), (c) => c.charCodeAt(0))], { type: mimeType || 'application/octet-stream' });
@@ -363,13 +435,13 @@ function ResourceBlock({ block }) {
     `;
 }
 
-function LinkPreview({ preview }) {
+function LinkPreview({ preview }: { preview: any }) {
     const bgStyle = preview.image
         ? `background-image: url('${preview.image}')`
         : '';
 
     return html`
-        <a href=${preview.url} class="link-preview ${preview.image ? 'has-image' : ''}" target="_blank" rel="noopener noreferrer" onClick=${(e) => e.stopPropagation()} style=${bgStyle}>
+        <a href=${preview.url} class="link-preview ${preview.image ? 'has-image' : ''}" target="_blank" rel="noopener noreferrer" onClick=${(e: any) => e.stopPropagation()} style=${bgStyle}>
             <div class="link-preview-overlay">
                 <div class="link-preview-site">${preview.site_name || new URL(preview.url).hostname}</div>
                 <div class="link-preview-title">${preview.title}</div>
@@ -401,8 +473,8 @@ function Post({
     getAvatarInfo,
     formatTime,
     formatCount,
-}) {
-    const [zoomedImage, setZoomedImage] = useState(null);
+}: PostProps) {
+    const [zoomedImage, setZoomedImage] = useState(null as string | null);
     const contentRef = useRef(null);
 
     const data = post.data;
@@ -419,8 +491,8 @@ function Post({
         ? (getAvatarInfo?.(agentName, agentAvatarUrl) || fallbackAvatarInfo(agentName, agentAvatarUrl))
         : (getAvatarInfo?.(resolvedUserName, userAvatarUrl) || fallbackAvatarInfo(resolvedUserName, userAvatarUrl));
     const avatarBgColor = avatarInfo.image ? 'transparent' : avatarInfo.color;
-    const formatTimeLabel = formatTime || ((value) => String(value || ''));
-    const formatCountLabel = formatCount || ((value) => String(value ?? 0));
+    const formatTimeLabel = formatTime || ((value: any) => String(value || ''));
+    const formatCountLabel = formatCount || ((value: any) => String(value ?? 0));
     const contentMeta = data.content_meta;
     const isTruncated = Boolean(contentMeta?.truncated);
     const isPreview = Boolean(contentMeta?.preview);
@@ -434,9 +506,10 @@ function Post({
         }
         : null;
 
-    let displayContent = getDisplayContent(data.content, data.link_previews);
+    const linkPreviews = data.link_previews || [];
+    let displayContent = getDisplayContent(data.content, linkPreviews);
 
-    const handleImageClick = (e, mediaId) => {
+    const handleImageClick = (e: any, mediaId: string | number) => {
         e.stopPropagation();
         setZoomedImage(getMediaUrl(mediaId));
     };
@@ -447,50 +520,50 @@ function Post({
     // Close menu on outside click
     useEffect(() => {
         if (!menuOpen) return;
-        const close = (e) => {
+        const close = (e: any) => {
             if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false);
         };
         document.addEventListener('click', close, true);
         return () => document.removeEventListener('click', close, true);
     }, [menuOpen]);
 
-    const handleCopyText = (e) => {
+    const handleCopyText = (e: any) => {
         e.stopPropagation();
         const text = contentRef.current?.innerText || displayContent || '';
         navigator.clipboard.writeText(text).catch(() => {});
         setMenuOpen(false);
     };
 
-    const handleCopyMarkdown = (e) => {
+    const handleCopyMarkdown = (e: any) => {
         e.stopPropagation();
         navigator.clipboard.writeText(displayContent || '').catch(() => {});
         setMenuOpen(false);
     };
 
-    const handleReply = (e) => {
+    const handleReply = (e: any) => {
         e.stopPropagation();
         if (onMessageRef) onMessageRef(String(post.id));
         setMenuOpen(false);
     };
 
-    const handleMenuDelete = (e) => {
+    const handleMenuDelete = (e: any) => {
         e.stopPropagation();
         onDelete?.(post);
         setMenuOpen(false);
     };
 
-    const resolveInlineAttachments = (content, attachments) => {
-        const usedIds = new Set();
+    const resolveInlineAttachments = (content: string, attachments: any[]) => {
+        const usedIds = new Set<any>();
         if (!content || attachments.length === 0) {
             return { content, usedIds };
         }
 
-        const replaced = content.replace(/attachment:([^\s)"']+)/g, (match, rawRef, offset, source) => {
+        const replaced = content.replace(/attachment:([^\s)"']+)/g, (match: string, rawRef: string, offset: number, source: string) => {
             const ref = rawRef.replace(/^\/+/, '');
             const byName = attachments.find(
-                (entry) => entry.name && entry.name.toLowerCase() === ref.toLowerCase() && !usedIds.has(entry.id)
+                (entry: any) => entry.name && entry.name.toLowerCase() === ref.toLowerCase() && !usedIds.has(entry.id)
             );
-            const entry = byName || attachments.find((item) => !usedIds.has(item.id));
+            const entry = byName || attachments.find((item: any) => !usedIds.has(item.id));
             if (!entry) return match;
             usedIds.add(entry.id);
             const prefix = source.slice(Math.max(0, offset - 2), offset);
@@ -503,18 +576,18 @@ function Post({
         return { content: replaced, usedIds };
     };
 
-    const imageItems = [];
-    const fileIds = [];
-    const attachmentEntries = [];
-    const resourceLinks = [];
-    const resources = [];
-    const textAnnotations = [];
+    const imageItems: any[] = [];
+    const fileIds: any[] = [];
+    const attachmentEntries: any[] = [];
+    const resourceLinks: any[] = [];
+    const resources: any[] = [];
+    const textAnnotations: any[] = [];
     const blocks = data.content_blocks || [];
     const mediaIds = data.media_ids || [];
     let mediaIndex = 0;
 
     if (blocks.length > 0) {
-        blocks.forEach((block) => {
+        blocks.forEach((block: any) => {
             if (block?.type === 'text' && block.annotations) {
                 textAnnotations.push(block.annotations);
             }
@@ -537,15 +610,15 @@ function Post({
             }
         });
     } else if (mediaIds.length > 0) {
-        mediaIds.forEach((id) => {
+        mediaIds.forEach((id: any) => {
             imageItems.push({ id, annotations: null });
             attachmentEntries.push({ id, name: null });
         });
     }
 
     if ((!displayContent || !displayContent.trim()) && blocks.length > 0) {
-        const textParts = [];
-        const stack = [...blocks];
+        const textParts: string[] = [];
+        const stack: any[] = [...blocks];
         while (stack.length > 0) {
             const item = stack.shift();
             if (!item || typeof item !== 'object') continue;
@@ -572,7 +645,7 @@ function Post({
     if (attachments.length > 0) {
         attachments.forEach((ref) => {
             if (!ref?.id) return;
-            const match = attachmentEntries.find((entry) => String(entry.id) === String(ref.id));
+            const match = attachmentEntries.find((entry: any) => String(entry.id) === String(ref.id));
             if (match && !match.name) {
                 match.name = ref.label;
             }
@@ -582,7 +655,7 @@ function Post({
     const { content: resolvedContent, usedIds } = resolveInlineAttachments(displayContent, attachmentEntries);
     displayContent = resolvedContent;
     const filteredImageItems = imageItems.filter(({ id }) => !usedIds.has(id));
-    const filteredFileIds = fileIds.filter((id) => !usedIds.has(id));
+    const filteredFileIds = fileIds.filter((id: any) => !usedIds.has(id));
 
     const attachmentPills = attachments.length > 0
         ? attachments.map((ref, idx) => ({
@@ -618,7 +691,7 @@ function Post({
                         type="button"
                         title="More actions"
                         aria-label="More actions"
-                        onClick=${(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+                        onClick=${(e: any) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
                     >
                         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                             <circle cx="12" cy="5" r="1.5" />
@@ -653,7 +726,7 @@ function Post({
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
                     ${backendLabel && html`<span class="post-backend" title=${backendDetails ? `${backendLabel} · ${backendDetails}` : backendLabel}>${backendLabel}</span>`}
-                    <span class="post-time" onClick=${(e) => {
+                    <span class="post-time" onClick=${(e: any) => {
                         if (onMessageRef) {
                             e.stopPropagation();
                             onMessageRef(String(post.id));
@@ -679,8 +752,8 @@ function Post({
                 `}
                 ${(fileRefs.length > 0 || messageRefs.length > 0 || attachmentPills.length > 0) && html`
                     <div class="post-file-refs">
-                        ${messageRefs.map((id) => {
-                            const scrollToRef = (e) => {
+                        ${messageRefs.map((id: any) => {
+                            const scrollToRef = (e: any) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 if (onScrollToMessage) {
@@ -719,7 +792,7 @@ function Post({
                         })}
                         ${attachmentPills.map((attachment) => html`
                             <span class="post-file-pill" title=${attachment.label}
-                                onClick=${onOpenAttachmentPreview ? (e) => { e.stopPropagation(); onOpenAttachmentPreview(attachment); } : undefined}
+                                onClick=${onOpenAttachmentPreview ? (e: any) => { e.stopPropagation(); onOpenAttachmentPreview(attachment); } : undefined}
                                 style=${onOpenAttachmentPreview ? { cursor: 'pointer' } : undefined}
                             >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -740,7 +813,7 @@ function Post({
                             const q = typeof highlightQuery === 'string' ? highlightQuery.trim() : '';
                             return q ? highlightHtml(rendered, q) : rendered;
                         })() }}
-                        onClick=${(e) => {
+                        onClick=${(e: any) => {
                             if (e.target.classList.contains('hashtag')) {
                                 e.preventDefault();
                                 e.stopPropagation();
@@ -767,7 +840,7 @@ function Post({
                                 src=${getThumbnailUrl(id)}
                                 alt="Media"
                                 loading="lazy"
-                                onClick=${(e) => handleImageClick(e, id)}
+                                onClick=${(e: any) => handleImageClick(e, id)}
                             />
                         `)}
                     </div>
@@ -779,7 +852,7 @@ function Post({
                 `}
                 ${filteredFileIds.length > 0 && html`
                     <div class="file-attachments">
-                        ${filteredFileIds.map((id) => html`
+                        ${filteredFileIds.map((id: any) => html`
                             <${FileAttachment} key=${id} mediaId=${id} />
                         `)}
                     </div>
@@ -804,9 +877,9 @@ function Post({
                         `)}
                     </div>
                 `}
-                ${data.link_previews?.length > 0 && html`
+                ${linkPreviews.length > 0 && html`
                     <div class="link-previews">
-                        ${data.link_previews.map((preview, i) => html`
+                        ${linkPreviews.map((preview: any, i: any) => html`
                             <${LinkPreview} key=${i} preview=${preview} />
                         `)}
                     </div>
@@ -841,7 +914,7 @@ export function Timeline({
     getAvatarInfo,
     formatTime,
     formatCount,
-}) {
+}: TimelineProps & { reverse?: boolean }) {
     const [loadingMore, setLoadingMore] = useState(false);
     const sentinelRef = useRef(null);
     const hasIntersectionObserver = typeof IntersectionObserver !== 'undefined';
@@ -856,7 +929,7 @@ export function Timeline({
         }
     }, [hasMore, loadingMore, onLoadMore]);
 
-    const handleScroll = useCallback((e) => {
+    const handleScroll = useCallback((e: any) => {
         const { scrollTop, scrollHeight, clientHeight } = e.target;
         const distanceFromTop = reverse ? (scrollHeight - clientHeight - scrollTop) : scrollTop;
         const prefetchThreshold = Math.max(300, clientHeight);
@@ -876,7 +949,7 @@ export function Timeline({
         const prefetchThreshold = Math.max(300, root.clientHeight || 0);
         const observer = new IntersectionObserver(
             (entries) => {
-                if (entries.some((entry) => entry.isIntersecting)) {
+                if (entries.some((entry: any) => entry.isIntersecting)) {
                     triggerLoadMore();
                 }
             },
@@ -919,13 +992,13 @@ export function Timeline({
         `;
     }
 
-    const displayPosts = posts.slice().sort((a, b) => a.id - b.id);
+    const displayPosts = posts.slice().sort((a: any, b: any) => a.id - b.id);
 
     return html`
         <div class="timeline ${reverse ? 'reverse' : 'normal'}" ref=${timelineRef} onScroll=${hasIntersectionObserver ? undefined : handleScroll}>
             <div class="timeline-content">
                 <div class="timeline-sentinel" ref=${sentinelRef}></div>
-                ${displayPosts.map((post) => {
+                ${displayPosts.map((post: any) => {
                     const isThreadReply = Boolean(post.data?.thread_id && post.data.thread_id !== post.id);
                     return html`
                     <${Post}

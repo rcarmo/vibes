@@ -12,6 +12,7 @@ export interface WorkspaceTreeNode {
     type?: string;
     size?: number;
     children?: WorkspaceTreeNode[];
+    child_count?: number;
 }
 
 export interface SunburstArc {

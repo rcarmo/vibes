@@ -4,13 +4,15 @@
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
+    "noImplicitAny": false,
     "noEmit": true,
     "allowJs": true,
     "checkJs": false,
     "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "skipLibCheck": true,
-    "types": ["bun"]
+    "types": ["bun"],
+    "useUnknownInCatchVariables": false
   },
   "include": [
     "static/js/**/*.ts",

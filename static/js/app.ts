@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.ts';
 import { getAgentProviders } from './features/backends/backend-api.ts';
@@ -14,6 +13,13 @@ import { normalizeProviders, resolveActiveProviderId, getProviderById } from './
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
+
+declare global {
+    interface Window {
+        __VIBES_SILENCE?: Record<string, unknown>;
+        [key: string]: unknown;
+    }
+}
 
 // Hashtag regex
 const HASHTAG_REGEX = /#(\w+)/g;
@@ -112,10 +118,10 @@ function extractMermaidBlocks(text) {
     if (!text) return { text: '', blocks: [] };
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n');
-    const blocks = [];
-    const output = [];
+    const blocks: string[] = [];
+    const output: string[] = [];
     let inMermaid = false;
-    let current = [];
+    let current: string[] = [];
 
     for (const line of lines) {
         if (!inMermaid && line.trim().match(/^```mermaid\s*$/i)) {
@@ -226,7 +232,7 @@ function renderMath(html_content) {
         .replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
     // Strip code blocks before math processing to avoid $-in-code false positives
-    const codeBlocks = [];
+    const codeBlocks: string[] = [];
     let stripped = html_content.replace(/<pre\b[^>]*>\s*<code\b[^>]*>[\s\S]*?<\/code>\s*<\/pre>/gi, (m) => {
         codeBlocks.push(m);
         return `@@CODE_BLOCK_${codeBlocks.length - 1}@@`;
@@ -270,7 +276,7 @@ function normalizeMathFences(text) {
     if (!text) return text;
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n');
-    const output = [];
+    const output: string[] = [];
     let inMath = false;
 
     for (const line of lines) {
@@ -330,7 +336,7 @@ function renderMarkdown(text) {
     const safeHtml = restoreAllowedHtmlTags(escaped);
 
     // Render markdown to HTML (preserve escaped HTML)
-    let html_content = marked.parse(safeHtml, { headerIds: false, mangle: false });
+    let html_content = marked.parse(safeHtml, { headerIds: false, mangle: false } as any) as unknown as string;
 
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
@@ -352,7 +358,7 @@ function linkifyHashtagsInHtml(html_content) {
     if (!html_content) return html_content;
     const doc = new DOMParser().parseFromString(html_content, 'text/html');
     const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
-    const nodes = [];
+    const nodes: Text[] = [];
     let node;
     while ((node = walker.nextNode())) {
         nodes.push(node);
@@ -428,11 +434,11 @@ async function renderMermaidDiagrams(container) {
 /**
  * Format relative time
  */
-function formatTime(timestamp) {
+function formatTime(timestamp: any) {
     const date = new Date(timestamp);
     if (Number.isNaN(date.getTime())) return timestamp;
     const now = new Date();
-    const diffMs = now - date;
+    const diffMs = now.getTime() - date.getTime();
     const diffSec = diffMs / 1000;
     const dayMs = 24 * 60 * 60 * 1000;
 
@@ -491,8 +497,8 @@ const AGENT_AVATAR_URL = '/static/icon-192.png';
  * Get avatar display info from name and optional image URL.
  * Returns object with { letter, color, image }
  */
-function getAvatarInfo(name, avatarUrl = null) {
-    const resolvedName = name || DEFAULT_AGENT_NAME;
+function getAvatarInfo(name?: string, avatarUrl: string | null = null) {
+    const resolvedName: string = name || DEFAULT_AGENT_NAME;
     const letter = resolvedName.charAt(0).toUpperCase();
     
     // Generate a consistent color based on the letter
@@ -927,7 +933,7 @@ function App() {
     const handlePopOutTab = useCallback((tabId) => {
         if (!tabId) return;
         const tab = editorTabs.find((t) => t.id === tabId);
-        const transferPayload = stashEditorPopoutState({
+        const transferToken = stashEditorPopoutState({
             path: tabId,
             content: tab?.content,
             mtime: tab?.mtime || null,
@@ -935,8 +941,8 @@ function App() {
         const params = new URLSearchParams();
         params.set('editor', tabId);
         params.set('popout', '1');
-        if (transferPayload?.editor_popout) {
-            params.set('editor_popout', transferPayload.editor_popout);
+        if (transferToken) {
+            params.set('editor_popout', transferToken);
         }
         const url = `${window.location.origin}${window.location.pathname}?${params}`;
         // Explicit left/top + toolbar=no forces a real window in Safari
@@ -1065,7 +1071,7 @@ function App() {
         }
     }, []);
 
-    const noteAgentActivity = useCallback((options = {}) => {
+    const noteAgentActivity = useCallback((options: { running?: boolean; clearSilence?: boolean } = {}) => {
         lastAgentEventRef.current = Date.now();
         if (options.running) {
             isAgentRunningRef.current = true;
@@ -1976,7 +1982,7 @@ function App() {
         
         sse.connect();
 
-        let reconnectTimer = null;
+        let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
         const handleWindowFocus = () => {
             if (document.visibilityState === 'hidden') return;
             if (reconnectTimer) clearTimeout(reconnectTimer);
