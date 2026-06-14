@@ -8,6 +8,7 @@ import { WorkspaceEditor } from './components/editor.js';
 import { TabStrip } from './components/tab-strip.js';
 import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
 import { SettingsDialog, FirstRunWizard } from './components/settings.js';
+import { normalizeProviders, resolveActiveProviderId, getProviderById } from './features/backends/provider-utils.js';
 import katex from 'katex';
 import { marked } from 'marked';
 import { renderMermaid, THEMES as MERMAID_THEMES } from 'beautiful-mermaid';
@@ -1534,11 +1535,11 @@ function App() {
             const providerPayload = Array.isArray(data?.providers) && data.providers.length
                 ? { providers: data.providers, active: data.active }
                 : await getAgentProviders().catch(() => null);
-            const nextProviders = Array.isArray(providerPayload?.providers) ? providerPayload.providers : [];
+            const nextProviders = normalizeProviders(providerPayload);
             setProviders(nextProviders);
-            const activeProviderId = providerPayload?.active || nextProviders.find((provider) => provider.active)?.id || nextProviders.find((provider) => provider.available)?.id || null;
-            setActiveBackendId((prev) => prev || activeProviderId);
-            const activeProvider = nextProviders.find((provider) => provider.id === activeProviderId) || null;
+            const activeProviderId = resolveActiveProviderId(providerPayload, activeBackendId);
+            setActiveBackendId(activeProviderId);
+            const activeProvider = getProviderById(nextProviders, activeProviderId);
             const defaultAgent = (data?.agents || []).find((agent) => agent.id === activeProviderId) || (data?.agents || []).find((agent) => agent.active) || null;
             setActiveModel(activeProvider?.model || resolveAgentModel(defaultAgent));
             applyBranding(defaultAgent?.name || activeProvider?.label, defaultAgent?.avatar_url);
@@ -1554,7 +1555,7 @@ function App() {
         } catch (e) {
             console.warn('Failed to load agents:', e);
         }
-    }, [applyBranding]);
+    }, [activeBackendId, applyBranding]);
 
     const expandAgentPanel = useCallback(async (panelKey, turnId) => {
         if (!turnId || (panelKey !== 'draft' && panelKey !== 'thought')) return;

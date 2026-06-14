@@ -331,6 +331,7 @@ func (app *App) initializeAgents(ctx context.Context) error {
 		if err := p.Initialize(ctx); err != nil {
 			// Log but don't fail - server should start even if agent init fails.
 			// This allows API/UI tests to run in CI without a working agent.
+			app.Agents.MarkProviderError(id, "initialization_failed", err.Error())
 			slog.Warn("agent initialization failed (server will start without it)",
 				"id", id, "error", err)
 			continue

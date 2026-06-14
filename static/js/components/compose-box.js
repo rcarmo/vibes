@@ -1,6 +1,7 @@
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 import { isPopupTypeaheadKey, updatePopupTypeaheadBuffer, resolvePopupTypeaheadMatch } from '../ui/popup-typeahead.js';
+import { canSetThinking, canSwitchModels, describeProvider, getAvailableProviders, getProviderById, selectableBackendId } from '../features/backends/provider-utils.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -226,17 +227,16 @@ export function ComposeBox({
     const notificationTitle = notificationActive ? 'Disable notifications' : 'Enable notifications';
 
     const providerOptions = (providers || []).filter((provider) => provider);
-    const availableProviders = providerOptions.filter((provider) => provider.available);
-    const selectedProvider = providerOptions.find((provider) => provider.id === activeBackendId)
+    const availableProviders = getAvailableProviders(providerOptions);
+    const selectedProvider = getProviderById(providerOptions, activeBackendId)
         || availableProviders[0]
         || providerOptions[0]
         || null;
-    const selectedBackendId = selectedProvider?.available ? selectedProvider.id : null;
-    const selectedCapabilities = selectedProvider?.capabilities || {};
-    const canSwitchModels = Boolean(selectedCapabilities.model_list || selectedCapabilities.model_switch);
-    const canSetThinking = Array.isArray(selectedCapabilities.thinking_levels) && selectedCapabilities.thinking_levels.length > 0;
+    const selectedBackendId = selectableBackendId(selectedProvider, null);
+    const canSwitchSelectedModels = canSwitchModels(selectedProvider);
+    const canSetSelectedThinking = canSetThinking(selectedProvider);
     const modelHintLabel = activeModel ? `${activeModel}` : '';
-    const thinkingLabel = (supportsThinking || canSetThinking)
+    const thinkingLabel = (supportsThinking || canSetSelectedThinking)
         ? `Thinking: ${thinkingLevel || 'default'}`
         : '';
 
@@ -436,21 +436,6 @@ export function ComposeBox({
         modelPopupIndex,
         handleSelectModel,
     ]);
-
-    const describeProvider = (provider) => {
-        if (!provider) return 'No backend selected';
-        const caps = provider.capabilities || {};
-        const summary = [];
-        if (caps.model_list || caps.model_switch) summary.push('models');
-        if (Array.isArray(caps.thinking_levels) && caps.thinking_levels.length > 0) summary.push('thinking');
-        if (caps.tool_events) summary.push('tools');
-        if (caps.steering) summary.push('steering');
-        if (caps.session_stats || caps.session_compact) summary.push('sessions');
-        const state = provider.available ? (provider.ready ? 'ready' : (provider.status || 'available')) : (provider.status || 'unavailable');
-        const detail = summary.length ? ` · ${summary.join(' · ')}` : '';
-        const error = provider.error ? ` — ${provider.error}` : '';
-        return `${provider.label || provider.id} (${provider.transport || provider.family || 'backend'}): ${state}${detail}${error}`;
-    };
 
     const handleBackendSelect = (event) => {
         const next = event.target.value;
@@ -907,7 +892,7 @@ export function ComposeBox({
                             `)}
                         </div>
                     `}
-                    ${!searchMode && (providerOptions.length > 0 || activeModel || supportsThinking || canSetThinking || (contextUsage && contextUsage.percent != null)) && html`
+                    ${!searchMode && (providerOptions.length > 0 || activeModel || supportsThinking || canSetSelectedThinking || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
                             ${providerOptions.length > 0 && html`
                                 <select
@@ -925,7 +910,7 @@ export function ComposeBox({
                                     `)}
                                 </select>
                             `}
-                            ${activeModel && canSwitchModels && html`
+                            ${activeModel && canSwitchSelectedModels && html`
                                 <button
                                     ref=${modelHintRef}
                                     type="button"
@@ -938,7 +923,7 @@ export function ComposeBox({
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>
                             `}
-                            ${(supportsThinking || canSetThinking) && html`
+                            ${(supportsThinking || canSetSelectedThinking) && html`
                                 <button
                                     type="button"
                                     class="compose-thinking-pill"

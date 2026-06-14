@@ -96,6 +96,20 @@ func TestRegistryList(t *testing.T) {
 	}
 }
 
+func TestRegistrySetActiveRejectsUnavailableBackend(t *testing.T) {
+	r := NewRegistry()
+	r.RegisterWithDescriptor("pi", newStub("pi"), ProviderDescriptor{ID: "pi", Label: "Pi", Available: true})
+	r.RegisterWithDescriptor("codex", newStub("codex"), ProviderDescriptor{ID: "codex", Label: "Codex", Available: true})
+	r.MarkProviderError("codex", "initialization_failed", "auth required")
+
+	if err := r.SetActive("codex"); err == nil {
+		t.Fatal("SetActive should reject unavailable backend")
+	}
+	if r.Active() != "pi" {
+		t.Fatalf("Active = %q, want pi", r.Active())
+	}
+}
+
 func TestRegistryDescriptorsIncludeUnavailableBackends(t *testing.T) {
 	r := NewRegistry()
 	r.RegisterWithDescriptor("pi", newStub("pi"), ProviderDescriptor{
@@ -130,5 +144,30 @@ func TestRegistryDescriptorsIncludeUnavailableBackends(t *testing.T) {
 	}
 	if seen["codex"].Status != "missing_binary" {
 		t.Fatalf("codex status = %q", seen["codex"].Status)
+	}
+}
+
+func TestRegistryMarkProviderError(t *testing.T) {
+	r := NewRegistry()
+	r.RegisterWithDescriptor("codex", newStub("codex"), ProviderDescriptor{
+		ID:        "codex",
+		Label:     "Codex",
+		Family:    "codex",
+		Transport: "acp",
+		Available: true,
+	})
+	r.MarkProviderError("codex", "initialization_failed", "auth required")
+	descriptor, ok := r.Descriptor("codex")
+	if !ok {
+		t.Fatal("codex descriptor missing")
+	}
+	if descriptor.Available {
+		t.Fatalf("codex should be unavailable after error: %#v", descriptor)
+	}
+	if descriptor.Status != "initialization_failed" {
+		t.Fatalf("status = %q", descriptor.Status)
+	}
+	if descriptor.Error != "auth required" {
+		t.Fatalf("error = %q", descriptor.Error)
 	}
 }

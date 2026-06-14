@@ -159,8 +159,29 @@ func (r *Registry) SetActive(id string) error {
 	if _, ok := r.providers[id]; !ok {
 		return fmt.Errorf("unknown agent provider: %s", id)
 	}
+	if descriptor, ok := r.descriptors[id]; ok && !descriptor.Available {
+		return fmt.Errorf("agent provider %s is not available", id)
+	}
 	r.active = id
 	return nil
+}
+
+// MarkProviderError records a runtime provider failure in its descriptor.
+func (r *Registry) MarkProviderError(id, status, message string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	descriptor, ok := r.descriptors[id]
+	if !ok {
+		descriptor = ProviderDescriptor{ID: id, Label: id}
+	}
+	if status == "" {
+		status = "error"
+	}
+	descriptor.Status = status
+	descriptor.Error = message
+	descriptor.Ready = false
+	descriptor.Available = false
+	r.descriptors[id] = descriptor
 }
 
 // List returns all registered provider IDs.
@@ -184,12 +205,11 @@ func (r *Registry) Descriptors() []ProviderDescriptor {
 	items := make([]ProviderDescriptor, 0, len(r.descriptors))
 	for id, descriptor := range r.descriptors {
 		descriptor.Active = id == r.active
-		if p, ok := r.providers[id]; ok && p != nil {
+		if p, ok := r.providers[id]; ok && p != nil && descriptor.Available {
 			status := p.Status()
 			descriptor.Model = status.Model
 			descriptor.Ready = status.State == "idle" || status.State == "busy"
 			descriptor.Status = status.State
-			descriptor.Available = true
 		} else if descriptor.Status == "" {
 			descriptor.Status = "unavailable"
 		}
@@ -207,12 +227,11 @@ func (r *Registry) Descriptor(id string) (ProviderDescriptor, bool) {
 		return ProviderDescriptor{}, false
 	}
 	descriptor.Active = id == r.active
-	if p, ok := r.providers[id]; ok && p != nil {
+	if p, ok := r.providers[id]; ok && p != nil && descriptor.Available {
 		status := p.Status()
 		descriptor.Model = status.Model
 		descriptor.Ready = status.State == "idle" || status.State == "busy"
 		descriptor.Status = status.State
-		descriptor.Available = true
 	} else if descriptor.Status == "" {
 		descriptor.Status = "unavailable"
 	}
