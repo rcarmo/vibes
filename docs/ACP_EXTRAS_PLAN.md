@@ -97,13 +97,14 @@ Goal: expose negotiated ACP controls in the frontend without leaking unsupported
 1. Provider descriptors expose explicit filesystem and terminal service booleans.
 2. Frontend provider utilities understand `permission_requests`, `fs_read_text_file`, `fs_write_text_file`, and `terminal_services` capability flags.
 3. Provider summaries can display read-only filesystem and permission support while write filesystem and terminal affordances remain hidden/disabled unless a provider explicitly advertises them.
+4. ACP providers store bounded display-only `session/new` metadata (`modes`, sanitized `configOptions`) and expose it as `session_metadata` in provider descriptors.
+5. Frontend summaries can show session `modes`/`config` availability without enabling session-mode or config mutation controls.
 
 ### Remaining scope
 
-1. Surface `session/new` result `modes` and `configOptions` in provider descriptors or a provider details endpoint.
-2. Reflect usage/session updates from `session/update` events when present.
-3. Add available command UI only after ACP command capabilities are detected.
-4. Keep controls hidden/disabled unless the active provider advertises support.
+1. Reflect usage/session updates from `session/update` events when present.
+2. Add available command UI only after ACP command capabilities are detected.
+3. Keep controls hidden/disabled unless the active provider advertises support.
 
 ### Safety gates
 

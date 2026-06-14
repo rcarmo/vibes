@@ -84,23 +84,38 @@ type CapabilityProvider interface {
 	Capabilities() ProviderCapabilities
 }
 
+// ProviderSessionMetadata is display-only session metadata returned by a
+// provider after session setup. Frontend controls must still check explicit
+// capabilities before enabling actions.
+type ProviderSessionMetadata struct {
+	Modes         []string                 `json:"modes,omitempty"`
+	ConfigOptions []map[string]interface{} `json:"config_options,omitempty"`
+}
+
+// SessionMetadataProvider can be implemented by providers that expose safe
+// session/new result metadata for frontend display/discovery.
+type SessionMetadataProvider interface {
+	SessionMetadata() ProviderSessionMetadata
+}
+
 // ProviderDescriptor is the public identity, transport, availability and
 // capability record for a backend.
 type ProviderDescriptor struct {
-	ID           string               `json:"id"`
-	Label        string               `json:"label"`
-	Family       string               `json:"family"`
-	Transport    string               `json:"transport"`
-	Command      string               `json:"command,omitempty"`
-	Configured   bool                 `json:"configured"`
-	Detected     bool                 `json:"detected"`
-	Available    bool                 `json:"available"`
-	Ready        bool                 `json:"ready"`
-	Active       bool                 `json:"active"`
-	Status       string               `json:"status"`
-	Error        string               `json:"error,omitempty"`
-	Model        string               `json:"model,omitempty"`
-	Capabilities ProviderCapabilities `json:"capabilities"`
+	ID              string                  `json:"id"`
+	Label           string                  `json:"label"`
+	Family          string                  `json:"family"`
+	Transport       string                  `json:"transport"`
+	Command         string                  `json:"command,omitempty"`
+	Configured      bool                    `json:"configured"`
+	Detected        bool                    `json:"detected"`
+	Available       bool                    `json:"available"`
+	Ready           bool                    `json:"ready"`
+	Active          bool                    `json:"active"`
+	Status          string                  `json:"status"`
+	Error           string                  `json:"error,omitempty"`
+	Model           string                  `json:"model,omitempty"`
+	Capabilities    ProviderCapabilities    `json:"capabilities"`
+	SessionMetadata ProviderSessionMetadata `json:"session_metadata,omitempty"`
 }
 
 // Registry manages multiple agent providers and allows runtime switching.
@@ -222,19 +237,7 @@ func (r *Registry) Descriptors() []ProviderDescriptor {
 
 	items := make([]ProviderDescriptor, 0, len(r.descriptors))
 	for id, descriptor := range r.descriptors {
-		descriptor.Active = id == r.active
-		if p, ok := r.providers[id]; ok && p != nil && descriptor.Available {
-			status := p.Status()
-			descriptor.Model = status.Model
-			descriptor.Ready = status.State == "idle" || status.State == "busy"
-			descriptor.Status = status.State
-			if cp, ok := p.(CapabilityProvider); ok {
-				descriptor.Capabilities = cp.Capabilities()
-			}
-		} else if descriptor.Status == "" {
-			descriptor.Status = "unavailable"
-		}
-		items = append(items, descriptor)
+		items = append(items, r.refreshDescriptorLocked(id, descriptor))
 	}
 	return items
 }
@@ -247,6 +250,10 @@ func (r *Registry) Descriptor(id string) (ProviderDescriptor, bool) {
 	if !ok {
 		return ProviderDescriptor{}, false
 	}
+	return r.refreshDescriptorLocked(id, descriptor), true
+}
+
+func (r *Registry) refreshDescriptorLocked(id string, descriptor ProviderDescriptor) ProviderDescriptor {
 	descriptor.Active = id == r.active
 	if p, ok := r.providers[id]; ok && p != nil && descriptor.Available {
 		status := p.Status()
@@ -256,10 +263,13 @@ func (r *Registry) Descriptor(id string) (ProviderDescriptor, bool) {
 		if cp, ok := p.(CapabilityProvider); ok {
 			descriptor.Capabilities = cp.Capabilities()
 		}
+		if smp, ok := p.(SessionMetadataProvider); ok {
+			descriptor.SessionMetadata = smp.SessionMetadata()
+		}
 	} else if descriptor.Status == "" {
 		descriptor.Status = "unavailable"
 	}
-	return descriptor, true
+	return descriptor
 }
 
 // Active returns the current active provider ID.

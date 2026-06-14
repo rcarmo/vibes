@@ -55,6 +55,7 @@ type Provider struct {
 	mu                sync.RWMutex
 	status            agent.ProviderStatus
 	capabilities      AgentCapabilities
+	sessionMetadata   agent.ProviderSessionMetadata
 	permissionHandler PermissionHandler
 }
 
@@ -163,6 +164,7 @@ func (p *Provider) Initialize(ctx context.Context) error {
 		if sid, ok := result["sessionId"].(string); ok {
 			p.sessionID = sid
 		}
+		p.setSessionMetadata(parseSessionMetadata(result))
 	}
 
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: model})

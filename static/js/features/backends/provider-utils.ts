@@ -21,6 +21,11 @@ export interface ProviderCapabilities {
     terminal_services?: boolean;
 }
 
+export interface ProviderSessionMetadata {
+    modes?: string[];
+    config_options?: Array<Record<string, unknown>>;
+}
+
 export interface ProviderDescriptor {
     id: string;
     label?: string;
@@ -36,6 +41,7 @@ export interface ProviderDescriptor {
     error?: string;
     model?: string;
     capabilities?: ProviderCapabilities;
+    session_metadata?: ProviderSessionMetadata;
 }
 
 export interface ProviderPayload {
@@ -89,6 +95,7 @@ export function canUseTerminalServices(provider: ProviderDescriptor | null | und
 
 export function providerCapabilitySummary(provider: ProviderDescriptor | null | undefined): string[] {
     const caps = provider?.capabilities || {};
+    const metadata = provider?.session_metadata || {};
     const summary: string[] = [];
     if (caps.model_list || caps.model_switch) summary.push('models');
     if (Array.isArray(caps.thinking_levels) && caps.thinking_levels.length > 0) summary.push('thinking');
@@ -100,6 +107,8 @@ export function providerCapabilitySummary(provider: ProviderDescriptor | null | 
     if (caps.steering) summary.push('steering');
     if (caps.follow_up_queue) summary.push('queue');
     if (caps.session_stats || caps.session_compact) summary.push('sessions');
+    if (Array.isArray(metadata.modes) && metadata.modes.length > 0) summary.push('modes');
+    if (Array.isArray(metadata.config_options) && metadata.config_options.length > 0) summary.push('config');
     return summary;
 }
 

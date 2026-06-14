@@ -28,6 +28,14 @@ type capabilityStubProvider struct {
 
 func (s *capabilityStubProvider) Capabilities() ProviderCapabilities { return s.capabilities }
 
+// metadataStubProvider exposes session metadata for descriptor refresh tests.
+type metadataStubProvider struct {
+	*capabilityStubProvider
+	metadata ProviderSessionMetadata
+}
+
+func (s *metadataStubProvider) SessionMetadata() ProviderSessionMetadata { return s.metadata }
+
 func newStub(id string) *stubProvider {
 	return &stubProvider{id: id, events: make(chan Event)}
 }
@@ -178,6 +186,32 @@ func TestRegistryDescriptorUsesNegotiatedProviderCapabilities(t *testing.T) {
 	}
 	if descriptor.Capabilities.FSWriteTextFile || descriptor.Capabilities.TerminalServices {
 		t.Fatalf("unsafe capabilities should remain disabled: %#v", descriptor.Capabilities)
+	}
+}
+
+func TestRegistryDescriptorIncludesSessionMetadata(t *testing.T) {
+	r := NewRegistry()
+	p := &metadataStubProvider{
+		capabilityStubProvider: &capabilityStubProvider{
+			stubProvider: newStub("codex"),
+			capabilities: ProviderCapabilities{SessionResume: true},
+		},
+		metadata: ProviderSessionMetadata{
+			Modes:         []string{"default", "plan"},
+			ConfigOptions: []map[string]interface{}{{"id": "mode", "type": "select"}},
+		},
+	}
+	r.RegisterWithDescriptor("codex", p, ProviderDescriptor{ID: "codex", Label: "Codex", Available: true})
+
+	descriptor, ok := r.Descriptor("codex")
+	if !ok {
+		t.Fatal("codex descriptor missing")
+	}
+	if len(descriptor.SessionMetadata.Modes) != 2 || descriptor.SessionMetadata.Modes[1] != "plan" {
+		t.Fatalf("session metadata modes = %#v", descriptor.SessionMetadata.Modes)
+	}
+	if len(descriptor.SessionMetadata.ConfigOptions) != 1 || descriptor.SessionMetadata.ConfigOptions[0]["id"] != "mode" {
+		t.Fatalf("session metadata config options = %#v", descriptor.SessionMetadata.ConfigOptions)
 	}
 }
 
