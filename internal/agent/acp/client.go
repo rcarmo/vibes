@@ -164,6 +164,11 @@ func (p *Provider) Initialize(ctx context.Context) error {
 
 // Prompt sends a user message to the ACP agent.
 func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) error {
+	return p.PromptRequest(ctx, agent.PromptRequest{Text: message, ThreadID: threadID})
+}
+
+// PromptRequest sends a prompt envelope to the ACP agent.
+func (p *Provider) PromptRequest(ctx context.Context, req agent.PromptRequest) error {
 	if p.writer == nil {
 		return fmt.Errorf("ACP agent %s is not initialized", p.cfg.ID)
 	}
@@ -176,9 +181,7 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 	p.draftMu.Unlock()
 
 	params := map[string]interface{}{
-		"prompt": []interface{}{
-			map[string]interface{}{"type": "text", "text": message},
-		},
+		"prompt": renderPromptBlocks(req),
 	}
 	if p.sessionID != "" {
 		params["sessionId"] = p.sessionID

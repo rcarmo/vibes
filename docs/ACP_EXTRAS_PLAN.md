@@ -10,9 +10,17 @@ This document tracks ACP features beyond the baseline text prompt/session flow. 
 - Pass MCP servers to `session/new`, always allowing stdio and filtering HTTP/SSE unless the agent advertises support.
 - Keep ACP client filesystem, terminal, and permission services disabled.
 
-## Milestone B — prompt context blocks
+## Completed: Milestone B — prompt context blocks
 
 Goal: enrich `session/prompt` without sending content block types the agent did not advertise.
+
+### Delivered
+
+- Added a provider-neutral prompt envelope while preserving legacy text-only `Provider.Prompt` compatibility.
+- Added ACP rendering for `text` plus explicit `resource_link` prompt blocks.
+- Added `POST /agent/{id}/message` request plumbing for optional explicit `context` resource links.
+- Kept image/audio/embedded prompt blocks disabled until size/source policies and UI affordances exist.
+- Added prompt rendering tests.
 
 ### Scope
 

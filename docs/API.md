@@ -88,6 +88,25 @@ On success, response includes refreshed `mtime`.
 | POST | `/agent/whitelist` | Add whitelist pattern |
 | DELETE | `/agent/whitelist` | Remove whitelist pattern |
 
+`POST /agent/{id}/message` accepts plain text plus optional explicit prompt context links:
+
+```json
+{
+  "content": "Summarize this reference.",
+  "thread_id": 123,
+  "media_ids": [],
+  "context": [
+    {
+      "uri": "file:///workspace/docs/spec.md",
+      "name": "spec.md",
+      "mime_type": "text/markdown"
+    }
+  ]
+}
+```
+
+ACP providers render `context` entries as `resource_link` prompt blocks. Vibes does not read linked files implicitly, and image/audio/embedded prompt blocks remain disabled until capability and safety gates are implemented.
+
 ## Avatars
 
 | Method | Endpoint | Description |

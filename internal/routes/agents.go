@@ -104,10 +104,11 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		agentID := chi.URLParam(r, "id")
 
 		var req struct {
-			Content   string  `json:"content"`
-			ThreadID  *int64  `json:"thread_id"`
-			MediaIDs  []int64 `json:"media_ids"`
-			BackendID string  `json:"backend_id"`
+			Content   string                     `json:"content"`
+			ThreadID  *int64                     `json:"thread_id"`
+			MediaIDs  []int64                    `json:"media_ids"`
+			BackendID string                     `json:"backend_id"`
+			Context   []agent.PromptResourceLink `json:"context"`
 		}
 		if err := decodeJSON(r, &req); err != nil {
 			jsonError(w, "invalid body", http.StatusBadRequest)
@@ -227,7 +228,13 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 		// Launch agent prompt in background
 		promptCtx := context.Background()
 		go func() {
-			err := provider.Prompt(promptCtx, req.Content, threadID)
+			promptReq := agent.PromptRequest{Text: req.Content, ThreadID: threadID, ResourceLinks: req.Context}
+			var err error
+			if richProvider, ok := provider.(agent.RichPromptProvider); ok {
+				err = richProvider.PromptRequest(promptCtx, promptReq)
+			} else {
+				err = provider.Prompt(promptCtx, req.Content, threadID)
+			}
 			if err != nil {
 				broker.Broadcast(sse.Event{Type: "agent_error", Data: map[string]string{"error": err.Error()}})
 				return
