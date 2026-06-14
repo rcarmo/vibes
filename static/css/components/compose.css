@@ -1,0 +1,17 @@
+/* Compose component styles split from styles.css. */
+
+.compose-backend-picker {
+    flex-shrink: 0;
+    max-width: 140px;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    border-radius: var(--radius-full);
+    font-size: 11px;
+    line-height: 1;
+    padding: 2px 18px 2px 8px;
+}
+
+.compose-backend-picker:disabled {
+    opacity: 0.6;
+}

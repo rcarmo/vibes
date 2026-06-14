@@ -82,8 +82,8 @@ function AppearanceTab({ settings, onChange }) {
 function ModelsTab({ settings, onChange }) {
     return html`
         <div class="settings-section">
-            <h3>Agent Provider</h3>
-            <${SettingRow} label="Default agent" description="Agent to use for new conversations">
+            <h3>Backend Provider</h3>
+            <${SettingRow} label="Default backend" description="Backend to use for new conversations">
                 <input type="text" value=${settings.defaultAgent || ''}
                     placeholder="(auto-detect)"
                     onInput=${(e) => onChange('defaultAgent', e.target.value)} />

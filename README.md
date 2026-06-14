@@ -84,7 +84,7 @@ open http://localhost:8080
 ### From source (recommended)
 
 ```bash
-make build    # bun install → bun run build.js → go build
+make build    # frontend bundle + embedded Go binary
 ```
 
 This produces a **fully self-contained binary** with all HTML, CSS, JS, fonts, and icons embedded at compile time via `//go:embed`.
@@ -268,7 +268,7 @@ Server → Client (text/event-stream):
 | Deployment | virtualenv + pip + Python runtime | Single static binary |
 | Memory | ~80 MB baseline (Python + aiohttp) | ~15 MB baseline |
 | Boot time | 2–3s (Python import chain) | <100 ms |
-| Cross-compile | Not practical | `GOOS=linux GOARCH=arm64 go build` |
+| Cross-compile | Not practical | Makefile targets such as `make build-linux-arm64` |
 | Concurrency | asyncio (single thread) | Goroutines (multi-core) |
 | SQLite binding | C extension (requires build tools) | Pure Go (`modernc.org/sqlite`) |
 | Asset delivery | Separate static directory | Embedded via `//go:embed` |
@@ -382,7 +382,8 @@ vibes/
 ├── static/                           # Frontend (embedded at compile time)
 │   ├── index.html                    # SPA entry point
 │   ├── manifest.json                 # PWA manifest
-│   ├── css/styles.css                # Main stylesheet
+│   ├── css/styles.css                # Main stylesheet/base rules
+│   ├── css/components/               # Per-component CSS split-outs
 │   ├── dist/app.{js,css}            # Bundled frontend (Bun)
 │   ├── js/                           # Source modules (Preact + HTM)
 │   │   ├── app.js                    # Root SPA component

@@ -93,7 +93,7 @@ static/css/
     editor.css
 ```
 
-Until CSS imports are wired into `build.js`, keep changes in `styles.css` clearly sectioned and avoid scattering component rules across the file.
+CSS component split-outs are wired into `build.js`; prefer adding component-specific rules under `static/css/components/` and updating the `cssSources` list when creating new CSS files. Keep `styles.css` for tokens, base rules, layout primitives and legacy rules pending extraction.
 
 ### Progressive TypeScript conversion
 

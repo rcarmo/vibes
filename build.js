@@ -5,7 +5,7 @@
  * codemirror, beautiful-mermaid) into a single ESM file and all CSS
  * (katex + styles) into a single minified stylesheet under static/dist/.
  *
- * Usage:  bun run build.js
+ * Usage:  make frontend
  */
 
 import { resolve, dirname } from "path";
@@ -42,6 +42,8 @@ for (const o of jsResult.outputs) {
 const cssSources = [
   resolve(staticDir, "css/katex.min.css"),
   resolve(staticDir, "css/styles.css"),
+  resolve(staticDir, "css/components/compose.css"),
+  resolve(staticDir, "css/components/timeline.css"),
 ];
 
 const combined = cssSources

@@ -1,0 +1,11 @@
+/* Timeline component styles split from styles.css. */
+
+.post-backend {
+    color: var(--text-secondary);
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-full);
+    font-size: 10.5px;
+    line-height: 1;
+    padding: 2px 6px;
+}

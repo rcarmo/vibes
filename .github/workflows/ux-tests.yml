@@ -36,14 +36,11 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Install frontend dependencies
-        run: bun install
-
       - name: Build frontend bundle
-        run: bun run build.js
+        run: make frontend
 
       - name: Build vibes binary
-        run: go build -ldflags "-s -w" -o vibes ./cmd/vibes/
+        run: make build-go
 
       - name: Install Playwright browsers
         run: bunx playwright install chromium --with-deps
@@ -67,7 +64,8 @@ jobs:
       - name: Start vibes server with OpenCode ACP
         env:
           VIBES_PORT: "8765"
-          VIBES_ACP_AGENT: "opencode acp"
+          VIBES_DEFAULT_AGENT: "codex"
+          VIBES_CODEX_AGENT: "opencode acp"
           VIBES_ACP_DEBUG: "true"
           VIBES_DB_PATH: /tmp/vibes-bdd-test.db
           VIBES_DEBUG: "true"

@@ -4,9 +4,17 @@ Vibes can use a Pi coding agent via Pi RPC events and commands.
 
 ## Enable Pi mode
 
+Pi native RPC discovery is enabled by default when `pi` is present in `PATH`.
+To make Pi the default backend for new unbound turns:
+
 ```bash
 VIBES_DEFAULT_AGENT=pi
-VIBES_PI_ENABLED=true
+```
+
+To hide/disable Pi explicitly:
+
+```bash
+VIBES_PI_ENABLED=false
 ```
 
 Optional:
@@ -15,11 +23,12 @@ Optional:
 VIBES_PI_AGENT="pi"
 ```
 
-Agent ids:
+Backend ids:
 
-- `default` → uses `VIBES_DEFAULT_AGENT`
-- `pi` → Pi provider
-- `acp` → ACP provider
+- `default` → uses `VIBES_DEFAULT_AGENT` (`acp` maps to `copilot` for compatibility)
+- `pi` → Pi native RPC provider
+- `copilot` → GitHub Copilot over ACP
+- `codex` → Codex-compatible ACP backend
 
 ## Implementation locations
 

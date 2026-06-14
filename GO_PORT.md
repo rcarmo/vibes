@@ -117,7 +117,10 @@ vibes-go/
 │       └── {ext}/
 │           ├── manifest.json
 │           ├── index.js
-│           └── styles.css
+│           ├── styles.css
+│           └── components/
+│               ├── compose.css
+│               └── timeline.css
 ```
 
 Extension interface:

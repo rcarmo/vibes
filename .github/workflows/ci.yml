@@ -23,11 +23,8 @@ jobs:
       - name: Set up Bun
         run: curl -fsSL https://bun.sh/install | bash && echo "$HOME/.bun/bin" >> $GITHUB_PATH
 
-      - name: Install frontend dependencies
-        run: bun install
-
       - name: Build frontend bundle
-        run: bun run build.js
+        run: make frontend
 
       - name: Run checks (lint + test + race + coverage)
         run: |

@@ -1367,8 +1367,8 @@ mark	line	col
         </div>
     `}function NXn({settings:O,onChange:r}){return pi`
         <div class="settings-section">
-            <h3>Agent Provider</h3>
-            <${B5} label="Default agent" description="Agent to use for new conversations">
+            <h3>Backend Provider</h3>
+            <${B5} label="Default backend" description="Backend to use for new conversations">
                 <input type="text" value=${O.defaultAgent||""}
                     placeholder="(auto-detect)"
                     onInput=${(o)=>r("defaultAgent",o.target.value)} />
@@ -2120,4 +2120,4 @@ ${o}
         </div>
     `}if(typeof window<"u"&&window.visualViewport){let O=window.visualViewport,r=()=>{let o=window.innerHeight-O.height;document.documentElement.style.setProperty("--keyboard-height",`${o}px`),document.documentElement.style.setProperty("--viewport-height",`${O.height}px`)};O.addEventListener("resize",r),O.addEventListener("scroll",r),r()}B6i(pi`<${Uvn} />`,document.getElementById("app"));
 
-//# debugId=DDE0FF3581719CBE64756E2164756E21
+//# debugId=1600383A8F1AA0E864756E2164756E21
