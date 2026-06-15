@@ -2,9 +2,13 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 )
+
+// ErrCancelled is returned by providers when a turn is cancelled by the user.
+var ErrCancelled = errors.New("agent turn cancelled")
 
 // Event represents a streaming event from an agent.
 type Event struct {

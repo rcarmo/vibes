@@ -3,6 +3,7 @@ package routes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ func Agents(registry *agent.Registry, database *db.DB, broker *sse.Broker) func(
 		r.Get("/providers", getProviders(registry))
 		r.Post("/providers/{id}/activate", activateProvider(registry))
 		r.Post("/{id}/message", sendAgentMessage(registry, database, broker))
+		r.Post("/{id}/cancel", cancelAgentTurn(registry, broker))
 		r.Get("/models", getAgentModels(registry))
 		r.Get("/queue", getQueue(queue))
 		r.Post("/queue-remove", removeQueueItem(queue))
@@ -82,6 +84,26 @@ func getProviders(registry *agent.Registry) http.HandlerFunc {
 			"providers": registry.Descriptors(),
 			"active":    registry.Active(),
 		})
+	}
+}
+
+func cancelAgentTurn(registry *agent.Registry, broker *sse.Broker) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if id == "" {
+			id = "default"
+		}
+		p, err := registry.Get(id)
+		if err != nil {
+			jsonError(w, "unknown agent: "+id, http.StatusBadRequest)
+			return
+		}
+		if err := p.Cancel(); err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		broker.Broadcast(sse.Event{Type: "agent_status", Data: map[string]string{"type": "cancelled"}})
+		jsonResp(w, map[string]string{"status": "cancelled", "agent_id": p.ID()})
 	}
 }
 
@@ -237,6 +259,10 @@ func sendAgentMessage(registry *agent.Registry, database *db.DB, broker *sse.Bro
 				err = provider.Prompt(promptCtx, req.Content, threadID)
 			}
 			if err != nil {
+				if errors.Is(err, agent.ErrCancelled) || errors.Is(err, context.Canceled) {
+					broker.Broadcast(sse.Event{Type: "agent_status", Data: map[string]string{"type": "cancelled"}})
+					return
+				}
 				broker.Broadcast(sse.Event{Type: "agent_error", Data: map[string]string{"error": err.Error()}})
 				return
 			}

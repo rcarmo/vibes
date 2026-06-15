@@ -12,15 +12,16 @@ import (
 )
 
 type providerRouteStub struct {
-	id     string
-	status agent.ProviderStatus
-	events chan agent.Event
+	id       string
+	status   agent.ProviderStatus
+	events   chan agent.Event
+	canceled bool
 }
 
 func (p *providerRouteStub) ID() string                                  { return p.id }
 func (p *providerRouteStub) Initialize(context.Context) error            { return nil }
 func (p *providerRouteStub) Prompt(context.Context, string, int64) error { return nil }
-func (p *providerRouteStub) Cancel() error                               { return nil }
+func (p *providerRouteStub) Cancel() error                               { p.canceled = true; return nil }
 func (p *providerRouteStub) Events() <-chan agent.Event                  { return p.events }
 func (p *providerRouteStub) Status() agent.ProviderStatus                { return p.status }
 func (p *providerRouteStub) Shutdown(context.Context) error              { return nil }

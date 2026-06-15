@@ -145,8 +145,12 @@ func TestRouteAgentEnd(t *testing.T) {
 	go p.routeEvent(event)
 
 	e := <-p.events
-	if e.Type != "response" {
-		t.Errorf("event type = %q, want response", e.Type)
+	if e.Type != "status" {
+		t.Errorf("event type = %q, want status", e.Type)
+	}
+	data, ok := e.Data.(map[string]string)
+	if !ok || data["type"] != "done" {
+		t.Fatalf("event data = %#v, want done status", e.Data)
 	}
 	if p.Status().State != "idle" {
 		t.Errorf("state = %q, want idle", p.Status().State)
@@ -191,6 +195,36 @@ func TestRouteResponseFailureEmitsError(t *testing.T) {
 	}
 	if p.Status().State != "error" {
 		t.Errorf("state = %q, want error", p.Status().State)
+	}
+}
+
+func TestCancelCompletesPrompt(t *testing.T) {
+	p := New(Config{Command: "pi"})
+	p.stdin = &bufferWriteCloser{}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- p.Prompt(context.Background(), "hello", 1)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("Prompt returned before cancel: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	if err := p.Cancel(); err != nil {
+		t.Fatalf("Cancel returned error: %v", err)
+	}
+	<-p.events
+
+	select {
+	case err := <-done:
+		if err != agent.ErrCancelled {
+			t.Fatalf("Prompt error = %v, want ErrCancelled", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Prompt did not return after cancel")
 	}
 }
 

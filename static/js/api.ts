@@ -123,6 +123,13 @@ export async function sendAgentMessage(
 }
 
 /**
+ * Cancel the current turn for an agent/backend.
+ */
+export async function cancelAgentTurn(agentId: string): Promise<any> {
+    return request(`/agent/${encodeURIComponent(agentId)}/cancel`, { method: 'POST' });
+}
+
+/**
  * Get available agents.
  */
 export async function getAgents(): Promise<any> {

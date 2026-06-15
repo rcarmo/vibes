@@ -15,3 +15,18 @@
 .compose-backend-picker:disabled {
     opacity: 0.6;
 }
+
+.stop-btn {
+    color: var(--danger-color);
+}
+
+.stop-btn:hover,
+.stop-btn:focus-visible {
+    background-color: color-mix(in srgb, var(--danger-color) 14%, transparent);
+    color: var(--danger-color);
+}
+
+.stop-btn:disabled {
+    color: var(--danger-color);
+    opacity: 0.4;
+}

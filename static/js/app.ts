@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, sendAgentMessage, SSEClient } from './api.ts';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, cancelAgentTurn, SSEClient } from './api.ts';
 import { getAgentProviders } from './features/backends/backend-api.ts';
 import { ComposeBox } from './components/compose-box.ts';
 import { Timeline } from './components/timeline.ts';
@@ -42,6 +42,13 @@ const SILENCE_WARNING_MS = readSilenceOverride('warning', 30_000);
 const SILENCE_FINALIZE_MS = readSilenceOverride('finalize', 120_000);
 const SILENCE_REFRESH_MS = readSilenceOverride('refresh', 30_000);
 const LAST_ACTIVITY_TTL_MS = 30_000;
+const INACTIVE_AGENT_STATUS_TYPES = new Set(['done', 'error', 'cancelled', 'last_activity']);
+
+function isAgentStatusActive(status) {
+    if (!status) return false;
+    if (INACTIVE_AGENT_STATUS_TYPES.has(status.type)) return false;
+    return true;
+}
 
 function buildAgentsMap(data) {
     const map = {};
@@ -1646,7 +1653,7 @@ function App() {
     }, [applyModelState]);
 
     const handleAbortTurn = useCallback(async () => {
-        await sendAgentMessage('default', '/abort', null, [], null, activeBackendId || null);
+        await cancelAgentTurn(activeBackendId || 'default');
         clearAgentRunState();
         setAgentStatus({ type: 'cancelled', title: 'Stopping current turn…' });
     }, [activeBackendId, clearAgentRunState]);
@@ -2033,7 +2040,7 @@ function App() {
     // a safety net only. 15 s when a turn is active, 60 s when idle.
     // When active, also polls /agent/status to detect long-running agent
     // activity and update the UI if SSE events are lagging.
-    const isAgentActive = agentStatus !== null;
+    const isAgentActive = Boolean(currentTurnId || pendingRequest || isAgentStatusActive(agentStatus));
     useEffect(() => {
         if (connectionStatus !== 'connected') return;
         const intervalMs = isAgentActive ? 15000 : 60000;
@@ -2356,7 +2363,7 @@ function App() {
                     notificationPermission=${notificationPermission}
                     onToggleNotifications=${handleToggleNotifications}
                     onOpenSettings=${() => setSettingsOpen(true)}
-                    agentActive=${Boolean(agentStatus || currentTurnId || pendingRequest || agentDraft?.text || agentThought?.text || agentPlan)}
+                    agentActive=${isAgentActive}
                     onAbortTurn=${handleAbortTurn}
                 />
                 <${ConnectionStatus} status=${connectionStatus} />

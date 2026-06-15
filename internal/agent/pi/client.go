@@ -183,7 +183,11 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 
 // Cancel aborts the current Pi request.
 func (p *Provider) Cancel() error {
-	return p.send(map[string]string{"id": p.requestID(), "type": "abort"})
+	err := p.send(map[string]string{"id": p.requestID(), "type": "abort"})
+	p.updateStatus(func(s *agent.ProviderStatus) { s.State = "idle" })
+	p.events <- agent.Event{Type: "status", Data: map[string]string{"type": "cancelled"}}
+	p.completeTurn(agent.ErrCancelled)
+	return err
 }
 
 // Shutdown stops the Pi subprocess.
@@ -267,7 +271,12 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 
 	case "agent_end":
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "idle" })
-		p.events <- agent.Event{Type: "response", Data: event}
+		// Do not emit a raw provider "response" event here. The HTTP route
+		// persists the accumulated draft and broadcasts the stored interaction
+		// as agent_response after Prompt returns. Emitting Pi's raw agent_end as
+		// agent_response gives the frontend an unpersisted object with no post id,
+		// which can look like the user's message was overwritten and then duplicated.
+		p.events <- agent.Event{Type: "status", Data: map[string]string{"type": "done"}}
 		p.completeTurn(nil)
 
 	case "message_start", "message_update", "message_end":
