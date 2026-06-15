@@ -389,22 +389,36 @@ func (p *Provider) routeSessionUpdate(paramsRaw json.RawMessage) {
 
 	var update map[string]json.RawMessage
 	if u, ok := params["update"]; ok {
-		json.Unmarshal(u, &update)
+		_ = json.Unmarshal(u, &update)
 	}
 	if update == nil {
 		return
 	}
 
+	var updateMap map[string]interface{}
+	if u, ok := params["update"]; ok {
+		_ = json.Unmarshal(u, &updateMap)
+	}
+	if updateMap == nil {
+		updateMap = map[string]interface{}{}
+	}
+
 	var kind string
 	if k, ok := update["sessionUpdate"]; ok {
-		json.Unmarshal(k, &kind)
+		_ = json.Unmarshal(k, &kind)
 	}
+	if kind == "" {
+		kind = stringFromRaw(update["type"])
+	}
+
+	p.applySessionUpdateMetadata(updateMap)
+	p.events <- agent.Event{Type: "session_update", Data: safeSessionUpdateEvent(kind, updateMap)}
 
 	switch kind {
 	case "agent_message_chunk":
 		if content, ok := update["content"]; ok {
 			var cb map[string]interface{}
-			json.Unmarshal(content, &cb)
+			_ = json.Unmarshal(content, &cb)
 			// Content block is {"type": "text", "text": "Hello"}
 			if t, ok := cb["text"].(string); ok && t != "" {
 				p.draftMu.Lock()
@@ -416,17 +430,17 @@ func (p *Provider) routeSessionUpdate(paramsRaw json.RawMessage) {
 	case "agent_thought_chunk":
 		if content, ok := update["content"]; ok {
 			var cb map[string]interface{}
-			json.Unmarshal(content, &cb)
+			_ = json.Unmarshal(content, &cb)
 			if t, ok := cb["text"].(string); ok && t != "" {
 				p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": t}}
 			}
 		}
 	case "tool_call":
-		p.events <- agent.Event{Type: "status", Data: string(update["title"])}
+		p.events <- agent.Event{Type: "status", Data: map[string]interface{}{"type": "tool_call", "title": stringFromRaw(update["title"])}}
 	case "tool_call_update":
-		p.events <- agent.Event{Type: "status", Data: string(update["status"])}
+		p.events <- agent.Event{Type: "status", Data: map[string]interface{}{"type": "tool_status", "title": stringFromRaw(update["title"]), "status": stringFromRaw(update["status"])}}
 	case "plan":
-		p.events <- agent.Event{Type: "plan", Data: string(paramsRaw)}
+		p.events <- agent.Event{Type: "plan", Data: safeSessionUpdateEvent(kind, updateMap)}
 	}
 }
 

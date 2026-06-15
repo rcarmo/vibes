@@ -100,7 +100,7 @@ Goal: add mutating local services only behind stronger opt-in controls.
 - Terminal environment is minimal and audited.
 - `/terminal/ws` enablement never implies ACP terminal enablement.
 
-## In progress: Milestone E — ACP-native UI controls
+## Completed: Milestone E — ACP-native UI controls
 
 Goal: expose negotiated ACP controls in the frontend without leaking unsupported actions.
 
@@ -112,11 +112,13 @@ Goal: expose negotiated ACP controls in the frontend without leaking unsupported
 4. ACP providers store bounded display-only `session/new` metadata (`modes`, sanitized `configOptions`) and expose it as `session_metadata` in provider descriptors.
 5. Frontend summaries can show session `modes`/`config` availability without enabling session-mode or config mutation controls.
 
-### Remaining scope
+### Delivered update/metadata slice
 
-1. Reflect usage/session updates from `session/update` events when present.
-2. Add available command UI only after ACP command capabilities are detected.
-3. Keep controls hidden/disabled unless the active provider advertises support.
+1. `session/update` notifications now emit safe `agent_session_update` SSE events.
+2. Context usage percentages from ACP update payloads are reflected into provider status/UI context state when present.
+3. Session metadata updates (`modes`, `configOptions`, current mode, available commands) are sanitized, bounded, merged into provider descriptors, and refreshed in the UI.
+4. Available ACP command metadata is display-only until explicit command execution capabilities and UI actions are implemented.
+5. Controls remain hidden/disabled unless the active provider advertises explicit support.
 
 ### Safety gates
 

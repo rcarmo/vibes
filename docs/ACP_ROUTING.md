@@ -9,7 +9,7 @@ Relevant files:
 - `internal/agent/acp/client.go` — ACP JSON-RPC client + `session/update` routing
 - `internal/app/app.go` — provider event fanout to SSE (`agent_*`)
 - `internal/server/sse/broker.go` — SSE transport
-- `static/js/app.js` — SSE consumption + timeline/draft/thought UI state
+- `static/js/app.ts` — SSE consumption + timeline/draft/thought/session update UI state
 
 ## Current routing behavior
 
@@ -19,6 +19,7 @@ Relevant files:
 - `agent_thought_chunk` → `agent.Event{Type:"thought"}`
 - `tool_call`, `tool_call_update` → `agent.Event{Type:"status"}`
 - `plan` → `agent.Event{Type:"plan"}`
+- all recognized/unknown updates → safe `agent.Event{Type:"session_update"}` metadata event
 
 These provider events are broadcast as SSE events prefixed with `agent_`.
 
@@ -44,7 +45,8 @@ Extraction uses `cb["text"].(string)` (not nested `text.text`).
 ## Known limitations
 
 - No deep semantic routing by ACP annotation metadata yet (current behavior routes by `sessionUpdate` kind).
-- Tool call payloads are surfaced as status updates; full rich tool UI rendering is intentionally minimal.
+- Tool call payloads are surfaced as typed status updates; full rich tool UI rendering is intentionally minimal.
+- Session metadata updates are sanitized and bounded before they reach provider descriptors.
 - SSE stream is long-lived and should be tested via headers/connectivity, not full-body completion.
 
 ## Operational guidance

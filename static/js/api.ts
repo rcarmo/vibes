@@ -458,6 +458,7 @@ export class SSEClient {
             'interaction_updated',
             'interaction_deleted',
             'agent_status',
+            'agent_session_update',
             'agent_request',
             'agent_request_timeout',
             'agent_draft',

@@ -90,6 +90,8 @@ type CapabilityProvider interface {
 type ProviderSessionMetadata struct {
 	Modes         []string                 `json:"modes,omitempty"`
 	ConfigOptions []map[string]interface{} `json:"config_options,omitempty"`
+	Commands      []map[string]interface{} `json:"commands,omitempty"`
+	CurrentMode   string                   `json:"current_mode,omitempty"`
 }
 
 // SessionMetadataProvider can be implemented by providers that expose safe

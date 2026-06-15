@@ -135,6 +135,7 @@ ACP providers render `context` entries as `resource_link` prompt blocks. Vibes d
 | `new_reply` | New reply in thread |
 | `agent_response` | Agent posted a response |
 | `agent_status` | Agent status update |
+| `agent_session_update` | Safe ACP session/update metadata or usage update |
 | `agent_draft` | Agent draft text update |
 | `agent_thought` | Agent thought stream update |
 | `agent_plan` | Agent plan update |

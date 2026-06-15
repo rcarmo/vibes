@@ -250,6 +250,7 @@ Server → Client (text/event-stream):
   agent_draft        Streaming text from agent
   agent_thought      Agent thinking/reasoning stream
   agent_status       Tool call / status update
+  agent_session_update  ACP session metadata/usage update
   agent_response     Final agent response (turn complete)
   agent_request      Permission request (approve/deny)
   agent_request_timeout  Permission timed out

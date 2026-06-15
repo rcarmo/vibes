@@ -1711,6 +1711,16 @@ function App() {
         updateAgentProfile(data);
         updateUserProfile(data);
 
+        if (eventType === 'agent_session_update') {
+            if (typeof data?.context_pct === 'number') {
+                setContextUsage((prev) => ({ ...(prev || {}), percent: Math.round(data.context_pct * 100) }));
+            }
+            if (data?.session_metadata) {
+                loadAgents();
+            }
+            return;
+        }
+
         if (eventType === 'agent_status') {
             if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
                 if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {

@@ -24,6 +24,8 @@ export interface ProviderCapabilities {
 export interface ProviderSessionMetadata {
     modes?: string[];
     config_options?: Array<Record<string, unknown>>;
+    commands?: Array<Record<string, unknown>>;
+    current_mode?: string;
 }
 
 export interface ProviderDescriptor {
@@ -109,6 +111,7 @@ export function providerCapabilitySummary(provider: ProviderDescriptor | null | 
     if (caps.session_stats || caps.session_compact) summary.push('sessions');
     if (Array.isArray(metadata.modes) && metadata.modes.length > 0) summary.push('modes');
     if (Array.isArray(metadata.config_options) && metadata.config_options.length > 0) summary.push('config');
+    if (Array.isArray(metadata.commands) && metadata.commands.length > 0) summary.push('commands');
     return summary;
 }
 
