@@ -3524,7 +3524,20 @@ body {
 
 .settings-tab-btn:hover { background: var(--bg-tertiary); color: var(--text-primary); }
 .settings-tab-btn.active { background: var(--accent-color); color: white; }
-.settings-tab-icon { font-size: 14px; width: 20px; text-align: center; }
+.settings-tab-icon {
+    width: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: currentColor;
+}
+
+.settings-tab-icon svg {
+    width: 16px;
+    height: 16px;
+    display: block;
+    stroke: currentColor;
+}
 
 .settings-content {
     flex: 1;

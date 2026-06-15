@@ -12,7 +12,6 @@ type TabId = 'general' | 'appearance' | 'models' | 'editor' | 'permissions' | 'a
 interface TabDefinition {
     id: TabId;
     label: string;
-    icon: string;
 }
 
 interface SettingRowProps {
@@ -61,15 +60,50 @@ interface FirstRunWizardProps {
 }
 
 const TABS: TabDefinition[] = [
-    { id: 'general', label: 'General', icon: '⚙️' },
-    { id: 'appearance', label: 'Appearance', icon: '🎨' },
-    { id: 'models', label: 'Models', icon: '🤖' },
-    { id: 'editor', label: 'Editor', icon: '✏️' },
-    { id: 'permissions', label: 'Permissions', icon: '🔒' },
-    { id: 'actions', label: 'Quick Actions', icon: '⚡' },
-    { id: 'developer', label: 'Developer', icon: '🛠️' },
-    { id: 'workspace', label: 'Workspace', icon: '📁' },
+    { id: 'general', label: 'General' },
+    { id: 'appearance', label: 'Appearance' },
+    { id: 'models', label: 'Models' },
+    { id: 'editor', label: 'Editor' },
+    { id: 'permissions', label: 'Permissions' },
+    { id: 'actions', label: 'Quick Actions' },
+    { id: 'developer', label: 'Developer' },
+    { id: 'workspace', label: 'Workspace' },
 ];
+
+function SettingsTabIcon({ id }: { id: TabId }) {
+    const common = {
+        width: 16,
+        height: 16,
+        viewBox: '0 0 24 24',
+        fill: 'none',
+        stroke: 'currentColor',
+        'stroke-width': 2,
+        'stroke-linecap': 'round',
+        'stroke-linejoin': 'round',
+        'aria-hidden': 'true',
+        focusable: 'false',
+    };
+    switch (id) {
+    case 'general':
+        return html`<svg ...${common}><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>`;
+    case 'appearance':
+        return html`<svg ...${common}><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 3a9 9 0 0 0 0 18h1.5a2.5 2.5 0 0 0 0-5H12a2 2 0 0 1 0-4h1a8 8 0 0 0 8-8.5C19.5 3.2 15.8 3 12 3z"/></svg>`;
+    case 'models':
+        return html`<svg ...${common}><rect x="4" y="8" width="16" height="11" rx="2"/><path d="M12 8V4"/><path d="M8 4h8"/><circle cx="9" cy="13" r="1" fill="currentColor"/><circle cx="15" cy="13" r="1" fill="currentColor"/><path d="M9 17h6"/></svg>`;
+    case 'editor':
+        return html`<svg ...${common}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+    case 'permissions':
+        return html`<svg ...${common}><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>`;
+    case 'actions':
+        return html`<svg ...${common}><path d="m13 2-9 13h8l-1 7 9-13h-8z"/></svg>`;
+    case 'developer':
+        return html`<svg ...${common}><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/><path d="m14.5 4-5 16"/></svg>`;
+    case 'workspace':
+        return html`<svg ...${common}><path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>`;
+    default:
+        return null;
+    }
+}
 
 function inputValue(event: Event): string {
     return (event.target as HTMLInputElement | HTMLSelectElement | null)?.value || '';
@@ -407,7 +441,7 @@ export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
                             class="settings-tab-btn ${activeTab === tab.id ? 'active' : ''}"
                             onClick=${() => setActiveTab(tab.id)}
                         >
-                            <span class="settings-tab-icon">${tab.icon}</span>
+                            <span class="settings-tab-icon"><${SettingsTabIcon} id=${tab.id} /></span>
                             <span>${tab.label}</span>
                         </button>
                     `)}
