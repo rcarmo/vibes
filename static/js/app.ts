@@ -1735,6 +1735,13 @@ function App() {
         }
 
         if (eventType === 'agent_status') {
+            if (data?.model !== undefined) setActiveModel(data.model);
+            if (data?.thinking_level !== undefined) setActiveThinkingLevel(data.thinking_level ?? null);
+            if (data?.supports_thinking !== undefined) setSupportsThinking(Boolean(data.supports_thinking));
+            if (typeof data?.context_pct === 'number') setContextUsage((prev) => ({ ...(prev || {}), percent: Math.round(data.context_pct * 100) }));
+            if (data?.type === 'response' && (data?.model !== undefined || data?.thinking_level !== undefined || data?.context_pct !== undefined)) {
+                return;
+            }
             if (data.type === 'done' || data.type === 'error' || data.type === 'cancelled') {
                 if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                     return;
@@ -1783,10 +1790,8 @@ function App() {
             if (data?.delta) {
                 draftBufferRef.current += data.delta;
             }
-            if (expandedPanelsRef.current.draft) {
-                const fullText = draftBufferRef.current;
-                setAgentDraft({ text: fullText, totalLines: estimatePreviewLines(fullText) });
-            }
+            const fullText = draftBufferRef.current;
+            setAgentDraft({ text: fullText, totalLines: estimatePreviewLines(fullText) });
             return;
         }
 
@@ -1813,10 +1818,8 @@ function App() {
                 } else {
                     draftBufferRef.current += text;
                 }
-                if (!expandedPanelsRef.current.draft) {
-                    const visibleText = draftBufferRef.current;
-                    setAgentDraft({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
-                }
+                const visibleText = draftBufferRef.current;
+                setAgentDraft({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
             }
             return;
         }
@@ -1835,10 +1838,8 @@ function App() {
             if (data?.delta) {
                 thoughtBufferRef.current += data.delta;
             }
-            if (expandedPanelsRef.current.thought) {
-                const fullText = thoughtBufferRef.current;
-                setAgentThought({ text: fullText, totalLines: estimatePreviewLines(fullText) });
-            }
+            const fullText = thoughtBufferRef.current;
+            setAgentThought({ text: fullText, totalLines: estimatePreviewLines(fullText) });
             return;
         }
 
@@ -1860,10 +1861,8 @@ function App() {
             } else {
                 thoughtBufferRef.current += text;
             }
-            if (!expandedPanelsRef.current.thought) {
-                const visibleText = thoughtBufferRef.current;
-                setAgentThought({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
-            }
+            const visibleText = thoughtBufferRef.current;
+            setAgentThought({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
             return;
         }
 

@@ -95,6 +95,41 @@ func TestRouteAssistantMessageEventThinkingDelta(t *testing.T) {
 	}
 }
 
+func TestRouteMessageEndSnapshotDoesNotDuplicateDraft(t *testing.T) {
+	p := New(Config{Command: "pi"})
+
+	p.routeEvent(map[string]interface{}{"type": "message_update", "kind": "text_delta", "delta": "Hello!"})
+	<-p.events
+	p.routeEvent(map[string]interface{}{"type": "message_end", "content": "Hello!"})
+
+	select {
+	case e := <-p.events:
+		t.Fatalf("unexpected duplicate event: %#v", e)
+	case <-time.After(20 * time.Millisecond):
+	}
+	if got := p.CollectedDraft(); got != "Hello!" {
+		t.Fatalf("CollectedDraft = %q", got)
+	}
+}
+
+func TestRouteSnapshotMessageUpdatesReplaceDraft(t *testing.T) {
+	p := New(Config{Command: "pi"})
+
+	p.routeEvent(map[string]interface{}{"type": "message_update", "content": "Hello"})
+	e := <-p.events
+	if data := e.Data.(map[string]string); data["mode"] != "replace" {
+		t.Fatalf("first snapshot mode = %#v", data)
+	}
+	p.routeEvent(map[string]interface{}{"type": "message_update", "content": "Hello world"})
+	e = <-p.events
+	if data := e.Data.(map[string]string); data["mode"] != "replace" {
+		t.Fatalf("second snapshot mode = %#v", data)
+	}
+	if got := p.CollectedDraft(); got != "Hello world" {
+		t.Fatalf("CollectedDraft = %q", got)
+	}
+}
+
 func TestRouteFlatMessageEventThinkingDelta(t *testing.T) {
 	p := New(Config{Command: "pi"})
 
@@ -134,7 +169,7 @@ func TestRouteToolEvent(t *testing.T) {
 	}
 }
 
-func TestRouteAgentEnd(t *testing.T) {
+func TestRouteAgentEndCompletesWithoutFrontendEvent(t *testing.T) {
 	p := New(Config{Command: "pi"})
 	p.setStatus(agent.ProviderStatus{State: "busy", Model: "pi"})
 
@@ -142,22 +177,19 @@ func TestRouteAgentEnd(t *testing.T) {
 		"type": "agent_end",
 	}
 
-	go p.routeEvent(event)
+	p.routeEvent(event)
 
-	e := <-p.events
-	if e.Type != "status" {
-		t.Errorf("event type = %q, want status", e.Type)
-	}
-	data, ok := e.Data.(map[string]string)
-	if !ok || data["type"] != "done" {
-		t.Fatalf("event data = %#v, want done status", e.Data)
+	select {
+	case e := <-p.events:
+		t.Fatalf("unexpected frontend event from agent_end: %#v", e)
+	case <-time.After(20 * time.Millisecond):
 	}
 	if p.Status().State != "idle" {
 		t.Errorf("state = %q, want idle", p.Status().State)
 	}
 }
 
-func TestRouteResponseUpdatesModel(t *testing.T) {
+func TestRouteResponseUpdatesModelAndEmitsModelPayload(t *testing.T) {
 	p := New(Config{Command: "pi"})
 
 	event := map[string]interface{}{
@@ -171,7 +203,11 @@ func TestRouteResponseUpdatesModel(t *testing.T) {
 	}
 
 	go p.routeEvent(event)
-	<-p.events
+	e := <-p.events
+	data, ok := e.Data.(map[string]interface{})
+	if !ok || data["model"] != "openai/gpt-test" {
+		t.Fatalf("event data = %#v, want model payload", e.Data)
+	}
 
 	if p.Status().Model != "openai/gpt-test" {
 		t.Errorf("model = %q, want openai/gpt-test", p.Status().Model)
@@ -246,7 +282,6 @@ func TestPromptWaitsForAgentEndAndCollectsDraft(t *testing.T) {
 	p.routeEvent(map[string]interface{}{"type": "message_update", "kind": "text_delta", "delta": "final text"})
 	<-p.events
 	p.routeEvent(map[string]interface{}{"type": "agent_end"})
-	<-p.events
 
 	select {
 	case err := <-done:
@@ -258,6 +293,26 @@ func TestPromptWaitsForAgentEndAndCollectsDraft(t *testing.T) {
 	}
 	if got := p.CollectedDraft(); got != "final text" {
 		t.Fatalf("CollectedDraft = %q", got)
+	}
+}
+
+func TestRouteThinkingResponseEmitsThinkingPayload(t *testing.T) {
+	p := New(Config{Command: "pi"})
+
+	event := map[string]interface{}{
+		"type":    "response",
+		"command": "set_thinking_level",
+		"success": true,
+		"data": map[string]interface{}{
+			"level": "high",
+		},
+	}
+
+	go p.routeEvent(event)
+	e := <-p.events
+	data, ok := e.Data.(map[string]interface{})
+	if !ok || data["thinking_level"] != "high" || data["supports_thinking"] != true {
+		t.Fatalf("event data = %#v, want thinking payload", e.Data)
 	}
 }
 
@@ -273,12 +328,17 @@ func TestRouteStateResponseUpdatesContext(t *testing.T) {
 				"provider": "anthropic",
 				"id":       "claude-test",
 			},
-			"context": map[string]interface{}{"percent": 42.0},
+			"thinkingLevel": "medium",
+			"context":       map[string]interface{}{"percent": 42.0},
 		},
 	}
 
 	go p.routeEvent(event)
-	<-p.events
+	e := <-p.events
+	data, ok := e.Data.(map[string]interface{})
+	if !ok || data["model"] != "anthropic/claude-test" || data["thinking_level"] != "medium" || data["context_pct"] != 0.42 {
+		t.Fatalf("event data = %#v, want state payload", e.Data)
+	}
 
 	status := p.Status()
 	if status.Model != "anthropic/claude-test" {

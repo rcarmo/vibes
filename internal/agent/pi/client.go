@@ -271,12 +271,11 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 
 	case "agent_end":
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "idle" })
-		// Do not emit a raw provider "response" event here. The HTTP route
-		// persists the accumulated draft and broadcasts the stored interaction
-		// as agent_response after Prompt returns. Emitting Pi's raw agent_end as
-		// agent_response gives the frontend an unpersisted object with no post id,
-		// which can look like the user's message was overwritten and then duplicated.
-		p.events <- agent.Event{Type: "status", Data: map[string]string{"type": "done"}}
+		// Do not emit a raw provider "response" or premature "done" status here.
+		// The route persists the accumulated draft and broadcasts the stored
+		// interaction as agent_response after Prompt returns. Keeping the frontend
+		// draft pane alive until that DB-backed response arrives avoids flicker and
+		// duplicate/unpersisted reply artifacts.
 		p.completeTurn(nil)
 
 	case "message_start", "message_update", "message_end":
@@ -303,6 +302,7 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 }
 
 func (p *Provider) routeMessageEvent(event map[string]interface{}) {
+	outerType, _ := event["type"].(string)
 	payload, _ := event["assistantMessageEvent"].(map[string]interface{})
 	if payload == nil {
 		payload, _ = event["message"].(map[string]interface{})
@@ -320,15 +320,52 @@ func (p *Provider) routeMessageEvent(event map[string]interface{}) {
 		return
 	}
 
-	if strings.Contains(deltaType, "thinking") || strings.Contains(deltaType, "thought") {
-		p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text}}
+	isThought := strings.Contains(deltaType, "thinking") || strings.Contains(deltaType, "thought")
+	_, hasDelta := payload["delta"]
+	isDelta := hasDelta || strings.Contains(deltaType, "delta")
+	isFinalSnapshot := outerType == "message_end" || strings.Contains(deltaType, "message_end")
+
+	if isThought {
+		mode := "append"
+		if !isDelta {
+			mode = "replace"
+		}
+		p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text, "mode": mode}}
 		return
 	}
-	if strings.Contains(deltaType, "text") || strings.Contains(deltaType, "message") || deltaType == "" {
-		p.draftMu.Lock()
+	if !(strings.Contains(deltaType, "text") || strings.Contains(deltaType, "message") || deltaType == "") {
+		return
+	}
+
+	p.draftMu.Lock()
+	current := p.draftText.String()
+	mode := "append"
+	shouldEmit := true
+	if isDelta {
 		p.draftText.WriteString(text)
-		p.draftMu.Unlock()
-		p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text}}
+	} else if current == "" {
+		p.draftText.WriteString(text)
+		mode = "replace"
+	} else if isFinalSnapshot {
+		// Pi may send the complete assistant message at message_end after
+		// already streaming text_delta chunks. Do not append that snapshot.
+		if text != current {
+			p.draftText.Reset()
+			p.draftText.WriteString(text)
+			mode = "replace"
+		} else {
+			shouldEmit = false
+		}
+	} else {
+		// Treat non-delta content/text updates as snapshots, not chunks.
+		p.draftText.Reset()
+		p.draftText.WriteString(text)
+		mode = "replace"
+	}
+	p.draftMu.Unlock()
+
+	if shouldEmit {
+		p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text, "mode": mode}}
 	}
 }
 
@@ -344,16 +381,28 @@ func (p *Provider) routeResponse(event map[string]interface{}) {
 	command, _ := event["command"].(string)
 	switch command {
 	case "set_model":
-		if data, ok := event["data"].(map[string]interface{}); ok {
-			provider, _ := data["provider"].(string)
-			modelID, _ := data["id"].(string)
-			model := strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
-			if model != "" {
-				p.updateStatus(func(s *agent.ProviderStatus) { s.Model = model })
-			}
+		model := modelLabelFromState(event["data"])
+		if model != "" {
+			p.updateStatus(func(s *agent.ProviderStatus) { s.Model = model })
+			event["model"] = model
+		}
+	case "set_thinking_level":
+		if level := thinkingLevelFromState(event["data"]); level != "" {
+			event["thinking_level"] = level
+			event["supports_thinking"] = true
 		}
 	case "get_state":
 		p.updateStatusFromState(event["data"])
+		if model := modelLabelFromState(event["data"]); model != "" {
+			event["model"] = model
+		}
+		if level := thinkingLevelFromState(event["data"]); level != "" {
+			event["thinking_level"] = level
+			event["supports_thinking"] = true
+		}
+		if pct, ok := contextPctFromState(event["data"]); ok {
+			event["context_pct"] = pct
+		}
 	}
 
 	p.events <- agent.Event{Type: "status", Data: event}
@@ -365,18 +414,59 @@ func (p *Provider) updateStatusFromState(data interface{}) {
 		return
 	}
 	p.updateStatus(func(s *agent.ProviderStatus) {
-		if model, ok := state["model"].(map[string]interface{}); ok {
-			provider, _ := model["provider"].(string)
-			modelID, _ := model["id"].(string)
-			label := strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
-			if label != "" {
-				s.Model = label
-			}
+		if label := modelLabelFromState(state); label != "" {
+			s.Model = label
 		}
 		if pct, ok := numericContextPct(state); ok {
 			s.ContextPct = pct
 		}
 	})
+}
+
+func modelLabelFromState(data interface{}) string {
+	state, ok := data.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if label := firstString(state, "model_label", "modelLabel"); label != "" {
+		return label
+	}
+	provider := firstString(state, "provider", "providerId", "provider_id")
+	modelID := firstString(state, "id", "modelId", "model_id", "name")
+	if provider != "" || modelID != "" {
+		return strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
+	}
+	if label := firstString(state, "model"); label != "" {
+		return label
+	}
+	if model, ok := state["model"].(map[string]interface{}); ok {
+		provider := firstString(model, "provider", "providerId", "provider_id")
+		modelID := firstString(model, "id", "modelId", "model_id", "name")
+		return strings.Trim(strings.Trim(provider+"/"+modelID, "/"), " ")
+	}
+	return ""
+}
+
+func thinkingLevelFromState(data interface{}) string {
+	state, ok := data.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+	if level := firstString(state, "thinking_level", "thinkingLevel", "level", "thinking", "reasoning_effort"); level != "" {
+		return level
+	}
+	if thinking, ok := state["thinking"].(map[string]interface{}); ok {
+		return firstString(thinking, "level", "effort", "id", "name")
+	}
+	return ""
+}
+
+func contextPctFromState(data interface{}) (float64, bool) {
+	state, ok := data.(map[string]interface{})
+	if !ok {
+		return 0, false
+	}
+	return numericContextPct(state)
 }
 
 func firstString(m map[string]interface{}, keys ...string) string {
