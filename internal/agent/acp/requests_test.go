@@ -38,7 +38,7 @@ func TestUnsafeClientServiceRequestsRemainUnimplemented(t *testing.T) {
 }
 
 func TestClientCapabilitiesKeepWriteAndTerminalDisabled(t *testing.T) {
-	p := New(Config{FSReadTextEnabled: true})
+	p := New(Config{FSReadTextEnabled: true, FSWriteTextEnabled: true, FSWriteAllowOverwrite: true})
 	caps := p.clientCapabilities()
 	fsCaps := caps["fs"].(map[string]interface{})
 	if fsCaps["writeTextFile"].(bool) {

@@ -23,6 +23,10 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_ACP_MCP_SERVERS_JSON` | _(unset)_ | JSON array of MCP servers to pass to ACP sessions |
 | `VIBES_ACP_FS_READ_TEXT_ENABLED` | `false` | Opt in to ACP `fs/read_text_file` client requests |
 | `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` | `262144` | Maximum bytes for one ACP text-file read |
+| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Reserved ACP write-policy scaffold; does not advertise/enable `fs/write_text_file` yet |
+| `VIBES_ACP_FS_WRITE_ROOT` | _(workspace)_ | Reserved ACP write root for future confinement checks |
+| `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | `262144` | Reserved maximum bytes for future ACP text-file writes |
+| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Reserved overwrite policy for future ACP text-file writes |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
 | `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
@@ -94,7 +98,7 @@ Keep secrets out of committed files. Prefer wrapper commands or inherited proces
 
 `fs/read_text_file` is disabled by default. Set `VIBES_ACP_FS_READ_TEXT_ENABLED=true` to advertise `clientCapabilities.fs.readTextFile` and allow an ACP agent to request text reads inside the Vibes workspace root. Reads are path-normalized, symlinks are resolved before the root-confinement check, directories are rejected, and files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are refused.
 
-Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Those services remain unavailable until the safety requirements in [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) are implemented and validated.
+Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Write-policy configuration is parsed for validation scaffolding only; it does not change `clientCapabilities.fs.writeTextFile=false`. These services remain unavailable until the safety requirements in [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) are implemented and validated.
 
 Current ACP client-service limitations:
 

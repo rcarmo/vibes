@@ -89,8 +89,8 @@ func New(cfg *config.Config) (*App, error) {
 		slog.Warn("invalid ACP MCP server configuration", "error", err)
 	}
 	registerPiBackend(agentRegistry, cfg, workspaceDir())
-	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes)
-	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes)
+	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes, cfg.ACPFSWriteTextEnabled, cfg.ACPFSWriteRoot, cfg.ACPFSWriteTextMaxBytes, cfg.ACPFSWriteAllowOverwrite)
+	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes, cfg.ACPFSWriteTextEnabled, cfg.ACPFSWriteRoot, cfg.ACPFSWriteTextMaxBytes, cfg.ACPFSWriteAllowOverwrite)
 	if cfg.DefaultAgent != "" {
 		defaultBackend := cfg.DefaultAgent
 		if defaultBackend == "acp" {
@@ -504,7 +504,7 @@ func commandDetected(command string) (bool, string) {
 	return true, ""
 }
 
-func registerACPBackend(registry *agent.Registry, id, label, command string, enabled bool, workDir string, env map[string]string, debug bool, mcpServers []acp.MCPServer, fsReadTextEnabled bool, fsReadTextMaxBytes int64) {
+func registerACPBackend(registry *agent.Registry, id, label, command string, enabled bool, workDir string, env map[string]string, debug bool, mcpServers []acp.MCPServer, fsReadTextEnabled bool, fsReadTextMaxBytes int64, fsWriteTextEnabled bool, fsWriteRoot string, fsWriteTextMaxBytes int64, fsWriteAllowOverwrite bool) {
 	detected, detectErr := commandDetected(command)
 	descriptor := agent.ProviderDescriptor{
 		ID:           id,
@@ -532,16 +532,20 @@ func registerACPBackend(registry *agent.Registry, id, label, command string, ena
 	}
 	parts := splitCommand(command)
 	provider := acp.New(acp.Config{
-		ID:                 id,
-		Command:            parts[0],
-		Args:               parts[1:],
-		WorkDir:            workDir,
-		Env:                env,
-		Debug:              debug,
-		MCPServers:         mcpServers,
-		FSReadTextEnabled:  fsReadTextEnabled,
-		FSRoot:             workDir,
-		FSReadTextMaxBytes: fsReadTextMaxBytes,
+		ID:                    id,
+		Command:               parts[0],
+		Args:                  parts[1:],
+		WorkDir:               workDir,
+		Env:                   env,
+		Debug:                 debug,
+		MCPServers:            mcpServers,
+		FSReadTextEnabled:     fsReadTextEnabled,
+		FSRoot:                workDir,
+		FSReadTextMaxBytes:    fsReadTextMaxBytes,
+		FSWriteTextEnabled:    fsWriteTextEnabled,
+		FSWriteRoot:           fsWriteRoot,
+		FSWriteTextMaxBytes:   fsWriteTextMaxBytes,
+		FSWriteAllowOverwrite: fsWriteAllowOverwrite,
 	})
 	registry.RegisterWithDescriptor(id, provider, descriptor)
 }

@@ -7,6 +7,7 @@ This document defines the safety model that must exist before Vibes can expose A
 - `fs/read_text_file` is the only ACP filesystem service with implementation scaffolding.
 - `fs/read_text_file` is default-off and only advertised when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
 - `fs/write_text_file` is not implemented and must return a JSON-RPC method-not-implemented error.
+- Write-policy configuration and non-mutating confinement planning scaffolding exist, but do not advertise or execute writes.
 - ACP terminal methods are not implemented and must return JSON-RPC method-not-implemented errors.
 - `/terminal/ws` is a separate browser PTY endpoint, gated by `VIBES_ENABLE_TERMINAL`; that flag does not enable ACP terminal services.
 - Provider descriptors expose `fs_write_text_file=false` and `terminal_services=false` so the UI can hide unsafe controls.
@@ -24,10 +25,10 @@ Write and terminal services require separate, explicit configuration. A future i
 
 | Variable | Default | Required meaning |
 |---|---:|---|
-| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Advertise and handle `fs/write_text_file` only when all write policy checks are also available. |
-| `VIBES_ACP_FS_WRITE_ROOT` | `VIBES_WORKSPACE` | Root directory for ACP writes; must resolve to an existing directory. |
-| `VIBES_ACP_FS_WRITE_MAX_BYTES` | policy-defined | Maximum accepted write payload size. |
-| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Whether writes may replace existing files after explicit approval. |
+| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Parsed for write-policy scaffolding; must not advertise or handle `fs/write_text_file` until all write policy checks are implemented. |
+| `VIBES_ACP_FS_WRITE_ROOT` | `VIBES_WORKSPACE` | Root directory for ACP write planning; must resolve to an existing directory. |
+| `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | policy-defined | Maximum accepted write payload size. |
+| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Whether future writes may replace existing files after explicit approval. |
 | `VIBES_ACP_TERMINAL_ENABLED` | `false` | Advertise and handle ACP `terminal/*`; independent from `VIBES_ENABLE_TERMINAL`. |
 | `VIBES_ACP_TERMINAL_ROOT` | `VIBES_WORKSPACE` | Working directory root for ACP terminal sessions. |
 | `VIBES_ACP_TERMINAL_SHELL` | allowlisted shell | Shell/command used to start ACP terminals; must not inherit arbitrary agent-provided commands. |
@@ -164,9 +165,10 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 ## Rollout order
 
 1. Keep current design-only policy and default-false tests in place.
-2. Implement write config parsing without advertising write capability.
-3. Implement write path validation and audit event plumbing.
-4. Enable `fs/write_text_file` behind config and per-operation approval.
-5. Reassess terminal separately; do not couple terminal enablement to write support.
-6. Implement terminal lifecycle/limits/audit behind config.
-7. Only then advertise `clientCapabilities.terminal=true`.
+2. Implement write config parsing without advertising write capability. ✅
+3. Implement non-mutating write path validation and audit event shape scaffolding. ✅
+4. Add permission-broker/audit persistence plumbing without filesystem mutation.
+5. Enable `fs/write_text_file` behind config and per-operation approval.
+6. Reassess terminal separately; do not couple terminal enablement to write support.
+7. Implement terminal lifecycle/limits/audit behind config.
+8. Only then advertise `clientCapabilities.terminal=true`.

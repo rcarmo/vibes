@@ -24,16 +24,20 @@ import (
 
 // Config configures an ACP agent provider.
 type Config struct {
-	ID                 string
-	Command            string
-	Args               []string
-	WorkDir            string
-	Env                map[string]string
-	Debug              bool
-	MCPServers         []MCPServer
-	FSReadTextEnabled  bool
-	FSRoot             string
-	FSReadTextMaxBytes int64
+	ID                    string
+	Command               string
+	Args                  []string
+	WorkDir               string
+	Env                   map[string]string
+	Debug                 bool
+	MCPServers            []MCPServer
+	FSReadTextEnabled     bool
+	FSRoot                string
+	FSReadTextMaxBytes    int64
+	FSWriteTextEnabled    bool
+	FSWriteRoot           string
+	FSWriteTextMaxBytes   int64
+	FSWriteAllowOverwrite bool
 }
 
 // Provider implements agent.Provider for ACP agents using raw JSON-RPC.

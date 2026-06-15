@@ -31,6 +31,15 @@ func TestLoadDefaults(t *testing.T) {
 	if !cfg.PiEnabled {
 		t.Error("PiEnabled should be true by default for hybrid discovery")
 	}
+	if cfg.ACPFSWriteTextEnabled {
+		t.Error("ACPFSWriteTextEnabled should be false by default")
+	}
+	if cfg.ACPFSWriteAllowOverwrite {
+		t.Error("ACPFSWriteAllowOverwrite should be false by default")
+	}
+	if cfg.ACPFSWriteTextMaxBytes != 262144 {
+		t.Errorf("ACPFSWriteTextMaxBytes = %d", cfg.ACPFSWriteTextMaxBytes)
+	}
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -100,6 +109,10 @@ func TestBackendEnvOverrides(t *testing.T) {
 	t.Setenv("VIBES_ACP_MCP_SERVERS_JSON", `[{"name":"tools","command":"tools-mcp"}]`)
 	t.Setenv("VIBES_ACP_FS_READ_TEXT_ENABLED", "true")
 	t.Setenv("VIBES_ACP_FS_READ_TEXT_MAX_BYTES", "1024")
+	t.Setenv("VIBES_ACP_FS_WRITE_TEXT_ENABLED", "true")
+	t.Setenv("VIBES_ACP_FS_WRITE_ROOT", "/tmp/vibes-write")
+	t.Setenv("VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES", "2048")
+	t.Setenv("VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE", "true")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
@@ -124,6 +137,18 @@ func TestBackendEnvOverrides(t *testing.T) {
 	}
 	if cfg.ACPFSReadTextMaxBytes != 1024 {
 		t.Errorf("ACPFSReadTextMaxBytes = %d", cfg.ACPFSReadTextMaxBytes)
+	}
+	if !cfg.ACPFSWriteTextEnabled {
+		t.Error("ACPFSWriteTextEnabled should load from env")
+	}
+	if cfg.ACPFSWriteRoot != "/tmp/vibes-write" {
+		t.Errorf("ACPFSWriteRoot = %q", cfg.ACPFSWriteRoot)
+	}
+	if cfg.ACPFSWriteTextMaxBytes != 2048 {
+		t.Errorf("ACPFSWriteTextMaxBytes = %d", cfg.ACPFSWriteTextMaxBytes)
+	}
+	if !cfg.ACPFSWriteAllowOverwrite {
+		t.Error("ACPFSWriteAllowOverwrite should load from env")
 	}
 }
 

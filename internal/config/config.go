@@ -18,15 +18,19 @@ type Config struct {
 	AgentName    string `env:"VIBES_AGENT_NAME"`
 
 	// ACP
-	CopilotAgent          string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
-	CopilotEnabled        bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
-	CodexAgent            string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
-	CodexEnabled          bool   `env:"VIBES_CODEX_ENABLED" envDefault:"true"`
-	ACPDebug              bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
-	ACPThrottle           int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
-	ACPMCPServersJSON     string `env:"VIBES_ACP_MCP_SERVERS_JSON"`
-	ACPFSReadTextEnabled  bool   `env:"VIBES_ACP_FS_READ_TEXT_ENABLED" envDefault:"false"`
-	ACPFSReadTextMaxBytes int64  `env:"VIBES_ACP_FS_READ_TEXT_MAX_BYTES" envDefault:"262144"`
+	CopilotAgent             string `env:"VIBES_COPILOT_AGENT" envDefault:"copilot-language-server --acp --stdio"`
+	CopilotEnabled           bool   `env:"VIBES_COPILOT_ENABLED" envDefault:"true"`
+	CodexAgent               string `env:"VIBES_CODEX_AGENT" envDefault:"codex-acp"`
+	CodexEnabled             bool   `env:"VIBES_CODEX_ENABLED" envDefault:"true"`
+	ACPDebug                 bool   `env:"VIBES_ACP_DEBUG" envDefault:"false"`
+	ACPThrottle              int    `env:"VIBES_ACP_THROTTLE_RPS" envDefault:"0"`
+	ACPMCPServersJSON        string `env:"VIBES_ACP_MCP_SERVERS_JSON"`
+	ACPFSReadTextEnabled     bool   `env:"VIBES_ACP_FS_READ_TEXT_ENABLED" envDefault:"false"`
+	ACPFSReadTextMaxBytes    int64  `env:"VIBES_ACP_FS_READ_TEXT_MAX_BYTES" envDefault:"262144"`
+	ACPFSWriteTextEnabled    bool   `env:"VIBES_ACP_FS_WRITE_TEXT_ENABLED" envDefault:"false"`
+	ACPFSWriteRoot           string `env:"VIBES_ACP_FS_WRITE_ROOT"`
+	ACPFSWriteTextMaxBytes   int64  `env:"VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES" envDefault:"262144"`
+	ACPFSWriteAllowOverwrite bool   `env:"VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE" envDefault:"false"`
 
 	// Pi
 	PiAgent               string `env:"VIBES_PI_AGENT"`

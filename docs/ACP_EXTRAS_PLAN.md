@@ -81,13 +81,14 @@ Goal: add mutating local services only behind stronger opt-in controls.
 3. Defined workspace/root confinement, symlink handling, overwrite policy, terminal root/environment/session constraints, per-operation permission mediation, audit event shape, UI gating, and test coverage requirements.
 4. Kept `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false`; no write or terminal implementation is enabled by this milestone.
 
-### Future implementation rollout
+### Implementation rollout
 
-1. Add write config parsing without advertising write capability.
-2. Add write path validation/audit plumbing and tests.
-3. Enable `fs/write_text_file` only behind config and per-operation approval.
-4. Reassess and implement terminal separately with lifecycle limits, minimal env, audit, and explicit ACP-specific config.
-5. Advertise `clientCapabilities.terminal=true` only after terminal policy enforcement is complete.
+1. Add write config parsing without advertising write capability. ✅
+2. Add non-mutating write path validation/audit shape scaffolding and tests. ✅
+3. Add permission-broker/audit persistence plumbing without filesystem mutation.
+4. Enable `fs/write_text_file` only behind config and per-operation approval.
+5. Reassess and implement terminal separately with lifecycle limits, minimal env, audit, and explicit ACP-specific config.
+6. Advertise `clientCapabilities.terminal=true` only after terminal policy enforcement is complete.
 
 ### Safety gates
 
