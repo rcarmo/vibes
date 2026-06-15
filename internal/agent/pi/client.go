@@ -46,14 +46,18 @@ type Provider struct {
 
 	turnMu   sync.Mutex
 	turnDone chan error
+
+	pendingMu sync.Mutex
+	pending   map[string]chan map[string]interface{}
 }
 
 // New creates a new Pi RPC provider.
 func New(cfg Config) *Provider {
 	return &Provider{
-		cfg:    cfg,
-		events: make(chan agent.Event, 256),
-		status: agent.ProviderStatus{State: "stopped"},
+		cfg:     cfg,
+		events:  make(chan agent.Event, 256),
+		status:  agent.ProviderStatus{State: "stopped"},
+		pending: make(map[string]chan map[string]interface{}),
 	}
 }
 
@@ -214,6 +218,38 @@ func (p *Provider) send(cmd interface{}) error {
 	return err
 }
 
+func (p *Provider) request(ctx context.Context, payload map[string]interface{}) (map[string]interface{}, error) {
+	if p.stdin == nil {
+		return nil, fmt.Errorf("Pi RPC agent is not initialized")
+	}
+	id, _ := payload["id"].(string)
+	if id == "" {
+		id = p.requestID()
+		payload["id"] = id
+	}
+	ch := make(chan map[string]interface{}, 1)
+	p.pendingMu.Lock()
+	p.pending[id] = ch
+	p.pendingMu.Unlock()
+	defer func() {
+		p.pendingMu.Lock()
+		delete(p.pending, id)
+		p.pendingMu.Unlock()
+	}()
+	if err := p.send(payload); err != nil {
+		return nil, err
+	}
+	select {
+	case resp := <-ch:
+		if success, ok := resp["success"].(bool); ok && !success {
+			return resp, fmt.Errorf("pi command failed: %v", resp["error"])
+		}
+		return resp, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 // readEvents reads NDJSON events from Pi's stdout and routes them.
 func (p *Provider) readEvents() {
 	scanner := bufio.NewScanner(p.stdout)
@@ -369,7 +405,40 @@ func (p *Provider) routeMessageEvent(event map[string]interface{}) {
 	}
 }
 
+func (p *Provider) notifyPendingResponse(event map[string]interface{}) {
+	id := responseID(event["id"])
+	if id == "" {
+		return
+	}
+	p.pendingMu.Lock()
+	ch := p.pending[id]
+	p.pendingMu.Unlock()
+	if ch == nil {
+		return
+	}
+	select {
+	case ch <- event:
+	default:
+	}
+}
+
+func responseID(value interface{}) string {
+	switch v := value.(type) {
+	case string:
+		return v
+	case float64:
+		return strconv.FormatInt(int64(v), 10)
+	case int:
+		return strconv.Itoa(v)
+	case int64:
+		return strconv.FormatInt(v, 10)
+	default:
+		return ""
+	}
+}
+
 func (p *Provider) routeResponse(event map[string]interface{}) {
+	p.notifyPendingResponse(event)
 	if success, ok := event["success"].(bool); ok && !success {
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "error" })
 		err := fmt.Errorf("pi command failed: %v", event["error"])
@@ -528,6 +597,32 @@ func numericContextPct(state map[string]interface{}) (float64, bool) {
 // Steer sends a mid-turn steering message.
 func (p *Provider) Steer(message string) error {
 	return p.send(map[string]string{"id": p.requestID(), "type": "steer", "message": message})
+}
+
+// AvailableModels returns Pi's current model catalog when the RPC backend supports it.
+func (p *Provider) AvailableModels(ctx context.Context) ([]string, error) {
+	resp, err := p.request(ctx, map[string]interface{}{"type": "get_available_models"})
+	if err != nil {
+		return nil, err
+	}
+	data, _ := resp["data"].(map[string]interface{})
+	modelsRaw, _ := data["models"].([]interface{})
+	models := make([]string, 0, len(modelsRaw))
+	seen := map[string]bool{}
+	for _, item := range modelsRaw {
+		label := modelLabelFromState(item)
+		if label == "" {
+			if s, ok := item.(string); ok {
+				label = strings.TrimSpace(s)
+			}
+		}
+		if label == "" || seen[label] {
+			continue
+		}
+		seen[label] = true
+		models = append(models, label)
+	}
+	return models, nil
 }
 
 // SetModel changes the model live.

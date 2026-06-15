@@ -385,20 +385,30 @@ func getAgentModels(registry *agent.Registry) http.HandlerFunc {
 		}
 		status := p.Status()
 
-		// Collect models from all registered agents (fixes #7)
-		var models []map[string]string
+		var models []string
+		type modelLister interface {
+			AvailableModels(context.Context) ([]string, error)
+		}
+		if ml, ok := p.(modelLister); ok {
+			if listed, err := ml.AvailableModels(r.Context()); err == nil {
+				models = append(models, listed...)
+			}
+		}
+		seen := map[string]bool{}
+		for _, model := range models {
+			seen[model] = true
+		}
+		// Fallback/include current models from registered agents so ACP/other
+		// providers still have at least their active model in the picker.
 		for _, id := range registry.List() {
 			ap, _ := registry.Get(id)
-			s := ap.Status()
-			if s.Model != "" {
-				models = append(models, map[string]string{
-					"agent_id": id,
-					"model":    s.Model,
-				})
+			if model := strings.TrimSpace(ap.Status().Model); model != "" && !seen[model] {
+				models = append(models, model)
+				seen[model] = true
 			}
 		}
 		if models == nil {
-			models = []map[string]string{}
+			models = []string{}
 		}
 
 		jsonResp(w, map[string]interface{}{

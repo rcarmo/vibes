@@ -3,6 +3,7 @@ package pi
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -293,6 +294,61 @@ func TestPromptWaitsForAgentEndAndCollectsDraft(t *testing.T) {
 	}
 	if got := p.CollectedDraft(); got != "final text" {
 		t.Fatalf("CollectedDraft = %q", got)
+	}
+}
+
+func TestAvailableModelsUsesPiModelCatalog(t *testing.T) {
+	p := New(Config{Command: "pi"})
+	stdin := &bufferWriteCloser{}
+	p.stdin = stdin
+
+	done := make(chan []string, 1)
+	errs := make(chan error, 1)
+	go func() {
+		models, err := p.AvailableModels(context.Background())
+		if err != nil {
+			errs <- err
+			return
+		}
+		done <- models
+	}()
+
+	deadline := time.Now().Add(time.Second)
+	for stdin.Len() == 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Millisecond)
+	}
+	var req map[string]interface{}
+	if err := json.Unmarshal(stdin.Bytes(), &req); err != nil {
+		t.Fatalf("request json: %v", err)
+	}
+	id := req["id"].(string)
+	if req["type"] != "get_available_models" {
+		t.Fatalf("request = %#v", req)
+	}
+	p.routeEvent(map[string]interface{}{
+		"type":    "response",
+		"id":      id,
+		"command": "get_available_models",
+		"success": true,
+		"data": map[string]interface{}{
+			"models": []interface{}{
+				map[string]interface{}{"provider": "openai", "id": "gpt-test"},
+				"anthropic/claude-test",
+			},
+		},
+	})
+	<-p.events
+
+	select {
+	case err := <-errs:
+		t.Fatalf("AvailableModels error: %v", err)
+	case models := <-done:
+		want := []string{"openai/gpt-test", "anthropic/claude-test"}
+		if len(models) != len(want) || models[0] != want[0] || models[1] != want[1] {
+			t.Fatalf("models = %#v, want %#v", models, want)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("AvailableModels timed out")
 	}
 }
 

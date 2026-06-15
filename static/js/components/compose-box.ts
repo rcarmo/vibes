@@ -10,7 +10,7 @@ type ContextUsage = { percent?: number; tokens?: number; contextWindow?: number 
 type QueueItem = { row_id: string | number; content?: string; mode?: string };
 type FileRef = { path?: string; name?: string } | string;
 type MessageRef = { id?: string; label?: string; content?: string } | string;
-type ModelOption = { id?: string; name?: string; label?: string; model?: string } | string;
+type ModelOption = { id?: string; name?: string; label?: string; model?: string; provider?: string } | string;
 type ModelStatePayload = { model?: string; current?: string; thinking_level?: string | null; supports_thinking?: boolean };
 
 type ComposeBoxProps = {
@@ -46,6 +46,16 @@ type ComposeBoxProps = {
     agentActive?: boolean;
     onAbortTurn?: () => Promise<unknown> | unknown;
 };
+
+function modelOptionLabel(model: ModelOption | null | undefined): string {
+    if (!model) return '';
+    if (typeof model === 'string') return model.trim();
+    const direct = String(model.model || model.label || model.name || '').trim();
+    if (direct) return direct;
+    const provider = String(model.provider || '').trim();
+    const id = String(model.id || '').trim();
+    return provider && id ? `${provider}/${id}` : id;
+}
 
 function formatK(n: number | null | undefined): string {
     if (n == null) return '?';
@@ -704,7 +714,9 @@ export function ComposeBox({
         getAgentModels()
             .then((payload: any) => {
                 const models = Array.isArray(payload?.models)
-                    ? payload.models.filter((m: any) => typeof m === 'string' && m.trim().length > 0)
+                    ? payload.models
+                        .map((model: any) => modelOptionLabel(model))
+                        .filter((model: string, index: number, items: string[]) => model.length > 0 && items.indexOf(model) === index)
                     : [];
                 setModelOptions(models);
                 emitModelState(payload);
