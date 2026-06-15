@@ -37,19 +37,32 @@ func TestUnsafeClientServiceRequestsRemainUnimplemented(t *testing.T) {
 	}
 }
 
-func TestClientCapabilitiesKeepWriteAndTerminalDisabled(t *testing.T) {
-	p := New(Config{FSReadTextEnabled: true, FSWriteTextEnabled: true, FSWriteAllowOverwrite: true})
-	caps := p.clientCapabilities()
+func TestClientCapabilitiesAdvertiseWriteOnlyWhenEnabledAndKeepTerminalDisabled(t *testing.T) {
+	disabled := New(Config{FSReadTextEnabled: true})
+	caps := disabled.clientCapabilities()
 	fsCaps := caps["fs"].(map[string]interface{})
 	if fsCaps["writeTextFile"].(bool) {
-		t.Fatal("writeTextFile capability must remain disabled")
+		t.Fatal("writeTextFile capability must be disabled by default")
 	}
 	if caps["terminal"].(bool) {
 		t.Fatal("terminal capability must remain disabled")
 	}
-	providerCaps := p.Capabilities()
-	if providerCaps.FSWriteTextFile || providerCaps.TerminalServices {
-		t.Fatalf("provider capabilities expose unsafe services: %#v", providerCaps)
+	if disabled.Capabilities().FSWriteTextFile || disabled.Capabilities().TerminalServices {
+		t.Fatalf("provider capabilities expose disabled services: %#v", disabled.Capabilities())
+	}
+
+	enabled := New(Config{FSReadTextEnabled: true, FSWriteTextEnabled: true, FSWriteAllowOverwrite: true})
+	caps = enabled.clientCapabilities()
+	fsCaps = caps["fs"].(map[string]interface{})
+	if !fsCaps["writeTextFile"].(bool) {
+		t.Fatal("writeTextFile capability should be enabled with explicit write config")
+	}
+	if caps["terminal"].(bool) {
+		t.Fatal("terminal capability must remain disabled")
+	}
+	providerCaps := enabled.Capabilities()
+	if !providerCaps.FSWriteTextFile || providerCaps.TerminalServices {
+		t.Fatalf("provider capabilities = %#v", providerCaps)
 	}
 }
 

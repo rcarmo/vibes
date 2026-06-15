@@ -52,7 +52,7 @@ Goal: support ACP-native permission requests and a read-only filesystem service 
 2. Route `session/request_permission` through the existing Vibes permission dialog, whitelist, and timeout policy.
 3. Return ACP `selected` outcomes for approved option IDs and ACP `cancelled` outcomes for broker timeouts/errors.
 4. Advertise `clientCapabilities.fs.readTextFile` only when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
-5. Keep `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false` unconditionally.
+5. Initially kept `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false` while write policy work was pending.
 6. Implement `fs/read_text_file` with path normalization, workspace-root confinement, symlink escape prevention, directory rejection, file size limits, and ACP line/limit slicing.
 7. Surface provider descriptor booleans for read/write filesystem and terminal services so UI controls can stay capability-driven.
 8. Return explicit `method not found`/disabled errors for unimplemented ACP client methods rather than silently allowing them.
@@ -68,7 +68,7 @@ Goal: support ACP-native permission requests and a read-only filesystem service 
 - Reads are confined to the active workspace root.
 - Symlinks must not escape the allowlisted root.
 - Files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are rejected.
-- Write and terminal services are not advertised or implemented.
+- Write support is advertised only when `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true`; terminal services are not advertised or implemented.
 
 ## Design complete: Milestone D — writes and terminal services
 
@@ -79,7 +79,7 @@ Goal: add mutating local services only behind stronger opt-in controls.
 1. Added [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) for `fs/write_text_file` and `terminal/*`.
 2. Defined separate default-off opt-in configuration for ACP write and ACP terminal services.
 3. Defined workspace/root confinement, symlink handling, overwrite policy, terminal root/environment/session constraints, per-operation permission mediation, audit event shape, UI gating, and test coverage requirements.
-4. Kept `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false`; no write or terminal implementation is enabled by this milestone.
+4. Kept terminal support disabled while write support moved through separate gated implementation steps.
 
 ### Implementation rollout
 
@@ -88,7 +88,7 @@ Goal: add mutating local services only behind stronger opt-in controls.
 3. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
 4. Wire future write mediation through the Vibes permission broker and SSE audit event flow without filesystem mutation. ✅
 5. Add database audit persistence integration without filesystem mutation. ✅
-6. Enable `fs/write_text_file` only behind config and per-operation approval.
+6. Enable `fs/write_text_file` only behind config and per-operation approval. ✅
 7. Reassess and implement terminal separately with lifecycle limits, minimal env, audit, and explicit ACP-specific config.
 8. Advertise `clientCapabilities.terminal=true` only after terminal policy enforcement is complete.
 

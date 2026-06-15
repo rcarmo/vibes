@@ -15,7 +15,7 @@ func (p *Provider) clientCapabilities() map[string]interface{} {
 	return map[string]interface{}{
 		"fs": map[string]interface{}{
 			"readTextFile":  p.cfg.FSReadTextEnabled,
-			"writeTextFile": false,
+			"writeTextFile": p.cfg.FSWriteTextEnabled,
 		},
 		"terminal": false,
 	}

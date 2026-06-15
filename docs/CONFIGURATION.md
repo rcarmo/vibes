@@ -23,10 +23,10 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_ACP_MCP_SERVERS_JSON` | _(unset)_ | JSON array of MCP servers to pass to ACP sessions |
 | `VIBES_ACP_FS_READ_TEXT_ENABLED` | `false` | Opt in to ACP `fs/read_text_file` client requests |
 | `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` | `262144` | Maximum bytes for one ACP text-file read |
-| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Reserved ACP write-policy scaffold; does not advertise/enable `fs/write_text_file` yet |
-| `VIBES_ACP_FS_WRITE_ROOT` | _(workspace)_ | Reserved ACP write root for future confinement checks |
-| `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | `262144` | Reserved maximum bytes for future ACP text-file writes |
-| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Reserved overwrite policy for future ACP text-file writes |
+| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Opt in to ACP `fs/write_text_file` client requests with confinement, permission, atomic writes, and audit persistence |
+| `VIBES_ACP_FS_WRITE_ROOT` | _(workspace)_ | Root for ACP write confinement checks |
+| `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | `262144` | Maximum bytes for one ACP text-file write |
+| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Allow approved ACP writes to replace existing regular files |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
 | `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
@@ -98,13 +98,15 @@ Keep secrets out of committed files. Prefer wrapper commands or inherited proces
 
 `fs/read_text_file` is disabled by default. Set `VIBES_ACP_FS_READ_TEXT_ENABLED=true` to advertise `clientCapabilities.fs.readTextFile` and allow an ACP agent to request text reads inside the Vibes workspace root. Reads are path-normalized, symlinks are resolved before the root-confinement check, directories are rejected, and files larger than `VIBES_ACP_FS_READ_TEXT_MAX_BYTES` are refused.
 
-Vibes does not advertise `fs/write_text_file` or `terminal/*` support. Write-policy configuration is parsed for validation scaffolding only, and permission/audit helpers are wired through the existing broker/SSE event flow and durable `local_service_audit` table only for future non-mutating mediation; none of this changes `clientCapabilities.fs.writeTextFile=false`. These services remain unavailable until the safety requirements in [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) are fully implemented and validated.
+`fs/write_text_file` is also disabled by default. Set `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true` to advertise `clientCapabilities.fs.writeTextFile` and allow ACP text writes inside the configured write root. Writes are path-normalized, parent directories must already exist inside the root, final-path symlinks and directories are rejected, payloads larger than `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` are refused, every operation requires explicit permission, and approved writes use a same-directory temporary file plus atomic rename. Overwrites require both `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE=true` and per-operation approval.
+
+Vibes does not advertise `terminal/*` support. Terminal services remain unavailable until the safety requirements in [ACP_LOCAL_SERVICES_POLICY.md](ACP_LOCAL_SERVICES_POLICY.md) are implemented and validated.
 
 Current ACP client-service limitations:
 
 - Vibes negotiates and stores ACP prompt/MCP/session/auth capabilities.
 - Vibes passes configured MCP servers to `session/new`, filtering unsupported HTTP/SSE transports.
-- Vibes can optionally advertise read-only ACP filesystem access with `VIBES_ACP_FS_READ_TEXT_ENABLED=true`; write and terminal services remain disabled.
+- Vibes can optionally advertise read-only ACP filesystem access with `VIBES_ACP_FS_READ_TEXT_ENABLED=true` and write text-file access with `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true`; terminal services remain disabled.
 - ACP `session/request_permission` requests are mediated through the existing Vibes permission dialog, whitelist, and timeout flow; timeouts/errors return ACP `cancelled` outcomes.
 - Prompt payloads support text plus explicit `resource_link` context entries; embedded resources, image, and audio blocks are planned follow-up work tracked in [ACP_EXTRAS_PLAN.md](ACP_EXTRAS_PLAN.md).
 

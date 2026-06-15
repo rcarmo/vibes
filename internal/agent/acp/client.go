@@ -125,7 +125,7 @@ func (p *Provider) Capabilities() agent.ProviderCapabilities {
 	base.SessionResume = caps.Session.Resume
 	base.SessionClose = caps.Session.Close
 	base.FSReadTextFile = p.cfg.FSReadTextEnabled
-	base.FSWriteTextFile = false
+	base.FSWriteTextFile = p.cfg.FSWriteTextEnabled
 	base.TerminalServices = false
 	return base
 }

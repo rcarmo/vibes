@@ -1,20 +1,20 @@
 # ACP local services safety policy
 
-This document defines the safety model that must exist before Vibes can expose ACP `fs/write_text_file` or `terminal/*` client services. It is intentionally design-only: current Vibes builds must continue to advertise `clientCapabilities.fs.writeTextFile=false` and `clientCapabilities.terminal=false`.
+This document defines the safety model for ACP local client services. Vibes now supports `fs/write_text_file` only behind explicit configuration, root confinement, per-operation permission mediation, atomic writes, and durable audit persistence. ACP `terminal/*` remains disabled and must continue to advertise `clientCapabilities.terminal=false`.
 
 ## Current state
 
 - `fs/read_text_file` is the only ACP filesystem service with implementation scaffolding.
 - `fs/read_text_file` is default-off and only advertised when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
-- `fs/write_text_file` is not implemented and must return a JSON-RPC method-not-implemented error.
-- Write-policy configuration, non-mutating confinement planning, future permission request shaping, broker-mediated decision handling, durable audit persistence, and structured SSE audit emission exist, but do not advertise or execute writes.
+- `fs/write_text_file` is implemented only when `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true`; otherwise it returns a JSON-RPC method-not-implemented error and is not advertised.
+- Write execution uses configuration, confinement planning, permission request shaping, broker-mediated decision handling, durable audit persistence, structured SSE audit emission, and atomic same-directory temp-file rename.
 - ACP terminal methods are not implemented and must return JSON-RPC method-not-implemented errors.
 - `/terminal/ws` is a separate browser PTY endpoint, gated by `VIBES_ENABLE_TERMINAL`; that flag does not enable ACP terminal services.
-- Provider descriptors expose `fs_write_text_file=false` and `terminal_services=false` so the UI can hide unsafe controls.
+- Provider descriptors expose `fs_write_text_file=true` only when write support is explicitly enabled; `terminal_services=false` remains unconditional.
 
 ## Non-goals for the current implementation
 
-- Do not advertise ACP write or terminal capabilities.
+- Do not advertise ACP write capability unless `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true` and the write policy implementation is active; do not advertise ACP terminal capability.
 - Do not reuse `/terminal/ws` directly as an ACP terminal implementation.
 - Do not auto-approve ACP write or terminal operations based only on broad whitelist patterns.
 - Do not let ACP agents bypass Vibes workspace/root confinement, permission mediation, API-token protection, or audit logs.
@@ -25,10 +25,10 @@ Write and terminal services require separate, explicit configuration. A future i
 
 | Variable | Default | Required meaning |
 |---|---:|---|
-| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Parsed for write-policy scaffolding; must not advertise or handle `fs/write_text_file` until all write policy checks are implemented. |
-| `VIBES_ACP_FS_WRITE_ROOT` | `VIBES_WORKSPACE` | Root directory for ACP write planning; must resolve to an existing directory. |
+| `VIBES_ACP_FS_WRITE_TEXT_ENABLED` | `false` | Advertise and handle `fs/write_text_file` only with all write policy checks active. |
+| `VIBES_ACP_FS_WRITE_ROOT` | `VIBES_WORKSPACE` | Root directory for ACP writes; must resolve to an existing directory. |
 | `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | policy-defined | Maximum accepted write payload size. |
-| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Whether future writes may replace existing files after explicit approval. |
+| `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Whether approved writes may replace existing regular files. |
 | `VIBES_ACP_TERMINAL_ENABLED` | `false` | Advertise and handle ACP `terminal/*`; independent from `VIBES_ENABLE_TERMINAL`. |
 | `VIBES_ACP_TERMINAL_ROOT` | `VIBES_WORKSPACE` | Working directory root for ACP terminal sessions. |
 | `VIBES_ACP_TERMINAL_SHELL` | allowlisted shell | Shell/command used to start ACP terminals; must not inherit arbitrary agent-provided commands. |
@@ -55,7 +55,7 @@ A future implementation may choose different exact names, but it must preserve t
 
 ### `fs/write_text_file`
 
-A future write implementation must:
+The write implementation must:
 
 1. require an absolute ACP path or normalize a relative path against the configured write root;
 2. reject directory targets;
@@ -80,7 +80,7 @@ A future ACP terminal implementation must:
 
 ## Per-operation permission mediation
 
-Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker. Vibes now has helper scaffolding that turns a validated future write plan into a per-operation permission request with target path, byte count, overwrite flag, escaped content preview, and content hash. The future write plan mediation helper is wired to the existing Vibes permission broker for approve/deny/timeout decisions, bypassing broad whitelist auto-approval for high-risk local-service prompts. It is not called by the `fs/write_text_file` JSON-RPC dispatcher and does not mutate files.
+Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker. Vibes turns a validated write plan into a per-operation permission request with target path, byte count, overwrite flag, escaped content preview, and content hash. The write mediation path is wired to the existing Vibes permission broker for approve/deny/timeout decisions and bypasses broad whitelist auto-approval for high-risk local-service prompts. Denial, timeout, validation error, revalidation error, and write error outcomes do not mutate files.
 
 ### Required prompts
 
@@ -138,8 +138,9 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 
 - Default client capabilities advertise `fs.writeTextFile=false` and `terminal=false`.
 - Setting read flags cannot enable write or terminal capabilities.
-- Invalid future write/terminal config fails closed.
-- Provider descriptors keep `fs_write_text_file=false` and `terminal_services=false` until policy and implementation are enabled.
+- Write capability is advertised only when `VIBES_ACP_FS_WRITE_TEXT_ENABLED=true`.
+- Invalid write/terminal config fails closed.
+- Provider descriptors keep `terminal_services=false`; `fs_write_text_file` follows explicit write configuration.
 
 ### Write tests
 
@@ -172,7 +173,7 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 4. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
 5. Wire future write mediation through the Vibes permission broker and SSE audit event flow without filesystem mutation. ✅
 6. Add database audit persistence integration without filesystem mutation. ✅
-7. Enable `fs/write_text_file` behind config and per-operation approval.
+7. Enable `fs/write_text_file` behind config and per-operation approval. ✅
 8. Reassess terminal separately; do not couple terminal enablement to write support.
 9. Implement terminal lifecycle/limits/audit behind config.
 10. Only then advertise `clientCapabilities.terminal=true`.

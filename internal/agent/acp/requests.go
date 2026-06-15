@@ -35,10 +35,36 @@ func (p *Provider) handleClientRequest(idRaw json.RawMessage, msg map[string]jso
 			return
 		}
 		p.sendResultResponse(id, result)
-	case "fs/write_text_file", "terminal/create", "terminal/output", "terminal/kill":
+	case "fs/write_text_file":
+		if !p.cfg.FSWriteTextEnabled {
+			p.sendErrorResponse(id, -32601, fmt.Sprintf("%s is not implemented by Vibes", method))
+			return
+		}
+		result, err := p.writeTextFile(params, jsonRPCIDString(id))
+		if err != nil {
+			p.sendErrorResponse(id, -32000, err.Error())
+			return
+		}
+		p.sendResultResponse(id, result)
+	case "terminal/create", "terminal/output", "terminal/kill":
 		p.sendErrorResponse(id, -32601, fmt.Sprintf("%s is not implemented by Vibes", method))
 	default:
 		p.sendErrorResponse(id, -32601, fmt.Sprintf("method not found: %s", method))
+	}
+}
+
+func jsonRPCIDString(id interface{}) string {
+	switch v := id.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	case int:
+		return fmt.Sprintf("%d", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	default:
+		return fmt.Sprintf("%v", id)
 	}
 }
 
