@@ -7,7 +7,7 @@ This document defines the safety model that must exist before Vibes can expose A
 - `fs/read_text_file` is the only ACP filesystem service with implementation scaffolding.
 - `fs/read_text_file` is default-off and only advertised when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
 - `fs/write_text_file` is not implemented and must return a JSON-RPC method-not-implemented error.
-- Write-policy configuration, non-mutating confinement planning, future permission request shaping, broker-mediated decision handling, and structured SSE audit emission exist, but do not advertise or execute writes.
+- Write-policy configuration, non-mutating confinement planning, future permission request shaping, broker-mediated decision handling, durable audit persistence, and structured SSE audit emission exist, but do not advertise or execute writes.
 - ACP terminal methods are not implemented and must return JSON-RPC method-not-implemented errors.
 - `/terminal/ws` is a separate browser PTY endpoint, gated by `VIBES_ENABLE_TERMINAL`; that flag does not enable ACP terminal services.
 - Provider descriptors expose `fs_write_text_file=false` and `terminal_services=false` so the UI can hide unsafe controls.
@@ -102,7 +102,7 @@ Write and terminal operations are mutating/high-risk and require per-operation m
 
 ## Audit events
 
-Every ACP local-service request should emit a structured audit event. Vibes now has a local-service audit recorder interface and helpers that map future write approval, denial, timeout, and error outcomes into the structured event shape below. The app-level route adapter installs an SSE recorder that emits `agent_audit` events for future local-service mediation; database persistence remains future work.
+Every ACP local-service request should emit a structured audit event. Vibes now has a local-service audit recorder interface and helpers that map future write approval, denial, timeout, and error outcomes into the structured event shape below. The app-level route adapter persists sanitized rows to `local_service_audit` and then emits `agent_audit` SSE events for future local-service mediation.
 
 At minimum:
 
@@ -121,7 +121,7 @@ At minimum:
 }
 ```
 
-Audit data must not include full file contents, terminal output, secrets, or raw environment variables. Content previews must be small, escaped, and clearly marked as previews.
+Audit data must not include full file contents, terminal output, secrets, or raw environment variables. Durable rows store structured fields (`provider_id`, `session_id`, `method`, `request_id`, `target`, `decision`, `reason`, `bytes`, small safe metadata) and intentionally omit content previews.
 
 ## UI gating
 
@@ -171,7 +171,7 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 3. Implement non-mutating write path validation and audit event shape scaffolding. ✅
 4. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
 5. Wire future write mediation through the Vibes permission broker and SSE audit event flow without filesystem mutation. ✅
-6. Add database audit persistence integration without filesystem mutation.
+6. Add database audit persistence integration without filesystem mutation. ✅
 7. Enable `fs/write_text_file` behind config and per-operation approval.
 8. Reassess terminal separately; do not couple terminal enablement to write support.
 9. Implement terminal lifecycle/limits/audit behind config.

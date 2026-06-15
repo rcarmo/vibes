@@ -38,6 +38,23 @@ type MediaInfo struct {
 	CreatedAt   time.Time       `json:"created_at"`
 }
 
+// LocalServiceAudit stores sanitized ACP/local-service audit metadata. It must
+// not contain full file contents, terminal output, secrets, or raw environment.
+type LocalServiceAudit struct {
+	ID         int64           `json:"id"`
+	Timestamp  time.Time       `json:"timestamp"`
+	Type       string          `json:"type"`
+	ProviderID string          `json:"provider_id,omitempty"`
+	SessionID  string          `json:"session_id,omitempty"`
+	Method     string          `json:"method"`
+	RequestID  string          `json:"request_id,omitempty"`
+	Target     string          `json:"target,omitempty"`
+	Decision   string          `json:"decision"`
+	Reason     string          `json:"reason,omitempty"`
+	Bytes      int64           `json:"bytes,omitempty"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
+}
+
 // ── Interactions ─────────────────────────────────────────────────
 
 // InsertInteraction stores a new interaction and returns its ID.
@@ -294,6 +311,74 @@ func (db *DB) SetThreadBackend(threadID int64, backend BackendMetadata) (*Thread
 	return &ThreadBackend{ThreadID: threadID, Backend: backend, BackendGeneration: generation}, changed, nil
 }
 
+// ── Local service audit ──────────────────────────────────────────
+
+// InsertLocalServiceAudit stores a sanitized local-service audit event.
+func (db *DB) InsertLocalServiceAudit(a LocalServiceAudit) (int64, error) {
+	a.Type = strings.TrimSpace(a.Type)
+	if a.Type == "" {
+		a.Type = "acp_local_service"
+	}
+	a.Method = strings.TrimSpace(a.Method)
+	a.Decision = strings.TrimSpace(a.Decision)
+	if a.Method == "" || a.Decision == "" {
+		return 0, fmt.Errorf("method and decision are required")
+	}
+	metadata := ""
+	if len(a.Metadata) > 0 {
+		if !json.Valid(a.Metadata) {
+			return 0, fmt.Errorf("metadata must be valid JSON")
+		}
+		metadata = string(a.Metadata)
+	}
+	result, err := db.Exec(`
+		INSERT INTO local_service_audit (
+			type, provider_id, session_id, method, request_id, target,
+			decision, reason, bytes, metadata
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULLIF(?, ''))
+	`, a.Type, a.ProviderID, a.SessionID, a.Method, a.RequestID, a.Target, a.Decision, a.Reason, a.Bytes, metadata)
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+// GetLocalServiceAudit retrieves one local-service audit event.
+func (db *DB) GetLocalServiceAudit(id int64) (*LocalServiceAudit, error) {
+	row := db.QueryRow(`
+		SELECT id, timestamp, type, provider_id, session_id, method, request_id,
+		       target, decision, reason, bytes, metadata
+		FROM local_service_audit WHERE id = ?
+	`, id)
+	return scanLocalServiceAudit(row)
+}
+
+// GetLocalServiceAudits retrieves recent local-service audit events.
+func (db *DB) GetLocalServiceAudits(limit int) ([]LocalServiceAudit, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	rows, err := db.Query(`
+		SELECT id, timestamp, type, provider_id, session_id, method, request_id,
+		       target, decision, reason, bytes, metadata
+		FROM local_service_audit
+		ORDER BY id DESC LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var audits []LocalServiceAudit
+	for rows.Next() {
+		audit, err := scanLocalServiceAuditRow(rows)
+		if err != nil {
+			return nil, err
+		}
+		audits = append(audits, *audit)
+	}
+	return audits, rows.Err()
+}
+
 // ── Whitelist ────────────────────────────────────────────────────
 
 // AddWhitelistPattern adds a permission pattern.
@@ -392,6 +477,48 @@ func scanInteractions(rows *sql.Rows) ([]Interaction, error) {
 		results = append(results, i)
 	}
 	return results, rows.Err()
+}
+
+func scanLocalServiceAudit(row *sql.Row) (*LocalServiceAudit, error) {
+	a := &LocalServiceAudit{}
+	var providerID, sessionID, requestID, target, reason, metadata sql.NullString
+	err := row.Scan(&a.ID, &a.Timestamp, &a.Type, &providerID, &sessionID, &a.Method, &requestID, &target, &a.Decision, &reason, &a.Bytes, &metadata)
+	if err != nil {
+		return nil, err
+	}
+	copyLocalServiceAuditNulls(a, providerID, sessionID, requestID, target, reason, metadata)
+	return a, nil
+}
+
+func scanLocalServiceAuditRow(rows *sql.Rows) (*LocalServiceAudit, error) {
+	a := &LocalServiceAudit{}
+	var providerID, sessionID, requestID, target, reason, metadata sql.NullString
+	if err := rows.Scan(&a.ID, &a.Timestamp, &a.Type, &providerID, &sessionID, &a.Method, &requestID, &target, &a.Decision, &reason, &a.Bytes, &metadata); err != nil {
+		return nil, err
+	}
+	copyLocalServiceAuditNulls(a, providerID, sessionID, requestID, target, reason, metadata)
+	return a, nil
+}
+
+func copyLocalServiceAuditNulls(a *LocalServiceAudit, providerID, sessionID, requestID, target, reason, metadata sql.NullString) {
+	if providerID.Valid {
+		a.ProviderID = providerID.String
+	}
+	if sessionID.Valid {
+		a.SessionID = sessionID.String
+	}
+	if requestID.Valid {
+		a.RequestID = requestID.String
+	}
+	if target.Valid {
+		a.Target = target.String
+	}
+	if reason.Valid {
+		a.Reason = reason.String
+	}
+	if metadata.Valid {
+		a.Metadata = json.RawMessage(metadata.String)
+	}
 }
 
 // matchGlob does simple prefix/suffix glob matching (e.g., "Run *" matches "Run command").

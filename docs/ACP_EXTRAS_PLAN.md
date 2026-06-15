@@ -87,7 +87,7 @@ Goal: add mutating local services only behind stronger opt-in controls.
 2. Add non-mutating write path validation/audit shape scaffolding and tests. ✅
 3. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
 4. Wire future write mediation through the Vibes permission broker and SSE audit event flow without filesystem mutation. ✅
-5. Add database audit persistence integration without filesystem mutation.
+5. Add database audit persistence integration without filesystem mutation. ✅
 6. Enable `fs/write_text_file` only behind config and per-operation approval.
 7. Reassess and implement terminal separately with lifecycle limits, minimal env, audit, and explicit ACP-specific config.
 8. Advertise `clientCapabilities.terminal=true` only after terminal policy enforcement is complete.

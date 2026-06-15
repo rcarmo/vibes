@@ -39,7 +39,7 @@ func TestWireACPLocalServicePermissionBrokerApproveDenyAudit(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			provider, broker, client := wiredACPProviderForTest(t, time.Second)
+			provider, broker, client, database := wiredACPProviderForTest(t, time.Second)
 			plan := acp.WriteTextPlan{Root: "/workspace", ResolvedPath: "/workspace/new.txt", Bytes: 5}
 			decisionCh := make(chan acp.WriteTextPermissionDecision, 1)
 			go func() {
@@ -74,6 +74,13 @@ func TestWireACPLocalServicePermissionBrokerApproveDenyAudit(t *testing.T) {
 			}
 			if audit.Method != "fs/write_text_file" || audit.Decision != tc.auditDecision || audit.Target != plan.ResolvedPath || audit.Bytes != plan.Bytes {
 				t.Fatalf("audit event = %#v", audit)
+			}
+			audits, err := database.GetLocalServiceAudits(10)
+			if err != nil {
+				t.Fatalf("GetLocalServiceAudits: %v", err)
+			}
+			if len(audits) != 1 || audits[0].Decision != tc.auditDecision || audits[0].Method != "fs/write_text_file" || audits[0].Target != plan.ResolvedPath {
+				t.Fatalf("persisted audits = %#v", audits)
 			}
 		})
 	}
@@ -120,7 +127,7 @@ func TestWireACPLocalServiceBypassesWhitelistAutoApprove(t *testing.T) {
 }
 
 func TestWireACPLocalServicePermissionBrokerTimeoutAudit(t *testing.T) {
-	provider, _, client := wiredACPProviderForTest(t, 20*time.Millisecond)
+	provider, _, client, database := wiredACPProviderForTest(t, 20*time.Millisecond)
 	plan := acp.WriteTextPlan{Root: "/workspace", ResolvedPath: "/workspace/new.txt", Bytes: 5}
 	decisionCh := make(chan acp.WriteTextPermissionDecision, 1)
 	go func() {
@@ -144,18 +151,30 @@ func TestWireACPLocalServicePermissionBrokerTimeoutAudit(t *testing.T) {
 	if audit.Decision != "timeout" || audit.Reason != "permission_timeout" {
 		t.Fatalf("audit event = %#v", audit)
 	}
+	audits, err := database.GetLocalServiceAudits(10)
+	if err != nil {
+		t.Fatalf("GetLocalServiceAudits: %v", err)
+	}
+	if len(audits) != 1 || audits[0].Decision != "timeout" || audits[0].Reason != "permission_timeout" {
+		t.Fatalf("persisted audits = %#v", audits)
+	}
 }
 
-func wiredACPProviderForTest(t *testing.T, timeout time.Duration) (*acp.Provider, *PermissionBroker, *sse.Client) {
+func wiredACPProviderForTest(t *testing.T, timeout time.Duration) (*acp.Provider, *PermissionBroker, *sse.Client, *db.DB) {
 	t.Helper()
 	registry := agent.NewRegistry()
 	provider := acp.New(acp.Config{ID: "codex"})
 	registry.RegisterWithDescriptor("codex", provider, agent.ProviderDescriptor{ID: "codex", Label: "Codex", Available: true})
 	sseBroker := sse.NewBroker()
 	client := sseBroker.Subscribe("test")
-	broker := NewPermissionBroker(sseBroker, timeout)
+	database, err := db.Open(filepath.Join(t.TempDir(), "vibes.db"))
+	if err != nil {
+		t.Fatalf("db open: %v", err)
+	}
+	t.Cleanup(func() { database.Close() })
+	broker := NewPermissionBroker(sseBroker, timeout, database)
 	wireACPPermissionHandlers(registry, broker)
-	return provider, broker, client
+	return provider, broker, client, database
 }
 
 func waitForEvent(t *testing.T, client *sse.Client, eventType string) sse.Event {

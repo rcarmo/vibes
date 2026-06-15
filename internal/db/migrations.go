@@ -3,7 +3,7 @@ package db
 import "log/slog"
 
 // Schema version — bump when adding new migrations.
-const schemaVersion = 3
+const schemaVersion = 4
 
 func (db *DB) migrate() error {
 	// Create schema version table
@@ -44,6 +44,13 @@ func (db *DB) migrate() error {
 	// Migration 3: per-thread backend affinity
 	if current < 3 {
 		if err := db.migrateV3(); err != nil {
+			return err
+		}
+	}
+
+	// Migration 4: durable local-service audit events
+	if current < 4 {
+		if err := db.migrateV4(); err != nil {
 			return err
 		}
 	}
@@ -139,4 +146,33 @@ func (db *DB) migrateV3() error {
 		updated_at DATETIME DEFAULT (datetime('now'))
 	)`)
 	return err
+}
+
+func (db *DB) migrateV4() error {
+	stmts := []string{
+		`CREATE TABLE IF NOT EXISTS local_service_audit (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			timestamp DATETIME DEFAULT (datetime('now')),
+			type TEXT NOT NULL,
+			provider_id TEXT,
+			session_id TEXT,
+			method TEXT NOT NULL,
+			request_id TEXT,
+			target TEXT,
+			decision TEXT NOT NULL,
+			reason TEXT,
+			bytes INTEGER DEFAULT 0,
+			metadata JSON
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_local_service_audit_ts ON local_service_audit(timestamp DESC)`,
+		`CREATE INDEX IF NOT EXISTS idx_local_service_audit_method ON local_service_audit(method)`,
+		`CREATE INDEX IF NOT EXISTS idx_local_service_audit_decision ON local_service_audit(decision)`,
+		`CREATE INDEX IF NOT EXISTS idx_local_service_audit_provider ON local_service_audit(provider_id)`,
+	}
+	for _, stmt := range stmts {
+		if _, err := db.Exec(stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }

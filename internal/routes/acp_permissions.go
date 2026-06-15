@@ -1,10 +1,13 @@
 package routes
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/rcarmo/vibes/internal/agent"
 	"github.com/rcarmo/vibes/internal/agent/acp"
+	"github.com/rcarmo/vibes/internal/db"
 	"github.com/rcarmo/vibes/internal/server/sse"
 )
 
@@ -50,10 +53,36 @@ func isACPLocalServicePermission(req acp.PermissionRequest) bool {
 }
 
 func broadcastLocalServiceAudit(broker *PermissionBroker, event acp.LocalServiceAuditEvent) {
-	if broker == nil || broker.sseBrk == nil {
+	if broker == nil {
+		return
+	}
+	if broker.whitelistDB != nil {
+		if _, err := broker.whitelistDB.InsertLocalServiceAudit(localServiceAuditFromACP(event)); err != nil {
+			slog.Warn("persist local service audit", "error", err, "method", event.Method, "decision", event.Decision)
+		}
+	}
+	if broker.sseBrk == nil {
 		return
 	}
 	broker.sseBrk.Broadcast(sse.Event{Type: "agent_audit", Data: event})
+}
+
+func localServiceAuditFromACP(event acp.LocalServiceAuditEvent) db.LocalServiceAudit {
+	metadata, _ := json.Marshal(map[string]interface{}{
+		"source": "acp",
+	})
+	return db.LocalServiceAudit{
+		Type:       event.Type,
+		ProviderID: event.ProviderID,
+		SessionID:  event.SessionID,
+		Method:     event.Method,
+		RequestID:  event.RequestID,
+		Target:     event.Target,
+		Decision:   event.Decision,
+		Reason:     event.Reason,
+		Bytes:      event.Bytes,
+		Metadata:   metadata,
+	}
 }
 
 func acpOptionsToRouteOptions(options []acp.PermissionOption) []Option {
