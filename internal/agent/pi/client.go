@@ -40,6 +40,12 @@ type Provider struct {
 	status agent.ProviderStatus
 	cancel context.CancelFunc
 	nextID atomic.Int64
+
+	draftMu   sync.Mutex
+	draftText strings.Builder
+
+	turnMu   sync.Mutex
+	turnDone chan error
 }
 
 // New creates a new Pi RPC provider.
@@ -74,6 +80,20 @@ func (p *Provider) updateStatus(mut func(*agent.ProviderStatus)) {
 
 func (p *Provider) requestID() string {
 	return strconv.FormatInt(p.nextID.Add(1), 10)
+}
+
+func (p *Provider) completeTurn(err error) {
+	p.turnMu.Lock()
+	done := p.turnDone
+	p.turnDone = nil
+	p.turnMu.Unlock()
+	if done == nil {
+		return
+	}
+	select {
+	case done <- err:
+	default:
+	}
 }
 
 // Initialize spawns the Pi subprocess and waits for readiness.
@@ -116,6 +136,10 @@ func (p *Provider) Initialize(ctx context.Context) error {
 	go p.readStderr(stderr)
 
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: "pi"})
+	// Ask Pi for its current state so the UI can show the real active model
+	// as soon as Pi reports it. Failure is non-fatal; later state/model events
+	// still update provider status.
+	_ = p.send(map[string]string{"id": p.requestID(), "type": "get_state"})
 	slog.Info("Pi RPC agent started", "pid", cmd.Process.Pid)
 	return nil
 }
@@ -129,13 +153,32 @@ func (p *Provider) Prompt(ctx context.Context, message string, threadID int64) e
 	p.updateStatus(func(s *agent.ProviderStatus) {
 		s.State = "busy"
 	})
+	p.draftMu.Lock()
+	p.draftText.Reset()
+	p.draftMu.Unlock()
+
+	done := make(chan error, 1)
+	p.turnMu.Lock()
+	p.turnDone = done
+	p.turnMu.Unlock()
 
 	cmd := map[string]interface{}{
 		"id":      p.requestID(),
 		"type":    "prompt",
 		"message": message,
 	}
-	return p.send(cmd)
+	if err := p.send(cmd); err != nil {
+		p.completeTurn(err)
+		return err
+	}
+
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		_ = p.Cancel()
+		return ctx.Err()
+	}
 }
 
 // Cancel aborts the current Pi request.
@@ -225,6 +268,7 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 	case "agent_end":
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "idle" })
 		p.events <- agent.Event{Type: "response", Data: event}
+		p.completeTurn(nil)
 
 	case "message_start", "message_update", "message_end":
 		p.routeMessageEvent(event)
@@ -239,7 +283,9 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 
 	case "error", "backend_exited":
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "error" })
+		err := fmt.Errorf("pi error: %v", event)
 		p.events <- agent.Event{Type: "error", Data: event}
+		p.completeTurn(err)
 
 	default:
 		// Unknown events are still useful for diagnostics and future Pi protocol additions.
@@ -250,27 +296,39 @@ func (p *Provider) routeEvent(event map[string]interface{}) {
 func (p *Provider) routeMessageEvent(event map[string]interface{}) {
 	payload, _ := event["assistantMessageEvent"].(map[string]interface{})
 	if payload == nil {
+		payload, _ = event["message"].(map[string]interface{})
+	}
+	if payload == nil {
+		payload = event
+	}
+
+	deltaType := firstString(payload, "type", "kind", "event")
+	text := firstString(payload, "delta", "content", "text")
+	if text == "" {
+		text = firstNestedString(payload, []string{"text", "value"}, []string{"content", "text"}, []string{"delta", "text"})
+	}
+	if text == "" {
 		return
 	}
 
-	deltaType, _ := payload["type"].(string)
-	text := firstString(payload, "delta", "content")
-	switch deltaType {
-	case "text_delta":
-		if text != "" {
-			p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text}}
-		}
-	case "thinking_delta":
-		if text != "" {
-			p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text}}
-		}
+	if strings.Contains(deltaType, "thinking") || strings.Contains(deltaType, "thought") {
+		p.events <- agent.Event{Type: "thought", Data: map[string]string{"text": text}}
+		return
+	}
+	if strings.Contains(deltaType, "text") || strings.Contains(deltaType, "message") || deltaType == "" {
+		p.draftMu.Lock()
+		p.draftText.WriteString(text)
+		p.draftMu.Unlock()
+		p.events <- agent.Event{Type: "draft", Data: map[string]string{"text": text}}
 	}
 }
 
 func (p *Provider) routeResponse(event map[string]interface{}) {
 	if success, ok := event["success"].(bool); ok && !success {
 		p.updateStatus(func(s *agent.ProviderStatus) { s.State = "error" })
+		err := fmt.Errorf("pi command failed: %v", event["error"])
 		p.events <- agent.Event{Type: "error", Data: event}
+		p.completeTurn(err)
 		return
 	}
 
@@ -319,6 +377,31 @@ func firstString(m map[string]interface{}, keys ...string) string {
 		}
 	}
 	return ""
+}
+
+func firstNestedString(m map[string]interface{}, paths ...[]string) string {
+	for _, path := range paths {
+		var current interface{} = m
+		for _, key := range path {
+			next, ok := current.(map[string]interface{})
+			if !ok {
+				current = nil
+				break
+			}
+			current = next[key]
+		}
+		if value, ok := current.(string); ok && value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+// CollectedDraft returns streamed assistant text accumulated during the last turn.
+func (p *Provider) CollectedDraft() string {
+	p.draftMu.Lock()
+	defer p.draftMu.Unlock()
+	return p.draftText.String()
 }
 
 func numericContextPct(state map[string]interface{}) (float64, bool) {

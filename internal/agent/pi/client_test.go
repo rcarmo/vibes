@@ -1,10 +1,17 @@
 package pi
 
 import (
+	"bytes"
+	"context"
 	"testing"
+	"time"
 
 	"github.com/rcarmo/vibes/internal/agent"
 )
+
+type bufferWriteCloser struct{ bytes.Buffer }
+
+func (b *bufferWriteCloser) Close() error { return nil }
 
 func TestNewProvider(t *testing.T) {
 	p := New(Config{Command: "pi", WorkDir: "/tmp"})
@@ -40,6 +47,29 @@ func TestRouteAssistantMessageEventTextDelta(t *testing.T) {
 	if !ok || data["text"] != "new protocol" {
 		t.Fatalf("event data = %#v, want text delta", e.Data)
 	}
+	if got := p.CollectedDraft(); got != "new protocol" {
+		t.Fatalf("collected draft = %q", got)
+	}
+}
+
+func TestRouteFlatMessageEventTextDelta(t *testing.T) {
+	p := New(Config{Command: "pi"})
+
+	event := map[string]interface{}{
+		"type":  "message_update",
+		"kind":  "text_delta",
+		"delta": "flat protocol",
+	}
+
+	go p.routeEvent(event)
+
+	e := <-p.events
+	if e.Type != "draft" {
+		t.Fatalf("event type = %q, want draft", e.Type)
+	}
+	if got := p.CollectedDraft(); got != "flat protocol" {
+		t.Fatalf("collected draft = %q", got)
+	}
 }
 
 func TestRouteAssistantMessageEventThinkingDelta(t *testing.T) {
@@ -61,6 +91,29 @@ func TestRouteAssistantMessageEventThinkingDelta(t *testing.T) {
 	}
 	data, ok := e.Data.(map[string]string)
 	if !ok || data["text"] != "new thinking" {
+		t.Fatalf("event data = %#v, want thinking delta", e.Data)
+	}
+}
+
+func TestRouteFlatMessageEventThinkingDelta(t *testing.T) {
+	p := New(Config{Command: "pi"})
+
+	event := map[string]interface{}{
+		"type": "message_update",
+		"message": map[string]interface{}{
+			"kind":    "thinking_delta",
+			"content": "flat thinking",
+		},
+	}
+
+	go p.routeEvent(event)
+
+	e := <-p.events
+	if e.Type != "thought" {
+		t.Fatalf("event type = %q, want thought", e.Type)
+	}
+	data, ok := e.Data.(map[string]string)
+	if !ok || data["text"] != "flat thinking" {
 		t.Fatalf("event data = %#v, want thinking delta", e.Data)
 	}
 }
@@ -138,6 +191,39 @@ func TestRouteResponseFailureEmitsError(t *testing.T) {
 	}
 	if p.Status().State != "error" {
 		t.Errorf("state = %q, want error", p.Status().State)
+	}
+}
+
+func TestPromptWaitsForAgentEndAndCollectsDraft(t *testing.T) {
+	p := New(Config{Command: "pi"})
+	p.stdin = &bufferWriteCloser{}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- p.Prompt(context.Background(), "hello", 1)
+	}()
+
+	select {
+	case err := <-done:
+		t.Fatalf("Prompt returned before agent_end: %v", err)
+	case <-time.After(20 * time.Millisecond):
+	}
+
+	p.routeEvent(map[string]interface{}{"type": "message_update", "kind": "text_delta", "delta": "final text"})
+	<-p.events
+	p.routeEvent(map[string]interface{}{"type": "agent_end"})
+	<-p.events
+
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("Prompt returned error: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("Prompt did not return after agent_end")
+	}
+	if got := p.CollectedDraft(); got != "final text" {
+		t.Fatalf("CollectedDraft = %q", got)
 	}
 }
 

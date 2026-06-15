@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.ts';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, deletePost, getMediaUrl, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, sendAgentMessage, SSEClient } from './api.ts';
 import { getAgentProviders } from './features/backends/backend-api.ts';
 import { ComposeBox } from './components/compose-box.ts';
 import { Timeline } from './components/timeline.ts';
@@ -1645,6 +1645,12 @@ function App() {
         }
     }, [applyModelState]);
 
+    const handleAbortTurn = useCallback(async () => {
+        await sendAgentMessage('default', '/abort', null, [], null, activeBackendId || null);
+        clearAgentRunState();
+        setAgentStatus({ type: 'cancelled', title: 'Stopping current turn…' });
+    }, [activeBackendId, clearAgentRunState]);
+
     useEffect(() => {
         loadAgents();
 
@@ -1795,9 +1801,14 @@ function App() {
                 if (mode === 'replace') setAgentPlan(text);
                 else setAgentPlan((prev) => (prev || '') + text);
             } else {
-                if (!expandedPanelsRef.current.draft) {
+                if (mode === 'replace' || data?.reset) {
                     draftBufferRef.current = text;
-                    setAgentDraft({ text, totalLines: inferredTotal });
+                } else {
+                    draftBufferRef.current += text;
+                }
+                if (!expandedPanelsRef.current.draft) {
+                    const visibleText = draftBufferRef.current;
+                    setAgentDraft({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
                 }
             }
             return;
@@ -1833,12 +1844,18 @@ function App() {
             }
             noteAgentActivity({ running: true, clearSilence: true });
             const text = data.text || '';
+            const mode = data.mode || 'append';
             const inferredTotal = Number.isFinite(data.total_lines)
                 ? data.total_lines
                 : (text ? text.replace(/\r\n/g, '\n').split('\n').length : 0);
-            if (!expandedPanelsRef.current.thought) {
+            if (mode === 'replace' || data?.reset) {
                 thoughtBufferRef.current = text;
-                setAgentThought({ text, totalLines: inferredTotal });
+            } else {
+                thoughtBufferRef.current += text;
+            }
+            if (!expandedPanelsRef.current.thought) {
+                const visibleText = thoughtBufferRef.current;
+                setAgentThought({ text: visibleText, totalLines: estimatePreviewLines(visibleText) || inferredTotal });
             }
             return;
         }
@@ -2339,6 +2356,8 @@ function App() {
                     notificationPermission=${notificationPermission}
                     onToggleNotifications=${handleToggleNotifications}
                     onOpenSettings=${() => setSettingsOpen(true)}
+                    agentActive=${Boolean(agentStatus || currentTurnId || pendingRequest || agentDraft?.text || agentThought?.text || agentPlan)}
+                    onAbortTurn=${handleAbortTurn}
                 />
                 <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
