@@ -7,7 +7,7 @@ This document defines the safety model that must exist before Vibes can expose A
 - `fs/read_text_file` is the only ACP filesystem service with implementation scaffolding.
 - `fs/read_text_file` is default-off and only advertised when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
 - `fs/write_text_file` is not implemented and must return a JSON-RPC method-not-implemented error.
-- Write-policy configuration and non-mutating confinement planning scaffolding exist, but do not advertise or execute writes.
+- Write-policy configuration, non-mutating confinement planning, future permission request shaping, and audit recorder scaffolding exist, but do not advertise or execute writes.
 - ACP terminal methods are not implemented and must return JSON-RPC method-not-implemented errors.
 - `/terminal/ws` is a separate browser PTY endpoint, gated by `VIBES_ENABLE_TERMINAL`; that flag does not enable ACP terminal services.
 - Provider descriptors expose `fs_write_text_file=false` and `terminal_services=false` so the UI can hide unsafe controls.
@@ -80,7 +80,7 @@ A future ACP terminal implementation must:
 
 ## Per-operation permission mediation
 
-Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker.
+Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker. Vibes now has helper scaffolding that turns a validated future write plan into a per-operation permission request with target path, byte count, overwrite flag, escaped content preview, and content hash; this helper is not wired to execute `fs/write_text_file` yet.
 
 ### Required prompts
 
@@ -102,7 +102,9 @@ Write and terminal operations are mutating/high-risk and require per-operation m
 
 ## Audit events
 
-Every ACP local-service request should emit a structured audit event. At minimum:
+Every ACP local-service request should emit a structured audit event. Vibes now has a no-op-by-default local-service audit recorder interface and helpers that map future write approval, denial, timeout, and error outcomes into the structured event shape below; persistence/UI fanout remains future work.
+
+At minimum:
 
 ```json
 {
@@ -167,8 +169,9 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 1. Keep current design-only policy and default-false tests in place.
 2. Implement write config parsing without advertising write capability. ✅
 3. Implement non-mutating write path validation and audit event shape scaffolding. ✅
-4. Add permission-broker/audit persistence plumbing without filesystem mutation.
-5. Enable `fs/write_text_file` behind config and per-operation approval.
-6. Reassess terminal separately; do not couple terminal enablement to write support.
-7. Implement terminal lifecycle/limits/audit behind config.
-8. Only then advertise `clientCapabilities.terminal=true`.
+4. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
+5. Add permission-broker/audit persistence integration without filesystem mutation.
+6. Enable `fs/write_text_file` behind config and per-operation approval.
+7. Reassess terminal separately; do not couple terminal enablement to write support.
+8. Implement terminal lifecycle/limits/audit behind config.
+9. Only then advertise `clientCapabilities.terminal=true`.
