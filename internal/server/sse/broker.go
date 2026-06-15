@@ -22,6 +22,10 @@ type Client struct {
 	done   chan struct{}
 }
 
+// Events returns the client's event stream for tests and internal integrations
+// that need to observe broker fanout without serving HTTP.
+func (c *Client) Events() <-chan Event { return c.events }
+
 // Broker manages SSE client connections and event fanout.
 type Broker struct {
 	mu          sync.RWMutex

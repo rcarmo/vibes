@@ -7,7 +7,7 @@ This document defines the safety model that must exist before Vibes can expose A
 - `fs/read_text_file` is the only ACP filesystem service with implementation scaffolding.
 - `fs/read_text_file` is default-off and only advertised when `VIBES_ACP_FS_READ_TEXT_ENABLED=true`.
 - `fs/write_text_file` is not implemented and must return a JSON-RPC method-not-implemented error.
-- Write-policy configuration, non-mutating confinement planning, future permission request shaping, and audit recorder scaffolding exist, but do not advertise or execute writes.
+- Write-policy configuration, non-mutating confinement planning, future permission request shaping, broker-mediated decision handling, and structured SSE audit emission exist, but do not advertise or execute writes.
 - ACP terminal methods are not implemented and must return JSON-RPC method-not-implemented errors.
 - `/terminal/ws` is a separate browser PTY endpoint, gated by `VIBES_ENABLE_TERMINAL`; that flag does not enable ACP terminal services.
 - Provider descriptors expose `fs_write_text_file=false` and `terminal_services=false` so the UI can hide unsafe controls.
@@ -80,7 +80,7 @@ A future ACP terminal implementation must:
 
 ## Per-operation permission mediation
 
-Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker. Vibes now has helper scaffolding that turns a validated future write plan into a per-operation permission request with target path, byte count, overwrite flag, escaped content preview, and content hash; this helper is not wired to execute `fs/write_text_file` yet.
+Write and terminal operations are mutating/high-risk and require per-operation mediation through the Vibes permission broker. Vibes now has helper scaffolding that turns a validated future write plan into a per-operation permission request with target path, byte count, overwrite flag, escaped content preview, and content hash. The future write plan mediation helper is wired to the existing Vibes permission broker for approve/deny/timeout decisions, bypassing broad whitelist auto-approval for high-risk local-service prompts. It is not called by the `fs/write_text_file` JSON-RPC dispatcher and does not mutate files.
 
 ### Required prompts
 
@@ -98,11 +98,11 @@ Write and terminal operations are mutating/high-risk and require per-operation m
 - Denial must be returned to the ACP agent as a structured error/outcome and audited.
 - Approval applies only to the exact normalized operation that was shown to the user.
 - If the request changes between prompt and execution, re-check policy and deny on mismatch.
-- Broad whitelist/auto-approve mechanisms must not approve terminal or overwrite operations unless a future policy adds explicit high-risk scopes.
+- Broad whitelist/auto-approve mechanisms must not approve terminal or write operations unless a future policy adds explicit high-risk scopes; the current future write mediation path uses the broker's manual/no-whitelist request mode.
 
 ## Audit events
 
-Every ACP local-service request should emit a structured audit event. Vibes now has a no-op-by-default local-service audit recorder interface and helpers that map future write approval, denial, timeout, and error outcomes into the structured event shape below; persistence/UI fanout remains future work.
+Every ACP local-service request should emit a structured audit event. Vibes now has a local-service audit recorder interface and helpers that map future write approval, denial, timeout, and error outcomes into the structured event shape below. The app-level route adapter installs an SSE recorder that emits `agent_audit` events for future local-service mediation; database persistence remains future work.
 
 At minimum:
 
@@ -170,8 +170,9 @@ Audit data must not include full file contents, terminal output, secrets, or raw
 2. Implement write config parsing without advertising write capability. ✅
 3. Implement non-mutating write path validation and audit event shape scaffolding. ✅
 4. Add write permission request shaping and no-op-by-default audit recorder plumbing without filesystem mutation. ✅
-5. Add permission-broker/audit persistence integration without filesystem mutation.
-6. Enable `fs/write_text_file` behind config and per-operation approval.
-7. Reassess terminal separately; do not couple terminal enablement to write support.
-8. Implement terminal lifecycle/limits/audit behind config.
-9. Only then advertise `clientCapabilities.terminal=true`.
+5. Wire future write mediation through the Vibes permission broker and SSE audit event flow without filesystem mutation. ✅
+6. Add database audit persistence integration without filesystem mutation.
+7. Enable `fs/write_text_file` behind config and per-operation approval.
+8. Reassess terminal separately; do not couple terminal enablement to write support.
+9. Implement terminal lifecycle/limits/audit behind config.
+10. Only then advertise `clientCapabilities.terminal=true`.

@@ -99,6 +99,18 @@ func (p *Provider) negotiatedCapabilities() AgentCapabilities {
 	return p.capabilities
 }
 
+func (p *Provider) setSessionID(sessionID string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.sessionID = sessionID
+}
+
+func (p *Provider) currentSessionID() string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.sessionID
+}
+
 func (p *Provider) Capabilities() agent.ProviderCapabilities {
 	caps := p.negotiatedCapabilities()
 	base := agent.ACPCapabilities()
@@ -167,13 +179,13 @@ func (p *Provider) Initialize(ctx context.Context) error {
 		slog.Warn("new_session failed (agent may need auth)", "id", p.cfg.ID, "error", err)
 	} else if result, ok := sessResult.(map[string]interface{}); ok {
 		if sid, ok := result["sessionId"].(string); ok {
-			p.sessionID = sid
+			p.setSessionID(sid)
 		}
 		p.setSessionMetadata(parseSessionMetadata(result))
 	}
 
 	p.setStatus(agent.ProviderStatus{State: "idle", Model: model})
-	slog.Info("ACP agent initialized", "id", p.cfg.ID, "agent", model, "session", p.sessionID)
+	slog.Info("ACP agent initialized", "id", p.cfg.ID, "agent", model, "session", p.currentSessionID())
 	return nil
 }
 
@@ -195,11 +207,12 @@ func (p *Provider) PromptRequest(ctx context.Context, req agent.PromptRequest) e
 	p.draftText.Reset()
 	p.draftMu.Unlock()
 
+	sessionID := p.currentSessionID()
 	params := map[string]interface{}{
 		"prompt": renderPromptBlocks(req),
 	}
-	if p.sessionID != "" {
-		params["sessionId"] = p.sessionID
+	if sessionID != "" {
+		params["sessionId"] = sessionID
 	}
 
 	_, err := p.sendRequestAsync("session/prompt", params)
@@ -212,11 +225,12 @@ func (p *Provider) PromptRequest(ctx context.Context, req agent.PromptRequest) e
 
 // Cancel aborts the current prompt.
 func (p *Provider) Cancel() error {
-	if p.sessionID == "" {
+	sessionID := p.currentSessionID()
+	if sessionID == "" {
 		return nil
 	}
 	return p.sendNotification("session/cancel", map[string]interface{}{
-		"sessionId": p.sessionID,
+		"sessionId": sessionID,
 	})
 }
 

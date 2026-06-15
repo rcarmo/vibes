@@ -5,10 +5,15 @@ import (
 
 	"github.com/rcarmo/vibes/internal/agent"
 	"github.com/rcarmo/vibes/internal/agent/acp"
+	"github.com/rcarmo/vibes/internal/server/sse"
 )
 
 type acpPermissionProvider interface {
 	SetPermissionHandler(acp.PermissionHandler)
+}
+
+type acpLocalServiceAuditProvider interface {
+	SetLocalServiceAuditRecorder(acp.LocalServiceAuditRecorder)
 }
 
 func wireACPPermissionHandlers(registry *agent.Registry, broker *PermissionBroker) {
@@ -22,10 +27,33 @@ func wireACPPermissionHandlers(registry *agent.Registry, broker *PermissionBroke
 		}
 		if p, ok := provider.(acpPermissionProvider); ok {
 			p.SetPermissionHandler(func(req acp.PermissionRequest) (string, error) {
-				return broker.Request(req.ID, req.Method, req.Title, acpOptionsToRouteOptions(req.Options))
+				options := acpOptionsToRouteOptions(req.Options)
+				if isACPLocalServicePermission(req) {
+					return broker.RequestManual(req.ID, req.Method, req.Title, options)
+				}
+				return broker.Request(req.ID, req.Method, req.Title, options)
 			})
 		}
+		if p, ok := provider.(acpLocalServiceAuditProvider); ok {
+			p.SetLocalServiceAuditRecorder(acp.LocalServiceAuditRecorderFunc(func(event acp.LocalServiceAuditEvent) {
+				broadcastLocalServiceAudit(broker, event)
+			}))
+		}
 	}
+}
+
+func isACPLocalServicePermission(req acp.PermissionRequest) bool {
+	if req.Raw == nil {
+		return false
+	}
+	return req.Raw["type"] == "acp_local_service_permission"
+}
+
+func broadcastLocalServiceAudit(broker *PermissionBroker, event acp.LocalServiceAuditEvent) {
+	if broker == nil || broker.sseBrk == nil {
+		return
+	}
+	broker.sseBrk.Broadcast(sse.Event{Type: "agent_audit", Data: event})
 }
 
 func acpOptionsToRouteOptions(options []acp.PermissionOption) []Option {

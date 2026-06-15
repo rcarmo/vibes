@@ -140,6 +140,7 @@ ACP providers render `context` entries as `resource_link` prompt blocks. Vibes d
 | `agent_plan` | Agent plan update |
 | `agent_request` | Agent permission request |
 | `agent_request_timeout` | Permission request timed out |
+| `agent_audit` | Structured agent/local-service audit event |
 | `interaction_updated` | Post/reply metadata updated |
 | `interaction_deleted` | Post/reply deleted |
 | `model_changed` | Active model changed |

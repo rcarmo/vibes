@@ -54,8 +54,18 @@ func NewPermissionBroker(sseBroker *sse.Broker, timeout time.Duration, whitelist
 // Blocks until the user responds or the timeout expires.
 // Auto-approves if the method matches a whitelist pattern. (fixes #8)
 func (pb *PermissionBroker) Request(id, method, title string, options []Option) (string, error) {
+	return pb.request(id, method, title, options, true)
+}
+
+// RequestManual creates a permission request while deliberately bypassing broad
+// whitelist auto-approval. Use this for high-risk operation-specific prompts.
+func (pb *PermissionBroker) RequestManual(id, method, title string, options []Option) (string, error) {
+	return pb.request(id, method, title, options, false)
+}
+
+func (pb *PermissionBroker) request(id, method, title string, options []Option, allowWhitelist bool) (string, error) {
 	// Auto-approve via whitelist
-	if pb.whitelistDB != nil {
+	if allowWhitelist && pb.whitelistDB != nil {
 		if ok, _ := pb.whitelistDB.IsWhitelisted(method); ok {
 			log.Println("auto-approved:", method)
 			// Return the first option (approve) or "approve"

@@ -3,6 +3,7 @@ package acp
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"strconv"
 	"strings"
 )
@@ -12,6 +13,8 @@ const (
 	writeTextPermissionReject    = "reject"
 	writeTextPreviewMaxRunes     = 160
 )
+
+var errPermissionUnavailable = errors.New("local-service permission handler is unavailable")
 
 // LocalServiceAuditRecorder receives structured local-service audit events.
 // Persistence/UI fanout is deliberately outside the ACP provider for now.
@@ -50,6 +53,25 @@ type WriteTextPermissionDecision struct {
 	SelectedOption string
 	Reason         string
 	AuditEvent     LocalServiceAuditEvent
+}
+
+// MediateWriteTextPlan runs the future fs/write_text_file permission/audit path
+// for an already validated write plan. It does not perform filesystem
+// mutation and is not called by the JSON-RPC dispatcher while write support is
+// unimplemented.
+func (p *Provider) MediateWriteTextPlan(requestID string, plan WriteTextPlan, content string) WriteTextPermissionDecision {
+	providerID := p.cfg.ID
+	sessionID := p.currentSessionID()
+	handler := p.getPermissionHandler()
+	if handler == nil {
+		decision := resolveWriteTextPermissionDecision(providerID, sessionID, requestID, plan, "", errPermissionUnavailable)
+		p.recordLocalServiceAudit(decision.AuditEvent)
+		return decision
+	}
+	selected, err := handler(writeTextPermissionRequest(providerID, sessionID, requestID, plan, content))
+	decision := resolveWriteTextPermissionDecision(providerID, sessionID, requestID, plan, selected, err)
+	p.recordLocalServiceAudit(decision.AuditEvent)
+	return decision
 }
 
 func writeTextPermissionRequest(providerID, sessionID, requestID string, plan WriteTextPlan, content string) PermissionRequest {
