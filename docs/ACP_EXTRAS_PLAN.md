@@ -100,6 +100,25 @@ Goal: add mutating local services only behind stronger opt-in controls.
 - Terminal environment is minimal and audited.
 - `/terminal/ws` enablement never implies ACP terminal enablement.
 
+## Planned: Bundled Vibes MCP adapter — Piclaw-like workbench tools
+
+Goal: expose Vibes-native provider/session/workspace/audit/UI capabilities to ACP agents through a bundled, dynamically discovered MCP adapter rather than custom ACP-only methods.
+
+### Delivered scaffold
+
+1. Added [MCP_ADAPTER.md](MCP_ADAPTER.md) as the durable adapter roadmap and tool contract.
+2. Added `internal/mcpadapter/` with a dynamic tool registry, context budgets, safety phases, and disabled stub handlers.
+3. Added `vibes mcp --list-tools` for inspecting the mapped surface.
+4. Added `vibes mcp --stdio` as an explicit not-yet-implemented protocol stub.
+5. Added disabled-by-default config placeholders for future ACP auto-injection.
+
+### Next implementation order
+
+1. Implement MCP JSON-RPC stdio `initialize`, `tools/list`, and `tools/call` protocol glue.
+2. Implement read-only provider/session/audit/workspace metadata tools first.
+3. Add the SSE `ui_command` bridge for `vibes.open_workspace_file` and `vibes.show_workspace`.
+4. Consider mutating, terminal, and cross-session tools only after their safety gates exist.
+
 ## Completed: Milestone E — ACP-native UI controls
 
 Goal: expose negotiated ACP controls in the frontend without leaking unsupported actions.

@@ -40,6 +40,9 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.ACPFSWriteTextMaxBytes != 262144 {
 		t.Errorf("ACPFSWriteTextMaxBytes = %d", cfg.ACPFSWriteTextMaxBytes)
 	}
+	if cfg.VibesMCPEnabled || cfg.VibesMCPAutoInjectACP {
+		t.Error("bundled Vibes MCP adapter should be disabled by default")
+	}
 }
 
 func TestLoadFromEnv(t *testing.T) {
@@ -113,6 +116,9 @@ func TestBackendEnvOverrides(t *testing.T) {
 	t.Setenv("VIBES_ACP_FS_WRITE_ROOT", "/tmp/vibes-write")
 	t.Setenv("VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES", "2048")
 	t.Setenv("VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE", "true")
+	t.Setenv("VIBES_MCP_ENABLED", "true")
+	t.Setenv("VIBES_MCP_AUTO_INJECT_ACP", "true")
+	t.Setenv("VIBES_MCP_COMMAND", "vibes mcp --stdio")
 	cfg, err := Load()
 	if err != nil {
 		t.Fatalf("Load failed: %v", err)
@@ -149,6 +155,12 @@ func TestBackendEnvOverrides(t *testing.T) {
 	}
 	if !cfg.ACPFSWriteAllowOverwrite {
 		t.Error("ACPFSWriteAllowOverwrite should load from env")
+	}
+	if !cfg.VibesMCPEnabled || !cfg.VibesMCPAutoInjectACP {
+		t.Error("Vibes MCP flags should load from env")
+	}
+	if cfg.VibesMCPCommand != "vibes mcp --stdio" {
+		t.Errorf("VibesMCPCommand = %q", cfg.VibesMCPCommand)
 	}
 }
 

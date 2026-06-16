@@ -27,6 +27,9 @@ Vibes reads configuration from environment variables (and a `.env` file if prese
 | `VIBES_ACP_FS_WRITE_ROOT` | _(workspace)_ | Root for ACP write confinement checks |
 | `VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES` | `262144` | Maximum bytes for one ACP text-file write |
 | `VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE` | `false` | Allow approved ACP writes to replace existing regular files |
+| `VIBES_MCP_ENABLED` | `false` | Enable bundled Vibes MCP adapter scaffolding |
+| `VIBES_MCP_AUTO_INJECT_ACP` | `false` | Auto-inject bundled Vibes MCP stdio server into ACP sessions once implemented |
+| `VIBES_MCP_COMMAND` | _(current binary)_ | Override command used for bundled MCP auto-injection |
 | `VIBES_DEFAULT_AGENT` | `acp` | Default backend (`acp` is treated as `copilot` for compatibility) |
 | `VIBES_PI_AGENT` | `pi` | Pi binary path for native RPC mode |
 | `VIBES_PI_ENABLED` | `true` | Enable Pi native RPC provider discovery/probing (set `false` to hide/disable Pi) |
@@ -93,6 +96,16 @@ export VIBES_ACP_MCP_SERVERS_JSON='[
 ```
 
 Keep secrets out of committed files. Prefer wrapper commands or inherited process environment for secret material; if headers/env are included in the JSON, treat the environment variable as sensitive.
+
+### Bundled Vibes MCP adapter
+
+Vibes includes a scaffolded first-party MCP adapter surface for future Piclaw-like workbench tools. Inspect it with:
+
+```bash
+vibes mcp --list-tools
+```
+
+`vibes mcp --stdio` currently reports that protocol serving is scaffolded but not implemented. `VIBES_MCP_AUTO_INJECT_ACP=true` is therefore disabled by default and should remain off until the MCP stdio protocol loop and read-only handlers are implemented. See [MCP_ADAPTER.md](MCP_ADAPTER.md).
 
 ### ACP client filesystem service
 

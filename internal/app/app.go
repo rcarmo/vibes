@@ -88,6 +88,7 @@ func New(cfg *config.Config) (*App, error) {
 	if err != nil {
 		slog.Warn("invalid ACP MCP server configuration", "error", err)
 	}
+	mcpServers = appendVibesMCPServer(mcpServers, cfg)
 	registerPiBackend(agentRegistry, cfg, workspaceDir())
 	registerACPBackend(agentRegistry, "copilot", "GitHub Copilot", cfg.CopilotAgent, cfg.CopilotEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes, cfg.ACPFSWriteTextEnabled, cfg.ACPFSWriteRoot, cfg.ACPFSWriteTextMaxBytes, cfg.ACPFSWriteAllowOverwrite)
 	registerACPBackend(agentRegistry, "codex", "Codex", cfg.CodexAgent, cfg.CodexEnabled, workspaceDir(), agentEnv, cfg.ACPDebug, mcpServers, cfg.ACPFSReadTextEnabled, cfg.ACPFSReadTextMaxBytes, cfg.ACPFSWriteTextEnabled, cfg.ACPFSWriteRoot, cfg.ACPFSWriteTextMaxBytes, cfg.ACPFSWriteAllowOverwrite)
@@ -491,6 +492,34 @@ func agentEnvironment() map[string]string {
 		}
 	}
 	return agentEnv
+}
+
+func appendVibesMCPServer(servers []acp.MCPServer, cfg *config.Config) []acp.MCPServer {
+	if cfg == nil || !cfg.VibesMCPEnabled || !cfg.VibesMCPAutoInjectACP {
+		return servers
+	}
+	command := strings.TrimSpace(cfg.VibesMCPCommand)
+	args := []string{"mcp", "--stdio"}
+	if command == "" {
+		if exe, err := os.Executable(); err == nil && strings.TrimSpace(exe) != "" {
+			command = exe
+		} else {
+			command = "vibes"
+		}
+	} else {
+		parts := splitCommand(command)
+		if len(parts) > 0 {
+			command = parts[0]
+			args = parts[1:]
+		}
+	}
+	servers = append(servers, acp.MCPServer{
+		Type:    "stdio",
+		Name:    "vibes",
+		Command: command,
+		Args:    args,
+	})
+	return servers
 }
 
 func commandDetected(command string) (bool, string) {

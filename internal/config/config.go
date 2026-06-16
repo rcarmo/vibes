@@ -32,6 +32,11 @@ type Config struct {
 	ACPFSWriteTextMaxBytes   int64  `env:"VIBES_ACP_FS_WRITE_TEXT_MAX_BYTES" envDefault:"262144"`
 	ACPFSWriteAllowOverwrite bool   `env:"VIBES_ACP_FS_WRITE_ALLOW_OVERWRITE" envDefault:"false"`
 
+	// Bundled Vibes MCP adapter (scaffolded; disabled by default)
+	VibesMCPEnabled       bool   `env:"VIBES_MCP_ENABLED" envDefault:"false"`
+	VibesMCPAutoInjectACP bool   `env:"VIBES_MCP_AUTO_INJECT_ACP" envDefault:"false"`
+	VibesMCPCommand       string `env:"VIBES_MCP_COMMAND"`
+
 	// Pi
 	PiAgent               string `env:"VIBES_PI_AGENT"`
 	PiEnabled             bool   `env:"VIBES_PI_ENABLED" envDefault:"true"`
