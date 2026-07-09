@@ -128,7 +128,7 @@ jobs:
           path: |
             test-results/vibes-ux-report.pdf
             test-results/vibes-ux-report.html
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: ignore
 
       - name: Upload screenshots, videos, and traces
@@ -140,7 +140,7 @@ jobs:
             test-results/**/*.png
             test-results/**/*.webm
             test-results/**/*.zip
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: ignore
 
       - name: Upload Playwright HTML report
@@ -149,7 +149,7 @@ jobs:
         with:
           name: ux-test-playwright-report
           path: playwright-report/
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: ignore
 
       - name: Upload raw results JSON
@@ -158,7 +158,7 @@ jobs:
         with:
           name: ux-test-results-json
           path: test-results/results.json
-          retention-days: 30
+          retention-days: 7
           if-no-files-found: ignore
 
       - name: Upload server log
