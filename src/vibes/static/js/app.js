@@ -796,7 +796,7 @@ function App() {
         if (typeof window === 'undefined') return true;
         if (new URLSearchParams(window.location.search).has('popout')) return false;
         const stored = localStorage.getItem('workspaceOpen');
-        return stored === null ? true : stored === 'true';
+        return stored === null ? window.matchMedia('(min-width: 1024px) and (orientation: landscape)').matches : stored === 'true';
     });
     const [popoutMode] = useState(() => {
         if (typeof window === 'undefined') return false;

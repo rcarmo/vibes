@@ -1336,3 +1336,13 @@ CSS hid workspace controls below desktop widths. 22 headed terminal tests and
 build/lint pass. Initial tests exposed hidden mobile workspace toggle and an
 outdated test close-toggle assumption; fixed both, without forced clicks.
 Final full regression and screenshot equivalence remain pending.
+
+### Mobile drawer default regression fix and full checkpoint
+
+Integrated run exposed mobile workspace drawer covering composer by default after
+launcher accessibility change. Unset workspace preference now defaults open only
+on desktop landscape; explicit saved preference is preserved. Timed-out test
+server was stopped before rerun. After fix: full headed Chromium/WebKit suite
+174/174 passes with one worker; backend 484 and frontend unit 16 passed in this
+checkpoint, build/lint pass. No retries/skips. Final visual comparison and external
+acceptance remain open.
