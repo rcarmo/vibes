@@ -577,3 +577,10 @@ uses session/load only if advertised. Unsupported resume fails before prompting
 rather than replacing history with a new conversation. 449 backend tests pass,
 including unsupported/supported load selection. Third-party ACP live acceptance
 remains pending; provider changes intentionally create a separate binding key.
+
+### ACP failed-load recovery
+
+Failed/cancelled session/load discards the agent process before propagating the
+failure, because the provider may already have changed active context. No target
+chat binding is cached on failure. Error/cancellation tests pass; 451 backend
+tests. This deliberately sacrifices process liveness for context isolation.

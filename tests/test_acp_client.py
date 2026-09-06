@@ -744,3 +744,21 @@ async def test_saved_acp_conversation_requires_load_capability():
         assert send.call_args.args[0] == 'session/load'
         assert send.call_args.args[1]['sessionId'] == 'saved'
     acp_client.reset_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('failure', [RuntimeError('load failed'), asyncio.CancelledError()])
+async def test_failed_acp_load_discards_uncertain_process(failure):
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    state.session_id = 'default-conversation'
+    state.load_session_supported = True
+    with patch.object(acp_client, '_ensure_agent', AsyncMock()), \
+         patch.object(acp_client, '_messages_mcp_servers', return_value=[]), \
+         patch.object(acp_client, '_send_request', AsyncMock(side_effect=failure)), \
+         patch.object(acp_client, 'stop_agent', AsyncMock()) as stop:
+        with pytest.raises(type(failure)):
+            await acp_client._select_chat_session_locked('other', persisted_id='saved')
+        stop.assert_awaited_once()
+        assert 'other' not in state.chat_conversations
+    acp_client.reset_state()

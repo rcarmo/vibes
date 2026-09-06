@@ -962,10 +962,16 @@ async def _select_chat_session_locked(chat_id, persisted_id=None):
     if conversation is None and persisted_id:
         if not _state.load_session_supported:
             raise RuntimeError('ACP provider cannot resume the saved conversation')
-        await _send_request('session/load', {
-            'sessionId': persisted_id, 'cwd': str(Path.cwd()),
-            'mcpServers': _messages_mcp_servers(chat_id),
-        })
+        try:
+            await _send_request('session/load', {
+                'sessionId': persisted_id, 'cwd': str(Path.cwd()),
+                'mcpServers': _messages_mcp_servers(chat_id),
+            })
+        except BaseException:
+            # A provider may have changed context before failing/responding.
+            # Do not retain a process whose active conversation is unknown.
+            await stop_agent()
+            raise
         conversation = persisted_id
         _state.chat_conversations[chat_id] = conversation
     if conversation is None:
