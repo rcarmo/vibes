@@ -12,6 +12,7 @@ import shutil
 from typing import Any, Optional
 
 from .config import get_config
+from .pi_sessions import PiSessionSelector
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +29,7 @@ class _PiState:
         self.stderr_task = None
         self.stderr_tail = deque(maxlen=100)
         self.rpc_buffer = ""
+        self.session_selector = PiSessionSelector()
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.current_request_task: asyncio.Task | None = None
@@ -61,6 +63,7 @@ def reset_state() -> None:
     _state.agent_stderr = None
     _state.stderr_task = None
     _state.stderr_tail = deque(maxlen=100)
+    _state.session_selector = PiSessionSelector()
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
     _state.current_request_task = None
@@ -350,6 +353,7 @@ async def start_pi_agent() -> bool:
             env=env,
             limit=16 * 1024 * 1024,
         )
+        _state.session_selector = PiSessionSelector()
         _state.agent_reader = _state.agent_proc.stdout
         _state.agent_writer = _state.agent_proc.stdin
         _state.agent_stderr = _state.agent_proc.stderr
@@ -772,7 +776,7 @@ async def _respond_extension_request(request_id: str, method: str, outcome: str 
     await _send_command(response)
 
 
-async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None) -> dict:
+async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None) -> dict:
     """Send a message to the pi agent and return multimodal response."""
     # Try to acquire the lock with a short timeout — if another request
     # is in flight, wait briefly in case it's about to finish (e.g. after
@@ -798,6 +802,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                     "cancelled": False,
                 }
 
+            if chat_id is not None or _state.session_selector.active != 'default' or _state.session_selector.uncertain:
+                await _state.session_selector.select(chat_id or 'default', send_rpc_command)
             await _send_command({"type": "prompt", "message": content})
 
             draft_text = ""

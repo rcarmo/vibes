@@ -517,3 +517,11 @@ blocks subsequent selection until recovery/restart. This prevents overwriting th
 old chat's path with an unexpectedly active context. Explicit extension-cancelled
 switches remain usable. Failure/retry regression tests pass; 442 backend tests.
 Runtime integration and live session smoke remain pending.
+
+### Pi prompt selector integration
+
+Pi multimodal prompts accept chat_id and select under request_lock before any
+prompt write. Selection failure returns an error without sending private content;
+non-default active selectors restore default for legacy calls. Process launch
+resets selector state. 443 backend tests pass. Public routes still guard
+non-default requests pending admission and live session switching verification.

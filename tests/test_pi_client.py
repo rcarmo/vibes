@@ -211,3 +211,21 @@ def test_status_from_auto_compaction_end_complete():
 
 def test_status_from_auto_compaction_event_non_compaction():
     assert pi._status_from_auto_compaction_event({"type": "message_update"}) is None
+
+
+@pytest.mark.asyncio
+async def test_pi_dispatch_selects_chat_under_prompt_lock_and_stops_on_failure():
+    async def select(chat_id, rpc):
+        assert pi._state.request_lock.locked()
+        assert chat_id == 'other'
+        raise RuntimeError('Selection failed')
+    selector = MagicMock()
+    selector.select = AsyncMock(side_effect=select)
+    pi._state.session_selector = selector
+    with patch.object(pi, 'start_pi_agent', AsyncMock()), \
+         patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, '_send_command', AsyncMock()) as send:
+        response = await pi.send_message_multimodal('private prompt', chat_id='other')
+    assert 'Selection failed' in response['text']
+    send.assert_not_awaited()
+    assert not pi._state.request_lock.locked()
