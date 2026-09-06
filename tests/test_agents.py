@@ -808,3 +808,24 @@ async def test_legacy_model_catalog_hides_uninspectable_default_context():
         response = await agents_mod.get_agent_models(req)
         assert json.loads(response.body) == {'current': None, 'models': []}
         raw.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('default_mode', ['acp', 'pi'])
+@pytest.mark.parametrize('reported', [None, {'loadSession': True, 'promptCapabilities': {'image': False}}])
+async def test_agent_list_exposes_declared_capabilities_only_for_acp(default_mode, reported):
+    req = make_mocked_request('GET', '/agents')
+    config = SimpleNamespace(default_agent=default_mode, pi_enabled=True, pi_model='test',
+        pi_agent='pi', acp_agent='acp', agent_name='Agent', agent_avatar=None,
+        user_name=None, user_avatar=None, user_avatar_background=None)
+    with patch.object(agents_mod, 'get_config', return_value=config), \
+         patch.object(agents_mod, '_resolve_pi_model', new_callable=AsyncMock, return_value='test'), \
+         patch.object(agents_mod, 'is_pi_running', return_value=False), \
+         patch.object(agents_mod, 'is_acp_running', return_value=reported is not None), \
+         patch('vibes.acp_client.get_reported_capabilities', return_value=reported):
+        body = json.loads((await agents_mod.list_agents(req)).body)
+    for agent in body['agents']:
+        if agent['id'] == 'acp' or (agent['id'] == 'default' and default_mode == 'acp'):
+            assert agent['reported_capabilities'] == reported
+        else:
+            assert 'reported_capabilities' not in agent

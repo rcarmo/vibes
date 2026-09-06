@@ -1216,3 +1216,12 @@ claims are discarded; reset/start/stop clear declarations. Read helper reports
 None when disconnected. 479 backend tests pass. This foundation is not yet exposed
 in agent-list/UI and does not prove actual capability execution; ACP UI acceptance
 remains open.
+
+### ACP reported capabilities API
+
+Agent listing exposes reported_capabilities on ACP entries only (whether default
+or secondary); disconnected/uninitialized declarations are null. Pi entries do
+not inherit ACP claims. 483 backend tests pass, including both default-backend
+configurations and unavailable declarations. This is descriptive initialize
+metadata, not proof of image/audio/MCP consumption or live model availability;
+UI capability presentation and third-party acceptance remain open.

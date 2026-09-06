@@ -227,6 +227,7 @@ set_whitelist_checker(_check_whitelist)
 async def list_agents(request: web.Request) -> web.Response:
     """List available agents and their capabilities."""
     from ..avatar import resolve_avatar_url
+    from ..acp_client import get_reported_capabilities
 
     config = get_config()
     default_mode = config.default_agent.lower()
@@ -274,6 +275,10 @@ async def list_agents(request: web.Request) -> web.Response:
             "status": "running" if is_acp_running() else "stopped",
             "actions": []
         })
+
+    for agent in agents:
+        if agent['id'] == 'acp' or (agent['id'] == 'default' and default_mode != 'pi'):
+            agent['reported_capabilities'] = get_reported_capabilities()
 
     user = {}
     if config.user_name:
