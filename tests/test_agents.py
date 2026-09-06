@@ -115,7 +115,7 @@ async def test_list_agents_prefers_runtime_pi_model():
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value={
+         patch("vibes.pi_client.inspect_model_state", new_callable=AsyncMock, return_value={
              "success": True,
              "data": {"model": {"provider": "openai", "modelId": "gpt-5.2"}},
          }):
@@ -829,3 +829,14 @@ async def test_agent_list_exposes_declared_capabilities_only_for_acp(default_mod
             assert agent['reported_capabilities'] == reported
         else:
             assert 'reported_capabilities' not in agent
+
+
+@pytest.mark.asyncio
+async def test_registry_model_resolution_uses_guarded_default_inspection():
+    config = SimpleNamespace(pi_model='p/configured')
+    with patch.object(agents_mod, 'is_pi_running', return_value=True), \
+         patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, return_value=None) as inspect, \
+         patch.object(agents_mod, 'send_rpc_command', new_callable=AsyncMock) as raw:
+        assert await agents_mod._resolve_pi_model(config) == 'p/configured'
+        inspect.assert_awaited_once_with('default')
+        raw.assert_not_awaited()

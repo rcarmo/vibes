@@ -1744,3 +1744,11 @@ Failed refresh clears reported capability claims while preserving branding/histo
 metadata. Cleanup invalidates pending refreshes. Six headed capability tests and
 build/lint pass, including visible declaration removal after polling failure.
 This remains sampled registry state, not real-agent capability execution evidence.
+
+### Registry polling respects Pi stream ownership
+
+Agent-list model resolution now uses guarded default-session inspection rather
+than raw get_state RPC. Busy/mismatched contexts retain configured registry model
+metadata (never assigned to composer live label). 495 backend tests pass,
+including no raw RPC and explicit default inspection when unavailable. This
+protects prompt stream ownership during periodic registry refresh.

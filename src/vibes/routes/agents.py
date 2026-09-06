@@ -537,7 +537,8 @@ async def _resolve_pi_model(config) -> str | None:
     if not is_pi_running():
         return configured
     try:
-        resp = await send_rpc_command({"type": "get_state"}, timeout=1.0)
+        from ..pi_client import inspect_model_state
+        resp = await inspect_model_state('default')
         if resp and resp.get("success"):
             data = resp.get("data", {})
             model = data.get("model")
