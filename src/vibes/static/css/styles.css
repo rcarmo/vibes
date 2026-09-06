@@ -3761,3 +3761,6 @@ body {
     border-radius:0;
 }
 .compose-model-catalogue > :not(.compose-model-catalogue-results) { flex-shrink:0; }
+.model-settings-dialog { width:min(600px, calc(100vw - 32px)); max-height:80dvh; overflow:auto; box-sizing:border-box; border:1px solid var(--border-color); border-radius:12px; padding:20px; background:var(--bg-primary); color:var(--text-primary); }
+.model-settings-dialog::backdrop { background:rgb(0 0 0 / 45%); }
+.model-settings-dialog p { overflow-wrap:anywhere; }

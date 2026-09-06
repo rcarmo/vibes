@@ -733,6 +733,7 @@ test('Alt Enter pins focused model without selecting it', async ({ page }) => {
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     const choice = page.getByRole('option', { name: 'test/favorite', exact: true });
+    await expect(choice).toBeVisible();
     await choice.focus();
     await choice.press('Alt+Enter');
     await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toBeVisible();
@@ -882,3 +883,21 @@ for (const width of [1280, 390]) {
         await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fm00');
     });
 }
+
+test('Models settings modal opens, loads versioned pins and restores focus', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ json: { available: true, model: { provider: 'test', id: 'current' } } }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ json: { available: true, models: [{ provider: 'test', id: 'current' }] } }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const trigger = page.getByRole('button', { name: 'Open Models settings', exact: true });
+    await trigger.click();
+    const dialog = page.getByRole('dialog', { name: 'Models settings', exact: true });
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText('Provider credentials and model defaults are not managed here');
+    await expect(dialog.getByRole('button', { name: 'Save instance pins', exact: true })).toBeDisabled();
+    await dialog.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect(dialog.getByRole('button', { name: 'Save instance pins', exact: true })).toBeEnabled();
+    await dialog.getByRole('button', { name: 'Close Models settings', exact: true }).click();
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
+});

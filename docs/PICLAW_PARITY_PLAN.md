@@ -2343,3 +2343,15 @@ focus, pin/select shortcuts, deployed search-header styling and bounded scrollin
 Remaining substantive UI work includes Models-settings presentation, full deployed
 row/layout comparison and final model/status/session-picker visual acceptance.
 No live speech or third-party ACP/attachment acceptance is implied by this run.
+
+### Models settings modal entry point
+
+Added real modal Models settings view for supported browser/instance pins, reusing
+ETag-safe explicit Load/Save. Native dialog provides modality and focus restoration;
+keyboard events do not leak to picker. Explicit notice excludes provider credentials
+and defaults. Existing inline controls remain for compatibility, not full deployed
+settings parity. Initially duplicated hidden status text caused strict-locator
+failures; dialog status is now only rendered while open. Subsequent full run had
+101 passes and one WebKit option-focus timeout; explicit visibility synchronization
+added before focus. Twelve affected modal/pin/shortcut cases then pass; build/lint
+passes. Full integrated run after this correction remains due.
