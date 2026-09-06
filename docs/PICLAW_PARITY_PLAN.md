@@ -2331,3 +2331,15 @@ verify overflow exists, ArrowUp reaches the last model within the results clippi
 rectangle, search retains focus, footer stays in viewport, and filtering removes
 stale active-descendant before navigation selects the remaining result. All pass;
 no production change. This verifies scrolling beyond the earlier two-model fixture.
+
+### Post-catalogue integrated checkpoint
+
+At 9d40492: 508 backend tests, 18 frontend tests (73 assertions), build/lint,
+and all 280 headed Chromium/WebKit tests pass. Browser run used one worker and
+completed in 5.3 minutes without retries. This supersedes the 266-test checkpoint.
+Catalogue implementation now includes provider groups, display-name search,
+validated metadata, linked combobox/listbox semantics, search-retained virtual
+focus, pin/select shortcuts, deployed search-header styling and bounded scrolling.
+Remaining substantive UI work includes Models-settings presentation, full deployed
+row/layout comparison and final model/status/session-picker visual acceptance.
+No live speech or third-party ACP/attachment acceptance is implied by this run.
