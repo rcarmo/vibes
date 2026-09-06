@@ -1545,3 +1545,12 @@ and existing styles. Uses same focus-restoring close callback as Escape.
 34 headed Chromium/WebKit picker tests and build/lint pass, including explicit
 close activation. Branch/root footer semantics and final visual comparison remain
 open.
+
+### Picker child-session creation
+
+New branch footer action creates an empty session with parent_id fixed to the
+selected session when opened. Existing New session creates a root. Backend
+parent support reused; no history copy or provider conversation fork implied,
+with explicit action tooltip. 36 headed picker tests and build/lint pass, including
+persisted parent and zero-message child verification. Deployed fork semantics and
+final visual equivalence remain explicit deviations/open acceptance.

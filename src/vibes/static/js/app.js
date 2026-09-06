@@ -716,6 +716,7 @@ function App() {
     const deletedSessionRef = useRef(false);
     const [creatingSession, setCreatingSession] = useState(false);
     const createdSessionRef = useRef(null);
+    const createParentRef = useRef(null);
     useEffect(() => {
         if (!sessionPickerOpen || renamingSession || deletingSession || creatingSession) return;
         const outside = event => {
@@ -2536,7 +2537,8 @@ function App() {
                 />
                 <button ref=${sessionTriggerRef} class="session-trigger" aria-expanded=${sessionPickerOpen} aria-haspopup="listbox" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
                 ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
-                    onCreate=${() => { createdSessionRef.current = null; setCreatingSession(true); }}
+                    onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
+                    onCreateBranch=${() => { createdSessionRef.current = null; createParentRef.current = selectedSession; setCreatingSession(true); }}
                     onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
                     onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
                     onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
@@ -2573,7 +2575,7 @@ function App() {
                     onToggleNotifications=${handleToggleNotifications}
                 />
                 ${renamingSession && html`<${SessionNameDialog} key=${renamingSession.id} name=${renamingSession.name} onClose=${() => setRenamingSession(null)} onSave=${async name => { await updateSession(renamingSession.id, { name }); await refreshSessions(); }} />`}
-            ${creatingSession && html`<${SessionNameDialog} creating=${true} onClose=${() => setCreatingSession(false)} onSave=${async name => { if (!createdSessionRef.current) { const result = await createSession(name); createdSessionRef.current = result.session.id; } await refreshSessions(); await selectSession(createdSessionRef.current); }} />`}
+            ${creatingSession && html`<${SessionNameDialog} creating=${true} onClose=${() => setCreatingSession(false)} onSave=${async name => { if (!createdSessionRef.current) { const result = await createSession(name, createParentRef.current); createdSessionRef.current = result.session.id; } await refreshSessions(); await selectSession(createdSessionRef.current); }} />`}
             ${deletingSession && html`<${SessionDeleteDialog} key=${deletingSession.id} name=${deletingSession.name} onClose=${() => setDeletingSession(null)} onDelete=${async () => { if (!deletedSessionRef.current) { await deleteSession(deletingSession.id); deletedSessionRef.current = true; } if (deletingSession.id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
             <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />

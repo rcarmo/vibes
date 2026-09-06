@@ -323,3 +323,18 @@ test('explicit session picker close control restores trigger focus', async ({ pa
     await expect(page.getByTestId('session-popup')).toHaveCount(0);
     await expect(trigger).toBeFocused();
 });
+
+test('New branch creates empty child of selected session', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('button', { name: 'New branch', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'New session' });
+    await dialog.getByRole('textbox', { name: 'Session name' }).fill('Empty child branch');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId('session-switcher')).toContainText('Empty child branch');
+    const registry = await (await page.request.get('/sessions')).json();
+    const child = registry.sessions.find(item => item.name === 'Empty child branch');
+    expect(child.parent_id).toBe('default');
+    expect(child.message_count).toBe(0);
+});

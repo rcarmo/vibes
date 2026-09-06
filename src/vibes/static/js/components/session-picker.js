@@ -3,7 +3,7 @@ import { sessionLastMessage } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
 
-export function SessionPicker({ sessions = [], refreshError = '', currentId = 'default', onSelect, onClose, onCreate, onRename, onDelete, onPin, onArchive }) {
+export function SessionPicker({ sessions = [], refreshError = '', currentId = 'default', onSelect, onClose, onCreate, onCreateBranch, onRename, onDelete, onPin, onArchive }) {
     const [query, setQuery] = useState('');
     const [index, setIndex] = useState(0);
     const [error, setError] = useState('');
@@ -68,6 +68,9 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             </div>`; })}
             </div>`)}
         </div>
-        <button type="button" onClick=${() => act(onCreate)}>New session</button>
+        <div class="compose-model-popup-actions">
+            ${onCreateBranch && html`<button type="button" class="compose-model-popup-btn" title="Create an empty child session; history is not copied" onClick=${() => act(onCreateBranch)}>New branch</button>`}
+            <button type="button" class="compose-model-popup-btn" onClick=${() => act(onCreate)}>New session</button>
+        </div>
     </div>`;
 }
