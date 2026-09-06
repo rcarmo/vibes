@@ -436,3 +436,11 @@ process reset/stop clears mappings rather than pretending stale IDs are loadable
 430 backend tests pass, including reuse and busy rejection. Not yet exposed to
 UI/message dispatch, no restart-resume claim, and default legacy startup still
 uses explicitly opted-in workspace scope until that integration is completed.
+
+### Lock-held ACP prompt selection
+
+Multimodal ACP dispatch accepts an explicit chat_id and selects its conversation
+while retaining request_lock through session/prompt. Public selection delegates
+to the same lock-held helper. Test asserts lock ownership and selected session ID
+at dispatch; 431 backend tests pass. Route/session picker wiring still pending;
+existing calls without chat_id preserve baseline behavior.

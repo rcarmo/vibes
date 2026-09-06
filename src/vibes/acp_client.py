@@ -947,21 +947,26 @@ async def select_chat_session(chat_id: str):
     if _state.request_lock.locked():
         raise RuntimeError('Cannot switch ACP session while agent is busy')
     async with _state.request_lock:
-        await _ensure_agent()
-        if _state.session_id:
-            _state.chat_conversations[_state.chat_id] = _state.session_id
-        conversation = _state.chat_conversations.get(chat_id)
-        if conversation is None:
-            result = await _send_request('session/new', {
-                'cwd': str(Path.cwd()), 'mcpServers': _messages_mcp_servers(chat_id),
-            })
-            conversation = result.get('sessionId')
-            if not isinstance(conversation, str) or not conversation:
-                raise RuntimeError('Agent returned no conversation ID')
-            _state.chat_conversations[chat_id] = conversation
-        _state.chat_id = chat_id
-        _state.session_id = conversation
-        return conversation
+        return await _select_chat_session_locked(chat_id)
+
+
+async def _select_chat_session_locked(chat_id):
+    """Caller owns request_lock through selection and subsequent prompt."""
+    await _ensure_agent()
+    if _state.session_id:
+        _state.chat_conversations[_state.chat_id] = _state.session_id
+    conversation = _state.chat_conversations.get(chat_id)
+    if conversation is None:
+        result = await _send_request('session/new', {
+            'cwd': str(Path.cwd()), 'mcpServers': _messages_mcp_servers(chat_id),
+        })
+        conversation = result.get('sessionId')
+        if not isinstance(conversation, str) or not conversation:
+            raise RuntimeError('Agent returned no conversation ID')
+        _state.chat_conversations[chat_id] = conversation
+    _state.chat_id = chat_id
+    _state.session_id = conversation
+    return conversation
 
 
 async def _ensure_agent():
@@ -1100,7 +1105,7 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
             return f"[Error: {e}]"
 
 
-async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None) -> dict:
+async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None) -> dict:
     """Send a message to the agent and return multimodal response.
     
     Returns a dict with:
@@ -1122,7 +1127,10 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
     async with _state.request_lock:
         _state.cancel_event = asyncio.Event()
         try:
-            await _ensure_agent()
+            if chat_id is not None:
+                await _select_chat_session_locked(chat_id)
+            else:
+                await _ensure_agent()
             
             if not _state.session_id:
                 return {

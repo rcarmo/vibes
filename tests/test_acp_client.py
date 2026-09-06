@@ -683,3 +683,24 @@ async def test_chat_conversation_selection_reuses_ids_and_rejects_busy():
         finally:
             state.request_lock.release()
     acp_client.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_multimodal_selection_and_prompt_share_request_lock():
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    async def select(chat_id):
+        assert state.request_lock.locked()
+        assert chat_id == 'other'
+        state.session_id = 'other-conversation'
+    async def send(method, params, **kwargs):
+        assert state.request_lock.locked()
+        assert method == 'session/prompt'
+        assert params['sessionId'] == 'other-conversation'
+        return {'_collected_text': 'response', '_collected_content': []}
+    with patch.object(acp_client, '_select_chat_session_locked', AsyncMock(side_effect=select)), \
+         patch.object(acp_client, '_send_request', AsyncMock(side_effect=send)):
+        response = await acp_client.send_message_multimodal('hello', chat_id='other')
+    assert response['text'] == 'response'
+    assert not state.request_lock.locked()
+    acp_client.reset_state()
