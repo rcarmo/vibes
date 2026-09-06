@@ -1233,3 +1233,13 @@ session-new RPC responses, then stop_agent: sanitized declarations and resume
 flag are captured after initialize and removed on shutdown. 484 backend tests
 pass. This is protocol-lifecycle unit coverage, not an installed third-party
 agent handshake or attachment consumption acceptance.
+
+### Installed-agent acceptance recheck
+
+Rechecked PATH for vibe-acp, copilot, claude, codex, gemini, opencode and
+agent-client-protocol: none present. Only installed Pi is available. Re-ran
+`PYTHONPATH=src .venv/bin/python tools/smoke-pi-sessions.py`: distinct Pi session
+creation and restoration pass without sending a model prompt. Third-party ACP
+messages discovery/retrieval and real attachment consumption remain blocked on
+an installed/authenticated suitable agent; Pi session switching is not substitute
+evidence for those acceptance criteria. No credentials or real prompts used.
