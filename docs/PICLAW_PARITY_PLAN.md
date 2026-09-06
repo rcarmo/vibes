@@ -1729,3 +1729,10 @@ Hidden for other sessions, stopped agents and absent declarations; no controls
 are enabled by claims. Two headed browser tests and build/lint pass. This local
 read-only details UI is an explicit deviation pending visual review; registry
 refresh cadence and real-agent consumption acceptance remain open.
+
+### Capability panel unavailable-state acceptance
+
+Four headed Chromium/WebKit capability tests pass, including rerender from
+reported capability to stopped, absent and malformed declarations. Panel removes
+claims in each unavailable case rather than retaining stale details. This verifies
+component input handling, not agent-list refresh cadence or real capability use.

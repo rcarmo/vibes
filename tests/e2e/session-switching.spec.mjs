@@ -509,3 +509,24 @@ test('ACP declarations display as reported capability, not live model availabili
     await expect(page.getByText('Connection declarations only; not verified execution or session availability.', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
 });
+
+test('capability panel hides stopped absent and malformed declarations', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { AgentCapabilities } = await import('/static/js/components/agent-capabilities.js');
+        const root = document.createElement('div'); root.id = 'capability-fixture'; document.body.append(root);
+        window.renderCapabilities = agent => render(html`<${AgentCapabilities} agent=${agent} />`, root);
+        window.renderCapabilities({ status: 'running', reported_capabilities: { loadSession: true } });
+    });
+    const fixture = page.locator('#capability-fixture');
+    await expect(fixture.locator('summary')).toBeVisible();
+    for (const agent of [
+        { status: 'stopped', reported_capabilities: { loadSession: true } },
+        { status: 'running', reported_capabilities: null },
+        { status: 'running', reported_capabilities: { loadSession: 'true', promptCapabilities: { image: 1 } } },
+    ]) {
+        await page.evaluate(agent => window.renderCapabilities(agent), agent);
+        await expect(fixture.locator('details')).toHaveCount(0);
+    }
+});
