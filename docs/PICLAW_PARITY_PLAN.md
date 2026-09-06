@@ -986,3 +986,12 @@ references and rejection of per-call workspace scope escalation. 468 backend
 tests pass. Prior query-class coverage alone did not establish working MCP
 resolution. Combined with four browser mention tests, local reference addressing
 is implemented; third-party agent consumption remains a separate open criterion.
+
+### Session picker active-option accessibility
+
+Focused search now exposes combobox/listbox ownership and active-descendant;
+keyboard selection scrolls the active option into view. Empty filters clear the
+active descendant rather than referencing a nonexistent node. Four headed
+Chromium/WebKit picker tests and build/lint pass. Updated prior searchbox test
+locator for the deliberate combobox role change. Full deployed picker actions,
+metrics and dialog styling acceptance remains open.

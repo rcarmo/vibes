@@ -7,10 +7,17 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
     const [index, setIndex] = useState(0);
     const [error, setError] = useState('');
     const search = useRef(null);
+    const results = useRef(null);
     const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase())) })).filter(group => group.items.length), [sessions, currentId, query]);
     const matches = groups.flatMap(group => group.items);
     const selectedIndex = Math.max(0, Math.min(index, matches.length - 1));
+    const selectedId = matches[selectedIndex]?.id;
     useEffect(() => { search.current?.focus(); }, []);
+    useEffect(() => {
+        const option = Array.from(results.current?.querySelectorAll('[role="option"]') || [])
+            .find(node => node.id === `session-option-${selectedId}`);
+        option?.scrollIntoView({ block: 'nearest' });
+    }, [selectedId]);
 
     const act = async fn => { try { setError(''); await fn?.(); } catch (err) { setError(err.message || 'Session action failed'); } };
     const keys = event => {
@@ -26,9 +33,9 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
         }
     };
     return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
-        <div class="compose-session-popup-header"><input ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
+        <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
         ${error && html`<div role="alert">${error}</div>`}
-        <div class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>
+        <div ref=${results} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
                 <div class="compose-session-section-heading">${group.label}</div>
                 ${group.items.map(item => html`<div key=${item.id} class=${`compose-model-option-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>

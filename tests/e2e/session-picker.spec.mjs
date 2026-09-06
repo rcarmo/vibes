@@ -19,7 +19,7 @@ test('session picker searches, navigates and keeps action buttons separate', asy
         onClose=${() => window.pickerActions.push(['close'])} />`, host);
     });
     const fixture = page.locator('#picker-fixture');
-    const input = fixture.getByRole('searchbox', { name: 'Search sessions' });
+    const input = fixture.getByRole('combobox', { name: 'Search sessions' });
     await expect(input).toBeFocused();
     await input.fill('Research');
     await expect(fixture.getByRole('option')).toHaveCount(1);
@@ -34,4 +34,24 @@ test('session picker searches, navigates and keeps action buttons separate', asy
     await expect.poll(() => page.evaluate(() => window.pickerActions.at(-1))).toEqual(['select', 'research']);
     await input.press('Escape');
     await expect.poll(() => page.evaluate(() => window.pickerActions.at(-1))).toEqual(['close']);
+});
+
+test('session search exposes keyboard active option and clears it for no matches', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); document.body.append(root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Main' }, { id: 'second', name: 'Second' }]} />`, root);
+    });
+    const search = page.getByRole('combobox', { name: 'Search sessions' });
+    await expect(search).toBeFocused();
+    await expect(search).toHaveAttribute('aria-controls', 'session-picker-results');
+    await search.press('ArrowDown');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-second');
+    await search.fill('unmatched');
+    await expect(search).not.toHaveAttribute('aria-activedescendant');
+    await expect(page.locator('#session-picker-results [role="option"]')).toHaveCount(0);
+    await search.fill('Main');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
 });
