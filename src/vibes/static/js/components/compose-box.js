@@ -1073,11 +1073,15 @@ export function ComposeBox({
                     `}
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
-                            <div class="compose-session-popup-header"><div class="compose-model-popup-title">Search models</div><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
+                            <div class="compose-model-catalogue-header">
+                                <div class="compose-session-popup-header"><label class="compose-model-catalogue-search-label" for="compose-model-search">Search models</label><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
+                                <div class="compose-model-catalogue-search-row">
+                                    <input ref=${modelSearchRef} id="compose-model-search" class="compose-model-catalogue-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-activedescendant=${filteredModels.includes(highlightedModel) ? `model-option-${encodeURIComponent(highlightedModel)}` : undefined} aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                                    ${modelQuery && html`<button type="button" class="compose-model-catalogue-clear" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>×</button>`}
+                                </div>
+                                <div class="compose-model-catalogue-summary" role="status">${loadingModels ? 'Refreshing…' : modelCatalogError ? 'Catalog unavailable' : `${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}`}</div>
+                            </div>
                             ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
-                            ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
-                            <input ref=${modelSearchRef} class="compose-session-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-activedescendant=${filteredModels.includes(highlightedModel) ? `model-option-${encodeURIComponent(highlightedModel)}` : undefined} aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
-                            ${modelQuery && html`<button type="button" class="compose-model-popup-btn" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>Clear search</button>`}
                             <div id="compose-model-results" class="compose-model-popup-menu compose-model-catalogue-results" role="listbox" aria-label="Models">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>

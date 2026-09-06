@@ -3679,3 +3679,69 @@ body {
 .compose-model-catalogue-badge + .compose-model-catalogue-badge::before { content:' · '; margin-right:4px; }
 /* Virtual model focus stays visible while DOM focus remains in search. */
 .compose-model-popup-item.focused { outline:2px solid var(--accent-color); outline-offset:-2px; }
+.compose-model-catalogue-header {
+    padding: 10px;
+    border-bottom: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.compose-model-catalogue-search-label {
+    display: block;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.compose-model-catalogue-search-row {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.compose-model-catalogue-search {
+    width: 100%;
+    min-height: 36px;
+    padding: 7px 34px 7px 10px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font: 12px var(--font-family-mono);
+}
+
+.compose-model-catalogue-search:focus {
+    outline: 2px solid color-mix(in srgb, var(--accent-color) 50%, transparent);
+    outline-offset: -1px;
+}
+
+.compose-model-catalogue-clear {
+    position: absolute;
+    right: 4px;
+    width: 28px;
+    height: 28px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 18px;
+}
+
+.compose-model-catalogue-clear:hover,
+.compose-model-catalogue-clear:focus-visible {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+    outline: none;
+}
+
+.compose-model-catalogue-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 6px;
+    color: var(--text-secondary);
+    font-size: 11px;
+}

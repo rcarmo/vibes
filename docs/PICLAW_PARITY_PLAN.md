@@ -2302,3 +2302,13 @@ pin/reorder without model mutation or focus loss, then Enter submits exactly the
 canonical provider/model_id and closes picker. Both tests and build/lint pass.
 This closes the prior search-action/highlight follow-up; full deployed catalogue
 styling and Models-settings presentation remain open.
+
+### Catalogue search header styling
+
+Model search now uses deployed catalogue header/label/search-row/search/clear and
+summary classes with their reference CSS. Linked label and inline clear icon retain
+existing combobox focus semantics. Explicit close control remains an accessibility
+convenience; summary honestly distinguishes refreshing and unavailable catalogue.
+Build/lint and all 96 headed Chromium/WebKit model/session tests pass, including
+viewport captures and search clear/focus behavior. Whole catalogue sizing/rows and
+Models-settings footer are not yet fully migrated.
