@@ -365,3 +365,13 @@ Ported deployed checkbox label classes and CSS for Images/Attachments search
 filters. API forwards both flags; Chromium/WebKit test exact URL parameters.
 Frontend build/lint pass. Current-session versus all-session selection remains
 pending the session registry; backend thread_id support alone is not that UI.
+
+### Durable session metadata foundation
+
+Schema v5 adds chat_sessions with stable IDs, names, parent links, pin/archive
+flags and timestamps; seeds default without touching existing interactions.
+SessionStore supports create/list/get/rename/pin/archive and protects default from
+archive. Migration version rows are consolidated to avoid selecting stale versions
+on subsequent starts. Persistence/reopen and validation tests pass: 424 backend
+tests. This does not yet route messages, isolate model context, delete histories,
+or switch running agents. Session APIs/picker/state isolation remain pending.
