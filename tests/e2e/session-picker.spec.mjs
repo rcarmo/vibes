@@ -329,6 +329,7 @@ test('New branch creates empty child of selected session', async ({ page }) => {
     await page.getByTestId('session-switcher').click();
     await page.getByRole('button', { name: 'New branch', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'New session' });
+    await expect(dialog).toContainText('Conversation history is not copied.');
     await dialog.getByRole('textbox', { name: 'Session name' }).fill('Empty child branch');
     await dialog.getByRole('button', { name: 'Create', exact: true }).click();
     await expect(dialog).toHaveCount(0);

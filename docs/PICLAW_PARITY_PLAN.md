@@ -1554,3 +1554,10 @@ parent support reused; no history copy or provider conversation fork implied,
 with explicit action tooltip. 36 headed picker tests and build/lint pass, including
 persisted parent and zero-message child verification. Deployed fork semantics and
 final visual equivalence remain explicit deviations/open acceptance.
+
+### Visible empty-branch disclosure
+
+Branch creation dialog names its parent and visibly states that conversation
+history is not copied, including touch users without tooltips. Root creation
+omits that disclosure. Four headed create/branch tests and build/lint pass.
+This is explicit metadata-child behavior, not provider conversation fork parity.
