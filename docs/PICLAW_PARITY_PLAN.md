@@ -632,3 +632,11 @@ events; legacy untagged conversation events remain default-only. Global transpor
 and workspace events remain shared. Eight frontend unit and eight focused browser
 tests pass; build/lint pass. Current ID is still default until picker mounting;
 queue/model event ownership and global timeline loads require further integration.
+
+### Session-filtered timeline fetch
+
+Frontend timeline requests now explicitly select default session; backend accepts
+session_id and uses scoped cursor pagination, preventing other-chat messages from
+reappearing on reload after live-event filtering. Unscoped legacy API behavior is
+retained for compatibility. 453 backend tests and two draft browser tests pass;
+frontend build/lint pass. Picker will supply the selected ID in the next wiring.

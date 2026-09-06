@@ -101,6 +101,14 @@ async def get_timeline(request: web.Request) -> web.Response:
         before_id = int(before_id)
     
     db = await get_db()
+    session_id = request.query.get('session_id')
+    if session_id is not None:
+        from ..sessions import SessionStore
+        try:
+            result = await SessionStore(db).timeline(session_id, limit=limit, before_id=before_id)
+        except ValueError as exc:
+            return web.json_response({'error': str(exc)}, status=400)
+        return web.json_response({**result, 'limit': limit})
     posts = await db.get_timeline(limit=limit, before_id=before_id)
     
     # Check if there are older posts

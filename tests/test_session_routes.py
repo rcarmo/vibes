@@ -85,3 +85,21 @@ async def test_worker_status_events_include_session_identity(db, monkeypatch):
     statuses = [call.args[1] for call in events.call_args_list if call.args[0] == 'agent_status']
     assert statuses
     assert all(item['session_id'] == session['id'] for item in statuses)
+
+
+@pytest.mark.asyncio
+async def test_timeline_route_scope_excludes_other_sessions(db, aiohttp_client, monkeypatch):
+    posts = importlib.import_module('vibes.routes.posts')
+    SessionStore = importlib.import_module('vibes.sessions').SessionStore
+    other = await SessionStore(db).create('Other')
+    visible = await db.create_interaction({'type': 'user', 'content': 'default'})
+    await db.create_interaction({'type': 'user', 'content': 'private', 'session_id': other['id']})
+    monkeypatch.setattr(posts, 'get_db', AsyncMock(return_value=db))
+    app = web.Application()
+    posts.setup_routes(app)
+    client = await aiohttp_client(app)
+    response = await client.get('/timeline?session_id=default&limit=1')
+    result = await response.json()
+    assert [item['id'] for item in result['posts']] == [visible]
+    assert result['has_more'] is False
+    assert (await client.get('/timeline?session_id=missing')).status == 400

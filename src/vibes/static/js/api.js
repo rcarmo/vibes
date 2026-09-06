@@ -27,8 +27,8 @@ async function request(url, options = {}) {
 /**
  * Get timeline posts (chat style - returns oldest first)
  */
-export async function getTimeline(limit = 10, beforeId = null) {
-    let url = `/timeline?limit=${limit}`;
+export async function getTimeline(limit = 10, beforeId = null, sessionId = 'default') {
+    let url = `/timeline?limit=${limit}&session_id=${encodeURIComponent(sessionId)}`;
     if (beforeId) {
         url += `&before=${beforeId}`;
     }
