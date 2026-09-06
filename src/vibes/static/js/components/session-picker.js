@@ -1,4 +1,5 @@
 // Registry adapter using deployed Piclaw classic picker class/role structure.
+import { sessionLastMessage } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
 
@@ -39,16 +40,16 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
         <div ref=${results} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
                 <div class="compose-session-section-heading">${group.label}</div>
-                ${group.items.map(item => html`<div key=${item.id} class=${`compose-model-option-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
+                ${group.items.map(item => { const lastMessage = sessionLastMessage(item.last_message_at); return html`<div key=${item.id} class=${`compose-model-option-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
                 <button type="button" class=${`compose-model-pin-toggle${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>☆</button>
                 <button type="button" id=${`session-option-${item.id}`} class="compose-model-option compose-model-option-session" role="option" aria-selected=${item.id === currentId} onClick=${() => act(() => onSelect?.(item.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${item.id}</span><span class="compose-session-row-meta">${item.message_count ?? 0} messages</span></span>
+                    <span class="compose-session-row-content"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${item.id}</span><span class="compose-session-row-meta">${item.message_count ?? 0} messages</span>${lastMessage && html`<time class="compose-session-row-meta" datetime=${lastMessage.datetime} title="Last persisted message (not runtime activity)">Last message: ${lastMessage.label}</time>`}</span>
                     <span class=${`compose-session-status-pill ${item.archived ? 'closed' : item.is_running ? 'active' : 'idle'}`}>${item.archived ? 'Archived' : item.is_running ? 'Running' : 'Idle'}</span>
                 </button>
                 <button type="button" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
                 ${item.id !== 'default' && onArchive && html`<button type="button" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} disabled=${!item.archived && item.is_running === true} title=${!item.archived && item.is_running ? 'Stop the running turn before archiving' : undefined} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
                 ${item.id !== 'default' && html`<button type="button" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count || parents.has(item.id)} title=${parents.has(item.id) ? 'Sessions with children cannot be deleted' : item.message_count ? 'Only empty sessions can be deleted' : undefined} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
-            </div>`)}
+            </div>`; })}
             </div>`)}
         </div>
         <button type="button" onClick=${() => act(onCreate)}>New session</button>

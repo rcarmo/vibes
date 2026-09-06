@@ -1043,3 +1043,11 @@ archive/restore, create/rename/delete dialogs and keyboard action separation.
 The session composer/switcher functional checklist item is complete. Full deployed
 picker grouping/metrics/dialog visual equivalence remains a separate open item;
 this does not claim external provider availability or live-agent acceptance.
+
+### Picker persisted-message timestamp
+
+Picker rows show last_message_at as an explicit Last message time with machine-
+readable datetime; SQLite unzoned timestamps are interpreted as UTC, invalid or
+missing values hidden. No running/idle inference is made from this history value.
+15 frontend unit tests, 12 headed Chromium/WebKit picker tests and build/lint pass.
+Runtime metrics, queued lifecycle and final visual equivalence remain open.
