@@ -1767,3 +1767,12 @@ not an approval of full screenshot equivalence.
 Added labelled close control using existing popup-header/close styles and trigger
 focus restoration. Two headed Chromium/WebKit close-control tests and build/lint
 pass. Final rendered model comparison and settings integration remain open.
+
+### Integrated registry/capability/picker checkpoint
+
+At e936843: 495 Python tests, 18 frontend unit tests, build/lint and 224/224 headed
+Chromium/WebKit tests pass with one worker. Build leaves clean tree. Includes
+periodic agent declarations, guarded registry inspection, cross-tab pins, stale
+parent UI rejection and latest picker styling/close controls. No retries/skips.
+Final visual comparison, server-side model settings and external-agent/live-service
+acceptance remain open; passing regression is not overall plan completion.
