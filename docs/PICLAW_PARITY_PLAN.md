@@ -2010,3 +2010,10 @@ Existing real-shell popout handoff test now returns through Reattach terminal
 header control and verifies preserved environment state plus closed popup.
 Body Reattach here remains covered by closed-popup recovery test. Four headed
 Chromium/WebKit tests pass across both paths; no transport implementation change.
+
+### Terminal transfer action serialization
+
+Detach and both reattach controls share synchronous pending guard; visible transfer
+buttons disable until completion/failure. Prevents overlapping header/body handoff
+requests before busy rerender. 28 headed terminal regression tests and build/lint
+pass; dedicated simultaneous-control stress acceptance remains unverified.

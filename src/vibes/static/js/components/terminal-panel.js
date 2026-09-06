@@ -8,6 +8,8 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
     const popupRef = useRef(null);
     const [detached, setDetached] = useState(false);
     const [transferError, setTransferError] = useState('');
+    const transferPending = useRef(false);
+    const [transferring, setTransferring] = useState(false);
     const [height, setHeight] = useState(() => Math.round(window.innerHeight * 0.45));
     const dragCleanup = useRef(null);
     const maxHeight = () => Math.max(100, (host.current?.closest('.editor-pane-container')?.clientHeight || window.innerHeight) - 60);
@@ -50,9 +52,11 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
         return () => { dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
     }, []);
     const detach = async () => {
+        if (transferPending.current) return;
         // Open synchronously for popup blockers, then request one-use handoff.
         const popup = window.open('about:blank', 'vibes-terminal');
         if (!popup) return;
+        transferPending.current = true; setTransferring(true);
         try {
             const transfer = await pane.current?.preparePopoutTransfer();
             if (!transfer?.terminal_handoff) { popup.close(); return; }
@@ -67,8 +71,11 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             setDetached(true);
             setTransferError('');
         } catch { popup.close(); setTransferError('Unable to detach terminal.'); }
+        finally { transferPending.current = false; setTransferring(false); }
     };
     const reattach = async () => {
+        if (transferPending.current) return;
+        transferPending.current = true; setTransferring(true);
         try {
             let token = null;
             let restarted = false;
@@ -94,6 +101,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             popupRef.current = null;
             requestAnimationFrame(() => window.dispatchEvent(new Event('dock-resize')));
         } catch { setTransferError('Unable to reattach. Check that the terminal window is connected.'); }
+        finally { transferPending.current = false; setTransferring(false); }
     };
     return html`<div class=${`terminal-panel dock-panel${shared ? '' : ' standalone'}`} role="region" aria-label="Terminal" style=${popout ? '' : `height:${height}px`}>
         ${!popout && shared && html`<div class="dock-splitter" role="separator" aria-label="Resize terminal" aria-orientation="horizontal" aria-valuemin="100" aria-valuemax=${maxHeight()} aria-valuenow=${height} tabindex="0"
@@ -107,10 +115,10 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
         <div class="dock-panel-header">
             <span class="dock-panel-title">Terminal</span>
             <div class="dock-panel-actions">
-                ${!popout && !detached && html`<button class="dock-panel-action" onClick=${detach} title="Open terminal in window" aria-label="Open terminal in window">
+                ${!popout && !detached && html`<button class="dock-panel-action" disabled=${transferring} onClick=${detach} title="Open terminal in window" aria-label="Open terminal in window">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3H3v10h10v-3" /><path d="M9 3h4v4" /><path d="M8 8l5-5" /></svg>
                 </button>`}
-                ${detached && html`<button type="button" class="dock-panel-action" title="Reattach terminal" aria-label="Reattach terminal" onClick=${reattach}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V3h10v10h-3" /><path d="M3 9v4h4" /><path d="M3 13l5-5" /></svg></button>`}
+                ${detached && html`<button type="button" class="dock-panel-action" title="Reattach terminal" aria-label="Reattach terminal" disabled=${transferring} onClick=${reattach}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V3h10v10h-3" /><path d="M3 9v4h4" /><path d="M3 13l5-5" /></svg></button>`}
                 <button class="dock-panel-close" onClick=${onClose} title="Hide terminal" aria-label="Hide terminal">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
                 </button>
@@ -121,7 +129,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             <div class="editor-empty-state pane-detached-state">
                 <h3>Terminal detached</h3>
                 <p>This terminal is open in another window.</p>
-                <button type="button" class="editor-empty-action" onClick=${reattach}>Reattach here</button>
+                <button type="button" class="editor-empty-action" disabled=${transferring} onClick=${reattach}>Reattach here</button>
             </div>
         </div>`}
         <div ref=${host} class="dock-panel-body" style=${detached ? 'display:none' : ''}></div>
