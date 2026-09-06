@@ -90,3 +90,8 @@ push: ## Push commits and current tag to origin
 	else \
 		echo "No tag on current commit"; \
 	fi
+
+.PHONY: test-browser
+# WebKit popup automation requires a display on Linux; use Xvfb in CI.
+test-browser: build-frontend
+	xvfb-run -a bun x playwright test --headed

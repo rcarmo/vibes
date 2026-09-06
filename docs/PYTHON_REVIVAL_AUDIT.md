@@ -26,19 +26,19 @@ security or live provider compatibility.
 - Python 3.12: 390 tests passed after dependency upgrades and middleware fixes.
 - Ruff and frontend ESLint passed; Bun frontend bundle builds.
 - Chromium: 19 editor tests passed, including two new popup/data-loss regressions.
-- WebKit: dirty transfer and blocked-popup regressions pass. Two pre-existing
-  popup-opening tests still fail intermittently with page crashes or popup timeouts.
-  Keep them enabled; no skips or retries were added.
+- Headed Chromium + WebKit under Xvfb: all 38 tests pass, including popup opening.
+  Headless WebKit popup automation is unreliable on this host; no tests were skipped.
 - Desktop (1440x1000) and mobile (390x844) screenshots use isolated test data.
 
 ## Remaining blockers / scope boundaries
 
-1. WebKit popup opening: reproduced under Bun and Node, with/without forced
+1. Headless-only WebKit popup limitation (headed suite passes): reproduced under Bun and Node, with/without forced
    window features, software rendering, delayed source-tab teardown, and blank
    window navigation. None provided a repeatable fix; experiments were reverted.
    Native WebKit logs include automation-context warnings. Minimal blank-page
    popups work, so attributing this solely to the runtime is not justified.
-2. Live ACP/Pi authentication and model responses were not exercised. Backend
+2. Installed Pi subprocess and the Python Pi client both successfully returned
+   `get_state`. Live ACP authentication and model responses were not exercised. Backend
    protocol/lifecycle coverage is from the existing mocked tests. No credentials
    or real user database were used. A live-provider smoke test remains required.
 3. Authentication is still a callback seam, not a user login system. Loopback
@@ -62,5 +62,8 @@ bun x playwright install chromium webkit
 bun x playwright test
 ```
 
-Do not merge or mark the entire end-to-end audit complete until the remaining
-browser and live-provider checks above are addressed or explicitly accepted.
+The original UI revival and bounded automated audit are verified. Paid model
+responses and production deployment remain explicit acceptance checks, not claims
+made by this report. Run `make test-browser` for the supported Linux browser
+verification path. Slash-command tests now isolate persisted settings to avoid
+writing fake models into developer configuration.
