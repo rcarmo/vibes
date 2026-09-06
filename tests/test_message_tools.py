@@ -86,3 +86,24 @@ async def test_session_scope_covers_messages_and_attachment_authorization(db):
     assert (await scoped.query('attachment', media_id=secret))['text'] == 'secret'
     with pytest.raises(ValueError):
         MessageTools(db._connection, session_id='default', workspace_access=True)
+
+
+@pytest.mark.asyncio
+async def test_session_reference_resolution_respects_trusted_scope(db):
+    from vibes.sessions import SessionStore
+    other = await SessionStore(db).create('Private chat')
+    root = await db.create_interaction({'type': 'user', 'content': 'text', 'session_id': other['id']})
+    reference = '@session:' + other['id']
+    scoped = MessageTools(db._connection, session_id='default')
+    assert await scoped.query('resolve_session', reference=reference) == {'session': None}
+    assert await scoped.query('resolve_session', reference='@session:missing') == {'session': None}
+    for tools in (MessageTools(db._connection, workspace_access=True),
+                  MessageTools(db._connection, session_id=other['id']),
+                  MessageTools(db._connection, thread_id=root)):
+        result = await tools.query('resolve_session', reference=reference)
+        assert result == {'session': {'id': other['id'], 'name': 'Private chat', 'archived': False}}
+    thread = MessageTools(db._connection, thread_id=root)
+    assert await thread.query('resolve_session', reference='@session:default') == {'session': None}
+    for reference in (None, 'default', '@session:', '@session:a b', '@session:' + 'x' * 513):
+        with pytest.raises(ValueError):
+            await scoped.query('resolve_session', reference=reference)

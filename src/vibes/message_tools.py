@@ -15,6 +15,7 @@ class MessageTools:
         self.connection = connection
         self.thread_id = thread_id
         self.session_id = session_id
+        self.workspace_access = bool(workspace_access)
 
     def scope(self):
         if self.session_id is not None:
@@ -47,7 +48,32 @@ class MessageTools:
             result['notice'] = 'Binary attachment: text preview unavailable.'
         return result
 
-    async def query(self, action, *, row_ids=None, query='', limit=10, before_row=None, media_id=None):
+    async def resolve_session(self, reference):
+        """Resolve identity only; a reference never expands the trusted scope."""
+        if not isinstance(reference, str) or not reference.startswith('@session:'):
+            raise ValueError('Expected @session:ID reference')
+        session_id = reference[len('@session:'):]
+        if not session_id or len(session_id) > 512 or any(char.isspace() or ord(char) < 32 for char in session_id):
+            raise ValueError('Invalid session reference')
+        allowed = self.workspace_access or self.session_id == session_id
+        if self.thread_id is not None:
+            async with self.connection.execute(
+                "SELECT COALESCE(json_extract(data, '$.session_id'), 'default') FROM interactions WHERE id=?",
+                (self.thread_id,),
+            ) as cursor:
+                owner = await cursor.fetchone()
+            allowed = owner is not None and owner[0] == session_id
+        if not allowed:
+            return {'session': None}
+        async with self.connection.execute(
+            'SELECT id, name, archived FROM chat_sessions WHERE id=?', (session_id,),
+        ) as cursor:
+            row = await cursor.fetchone()
+        return {'session': {'id': row[0], 'name': row[1], 'archived': bool(row[2])} if row else None}
+
+    async def query(self, action, *, row_ids=None, query='', limit=10, before_row=None, media_id=None, reference=None):
+        if action == 'resolve_session':
+            return await self.resolve_session(reference)
         if action == 'attachment':
             return await self.attachment(media_id)
         if type(limit) is not int or not 1 <= limit <= 50:

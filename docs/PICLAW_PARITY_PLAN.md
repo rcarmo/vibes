@@ -883,3 +883,15 @@ acceptance restores caret after the inserted reference and preserves suffix text
 Four headed Chromium/WebKit mention tests pass, including query reuse, Escape,
 and insertion in the middle of text. Build/lint pass. Stable IDs intentionally
 replace deployed agent aliases; authorized reference resolution remains pending.
+
+### Authorized mention identity resolution
+
+The read-only MCP `messages` tool now accepts
+`{"action":"resolve_session","reference":"@session:ID"}`. It returns only
+ID/name/archive state, and only for the bound session, the bound thread's owning
+session, or explicitly opted-in workspace scope. Missing and unauthorized IDs
+both return `{"session":null}`; no backend bindings, model metadata or history
+are returned. References do not change the send destination or tool scope.
+467 backend tests pass, including session/thread/workspace authorization and
+invalid reference inputs. Third-party discovery/consumption acceptance remains
+open; this is not cross-session messaging.

@@ -17,9 +17,10 @@ TOOL = {
     'inputSchema': {
         'type': 'object', 'additionalProperties': False, 'required': ['action'],
         'properties': {
-            'action': {'type': 'string', 'enum': ['get', 'search', 'attachment']},
+            'action': {'type': 'string', 'enum': ['get', 'search', 'attachment', 'resolve_session']},
             'row_ids': {'type': 'array', 'minItems': 1, 'maxItems': 50, 'items': {'type': 'integer', 'minimum': 1}},
             'query': {'type': 'string', 'maxLength': 500},
+            'reference': {'type': 'string', 'maxLength': 521, 'description': '@session:ID for resolve_session; identity only within existing scope, never grants history access. Unauthorized and missing references both return null'},
             'media_id': {'type': 'integer', 'minimum': 1},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50, 'default': 10},
             'before_row': {'type': 'integer', 'minimum': 1},
