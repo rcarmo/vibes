@@ -492,3 +492,11 @@ using one aggregate join (not per-session queries). Empty sessions report no las
 message; activity is not labeled running/idle or model context. Sorting preserves
 pin priority and uses latest history activity. 437 backend tests pass. Picker and
 runtime status remain unimplemented, not inferred from these metadata fields.
+
+### Session-aware ACP worker dispatch
+
+Response worker resolves chat identity from the persisted thread and forwards
+non-default identities to lock-held ACP selection. Missing/archived chat metadata
+is rejected; default retains compatible call behavior. 438 backend tests pass,
+including sender argument verification and archived-session rejection. Public
+non-default submission remains gated pending admission/queue and Pi runtime work.

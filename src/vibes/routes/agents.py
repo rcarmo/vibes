@@ -545,6 +545,21 @@ def _is_agent_busy(agent_mode: str) -> bool:
         return False
 
 
+async def _dispatch_acp_thread(content, thread_id, status_callback):
+    """Resolve chat identity from persisted history, not global UI selection."""
+    database = await get_db()
+    root = await database.get_interaction(thread_id)
+    chat_id = root['data'].get('session_id', 'default') if root else 'default'
+    if chat_id == 'default':
+        return await send_acp_message_multimodal(content, thread_id, status_callback)
+    from ..sessions import SessionStore
+    store = SessionStore(database)
+    session = await store.get(chat_id)
+    if not session or session['archived']:
+        raise ValueError('Chat session unavailable')
+    return await send_acp_message_multimodal(content, thread_id, status_callback, chat_id=chat_id)
+
+
 async def process_agent_response(thread_id: int, content: str, agent_id: str):
     """Background task to get agent response and broadcast it."""
     import random
@@ -673,7 +688,7 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str):
         if agent_mode == "pi":
             response = await send_pi_message_multimodal(content, thread_id, status_callback)
         else:
-            response = await send_acp_message_multimodal(content, thread_id, status_callback)
+            response = await _dispatch_acp_thread(content, thread_id, status_callback)
 
         # If a permission request timed out, stop and explain what happened.
         if response.get("cancelled") and response.get("cancel_reason") != "abort":
