@@ -500,3 +500,12 @@ non-default identities to lock-held ACP selection. Missing/archived chat metadat
 is rejected; default retains compatible call behavior. 438 backend tests pass,
 including sender argument verification and archived-session rejection. Public
 non-default submission remains gated pending admission/queue and Pi runtime work.
+
+### Pi session RPC selector foundation
+
+Added isolated PiSessionSelector using documented get_state/new_session/
+switch_session commands. Checks busy state, persistence, cancellation and final
+session file before accepting a switch. Tests cover create/switch-back and
+cancelled/busy/no-persistence cases; 440 backend tests pass. Caller must own Pi's
+request lock. Not yet wired into client/route dispatch; confirmation failure
+requires recovery before prompting. Live installed-Pi smoke still pending.
