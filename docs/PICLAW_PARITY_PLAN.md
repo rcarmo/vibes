@@ -1164,3 +1164,13 @@ Unavailable/busy/uncertain default returns the existing empty response; raw mode
 are bounded to 500. 471 backend tests pass, including explicit default helper calls
 and no raw RPC when inspection is unavailable. Default mutation command-path and
 full model-picker parity remain open.
+
+### Unified composer model mutation path
+
+Default composer now uses /sessions/default/models and /sessions/default/model
+for selection, cycling and thinking changes, just like other chats. Removed UI
+slash-command model mutations and string-response parsing; unavailable catalogs
+disable cycling consistently. Twenty headed Chromium/WebKit model/thinking tests
+and build/lint pass, including default selection/thinking with zero message
+commands. Explicit user-entered slash commands remain a separate legacy surface;
+ACP capabilities and complete visual picker parity remain open.

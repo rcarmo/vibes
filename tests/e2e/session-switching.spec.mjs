@@ -306,3 +306,21 @@ test('late model mutation cannot relabel a newly selected chat', async ({ page }
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(label).toContainText('own');
 });
+
+test('default composer model controls use scoped mutation, not slash messages', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"alpha","reasoning":true},"thinking_level":"off"}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"beta"}],"thinking_levels":["off","low"]}' }));
+    const changes = [];
+    let commands = 0;
+    await page.route('**/agent/default/message', route => { commands++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.route('**/sessions/default/model', route => {
+        changes.push(route.request().postDataJSON());
+        return route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"beta","reasoning":true},"thinking_level":"off"}' });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'test/beta', exact: true }).click();
+    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await expect.poll(() => changes).toEqual([{ provider: 'test', model_id: 'beta' }, { thinking_level: 'low' }]);
+    expect(commands).toBe(0);
+});

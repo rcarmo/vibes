@@ -5,7 +5,7 @@ import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getAgentModels, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -433,48 +433,13 @@ export function ComposeBox({
         updateValue(next);
     };
 
-    const extractCurrentModel = (response) => {
-        const fromLabel = response?.command?.model_label;
-        if (fromLabel) return fromLabel;
-        const message = response?.command?.message;
-        if (typeof message === 'string') {
-            const currentMatch = message.match(/•\s+([^\n]+?)\s+\(current\)/);
-            if (currentMatch?.[1]) return currentMatch[1].trim();
-        }
-        return null;
-    };
-
-    const runModelCommand = async (commandText) => {
-        if (sessionId !== 'default' || searchMode || loading || switchingModel) return;
-        setSwitchingModel(true);
-        try {
-            const response = await sendAgentMessage('default', commandText, null, [], null, sessionId);
-            const nextModel = extractCurrentModel(response);
-            emitModelState({
-                model: nextModel ?? activeModel ?? null,
-                thinking_level: response?.command?.thinking_level,
-                supports_thinking: response?.command?.supports_thinking,
-            });
-            onPost?.();
-            return true;
-        } catch (error) {
-            console.error('Failed to switch model:', error);
-            alert('Failed to switch model: ' + error.message);
-            return false;
-        } finally {
-            setSwitchingModel(false);
-        }
-    };
-
     const handleCycleModel = async () => {
-        if (sessionId === 'default') { await runModelCommand('/cycle-model'); return; }
         if (loadingModels || switchingModel || !sessionCatalog?.available || !modelOptions.length) return;
         const next = modelOptions[(modelOptions.indexOf(activeModel) + 1) % modelOptions.length];
         await handleSelectModel(next);
     };
 
     const handleCycleThinking = async () => {
-        if (sessionId === 'default') { await runModelCommand('/cycle-thinking'); return; }
         if (loading || switchingModel) return;
         setSwitchingModel(true);
         try {
@@ -491,7 +456,7 @@ export function ComposeBox({
 
     const handleSelectModel = async (modelLabel) => {
         if (!modelLabel || switchingModel) return;
-        if (sessionId !== 'default') {
+        {
             const model = sessionCatalog?.models?.find(item => `${item.provider}/${item.id}` === modelLabel);
             if (!model) return;
             setSwitchingModel(true);
@@ -503,8 +468,6 @@ export function ComposeBox({
             finally { setSwitchingModel(false); }
             return;
         }
-        const ok = await runModelCommand(`/model ${modelLabel}`);
-        if (ok) setShowModelPopup(false);
     };
 
     const modelPickerKeys = event => {
@@ -826,19 +789,11 @@ export function ComposeBox({
         setModelOptions([]);
         setSessionCatalog(null);
         setModelCatalogError('');
-        (sessionId === 'default' ? getAgentModels() : getSessionModels(sessionId))
+        getSessionModels(sessionId)
             .then((payload) => {
                 if (disposed) return;
-                if (sessionId !== 'default') {
-                    setSessionCatalog(payload);
-                    setModelOptions(payload.available ? payload.models.map(item => `${item.provider}/${item.id}`) : []);
-                    return;
-                }
-                const models = Array.isArray(payload?.models)
-                    ? payload.models.filter((m) => typeof m === 'string' && m.trim().length > 0)
-                    : [];
-                setModelOptions(models);
-                emitModelState(payload);
+                setSessionCatalog(payload);
+                setModelOptions(payload.available ? payload.models.map(item => `${item.provider}/${item.id}`) : []);
             })
             .catch((error) => {
                 if (disposed) return;
@@ -1028,7 +983,7 @@ export function ComposeBox({
                                     type="button"
                                     class="compose-model-popup-btn"
                                     onClick=${() => { void handleCycleModel(); }}
-                                    disabled=${switchingModel || loadingModels || (sessionId !== 'default' && (!sessionCatalog?.available || !modelOptions.length))}
+                                    disabled=${switchingModel || loadingModels || (!sessionCatalog?.available || !modelOptions.length)}
                                 >
                                     Next model
                                 </button>
