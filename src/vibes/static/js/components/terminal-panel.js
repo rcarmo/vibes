@@ -1,10 +1,38 @@
 // Vibes host adapter; terminal DOM/rendering comes from deployed Piclaw 2.15.3.
-import { html, useEffect, useRef } from '../vendor/preact-htm.js';
+import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { terminalPaneExtension } from '../panes/terminal-pane.js';
 
 export function TerminalPanel({ onClose, popout = false }) {
     const host = useRef(null);
     const pane = useRef(null);
+    const [height, setHeight] = useState(() => Math.round(window.innerHeight * 0.45));
+    const dragCleanup = useRef(null);
+    const resize = (value) => {
+        const next = Math.max(100, Math.min(window.innerHeight - 60, value));
+        setHeight(next);
+        requestAnimationFrame(() => window.dispatchEvent(new Event('dock-resize')));
+    };
+    const startResize = (event) => {
+        if (event.button !== undefined && event.button !== 0) return;
+        event.preventDefault();
+        dragCleanup.current?.();
+        const move = (e) => resize(window.innerHeight - e.clientY);
+        const stop = () => {
+            window.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', stop);
+            window.removeEventListener('pointercancel', stop);
+            dragCleanup.current = null;
+        };
+        window.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', stop);
+        window.addEventListener('pointercancel', stop);
+        dragCleanup.current = stop;
+    };
+    useEffect(() => {
+        const fitViewport = () => resize(Math.min(height, window.innerHeight - 60));
+        window.addEventListener('resize', fitViewport);
+        return () => window.removeEventListener('resize', fitViewport);
+    }, [height]);
     useEffect(() => {
         const token = new URL(location.href).searchParams.get('terminal_handoff');
         pane.current = terminalPaneExtension.mount(host.current, {
@@ -15,7 +43,7 @@ export function TerminalPanel({ onClose, popout = false }) {
             url.searchParams.delete('terminal_handoff');
             history.replaceState(null, '', url);
         }
-        return () => { pane.current?.dispose(); pane.current = null; };
+        return () => { dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
     }, []);
     const detach = async () => {
         // Open synchronously for popup blockers, then request one-use handoff.
@@ -32,7 +60,15 @@ export function TerminalPanel({ onClose, popout = false }) {
             onClose?.();
         } catch { popup.close(); }
     };
-    return html`<div class="terminal-panel dock-panel standalone" role="region" aria-label="Terminal">
+    return html`<div class="terminal-panel dock-panel standalone" role="region" aria-label="Terminal" style=${popout ? '' : `height:${height}px`}>
+        ${!popout && html`<div class="dock-splitter" role="separator" aria-label="Resize terminal" aria-orientation="horizontal" aria-valuemin="100" aria-valuemax=${window.innerHeight - 60} aria-valuenow=${height} tabindex="0"
+            onPointerDown=${startResize}
+            onKeyDown=${(event) => {
+                if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+                    event.preventDefault();
+                    resize(height + (event.key === 'ArrowUp' ? 20 : -20));
+                }
+            }}></div>`}
         <div class="dock-panel-header">
             <span class="dock-panel-title">Terminal</span>
             <div class="dock-panel-actions">

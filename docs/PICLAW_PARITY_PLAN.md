@@ -116,3 +116,12 @@ Added browser assertions for this structure; Chromium/WebKit terminal tests pass
 Remaining host deviation: Vibes mounts it as a fixed bottom panel rather than a
 shared pane layout manager; detached-placeholder/reattach and splitter behavior
 remain outstanding. Do not mark complete based on header alignment alone.
+
+### Dock resize slice
+
+Added pointer (mouse/touch) resizing, viewport bounds, keyboard arrow resizing,
+and unmount cleanup. Emits Piclaw's dock-resize event to refit xterm/PTTY size.
+Four headed Chromium/WebKit terminal tests pass; frontend build/lint pass.
+Splitter sits inside Vibes' fixed-panel host rather than adjacent in the shared
+Piclaw layout; retain this explicit structural deviation until host integration.
+Detached placeholder/reattach remains pending.

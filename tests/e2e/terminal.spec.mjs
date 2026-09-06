@@ -21,3 +21,17 @@ test('terminal executes and hands the same shell to a popout', async ({ page }) 
     await expect(popup.getByTestId('terminal-output')).toContainText('state-preserved');
     await popup.close();
 });
+
+test('terminal splitter supports keyboard resizing', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTitle('Open terminal', { exact: true }).click();
+    const splitter = page.getByRole('separator', { name: 'Resize terminal' });
+    const initial = Number(await splitter.getAttribute('aria-valuenow'));
+    await splitter.focus();
+    await splitter.press('ArrowUp');
+    await expect(splitter).toHaveAttribute('aria-valuenow', String(initial + 20));
+    await splitter.press('ArrowDown');
+    await expect(splitter).toHaveAttribute('aria-valuenow', String(initial));
+    await page.getByRole('button', { name: 'Hide terminal', exact: true }).click();
+    await expect(page.locator('.terminal-panel')).toHaveCount(0);
+});

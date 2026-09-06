@@ -3397,3 +3397,5 @@ body {
 /* Host positioning differs until Vibes has the shared pane layout manager. */
 .terminal-panel.dock-panel.standalone { height:45vh; }
 .terminal-popout .terminal-panel.dock-panel.standalone { height:100dvh; }
+.terminal-panel > .dock-splitter { touch-action:none; }
+.terminal-panel > .dock-splitter:focus-visible { background:var(--accent-color); outline:2px solid var(--accent-color); outline-offset:-2px; }
