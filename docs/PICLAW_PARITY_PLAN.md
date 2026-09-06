@@ -640,3 +640,15 @@ session_id and uses scoped cursor pagination, preventing other-chat messages fro
 reappearing on reload after live-event filtering. Unscoped legacy API behavior is
 retained for compatibility. 453 backend tests and two draft browser tests pass;
 frontend build/lint pass. Picker will supply the selected ID in the next wiring.
+
+### Mounted session picker first integration
+
+Main app mounts picker with registry create/rename/pin/empty-delete callbacks.
+Switch loads scoped history, restores per-chat refs, remounts composer by session
+identity and clears previous status/context. Timeline fetches and conversation
+SSE use selected ID; search defaults to selected session. Global polling/model
+and queue updates are suppressed for non-default pending properly scoped status.
+Chromium/WebKit verify default -> other -> default draft isolation and explicit
+submission identity; build/lint pass. Native prompt/confirm action dialogs,
+full deployed grouping/styles, queue ownership, selected status and stale loads
+remain incomplete; this is not final UX acceptance.

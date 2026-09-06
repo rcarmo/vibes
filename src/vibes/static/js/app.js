@@ -1,3 +1,5 @@
+import { SessionPicker } from './components/session-picker.js';
+import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
@@ -682,6 +684,32 @@ function App() {
         fetch('/terminal/session').then(r => r.json()).then(s => setTerminalEnabled(!!s.enabled)).catch(() => {});
     }, []);
     const [posts, setPosts] = useState(null);
+    const [selectedSession, setSelectedSession] = useState('default');
+    const selectedSessionRef = useRef('default');
+    const switchGeneration = useRef(0);
+    const [sessionOptions, setSessionOptions] = useState([]);
+    const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+    const refreshSessions = async () => {
+        const result = await getSessions();
+        setSessionOptions(result.sessions);
+    };
+    const selectSession = async (id) => {
+        const generation = ++switchGeneration.current;
+        const result = await getSessionTimeline(id);
+        if (generation !== switchGeneration.current) return;
+        const draft = composeDrafts.load(id);
+        selectedSessionRef.current = id;
+        setSelectedSession(id);
+        setPosts(result.posts);
+        setHasMore(result.has_more);
+        setFileRefs(draft.fileRefs); setFolderRefs(draft.folderRefs); setMessageRefs(draft.messageRefs);
+        setCurrentHashtag(null); setSearchQuery(null); setSearchOpen(false);
+        setAgentStatus(null); setAgentDraft(null); setAgentPlan(null); setAgentThought(null);
+        setContextUsage(null); setActiveModel(null); setActiveThinkingLevel(null);
+        setQueuedFollowups([]); setPendingRequest(null);
+        clearAgentRunState();
+        setSessionPickerOpen(false);
+    };
     const [hasMore, setHasMore] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
     const [currentHashtag, setCurrentHashtag] = useState(null);
@@ -1390,7 +1418,9 @@ function App() {
                 setPosts(result.posts);
                 setHasMore(false);
             } else {
-                const result = await getTimeline(10);
+                const session = selectedSessionRef.current;
+                const result = await getTimeline(10, null, session);
+                if (session !== selectedSessionRef.current) return;
                 setPosts(result.posts);
                 setHasMore(result.has_more);
             }
@@ -1434,7 +1464,7 @@ function App() {
         }).catch(() => {});
         // Always refresh context usage on reconnect
         getAgentContext().then(ctx => {
-            if (ctx && ctx.percent != null) setContextUsage(ctx);
+            if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
         }).catch(() => {});
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
         if (!activeHashtag && !activeSearch) {
@@ -1452,7 +1482,9 @@ function App() {
         
         console.log('Loading more before id:', oldestId);
         try {
-            const result = await getTimeline(5, oldestId);
+            const session = selectedSessionRef.current;
+            const result = await getTimeline(5, oldestId, session);
+            if (session !== selectedSessionRef.current) return;
             console.log('Loaded:', result.posts.length, 'has_more:', result.has_more);
             if (result.posts.length > 0) {
                 setPosts(prev => dedupePosts([...result.posts, ...(prev || [])]));
@@ -1488,7 +1520,9 @@ function App() {
         setSearchQuery(null);
         setPosts(null);
         try {
-            const result = await getTimeline(10);
+            const session = selectedSessionRef.current;
+                const result = await getTimeline(10, null, session);
+                if (session !== selectedSessionRef.current) return;
             setPosts(result.posts);
             setHasMore(result.has_more);
         } catch (error) {
@@ -1503,7 +1537,7 @@ function App() {
         setCurrentHashtag(null);
         setPosts(null);
         try {
-            const result = await searchPosts(query.trim(), 50, 0, filters);
+            const result = await searchPosts(query.trim(), 50, 0, { ...filters, sessionId: selectedSessionRef.current });
             setPosts(result.results);
             setHasMore(false);
         } catch (error) {
@@ -1723,7 +1757,7 @@ function App() {
     }, [finalizeStalledResponse]);
 
     const handleSseEvent = useCallback((eventType, data) => {
-        if (!eventMatchesSession(eventType, data, 'default')) return;
+        if (!eventMatchesSession(eventType, data, selectedSessionRef.current)) return;
         const turnId = data?.turn_id;
 
         if (eventType === 'connected') {
@@ -1737,6 +1771,7 @@ function App() {
             return;
         }
 
+        if (selectedSessionRef.current !== 'default' && ['model_changed', 'agent_followup_queued', 'agent_steer_queued', 'agent_queue_reordered'].includes(eventType)) return;
         updateAgentProfile(data);
         updateUserProfile(data);
 
@@ -1757,7 +1792,7 @@ function App() {
                 setAgentThought({ text: '', totalLines: 0 });
                 setPendingRequest(null);
                 // Refresh context usage after turn completes
-                getAgentContext().then(ctx => { if (ctx && ctx.percent != null) setContextUsage(ctx); }).catch(() => {});
+                getAgentContext().then(ctx => { if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null); }).catch(() => {});
             } else {
                 wasAgentActiveRef.current = true;
                 if (turnId) setActiveTurn(turnId);
@@ -2048,6 +2083,7 @@ function App() {
                 // Poll server to verify agent is still active and update status
                 try {
                     const statusData = await getAgentStatus();
+                    if (selectedSessionRef.current !== 'default') return;
                     if (!statusData) return;
                     syncQueueState(statusData);
                     const turns = statusData.active_turns || [];
@@ -2069,7 +2105,7 @@ function App() {
                         }
                         // Refresh context usage while agent is working
                         getAgentContext().then(ctx => {
-                            if (ctx && ctx.percent != null) setContextUsage(ctx);
+                            if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
                         }).catch(() => {});
                     } else if (!statusData.busy) {
                         // Server says no active turns but UI thinks agent is active —
@@ -2084,7 +2120,7 @@ function App() {
                             setAgentThought({ text: '', totalLines: 0 });
                             // Refresh context usage since the turn completed
                             getAgentContext().then(ctx => {
-                                if (ctx && ctx.percent != null) setContextUsage(ctx);
+                                if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
                             }).catch(() => {});
                         }
                     }
@@ -2334,7 +2370,13 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
-                <${ComposeBox} 
+                <button class="session-trigger" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
+                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} currentId=${selectedSession} onSelect=${selectSession} onClose=${() => setSessionPickerOpen(false)}
+                    onCreate=${async () => { const name = prompt('Session name'); if (!name) return; const result = await createSession(name); await refreshSessions(); await selectSession(result.session.id); }}
+                    onRename=${async id => { const name = prompt('Session name'); if (name) { await updateSession(id, { name }); await refreshSessions(); } }}
+                    onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
+                    onDelete=${async id => { if (!confirm('Delete empty session?')) return; await deleteSession(id); if (id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
+                <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
                     onPost=${() => { loadPosts(); scrollToBottom(); }}
                     onFocus=${scrollToBottom}
                     searchMode=${searchOpen}
