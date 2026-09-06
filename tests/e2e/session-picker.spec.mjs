@@ -388,3 +388,16 @@ test('mobile current running queued row retains readable name width', async ({ p
         expect(pill.x + pill.width).toBeLessThanOrEqual(box.x + box.width + 1);
     }
 });
+
+test('missing runtime state is unavailable rather than idle', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'unknown-state-fixture'; document.body.append(root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Unknown state' }]} />`, root);
+    });
+    const row = page.locator('#unknown-state-fixture #session-option-default');
+    await expect(row.locator('.compose-session-status-pill.unavailable')).toHaveText('Status unavailable');
+    await expect(row.locator('.compose-session-status-pill.idle, .compose-session-status-pill.active')).toHaveCount(0);
+});

@@ -1600,3 +1600,10 @@ Narrow picker now puts metadata at full row width with wrapping pills below it;
 desktop inline structure remains. 42 headed picker tests and build/lint pass,
 including minimum readable name area and all badge bounds. This responsive
 adaptation is deliberate; exact deployed multi-badge screenshot parity is open.
+
+### Unknown runtime status is not idle
+
+Picker now requires explicit boolean is_running to label Running/Idle; missing
+or malformed flags render Status unavailable. Archived state retains precedence.
+44 headed Chromium/WebKit picker tests and build/lint pass, including missing
+runtime metadata. Normal registry boolean responses are unchanged.

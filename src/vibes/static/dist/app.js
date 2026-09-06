@@ -51,7 +51,7 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 <button type="button" id=${`session-option-${wt.id}`} class=${`compose-model-popup-item session-item${wt.archived?" archived":wt.id===a?" current":""}`} role="option" aria-selected=${wt.id===a} onClick=${()=>jt(()=>l?.(wt.id))}>
                     <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${wt.name}</span><span class="compose-session-row-meta">${wt.id}</span><span class="compose-session-row-meta">${wt.message_count??0} messages</span>${Wn&&nt`<time class="compose-session-row-meta" datetime=${Wn.datetime} title="Last persisted message (not runtime activity)">Last message: ${Wn.label}</time>`}</span><span class="compose-session-row-pills">
                     ${wt.id===a&&nt`<span class="compose-session-status-pill current">Current</span>`}
-                    <span class=${`compose-session-status-pill ${wt.archived?"archived":wt.is_running?"active":"idle"}`}>${wt.archived?"Archived":wt.is_running?"Running":"Idle"}</span>
+                    <span class=${`compose-session-status-pill ${wt.archived?"archived":wt.is_running===!0?"active":wt.is_running===!1?"idle":"unavailable"}`}>${wt.archived?"Archived":wt.is_running===!0?"Running":wt.is_running===!1?"Idle":"Status unavailable"}</span>
                     ${wt.queued_count>0&&nt`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${wt.queued_count} queued</span>`}
                     </span></span>
                 </button>
@@ -2073,4 +2073,4 @@ ${a}
         </div>
     `}h4t(nt`<${V7n} />`,document.getElementById("app"));
 
-//# debugId=9DEED5B06890E34864756E2164756E21
+//# debugId=3BFD71CA8C6E9A2564756E2164756E21
