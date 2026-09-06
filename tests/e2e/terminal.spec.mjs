@@ -96,3 +96,21 @@ for (const [name, viewport] of [
         await page.screenshot({ path: testInfo.outputPath(`terminal-${name}.png`), fullPage: true });
     });
 }
+
+test('terminal height stays bounded after viewport shrink and keyboard resize', async ({ page }) => {
+    await page.setViewportSize({ width: 1200, height: 1000 });
+    await page.goto('/');
+    await page.getByTitle('Open terminal', { exact: true }).click();
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    const splitter = page.getByRole('separator', { name: 'Resize terminal' });
+    await splitter.focus();
+    const before = Number(await splitter.getAttribute('aria-valuenow'));
+    await splitter.press('ArrowUp');
+    await expect(splitter).toHaveAttribute('aria-valuenow', String(before + 20));
+    await page.setViewportSize({ width: 844, height: 390 });
+    await expect.poll(async () => Number(await splitter.getAttribute('aria-valuenow'))).toBeLessThanOrEqual(330);
+    const box = await page.locator('.terminal-panel').boundingBox();
+    expect(box.y).toBeGreaterThanOrEqual(0);
+    expect(box.y + box.height).toBeLessThanOrEqual(391);
+    await expect(page.getByRole('button', { name: 'Hide terminal', exact: true })).toBeVisible();
+});

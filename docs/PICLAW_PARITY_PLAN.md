@@ -936,3 +936,11 @@ session-switch and manual-edit cases that retain an old callback and invoke it
 after abort: neither can overwrite the new draft. These confirm mounted cleanup,
 not live microphone-service operation. Mobile/native-touch and final visual
 acceptance remain open.
+
+### Terminal viewport resize regression
+
+Confirmed existing viewport-height clamp rather than adding duplicate behavior.
+New headed Chromium/WebKit tests verify keyboard splitter increments and shrinking
+from 1200x1000 to 844x390 keeps the panel and hide control in bounds (2 passed).
+This does not close shared-pane host layout parity: the fixed overlay and launcher
+placement remain unchanged and still require structural integration.
