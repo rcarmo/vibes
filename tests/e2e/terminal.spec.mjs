@@ -1,5 +1,11 @@
 import { test, expect } from '@playwright/test';
 
+async function openTerminal(page) {
+    if (!await page.locator('.workspace-sidebar').isVisible()) await page.locator('.workspace-toggle-tab').click();
+    await page.getByTitle('Open terminal', { exact: true }).click();
+    await expect(page.locator('.workspace-sidebar')).not.toBeVisible();
+}
+
 async function openEditor(page) {
     const sidebar = page.locator('.workspace-sidebar');
     if (!await sidebar.isVisible()) await page.locator('.workspace-toggle-tab').click();
@@ -10,7 +16,7 @@ async function openEditor(page) {
 
 test('terminal executes and hands the same shell to a popout', async ({ page }) => {
     await page.goto('/');
-    await page.getByTitle('Open terminal', { exact: true }).click();
+    await openTerminal(page);
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     await page.locator('.xterm-helper-textarea').pressSequentially("export PARITY_TOKEN=preserved; printf 'terminal-%s\\n' ready");
     await page.locator('.xterm-helper-textarea').press('Enter');
@@ -37,7 +43,7 @@ test('terminal executes and hands the same shell to a popout', async ({ page }) 
 
 test('terminal splitter supports keyboard resizing', async ({ page }) => {
     await page.goto('/');
-    await page.getByTitle('Open terminal', { exact: true }).click();
+    await openTerminal(page);
     await openEditor(page);
     const splitter = page.getByRole('separator', { name: 'Resize terminal' });
     const initial = Number(await splitter.getAttribute('aria-valuenow'));
@@ -52,7 +58,7 @@ test('terminal splitter supports keyboard resizing', async ({ page }) => {
 
 test('closed popout reconnects within grace without losing shell state', async ({ page }) => {
     await page.goto('/');
-    await page.getByTitle('Open terminal', { exact: true }).click();
+    await openTerminal(page);
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     await page.locator('.xterm-helper-textarea').pressSequentially('export RECOVERY_TOKEN=retained');
     await page.locator('.xterm-helper-textarea').press('Enter');
@@ -72,7 +78,7 @@ test('closed popout reconnects within grace without losing shell state', async (
 test('expired popout session clearly starts a new shell', async ({ page }) => {
     test.setTimeout(45000);
     await page.goto('/');
-    await page.getByTitle('Open terminal', { exact: true }).click();
+    await openTerminal(page);
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     const popupPromise = page.waitForEvent('popup');
     await page.getByTitle('Open terminal in window').click();
@@ -92,7 +98,7 @@ for (const [name, viewport] of [
     test(`terminal ${name} layout and screenshot`, async ({ page }, testInfo) => {
         await page.setViewportSize(viewport);
         await page.goto('/');
-        await page.getByTitle('Open terminal', { exact: true }).click();
+        await openTerminal(page);
         await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
         await page.locator('.xterm-helper-textarea').pressSequentially("printf 'Vibes terminal verification\\n'");
         await page.locator('.xterm-helper-textarea').press('Enter');
@@ -109,7 +115,7 @@ for (const [name, viewport] of [
 test('terminal height stays bounded after viewport shrink and keyboard resize', async ({ page }) => {
     await page.setViewportSize({ width: 1200, height: 1000 });
     await page.goto('/');
-    await page.getByTitle('Open terminal', { exact: true }).click();
+    await openTerminal(page);
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     await openEditor(page);
     const splitter = page.getByRole('separator', { name: 'Resize terminal' });
@@ -129,7 +135,7 @@ for (const width of [1440, 390]) {
     test(`shared dock does not cover composer at width ${width}`, async ({ page }) => {
         await page.setViewportSize({ width, height: 900 });
         await page.goto('/');
-        await page.getByTitle('Open terminal', { exact: true }).click();
+        await openTerminal(page);
         await expect(page.locator('.editor-pane-container > .terminal-panel')).toBeVisible();
         const terminal = await page.locator('.terminal-panel').boundingBox();
         const compose = await page.locator('.compose-input-main textarea').boundingBox();
@@ -139,6 +145,7 @@ for (const width of [1440, 390]) {
 
 test('Control Backquote toggles dock and preserves shell during grace', async ({ page }) => {
     await page.goto('/');
+    await page.locator('.workspace-toggle-tab').click();
     await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
     await page.keyboard.press('Control+Backquote');
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
@@ -155,6 +162,7 @@ test('Control Backquote toggles dock and preserves shell during grace', async ({
 
 test('terminal shortcut does not bypass modal session dialog', async ({ page }) => {
     await page.goto('/');
+    await page.locator('.workspace-toggle-tab').click();
     await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
     await page.getByTestId('session-switcher').click();
     await page.getByRole('button', { name: 'New session', exact: true }).click();

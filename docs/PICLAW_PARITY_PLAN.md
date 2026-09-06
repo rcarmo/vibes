@@ -1326,3 +1326,13 @@ dialogs, avoiding background layout changes during confirmations. Four headed
 Chromium/WebKit shortcut tests and build/lint pass, including blocked toggle in
 New session dialog and restored toggle after dismissal. Launcher and final visual
 parity remain open.
+
+### Workspace terminal launcher
+
+Moved fixed floating terminal button into WorkspaceExplorer header via deployed
+onOpenTerminalTab callback. Opening terminal closes workspace drawer; keyboard
+toggle remains. Added narrow/portrait workspace drawer access because previous
+CSS hid workspace controls below desktop widths. 22 headed terminal tests and
+build/lint pass. Initial tests exposed hidden mobile workspace toggle and an
+outdated test close-toggle assumption; fixed both, without forced clicks.
+Final full regression and screenshot equivalence remain pending.

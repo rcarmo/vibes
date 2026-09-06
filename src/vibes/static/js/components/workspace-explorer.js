@@ -149,7 +149,7 @@ function FileAttachmentCard({ mediaId }) {
     `;
 }
 
-export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {
+export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true, active = undefined, onOpenEditor, onOpenTerminalTab, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
     const [selectedPath, setSelectedPath] = useState(null);
@@ -1038,6 +1038,7 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
             <div class="workspace-header">
                 <span>Workspace</span>
                 <div class="workspace-header-actions">
+                    ${onOpenTerminalTab && html`<button class="workspace-refresh workspace-terminal" onClick=${onOpenTerminalTab} title="Open terminal" aria-label="Open terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 6 6 6-6 6M13 18h7" /></svg></button>`}
                     <button class="workspace-create" onClick=${handleCreateFileClick} title="New file" disabled=${uploading}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

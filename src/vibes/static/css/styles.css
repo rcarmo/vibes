@@ -3574,3 +3574,11 @@ body {
 @media (max-width: 600px) {
     .compose-speech-status .compose-inline-status-title { white-space: normal; overflow-wrap: anywhere; }
 }
+
+@media (max-width: 1023px), (orientation: portrait) {
+    .app-shell:not(.popout-mode):not(.terminal-popout) > .workspace-toggle-tab { display: flex; left: 0; z-index: 202; }
+    .app-shell:not(.workspace-collapsed):not(.popout-mode):not(.terminal-popout) > .workspace-sidebar {
+        display: flex; position: fixed; inset: 0 auto 0 0; width: min(320px, 90vw); z-index: 201;
+    }
+    .app-shell:not(.workspace-collapsed) > .workspace-toggle-tab { left: min(300px, calc(90vw - 20px)); }
+}
