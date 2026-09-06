@@ -32,6 +32,7 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 <button type="button" class=${`session-pin-toggle${ke.pinned?" pinned":""}`} aria-label=${ke.pinned?"Unpin session":"Pin session"} aria-pressed=${!!ke.pinned} onClick=${()=>Oe(()=>m?.(ke.id,!ke.pinned))}>☆</button>
                 <button type="button" id=${`session-option-${ke.id}`} class="model-option session-option" role="option" aria-selected=${ke.id===s} onClick=${()=>Oe(()=>a?.(ke.id))}>
                     <span class="session-option-main"><span class="model-option-name session-option-name">${ke.name}</span><span class="model-option-id">${ke.id}</span><span class="session-option-metrics">${ke.message_count??0} messages</span></span>
+                    <span class=${`session-option-state ${ke.archived?"closed":ke.is_running?"running":"idle"}`}>${ke.archived?"Archived":ke.is_running?"Running":"Idle"}</span>
                 </button>
                 <button type="button" aria-label=${`Rename ${ke.name}`} onClick=${()=>Oe(()=>g?.(ke.id))}>Rename</button>
                 ${ke.id!=="default"&&y&&bt`<button type="button" aria-label=${`${ke.archived?"Restore":"Archive"} ${ke.name}`} onClick=${()=>Oe(()=>y(ke.id,!ke.archived))}>${ke.archived?"Restore":"Archive"}</button>`}
@@ -2022,4 +2023,4 @@ ${a}
         </div>
     `}o4t(bt`<${_7n} />`,document.getElementById("app"));
 
-//# debugId=1E4E23865A25E14964756E2164756E21
+//# debugId=506FC5FDA2F3931E64756E2164756E21

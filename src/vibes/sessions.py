@@ -10,7 +10,9 @@ class SessionStore:
     async def list(self, include_archived=False):
         async with self.db._connection.execute(
             '''SELECT s.*, COALESCE(activity.message_count, 0) AS message_count,
-                      activity.last_message_at, activity.last_message_id
+                      activity.last_message_at, activity.last_message_id,
+                      EXISTS (SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id
+                        WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=s.id) AS is_running
                FROM chat_sessions s LEFT JOIN (
                    SELECT COALESCE(json_extract(data, '$.session_id'), 'default') AS session_id,
                           COUNT(*) AS message_count, MAX(timestamp) AS last_message_at,
@@ -21,7 +23,7 @@ class SessionStore:
                ORDER BY s.pinned DESC, COALESCE(activity.last_message_at, s.updated_at) DESC, s.id''',
             (int(include_archived),),
         ) as cursor:
-            return [dict(row) for row in await cursor.fetchall()]
+            return [{**dict(row), 'is_running': bool(row['is_running'])} for row in await cursor.fetchall()]
 
     async def family_ids(self, session_id):
         session = await self.get(session_id)

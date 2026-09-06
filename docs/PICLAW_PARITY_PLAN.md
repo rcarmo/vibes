@@ -690,3 +690,11 @@ an archived option restores it before switching. Active current chat returns to
 default after successful archive. Backend rejects archive while a persisted turn
 is active. 455 backend and six switching browser tests pass; build/lint pass.
 Queued-but-not-started turns and final action markup parity remain to audit.
+
+### Explicit picker runtime activity
+
+Session listings expose boolean is_running from active_turns joined through stored
+thread ownership; history timestamps do not drive it. Picker renders running/
+idle/archived badges and can populate Active group. 456 backend tests plus two
+picker browser tests pass; build/lint pass. Refresh is currently on picker open
+or registry mutation; live status refresh and queued lifecycle remain pending.

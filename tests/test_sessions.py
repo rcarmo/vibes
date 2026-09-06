@@ -100,7 +100,7 @@ async def test_session_listing_reports_stored_activity_not_runtime(db):
     assert sessions['default']['last_message_at']
     assert sessions[other['id']]['message_count'] == 0
     assert sessions[other['id']]['last_message_id'] is None
-    assert 'is_running' not in sessions['default']
+    assert sessions['default']['is_running'] is False
     assert first < last
 
 
@@ -114,3 +114,17 @@ async def test_running_session_cannot_be_archived(db):
         await store.update(session['id'], archived=True)
     await db.end_turn('archive-test')
     assert (await store.update(session['id'], archived=True))['archived'] == 1
+
+
+@pytest.mark.asyncio
+async def test_listing_running_flag_tracks_active_turn_not_history(db):
+    store = SessionStore(db)
+    session = await store.create('Active')
+    root = await db.create_interaction({'type': 'user', 'content': 'work', 'session_id': session['id']})
+    await db.begin_turn('running-list', root, 'default')
+    rows = {row['id']: row for row in await store.list()}
+    assert rows[session['id']]['is_running'] is True
+    assert rows['default']['is_running'] is False
+    await db.end_turn('running-list')
+    rows = {row['id']: row for row in await store.list()}
+    assert rows[session['id']]['is_running'] is False
