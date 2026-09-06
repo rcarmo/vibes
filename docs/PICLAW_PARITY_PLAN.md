@@ -1972,3 +1972,11 @@ session is created. Screenshot /workspace/tmp/piclaw-classic-terminal-desktop.pn
 attached. Workspace-actions click was unavailable in this fixture; keyboard path
 successfully renders TERMINAL host. This supplies disconnected host reference,
 not transport acceptance or matched screenshot approval.
+
+### Corrected terminal reference module serving
+
+Fixed isolated capture fixture to serve .mjs as application/javascript. Recapture
+loads xterm without dynamic-import failure and displays intentional Unavailable
+status from disabled terminal API. No page errors; only favicon missing. Corrected
+reference attached, superseding earlier import-error screenshot. No shell/live
+connection used; full matched host comparison remains open.
