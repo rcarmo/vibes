@@ -659,3 +659,10 @@ Search captures session identity plus request generation; stale query success or
 failure cannot overwrite a newer query or switched chat. Session switch and exit
 search invalidate outstanding results. Four Chromium/WebKit switching tests pass,
 including held search response released after switching; build/lint pass.
+
+### Search scope selector
+
+Composer exposes current/all sessions with deployed scope-select classes and CSS.
+Current passes selected session_id; all omits it. Four Chromium/WebKit filter/scope
+tests pass; build/lint pass. Deployed branch-family scope is not yet exposed:
+requires descendant-aware filtering and remains a parity gap, not an alias.

@@ -1541,7 +1541,7 @@ function App() {
         setCurrentHashtag(null);
         setPosts(null);
         try {
-            const result = await searchPosts(query.trim(), 50, 0, { ...filters, sessionId: session });
+            const result = await searchPosts(query.trim(), 50, 0, { ...filters, sessionId: filters.scope === 'all' ? undefined : session });
             if (generation !== searchGeneration.current || session !== selectedSessionRef.current) return;
             setPosts(result.results);
             setHasMore(false);

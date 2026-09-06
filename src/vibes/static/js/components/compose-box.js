@@ -163,6 +163,7 @@ export function ComposeBox({
 }) {
     const [content, setContent] = useState(() => composeDrafts.load(sessionId).text);
     const [searchText, setSearchText] = useState('');
+    const [searchScope, setSearchScope] = useState('current');
     const [searchFilterImages, setSearchFilterImages] = useState(false);
     const [searchFilterAttachments, setSearchFilterAttachments] = useState(false);
     const [loading, setLoading] = useState(false);
@@ -553,7 +554,7 @@ export function ComposeBox({
             e.preventDefault();
             if (searchMode) {
                 if (searchText.trim()) {
-                    onSearch?.(searchText.trim(), { images: searchFilterImages, attachments: searchFilterAttachments });
+                    onSearch?.(searchText.trim(), { images: searchFilterImages, attachments: searchFilterAttachments, scope: searchScope });
                 }
             } else {
                 handleSubmit(e.ctrlKey || e.metaKey ? 'steer' : 'auto');
@@ -702,6 +703,12 @@ export function ComposeBox({
     return html`
         <div class="compose-box">
             ${searchMode && html`<div class="compose-search-filters">
+                <label class="compose-search-scope-wrap" title="Search scope">
+                    <select class="compose-search-scope-select" aria-label="Search scope" value=${searchScope} onChange=${e => setSearchScope(e.currentTarget.value)}>
+                        <option value="current">Current session</option>
+                        <option value="all">All sessions</option>
+                    </select>
+                </label>
                 <label class="compose-search-filter-wrap" title="Only messages with images">
                     <input type="checkbox" checked=${searchFilterImages} onChange=${() => setSearchFilterImages(v => !v)} />
                     <span class="compose-search-filter-label">Images</span>
