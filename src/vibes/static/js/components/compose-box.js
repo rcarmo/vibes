@@ -283,13 +283,20 @@ export function ComposeBox({
     const [pinSyncStatus, setPinSyncStatus] = useState('');
     const [pinSyncBusy, setPinSyncBusy] = useState(false);
     const pinSyncPending = useRef(false);
+    const pinRevision = useRef(0);
     const syncInstancePins = async save => {
         if (pinSyncPending.current) return;
+        const revision = pinRevision.current;
         pinSyncPending.current = true; setPinSyncBusy(true); setPinSyncStatus('');
         try {
             const result = save ? await saveModelPreferences(modelPins) : await getModelPreferences();
             if (!modelCallbacksActive.current) return;
             if (!save) {
+                if (revision !== pinRevision.current) {
+                    setPinSyncStatus('Browser pins changed during loading; instance pins were not applied.');
+                    return;
+                }
+                pinRevision.current++;
                 setModelPins(result.pins);
                 setModelPinError(saveModelPins(modelPinStorage(), result.pins) ? '' : 'Loaded pins are temporary in this browser.');
             }
@@ -300,6 +307,7 @@ export function ComposeBox({
     useEffect(() => {
         const syncPins = event => {
             if (event.key !== null && event.key !== 'vibes_model_pins') return;
+            pinRevision.current++;
             setModelPins(loadModelPins(modelPinStorage()));
             setModelPinError('');
         };
@@ -307,6 +315,7 @@ export function ComposeBox({
         return () => window.removeEventListener('storage', syncPins);
     }, []);
     const toggleModelPin = label => {
+        pinRevision.current++;
         const next = modelPins.includes(label) ? modelPins.filter(item => item !== label) : [...modelPins, label].slice(-100);
         setModelPins(next);
         setModelPinError(saveModelPins(modelPinStorage(), next) ? '' : 'Model pins could not be saved in this browser; changes are temporary.');

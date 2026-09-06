@@ -1803,3 +1803,10 @@ neither happens automatically. Busy/error/success feedback and unmounted callbac
 guard included. Two headed Chromium/WebKit tests and build/lint pass against real
 preferences API, verifying browser edits do not silently overwrite instance state.
 This explicit transfer UI is not a complete deployed Models settings replacement.
+
+### Instance pin load revision guard
+
+Local toggles and cross-tab updates advance pin revision. Delayed instance Load
+response is not applied over newer browser edits, with explicit status feedback.
+Four headed instance-pin tests and build/lint pass, including held load followed
+by local pin change. Save remains explicit snapshot replacement at invocation.

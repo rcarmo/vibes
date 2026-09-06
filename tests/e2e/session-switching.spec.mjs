@@ -568,3 +568,22 @@ test('instance pins load and save only through explicit controls', async ({ page
     await expect(page.getByText('Pins saved for this instance.', { exact: true })).toBeVisible();
     expect((await (await page.request.get('/model-preferences')).json()).pins).toEqual([]);
 });
+
+test('delayed instance pin load cannot overwrite newer browser edit', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}]}' }));
+    let release;
+    await page.route('**/model-preferences', async route => {
+        await new Promise(resolve => { release = resolve; });
+        await route.fulfill({ contentType: 'application/json', body: '{"pins":[],"scope":"instance"}' });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect.poll(() => !!release).toBe(true);
+    await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
+    release();
+    await expect(page.getByText('Browser pins changed during loading; instance pins were not applied.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
+});
