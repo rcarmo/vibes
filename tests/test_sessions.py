@@ -165,3 +165,16 @@ async def test_registry_queue_counts_follow_persisted_thread_ownership(db):
         assert all(row['queued_count'] == 0 for row in await store.list())
     finally:
         reset_state()
+
+
+@pytest.mark.asyncio
+async def test_child_creation_requires_unarchived_parent(db):
+    store = SessionStore(db)
+    parent = await store.create('Parent')
+    await store.update(parent['id'], archived=True)
+    with pytest.raises(ValueError, match='Restore parent'):
+        await store.create('Child', parent['id'])
+    assert len(await store.list(include_archived=True)) == 2
+    await store.update(parent['id'], archived=False)
+    child = await store.create('Child', parent['id'])
+    assert child['parent_id'] == parent['id']

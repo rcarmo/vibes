@@ -135,10 +135,14 @@ class SessionStore:
 
     async def create(self, name, parent_id=None):
         name = self.name(name)
-        if parent_id is not None and not await self.get(parent_id):
-            raise ValueError('Parent session not found')
         session_id = uuid.uuid4().hex
         async with self.db.transaction():
+            if parent_id is not None:
+                parent = await self.get(parent_id)
+                if not parent:
+                    raise ValueError('Parent session not found')
+                if parent['archived']:
+                    raise ValueError('Restore parent session before creating a child')
             await self.db._connection.execute('INSERT INTO chat_sessions (id,name,parent_id) VALUES (?,?,?)', (session_id, name, parent_id))
         return await self.get(session_id)
 

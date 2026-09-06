@@ -1632,3 +1632,10 @@ same-tick duplicate submits before busy rerender. Failed requests release the
 guard; successful actions close as before. Eight headed dialog tests and build/
 lint pass, including double synthetic submit with exactly one callback per dialog.
 This guards UI invocation, not network-level exactly-once semantics.
+
+### Child creation parent lifecycle guard
+
+Parent existence/archive checks now run inside child-creation transaction.
+Archived parents must be restored before adding children; rejected creation leaves
+registry unchanged. 490 backend tests pass, including archive/reject/restore/create
+sequence. Child creation remains metadata-only, not a provider history fork.
