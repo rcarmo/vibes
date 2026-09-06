@@ -853,3 +853,32 @@ test('search virtual focus pins without mutation then Enter selects canonical mo
     await expect.poll(() => mutations).toEqual([{ provider: 'test', model_id: 'next' }]);
     await expect(search).toHaveCount(0);
 });
+
+for (const width of [1280, 390]) {
+    test(`large model catalogue scrolls virtual focus at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.route('**/sessions/default/model-state', route => route.fulfill({ json: { available: true, model: { provider: 'test', id: 'm00' } } }));
+        await page.route('**/sessions/default/models', route => route.fulfill({ json: { available: true, models: Array.from({ length: 60 }, (_, i) => ({ provider: 'test', id: `m${String(i).padStart(2, '0')}` })) } }));
+        await page.goto('/');
+        await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+        const search = page.getByRole('combobox', { name: 'Search models' });
+        const results = page.getByRole('listbox', { name: 'Models', exact: true });
+        await expect(results.getByRole('option')).toHaveCount(60);
+        await expect.poll(() => results.evaluate(node => node.scrollHeight > node.clientHeight)).toBe(true);
+        await search.press('ArrowUp');
+        await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fm59');
+        await expect(search).toBeFocused();
+        const last = results.getByRole('option', { name: 'test/m59', exact: true });
+        await expect(last).toBeInViewport();
+        const outer = await results.boundingBox();
+        const inner = await last.boundingBox();
+        expect(inner.y).toBeGreaterThanOrEqual(outer.y - 1);
+        expect(inner.y + inner.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
+        await expect(page.getByRole('button', { name: 'Next model', exact: true })).toBeInViewport();
+        await search.fill('m00');
+        await expect(results.getByRole('option')).toHaveCount(1);
+        await expect(search).not.toHaveAttribute('aria-activedescendant', /.+/);
+        await search.press('ArrowDown');
+        await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fm00');
+    });
+}

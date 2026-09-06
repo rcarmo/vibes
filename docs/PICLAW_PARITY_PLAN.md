@@ -2323,3 +2323,11 @@ failures from checking a button inside closed details; corrected test opens pin
 preferences first. Four desktop/mobile cases then passed, verifying Next model
 and revealed Load control stay in viewport. No automatic test retries used.
 Expanded settings still local inline details rather than deployed settings page.
+
+### Large catalogue scroll acceptance
+
+Added 60-model fixtures at 1280x844 and 390x844. Four headed Chromium/WebKit cases
+verify overflow exists, ArrowUp reaches the last model within the results clipping
+rectangle, search retains focus, footer stays in viewport, and filtering removes
+stale active-descendant before navigation selects the remaining result. All pass;
+no production change. This verifies scrolling beyond the earlier two-model fixture.
