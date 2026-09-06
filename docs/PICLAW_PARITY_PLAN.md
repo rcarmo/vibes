@@ -895,3 +895,14 @@ are returned. References do not change the send destination or tool scope.
 467 backend tests pass, including session/thread/workspace authorization and
 invalid reference inputs. Third-party discovery/consumption acceptance remains
 open; this is not cross-session messaging.
+
+### Speech recognition lifecycle foundation
+
+Added independently tested secure-context/API capability detection and recognition
+controller: cumulative interim results replace rather than duplicate text;
+permission errors remain visible after end; disposal invalidates late callbacks
+before abort. Push-to-talk start predicate follows deployed empty-composer Space
+behavior and rejects modifiers/repeats/search. Four new unit tests (14 total)
+and build/lint pass. Controller is not yet mounted: toolbar/status markup, keyup,
+blur/session/unmount wiring and browser acceptance remain pending. No live
+microphone or speech-service acceptance is claimed.
