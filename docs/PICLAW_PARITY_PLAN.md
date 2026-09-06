@@ -674,3 +674,11 @@ search, excluding unrelated roots. Composer exposes Piclaw's third scope option.
 Families over 500 sessions fail explicitly rather than silently truncate results.
 454 backend tests and four Chromium/WebKit scope/filter tests pass; build/lint
 pass. Registry parent links define family; agent context is not merged by search.
+
+### Session picker grouping
+
+Grouped picker now uses current/pinned/explicit-running/tree/other/archived sections
+and preserves flattened keyboard navigation through filtered groups. History
+activity is never used as a running-state proxy. Nine unit and six picker/switching
+browser tests pass; build/lint pass. App listing still excludes archived sessions
+until restore actions are wired; actual running metadata remains pending.
