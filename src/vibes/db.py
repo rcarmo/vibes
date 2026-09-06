@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -152,6 +152,15 @@ CREATE TABLE IF NOT EXISTS chat_session_backends (
 """
 
 
+MIGRATION_V7 = """
+CREATE TABLE IF NOT EXISTS model_preferences (
+    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+    pins TEXT NOT NULL DEFAULT '[]'
+);
+INSERT OR IGNORE INTO model_preferences(singleton, pins) VALUES (1, '[]');
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -206,6 +215,8 @@ class Database:
                 await self._connection.executescript(MIGRATION_V5)
             if current_version < 6:
                 await self._connection.executescript(MIGRATION_V6)
+            if current_version < 7:
+                await self._connection.executescript(MIGRATION_V7)
             await self._connection.execute("DELETE FROM schema_version")
             await self._connection.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",

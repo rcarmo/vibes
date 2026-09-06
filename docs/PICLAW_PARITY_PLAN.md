@@ -1776,3 +1776,12 @@ periodic agent declarations, guarded registry inspection, cross-tab pins, stale
 parent UI rejection and latest picker styling/close controls. No retries/skips.
 Final visual comparison, server-side model settings and external-agent/live-service
 acceptance remain open; passing regression is not overall plan completion.
+
+### Server model preference persistence foundation
+
+Schema v7 adds a singleton instance-wide model pin preference row. Store validates
+at most 100 bounded provider/model labels, deduplicates and updates transactionally;
+invalid writes preserve previous values. Reconnect persistence verified. 504
+backend tests pass (existing migration assertion updated from v6 to v7). No API/UI
+wiring yet; browser-local pins remain current UI source until migration is designed.
+Preferences store no credentials and confer no model availability.
