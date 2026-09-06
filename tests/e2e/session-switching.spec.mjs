@@ -762,3 +762,31 @@ test('thinking selector retains native arrow key ownership', async ({ page }) =>
     expect(prevented).toBe(false);
     await expect(select).toBeFocused();
 });
+
+for (const width of [1280, 390]) {
+    test(`model and thinking picker capture at ${width}px`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.route('**/sessions/*/model-state', route => route.fulfill({ json: {
+            available: true, model: { provider: 'test', id: 'alpha' }, thinking_level: 'medium',
+        } }));
+        await page.route('**/sessions/*/models', route => route.fulfill({ json: {
+            available: true, models: [{ provider: 'test', id: 'alpha' }, { provider: 'test', id: 'beta' }],
+            thinking_levels: ['off', 'low', 'medium', 'high'],
+        } }));
+        await page.goto('/');
+        const created = await page.request.post('/sessions', { data: { name: 'Model visual fixture' } });
+        const id = (await created.json()).session.id;
+        await page.getByTestId('session-switcher').click();
+        await page.locator('#session-option-' + id).click();
+        await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+        await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+        await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
+        const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('searchbox', { name: 'Search models' }) });
+        const bounds = await popup.boundingBox();
+        expect(bounds.x).toBeGreaterThanOrEqual(0);
+        expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
+        expect(bounds.y).toBeGreaterThanOrEqual(0);
+        expect(bounds.y + bounds.height).toBeLessThanOrEqual(844);
+        await page.screenshot({ path: testInfo.outputPath(`model-thinking-${width}.png`), fullPage: true });
+    });
+}

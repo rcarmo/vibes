@@ -2222,3 +2222,11 @@ navigation, pin shortcuts or dismissal. Browser regression dispatches composing
 ArrowDown/Escape and checks search retains focus, then verifies normal navigation
 and dismissal. Build/lint and all 88 headed Chromium/WebKit session-switching tests
 pass. Model visual matching and live execution acceptance remain open.
+
+### Model/thinking visual fixtures
+
+Added 1280x844 and 390x844 captures with deterministic available catalog/current
+model/thinking-level capabilities. Browser checks verify model choices and thinking
+selector are visible and entire popup stays within viewport. Four headed Chromium/
+WebKit cases pass. These are local review artifacts, not deployed visual approval
+or evidence of provider execution; no model mutation is performed.
