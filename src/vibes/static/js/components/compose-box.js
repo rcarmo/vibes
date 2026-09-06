@@ -275,6 +275,10 @@ export function ComposeBox({
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
+    const modelGroups = [
+        { label: 'Current', models: filteredModels.filter(label => label === activeModel) },
+        { label: 'Other models', models: filteredModels.filter(label => label !== activeModel) },
+    ].filter(group => group.models.length);
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
@@ -961,7 +965,8 @@ export function ComposeBox({
                     `}
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
-                            <div class="compose-model-popup-title">Select model</div>
+                            <div class="compose-model-popup-title">Search models</div>
+                            ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
                             <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
@@ -972,7 +977,9 @@ export function ComposeBox({
                                     <div class="compose-model-popup-empty">No models available.</div>
                                 `}
                                 ${!loadingModels && modelOptions.length > 0 && filteredModels.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching models</div>`}
-                            ${!loadingModels && filteredModels.map((modelLabel) => html`
+                            ${!loadingModels && modelGroups.map(group => html`<div role="group" aria-label=${group.label}>
+                                <div class="compose-session-section-heading">${group.label}</div>
+                                ${group.models.map((modelLabel) => html`
                                     <button
                                         key=${modelLabel}
                                         type="button"
@@ -984,6 +991,7 @@ export function ComposeBox({
                                         ${modelLabel}
                                     </button>
                                 `)}
+                            </div>`)}
                             </div>
                             <div class="compose-model-popup-actions">
                                 <button

@@ -1487,3 +1487,11 @@ model and no live runtime. Reference popup visibly includes SEARCH MODELS, model
 count, CURRENT grouping, pin control and Open Models settings. Current Python
 popup lacks those grouping/pin/settings semantics, so model visual parity remains
 open rather than treating search/keyboard support as full equivalence.
+
+### Model count/current grouping
+
+Model picker shows filtered model count and separates the confirmed current
+choice from other reported choices, retaining existing keyboard navigation and
+scoped selection. Twenty-six headed model/thinking/catalog tests and build/lint
+pass. Pin persistence and settings surface remain unimplemented; no unavailable
+settings button exposed. Exact deployed grouping/style comparison remains open.
