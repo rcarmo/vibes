@@ -1433,3 +1433,12 @@ validation. Mutation thinking values are sanitized before response/broadcast and
 binding persistence. 489 backend tests pass, including malformed mutation model
 metadata and nested thinking value rejection. Provider URLs/credentials and
 invalid optional types remain excluded consistently across response paths.
+
+### Integrated context/drawer/model-validation checkpoint
+
+At b46dc8d, 489 Python tests, 16 frontend unit tests, build/lint and 188/188 headed
+Chromium/WebKit tests pass with one worker. Build leaves a clean working tree.
+Includes mobile drawer backdrop/Escape, scoped context refresh sequencing,
+over-capacity labels and shared model-response validation. No retries/skips.
+Final deployed visual comparison, remaining capability presentation and external
+agent/live-service acceptance remain open; no overall completion claim.
