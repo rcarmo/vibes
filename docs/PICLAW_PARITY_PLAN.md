@@ -1592,3 +1592,11 @@ Selected row now displays deployed Current pill separately from runtime Idle/
 Running and queued counts. Forty headed picker tests and build/lint pass,
 including explicit Current+Idle without active-turn badge. Selection remains UI
 state, not evidence of a running backend. Final visual acceptance stays open.
+
+### Mobile combined-status row readability
+
+New Current+Running+123 queued fixture exposed name column shrinking to 89px.
+Narrow picker now puts metadata at full row width with wrapping pills below it;
+desktop inline structure remains. 42 headed picker tests and build/lint pass,
+including minimum readable name area and all badge bounds. This responsive
+adaptation is deliberate; exact deployed multi-badge screenshot parity is open.

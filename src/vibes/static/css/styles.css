@@ -3587,3 +3587,9 @@ body {
 @media (max-width: 1023px), (orientation: portrait) {
     .workspace-drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 200; background: #0006; }
 }
+
+@media (max-width: 600px) {
+    .compose-session-popup .compose-session-row-content { flex-wrap: wrap; }
+    .compose-session-popup .compose-session-row-main { flex-basis: 100%; }
+    .compose-session-popup .compose-session-row-pills { flex-wrap: wrap; max-width: 100%; }
+}

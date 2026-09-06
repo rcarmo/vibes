@@ -369,3 +369,22 @@ test('current selection badge does not imply a running turn', async ({ page }) =
     await expect(selected.locator('.compose-session-status-pill.idle')).toHaveText('Idle');
     await expect(selected.locator('.compose-session-status-pill.active')).toHaveCount(0);
 });
+
+test('mobile current running queued row retains readable name width', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'crowded-fixture'; document.body.append(root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Current active session with queued work', is_running: true, queued_count: 123, message_count: 99 }]} />`, root);
+    });
+    const option = page.locator('#crowded-fixture #session-option-default');
+    const main = await option.locator('.compose-session-row-main').boundingBox();
+    expect(main.width).toBeGreaterThanOrEqual(100);
+    const box = await option.boundingBox();
+    for (const badge of await option.locator('.compose-session-status-pill').all()) {
+        const pill = await badge.boundingBox();
+        expect(pill.x + pill.width).toBeLessThanOrEqual(box.x + box.width + 1);
+    }
+});
