@@ -872,3 +872,14 @@ keyboard-selects a stable @session:ID reference and leaves send destination
 unchanged. Archived chats excluded. Chromium/WebKit verify insertion and no
 rerouting; build/lint pass. Mention resolution tooling, exact deployed suggestion
 markup/styles and request coalescing remain pending; references grant no access.
+
+### Mention interaction refinement
+
+Uses deployed compose-box.ts suggestion DOM/classes (slash-autocomplete,
+slash-item, slash-name, slash-desc), retaining explicit listbox/option semantics.
+Registry fetches are coalesced per open mention interaction; disposed requests
+cannot repopulate suggestions. Session/search transitions clear suggestions;
+acceptance restores caret after the inserted reference and preserves suffix text.
+Four headed Chromium/WebKit mention tests pass, including query reuse, Escape,
+and insertion in the middle of text. Build/lint pass. Stable IDs intentionally
+replace deployed agent aliases; authorized reference resolution remains pending.

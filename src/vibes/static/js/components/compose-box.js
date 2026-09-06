@@ -167,11 +167,25 @@ export function ComposeBox({
     const [mentionRange, setMentionRange] = useState(null);
     const [mentionSessions, setMentionSessions] = useState([]);
     const [mentionIndex, setMentionIndex] = useState(0);
-    const mentionMatches = mentionRange ? sessionMentionMatches(mentionSessions, mentionRange.query) : [];
+    const mentioning = !searchMode && mentionRange !== null;
+    useEffect(() => {
+        setMentionRange(null);
+        setMentionSessions([]);
+    }, [sessionId, searchMode]);
+    useEffect(() => {
+        if (!mentioning) return;
+        let disposed = false;
+        setMentionSessions([]);
+        getSessions().then(result => { if (!disposed) setMentionSessions(result.sessions || []); })
+            .catch(() => { if (!disposed) setMentionSessions([]); });
+        return () => { disposed = true; };
+    }, [mentioning, sessionId]);
+    const mentionMatches = !searchMode && mentionRange && sessionMentionQuery(content, mentionRange.end)?.start === mentionRange.start ? sessionMentionMatches(mentionSessions, mentionRange.query) : [];
     const acceptMention = item => {
+        const caret = mentionRange.start + `@session:${item.id} `.length;
         setContent(insertSessionMention(content, mentionRange, item.id));
         setMentionRange(null);
-        requestAnimationFrame(() => textareaRef.current?.focus());
+        requestAnimationFrame(() => { textareaRef.current?.focus(); textareaRef.current?.setSelectionRange(caret, caret); });
     };
     const [searchScope, setSearchScope] = useState('current');
     const [searchFilterImages, setSearchFilterImages] = useState(false);
@@ -688,7 +702,7 @@ export function ComposeBox({
         updateValue(value);
         const range = !searchMode ? sessionMentionQuery(value, e.target.selectionStart) : null;
         setMentionRange(range); setMentionIndex(0);
-        if (range) getSessions().then(result => setMentionSessions(result.sessions || [])).catch(() => setMentionSessions([]));
+        if (range) setShowSlash(false);
     };
 
     const handleLocation = () => {
@@ -820,9 +834,6 @@ export function ComposeBox({
                             </button>
                         </div>
                     `}
-                    ${mentionMatches.length > 0 && html`<div class="mention-autocomplete" role="listbox" aria-label="Session mentions">
-                        ${mentionMatches.map((item, index) => html`<button type="button" class=${`mention-autocomplete-item${index === mentionIndex ? ' active' : ''}`} role="option" aria-selected=${index === mentionIndex} onMouseDown=${e => e.preventDefault()} onClick=${() => acceptMention(item)}>${item.name} <small>${item.id}</small></button>`)}
-                    </div>`}
                     <textarea
                         ref=${textareaRef}
                         placeholder=${searchMode ? "Search (Enter to run)..." : "Message (Enter to send, Shift+Enter for newline)..."}
@@ -835,6 +846,9 @@ export function ComposeBox({
                         disabled=${loading}
                         rows="1"
                     />
+                    ${mentionMatches.length > 0 && html`<div class="slash-autocomplete" role="listbox" aria-label="Session mentions">
+                        ${mentionMatches.map((item, index) => html`<div key=${item.id} class=${`slash-item${index === mentionIndex ? ' active' : ''}`} role="option" aria-selected=${index === mentionIndex} onMouseDown=${e => { e.preventDefault(); acceptMention(item); }} onMouseEnter=${() => setMentionIndex(index)}><span class="slash-name">@${item.name}</span><span class="slash-desc">${item.id}</span></div>`)}
+                    </div>`}
                     ${showSlash && slashMatches.length > 0 && html`
                         <div class="slash-autocomplete" ref=${slashRef}>
                             ${slashMatches.map((cmd, i) => html`
