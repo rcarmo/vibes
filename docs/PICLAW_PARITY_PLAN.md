@@ -1607,3 +1607,13 @@ Picker now requires explicit boolean is_running to label Running/Idle; missing
 or malformed flags render Status unavailable. Archived state retains precedence.
 44 headed Chromium/WebKit picker tests and build/lint pass, including missing
 runtime metadata. Normal registry boolean responses are unchanged.
+
+### Speech functional acceptance reconciliation
+
+At e67fcfc, reran speech controller units (5 passed) and headed Chromium/WebKit
+speech workflows (18 passed). Capability detection, toggle/Space/pointer hold,
+permission/error handling, delayed-start release, session/manual-edit isolation,
+blur/hidden/unmount cleanup, accessible active state and mobile status bounds are
+implemented and locally verified. Functional speech implementation is complete.
+Exact deployed visual comparison and real microphone/browser-vendor service
+acceptance are still unverified and remain explicit separate checklist work.
