@@ -2494,6 +2494,7 @@ function App() {
                         renderMermaidDiagrams=${renderMermaidDiagrams}
                     />
                 </div>`}
+                ${terminalVisible && !editorOpen && !terminalPopout && html`<div class="dock-splitter dock-splitter-standalone" aria-hidden="true"></div>`}
                 ${terminalVisible && html`<${TerminalPanel} shared=${editorOpen} popout=${terminalPopout} onClose=${() => { setTerminalVisible(false); if (terminalPopout) window.close(); }} />`}
                 </div>
                 ${!popoutMode && !terminalPopout && html`<div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>`}

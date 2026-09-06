@@ -2181,3 +2181,15 @@ Remaining acceptance is not resolved by these counts:
 
 Read-only delegate audit was unavailable under current model policy; this review
 was performed locally, not independently validated by another model.
+
+### Standalone terminal dock offset alignment
+
+Added deployed sibling dock-splitter gutter for standalone main-window terminal;
+flex sizing now leaves dock y=4,height=840 at 1280x844, matching reference geometry.
+Gutter is aria-hidden, unfocusable and non-draggable because no editor exists to
+resize: intentional interaction deviation from deployed handlers. Popout remains
+full-height without gutter. Shared editor/terminal retains existing functional
+nested splitter (structural deviation remains). Geometry test checks sibling
+hierarchy plus offset/height. Build/lint and all 72 headed Chromium/WebKit terminal
+and editor-tab tests pass, including mobile and handoff workflows. Full visual
+acceptance remains separate; standalone 4px offset is no longer outstanding.

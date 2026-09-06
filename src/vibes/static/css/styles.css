@@ -3536,7 +3536,10 @@ body {
     max-height: calc(100dvh - 60px);
     z-index: auto;
 }
-.editor-pane-container > .terminal-panel:only-child { flex: 1; max-height: none; }
+.editor-pane-container > .terminal-panel:only-child,
+.editor-pane-container > .dock-splitter-standalone + .terminal-panel { flex: 1; max-height: none; }
+.editor-pane-container > .dock-splitter-standalone { cursor: default; }
+.editor-pane-container > .dock-splitter-standalone:hover { background: var(--border-color); }
 .popout-mode .editor-pane-container,
 .terminal-popout .editor-pane-container { width: 100%; max-width: none; }
 .terminal-popout.app-shell > :not(.editor-pane-container) { display: none !important; }

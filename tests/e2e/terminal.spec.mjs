@@ -217,6 +217,10 @@ test('desktop terminal host matches deployed column geometry', async ({ page }) 
     expect(pane.height).toBeCloseTo(844, 0);
     expect(chat.x).toBeCloseTo(516, 0);
     expect(chat.width).toBeCloseTo(764, 0);
+    const dock = await page.locator('.dock-panel').boundingBox();
+    expect(dock.y).toBeCloseTo(4, 0);
+    expect(dock.height).toBeCloseTo(840, 0);
+    await expect(page.locator('.editor-pane-container > .dock-splitter + .dock-panel')).toBeVisible();
 });
 
 test('simultaneous header and body reattach issue one handoff', async ({ page }) => {
