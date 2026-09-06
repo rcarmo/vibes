@@ -2271,3 +2271,13 @@ capacity, not measured usage or successful execution. Pricing stays absent becau
 backend does not supply validated pricing. Badges wrap locally for narrow widths
 rather than deployed nowrap truncation. Browser checks cover populated and missing
 metadata. Build/lint and eight headed name/capture cases pass across both browsers.
+
+### Model chooser semantic migration
+
+Search now exposes combobox/listbox linkage; canonical choices expose option and
+aria-selected rather than menuitem. Arrow navigation still moves DOM focus onto
+options (intentional interim difference from deployed active-descendant focus).
+Updated browser queries to assert new roles, and added explicit linkage/selected
+assertions. Build/lint and 94 headed session-switching tests pass; two targeted
+semantic assertions also pass. Pin controls remain sibling buttons within groups;
+full deployed row/focus structure and Models-settings footer remain open.

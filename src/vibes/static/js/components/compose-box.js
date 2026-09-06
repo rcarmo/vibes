@@ -576,7 +576,7 @@ export function ComposeBox({
             return;
         }
         if (!['ArrowDown', 'ArrowUp'].includes(event.key) || event.target?.closest?.('select')) return;
-        const choices = [...(modelPopupRef.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])];
+        const choices = [...(modelPopupRef.current?.querySelectorAll('[role="option"]:not(:disabled)') || [])];
         if (!choices.length) return;
         event.preventDefault(); event.stopPropagation();
         const current = choices.indexOf(document.activeElement);
@@ -1058,9 +1058,9 @@ export function ComposeBox({
                             <div class="compose-session-popup-header"><div class="compose-model-popup-title">Search models</div><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
                             ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
                             ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
-                            <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                            <input ref=${modelSearchRef} class="compose-session-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             ${modelQuery && html`<button type="button" class="compose-model-popup-btn" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>Clear search</button>`}
-                            <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
+                            <div id="compose-model-results" class="compose-model-popup-menu compose-model-catalogue-results" role="listbox" aria-label="Models">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>
                                 `}
@@ -1078,7 +1078,8 @@ export function ComposeBox({
                                     <button
                                         key=${modelLabel}
                                         type="button"
-                                        role="menuitem"
+                                        role="option"
+                                        aria-selected=${activeModel === modelLabel}
                                         data-model-label=${modelLabel}
                                         aria-label=${modelLabel}
                                         class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}

@@ -159,7 +159,7 @@ test('nondefault model selection uses scoped mutation endpoint', async ({ page }
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'test/new', exact: true }).click();
+    await page.getByRole('option', { name: 'test/new', exact: true }).click();
     await expect.poll(() => path).toBe(`/sessions/${id}/model`);
 });
 
@@ -207,7 +207,7 @@ test('model catalog errors are visible and closing discards late responses', asy
     await toggle.click();
     await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('Catalog unavailable');
     release();
-    await expect(page.getByRole('menuitem', { name: 'test/stale', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'test/stale', exact: true })).toHaveCount(0);
 });
 
 test('model catalog retry recovers and search filters selectable choices', async ({ page }) => {
@@ -226,17 +226,17 @@ test('model catalog retry recovers and search filters selectable choices', async
     await page.locator('#session-option-' + id).click();
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('button', { name: 'Retry model catalog', exact: true }).click();
-    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
-    const search = page.getByRole('searchbox', { name: 'Search models' });
+    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
+    const search = page.getByRole('combobox', { name: 'Search models' });
     await search.fill('BETA');
-    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'test/beta', exact: true })).toBeVisible();
     await search.fill('missing');
     await expect(page.getByText('No matching models', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Clear model search', exact: true }).click();
     await expect(search).toHaveValue('');
     await expect(search).toBeFocused();
-    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Clear model search', exact: true })).toHaveCount(0);
 });
 
@@ -250,18 +250,18 @@ test('model picker keyboard navigation focuses choices and Escape restores trigg
     await page.locator('#session-option-' + id).click();
     const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
     await trigger.click();
-    const search = page.getByRole('searchbox', { name: 'Search models' });
+    const search = page.getByRole('combobox', { name: 'Search models' });
     await expect(search).toBeFocused();
-    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
     await search.evaluate(node => {
         node.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, isComposing: true }));
         node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, isComposing: true }));
     });
     await expect(search).toBeFocused();
     await search.press('ArrowDown');
-    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeFocused();
+    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeFocused();
     await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toBeFocused();
+    await expect(page.getByRole('option', { name: 'test/beta', exact: true })).toBeFocused();
     await page.keyboard.press('Escape');
     await expect(search).toHaveCount(0);
     await expect(trigger).toBeFocused();
@@ -304,7 +304,7 @@ test('late model mutation cannot relabel a newly selected chat', async ({ page }
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + first).click();
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'test/late', exact: true }).click();
+    await page.getByRole('option', { name: 'test/late', exact: true }).click();
     await expect.poll(() => !!release).toBe(true);
     await page.keyboard.press('Escape');
     await page.getByTestId('session-switcher').click();
@@ -329,7 +329,7 @@ test('default composer model controls use scoped mutation, not slash messages', 
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'test/beta', exact: true }).click();
+    await page.getByRole('option', { name: 'test/beta', exact: true }).click();
     await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
     await expect.poll(() => changes).toEqual([{ provider: 'test', model_id: 'beta' }, { thinking_level: 'low' }]);
     expect(commands).toBe(0);
@@ -438,7 +438,7 @@ test('long model identities remain within mobile picker bounds', async ({ page }
     await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: [{ provider: 'test', id: model }] }) }));
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    const choice = page.getByRole('menuitem', { name: 'test/' + model, exact: true });
+    const choice = page.getByRole('option', { name: 'test/' + model, exact: true });
     await expect(choice).toBeVisible();
     const box = await choice.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(0);
@@ -456,7 +456,7 @@ test('model pins persist without mutation and never expose unavailable choices',
     const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
     await trigger.click();
     await page.getByRole('button', { name: 'Pin model test/favorite', exact: true }).click();
-    await expect(page.getByRole('group', { name: 'Pinned', exact: true }).getByRole('menuitem', { name: 'test/favorite', exact: true })).toBeVisible();
+    await expect(page.getByRole('group', { name: 'Pinned', exact: true }).getByRole('option', { name: 'test/favorite', exact: true })).toBeVisible();
     expect(mutations).toBe(0);
     await page.reload();
     await trigger.click();
@@ -464,8 +464,8 @@ test('model pins persist without mutation and never expose unavailable choices',
     includePinned = false;
     await page.reload();
     await trigger.click();
-    await expect(page.getByRole('menuitem', { name: 'test/current', exact: true })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'test/favorite', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'test/current', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/favorite', exact: true })).toHaveCount(0);
     expect(mutations).toBe(0);
 });
 
@@ -483,7 +483,7 @@ test('pin storage failure does not invalidate model catalog', async ({ page }) =
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
     await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('changes are temporary');
-    await expect(page.getByRole('menuitem', { name: 'test/current', exact: true })).toBeEnabled();
+    await expect(page.getByRole('option', { name: 'test/current', exact: true })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Retry model catalog' })).toHaveCount(0);
 });
 
@@ -558,7 +558,7 @@ test('model picker close button restores model trigger focus', async ({ page }) 
     const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
     await trigger.click();
     await page.getByRole('button', { name: 'Close model picker', exact: true }).click();
-    await expect(page.getByRole('searchbox', { name: 'Search models' })).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Search models' })).toHaveCount(0);
     await expect(trigger).toBeFocused();
 });
 
@@ -663,7 +663,7 @@ test('capture model picker with deployed single-model fixture', async ({ page },
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await expect(page.getByRole('group', { name: 'Current', exact: true })).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'test/review-model', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/review-model', exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('model-picker-desktop.png'), fullPage: true });
 });
 
@@ -711,7 +711,7 @@ test('same-tick model clicks issue one mutation', async ({ page }) => {
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    const choice = page.getByRole('menuitem', { name: 'test/next', exact: true });
+    const choice = page.getByRole('option', { name: 'test/next', exact: true });
     await expect(choice).toBeVisible();
     await choice.evaluate(el => { el.click(); el.click(); });
     await expect.poll(() => calls).toBe(1);
@@ -728,7 +728,7 @@ test('Alt Enter pins focused model without selecting it', async ({ page }) => {
     await page.route('**/sessions/default/model', route => { calls++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    const choice = page.getByRole('menuitem', { name: 'test/favorite', exact: true });
+    const choice = page.getByRole('option', { name: 'test/favorite', exact: true });
     await choice.focus();
     await choice.press('Alt+Enter');
     await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toBeVisible();
@@ -784,11 +784,11 @@ for (const width of [1280, 390]) {
         await page.getByTestId('session-switcher').click();
         await page.locator('#session-option-' + id).click();
         await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-        await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+        await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
         await expect(page.getByRole('group', { name: 'Current', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/alpha');
         await expect(page.getByRole('group', { name: 'Other models', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/beta');
-        const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('searchbox', { name: 'Search models' }) });
+        const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('combobox', { name: 'Search models' }) });
         const bounds = await popup.boundingBox();
         expect(bounds.x).toBeGreaterThanOrEqual(0);
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
@@ -807,12 +807,15 @@ test('model display names remain searchable without replacing canonical identity
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    const choice = page.getByRole('menuitem', { name: 'test/alpha', exact: true });
+    const choice = page.getByRole('option', { name: 'test/alpha', exact: true });
     await expect(choice).toContainText('Friendly Model');
+    await expect(choice).toHaveAttribute('aria-selected', 'true');
+    await expect(page.getByRole('combobox', { name: 'Search models' })).toHaveAttribute('aria-controls', 'compose-model-results');
+    await expect(page.getByRole('listbox', { name: 'Models', exact: true })).toContainText('Friendly Model');
     await expect(choice.locator('.compose-model-catalogue-badge')).toHaveText(['Reasoning', '128,000 context tokens']);
-    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true }).locator('.compose-model-catalogue-badge')).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'test/beta', exact: true }).locator('.compose-model-catalogue-badge')).toHaveCount(0);
     await expect(choice.locator('.compose-model-catalogue-option-key')).toHaveText('test/alpha');
-    await page.getByRole('searchbox', { name: 'Search models' }).fill('friendly');
+    await page.getByRole('combobox', { name: 'Search models' }).fill('friendly');
     await expect(choice).toBeVisible();
-    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('option', { name: 'test/beta', exact: true })).toHaveCount(0);
 });
