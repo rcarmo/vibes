@@ -130,6 +130,10 @@ export async function removeAgentQueueItem(rowId) {
     });
 }
 
+export async function reorderAgentQueueItem(rowId, direction) {
+    return request('/agent/queue-reorder', { method: 'POST', body: JSON.stringify({ row_id: rowId, direction }) });
+}
+
 export async function steerAgentQueueItem(rowId) {
     return request('/agent/queue-steer', {
         method: 'POST',

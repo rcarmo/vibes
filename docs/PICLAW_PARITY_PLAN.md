@@ -301,3 +301,11 @@ request gets 404 while the first is in flight. Added synchronous same-agent/thre
 up/down reordering and /agent/queue-reorder with broadcast. Other scopes retain
 their positions; pending steers still dispatch first. 418 backend tests pass.
 Reorder buttons and structured queue previews remain to wire into the composer.
+
+### Composer reorder wiring
+
+Added accessible up/down queue buttons using deployed Piclaw arrow markup,
+boundaries per agent/thread, reorder API handling and SSE synchronization. New
+queued entries append rather than timestamp-sorting away explicit order.
+Chromium/WebKit verify request payload and returned visual order; build/lint pass.
+Structured attachment/reference queue previews remain pending.

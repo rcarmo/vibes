@@ -78,11 +78,13 @@ function ContextPie({ usage }) {
     `;
 }
 
-function FollowupQueue({ items, onRemove, onSteer }) {
+function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
     if (!items || items.length === 0) return null;
     return html`
         <div class="compose-queue-stack" aria-label="Queued follow-ups" role="list">
             ${items.map((item) => {
+                const peers = items.filter(other => other.agent_id === item.agent_id && other.thread_id === item.thread_id);
+                const position = peers.findIndex(other => other.row_id === item.row_id);
                 const content = String(item.content || '').trim();
                 const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
                 const itemLabel = preview || 'Untitled follow-up';
@@ -93,6 +95,12 @@ function FollowupQueue({ items, onRemove, onSteer }) {
                             <div class="compose-queue-text" title=${content}>${itemLabel}</div>
                         </div>
                         <div class="compose-queue-actions">
+                            <button type="button" data-action="move-up" class="followup-queue-move" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l5-5 5 5" /></svg>
+                            </button>
+                            <button type="button" data-action="move-down" class="followup-queue-move" disabled=${position === peers.length - 1} title="Move down" aria-label="Move down in queue" onClick=${() => onReorder?.(item.row_id, 'down')}>
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5" /></svg>
+                            </button>
                             <button
                                 type="button"
                                 class="compose-queue-btn"
@@ -137,6 +145,7 @@ export function ComposeBox({
     queuedFollowups = [],
     onQueueRemove,
     onQueueSteer,
+    onQueueReorder,
     onModelChange,
     onModelStateChange,
     notificationsEnabled = false,
@@ -710,6 +719,7 @@ export function ComposeBox({
                             items=${queuedFollowups}
                             onRemove=${onQueueRemove}
                             onSteer=${onQueueSteer}
+                            onReorder=${onQueueReorder}
                         />
                     `}
                     ${(fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`

@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
-import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, SSEClient } from './api.js';
+import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
@@ -1645,6 +1645,13 @@ function App() {
         }
     }, []);
 
+    const handleQueueReorder = useCallback(async (rowId, direction) => {
+        try {
+            const result = await reorderAgentQueueItem(rowId, direction);
+            setQueuedFollowups(result.items);
+        } catch (err) { alert(err.message || 'Failed to reorder queue.'); }
+    }, []);
+
     const handleQueueSteer = useCallback(async (rowId) => {
         if (rowId == null) return;
         try {
@@ -1890,10 +1897,14 @@ function App() {
             return;
         }
 
+        if (eventType === 'agent_queue_reordered') {
+            setQueuedFollowups(data.items || []);
+            return;
+        }
         if (eventType === 'agent_followup_queued') {
             setQueuedFollowups((prev) => {
                 if (prev.some((item) => item.row_id === data?.row_id)) return prev;
-                return [...prev, data].sort((a, b) => (a.created_at || 0) - (b.created_at || 0));
+                return [...prev, data];
             });
             return;
         }
@@ -2339,6 +2350,7 @@ function App() {
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}
                     onQueueSteer=${handleQueueSteer}
+                    onQueueReorder=${handleQueueReorder}
                     onModelChange=${setActiveModel}
                     onModelStateChange=${applyModelState}
                     notificationsEnabled=${notificationsEnabled}
