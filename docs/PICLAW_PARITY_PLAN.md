@@ -525,3 +525,11 @@ prompt write. Selection failure returns an error without sending private content
 non-default active selectors restore default for legacy calls. Process launch
 resets selector state. 443 backend tests pass. Public routes still guard
 non-default requests pending admission and live session switching verification.
+
+### Live Pi session smoke
+
+Installed Pi successfully returned distinct default/other session paths and
+restored the original via real RPC, without model prompts. Added reusable
+`tools/smoke-pi-sessions.py` with isolated temp cwd/session storage, extensions
+disabled and bounded shutdown; ran successfully. This verifies switching protocol,
+not authenticated model completions or public multi-session dispatch admission.

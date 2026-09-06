@@ -20,3 +20,10 @@ The script does not start a server, send chat messages, or save editor changes.
 It fails if navigation or editor loading fails. Existing screenshot files with
 the same names are overwritten. Use test data: screenshots can contain private
 chat or file contents. Fresh browser contexts do not reuse logged-in sessions.
+
+## Pi conversation isolation smoke
+
+`PYTHONPATH=src .venv/bin/python tools/smoke-pi-sessions.py` starts installed Pi
+with extensions disabled in a temporary directory, creates another session, and
+switches back. It sends no model prompts and deletes temporary session files.
+Requires Python 3.11+ for asyncio.timeout and a `pi` executable on PATH.
