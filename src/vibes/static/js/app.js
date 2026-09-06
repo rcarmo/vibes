@@ -796,6 +796,19 @@ function App() {
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
 
+    const refreshSelectedContext = async () => {
+        const session = selectedSessionRef.current;
+        const generation = switchGeneration.current;
+        try {
+            const context = await getAgentContext(session);
+            if (session === selectedSessionRef.current && generation === switchGeneration.current) {
+                setContextUsage(context?.percent != null ? context : null);
+            }
+        } catch {
+            if (session === selectedSessionRef.current && generation === switchGeneration.current) setContextUsage(null);
+        }
+    };
+    useEffect(() => { refreshSelectedContext(); }, [selectedSession]);
     const refreshSelectedQueue = async () => {
         const session = selectedSessionRef.current;
         const result = await getAgentQueue(null, null, session);

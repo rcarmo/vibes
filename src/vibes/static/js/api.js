@@ -132,8 +132,8 @@ export async function getAgents() {
 /**
  * Get context window usage (tokens, contextWindow, percent).
  */
-export async function getAgentContext() {
-    return request('/agent/context');
+export async function getAgentContext(sessionId = 'default') {
+    return request(`/agent/context?session_id=${encodeURIComponent(sessionId)}`);
 }
 
 /**

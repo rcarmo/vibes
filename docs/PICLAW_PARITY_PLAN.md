@@ -768,3 +768,11 @@ invented get_state context fields. Inspection owns request_lock, declines while
 busy and rejects nonactive/uncertain chat selection so it cannot consume prompt
 stream events or expose another chat's usage. 460 backend tests pass. Busy usage
 currently returns unavailable; cached/live event metrics remain future work.
+
+### Selected-chat context polling
+
+All context fetches now carry selected session identity. Shared refresh checks
+session plus switch generation before committing and clears unavailable/error
+results instead of retaining stale usage. Refresh runs on switch/reconnect/turn
+completion/polling. Fourteen switching tests and build/lint pass. Inactive/busy
+Pi chats remain honestly unavailable until cached per-session metrics exist.

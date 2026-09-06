@@ -101,3 +101,18 @@ test('switch requests status for the selected session', async ({ page }) => {
     await expect.poll(() => seen.includes(id)).toBe(true);
     expect(seen).toContain('default');
 });
+
+test('context inspection follows selected chat rather than default', async ({ page }) => {
+    const seen = [];
+    await page.route('**/agent/context?*', async route => {
+        seen.push(new URL(route.request().url()).searchParams.get('session_id'));
+        await route.fulfill({ contentType: 'application/json', body: '{"tokens":null,"contextWindow":null,"percent":null}' });
+    });
+    await page.goto('/');
+    const result = await page.request.post('/sessions', { data: { name: 'Context scope' } });
+    const id = (await result.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect.poll(() => seen.includes(id)).toBe(true);
+    expect(seen).toContain('default');
+});
