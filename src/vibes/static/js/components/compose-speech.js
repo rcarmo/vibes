@@ -13,11 +13,19 @@ export function createSpeechInput(Recognition, { onText, onState, base = '' }) {
     const recognition = new Recognition();
     let disposed = false;
     let failed = false;
+    let started = false;
+    let pendingStop = false;
+    const stopRecognition = () => { try { recognition.stop(); } catch { /* not yet started */ } };
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.onstart = () => { if (!disposed) onState('listening'); };
+    recognition.onstart = () => {
+        if (disposed) return;
+        started = true;
+        if (pendingStop) { stopRecognition(); return; }
+        onState('listening');
+    };
     recognition.onresult = event => {
-        if (disposed || failed) return;
+        if (disposed || failed || (pendingStop && !started)) return;
         // Results are cumulative; rebuild rather than append duplicate interim text.
         const transcript = Array.from(event.results, result => result[0]?.transcript || '').join(' ').trim();
         onText([base.trimEnd(), transcript].filter(Boolean).join(' '));
@@ -42,7 +50,11 @@ export function createSpeechInput(Recognition, { onText, onState, base = '' }) {
             try { recognition.start(); }
             catch { failed = true; onState('error', 'Unable to start speech recognition.'); }
         },
-        stop() { if (!disposed) { try { recognition.stop(); } catch { /* already stopped */ } } },
+        stop() {
+            if (disposed) return;
+            pendingStop = true;
+            stopRecognition();
+        },
         dispose() {
             disposed = true;
             recognition.onstart = recognition.onresult = recognition.onerror = recognition.onend = null;

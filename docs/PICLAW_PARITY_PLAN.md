@@ -1243,3 +1243,12 @@ creation and restoration pass without sending a model prompt. Third-party ACP
 messages discovery/retrieval and real attachment consumption remain blocked on
 an installed/authenticated suitable agent; Pi session switching is not substitute
 evidence for those acceptance criteria. No credentials or real prompts used.
+
+### Speech release during pending permission
+
+Speech controller remembers stop requested before onstart and repeats stop when
+delayed recognition starts, without reporting Listening. This covers browsers
+that reject stop before permission/start completes. 16 frontend unit tests,
+14 headed Chromium/WebKit mocked speech tests and build/lint pass, including
+Space release during pending permission. Live browser microphone service remains
+unverified and separate from deterministic controller acceptance.

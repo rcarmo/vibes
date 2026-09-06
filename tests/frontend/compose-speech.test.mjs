@@ -49,3 +49,19 @@ test('push-to-talk starts only on unmodified space in an empty idle composer', (
     expect(shouldStartSpeechPushToTalk({ key: ' ' }, 'draft', options)).toBe(false);
     expect(shouldStartSpeechPushToTalk({ key: ' ' }, '', { ...options, searchMode: true })).toBe(false);
 });
+
+test('release before recognition starts retries stop on delayed start', () => {
+    const states = [];
+    let stops = 0;
+    class DelayedRecognition extends Recognition {
+        stop() { stops++; if (!this.ready) throw new Error('not started'); this.onend?.(); }
+    }
+    const input = createSpeechInput(DelayedRecognition, { onText() {}, onState: state => states.push(state) });
+    input.start();
+    input.stop();
+    Recognition.latest.ready = true;
+    Recognition.latest.onstart();
+    expect(stops).toBe(2);
+    expect(states).toEqual(['requesting_permission', 'idle']);
+    input.dispose();
+});

@@ -99,3 +99,21 @@ test('manual edit aborts recognition and protects edited text from late results'
     await expect(input).toHaveValue('Typed instead');
     await expect(page.locator('.compose-speech-status')).toHaveCount(0);
 });
+
+test('releasing Space during permission wait stops delayed recognition start', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(() => {
+        window.SpeechRecognition.prototype.start = function () {};
+        window.SpeechRecognition.prototype.stop = function () {
+            if (!this.ready) throw new Error('not started');
+            this.stopped = true; this.onend?.();
+        };
+    });
+    await page.locator('.compose-input-main textarea').focus();
+    await page.keyboard.down('Space');
+    await expect(page.locator('.compose-speech-status')).toContainText('Requesting microphone permission');
+    await page.keyboard.up('Space');
+    await page.evaluate(() => { window.recognition.ready = true; window.recognition.onstart(); });
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+    expect(await page.evaluate(() => window.recognition.stopped)).toBe(true);
+});
