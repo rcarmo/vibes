@@ -1932,3 +1932,10 @@ and visual acceptance remain open.
 Keyboard pin/unpin restores focus by stable model identity after the row moves
 between groups. Two headed Chromium/WebKit shortcut tests and build/lint pass,
 including pin then unpin with focus retained and no model mutation.
+
+### Failed thinking selection confirmation
+
+Chromium/WebKit verify 409 thinking mutation leaves selector at confirmed off
+level, shows Context busy error and re-enables control. Two targeted tests pass;
+existing controlled-select behavior already meets this requirement, so no code
+change needed. Actual provider execution acceptance remains separate.

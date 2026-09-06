@@ -728,3 +728,16 @@ test('Alt Enter pins focused model without selecting it', async ({ page }) => {
     await expect(choice).toBeFocused();
     expect(calls).toBe(0);
 });
+
+test('failed thinking mutation keeps last confirmed selector value', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current","reasoning":true},"thinking_level":"off"}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}],"thinking_levels":["off","high"]}' }));
+    await page.route('**/sessions/default/model', route => route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Context busy"}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const select = page.getByRole('combobox', { name: 'Select thinking level' });
+    await select.selectOption('high');
+    await expect(page.getByRole('alert').filter({ hasText: 'Context busy' })).toBeVisible();
+    await expect(select).toHaveValue('off');
+    await expect(select).toBeEnabled();
+});
