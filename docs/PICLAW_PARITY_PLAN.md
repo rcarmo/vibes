@@ -199,3 +199,11 @@ workspace message database. Do not claim per-thread isolation for this mode.
 Standalone --thread-id remains available; per-session injection must be revisited
 with the planned session model. An actual third-party ACP agent consuming the
 injected descriptor is still an acceptance check, not proven by descriptor tests.
+
+### ACP injection branch verification
+
+Tests now exercise both fresh-process and existing-process/no-session ACP paths
+and assert messages descriptors reach session/new. 406 backend tests pass.
+No installed `copilot` executable was found; third-party ACP consumption remains
+unverified. Earlier composer assessment correction: existing Vibes has image
+clipboard paste; the pending gap is general-file clipboard intake, not all paste.

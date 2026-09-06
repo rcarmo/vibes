@@ -71,3 +71,34 @@ async def test_acp_descriptor_launches_real_server(db, monkeypatch):
     config.db_path = ':memory:'
     with pytest.raises(ValueError):
         acp_client._messages_mcp_servers()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('already_running', [False, True])
+async def test_acp_session_creation_includes_descriptor(db, monkeypatch, already_running):
+    from types import SimpleNamespace
+    from unittest.mock import AsyncMock, MagicMock
+    from vibes import acp_client
+    acp_client.reset_state()
+    config = SimpleNamespace(acp_messages_enabled=True, db_path=db.db_path, acp_agent='fake-acp')
+    monkeypatch.setattr(acp_client, 'get_config', lambda: config)
+    process = MagicMock(returncode=None)
+    process.stdin = MagicMock()
+    process.stdout = MagicMock()
+    process.stderr = None
+    if already_running:
+        acp_client._state.process = process
+    monkeypatch.setattr(acp_client.shutil, 'which', lambda _: '/fake-acp')
+    monkeypatch.setattr(acp_client.asyncio, 'create_subprocess_exec', AsyncMock(return_value=process))
+    request = AsyncMock(side_effect=lambda method, params: {'sessionId': 'test-session'} if method == 'session/new' else {})
+    monkeypatch.setattr(acp_client, '_send_request', request)
+    try:
+        await acp_client._ensure_agent()
+        session_calls = [call for call in request.call_args_list if call.args[0] == 'session/new']
+        assert len(session_calls) == 1
+        descriptor = session_calls[0].args[1]['mcpServers'][0]
+        assert descriptor['name'] == 'vibes-messages'
+        assert '--workspace-access' in descriptor['args']
+        assert descriptor['command'] == sys.executable
+    finally:
+        acp_client.reset_state()
