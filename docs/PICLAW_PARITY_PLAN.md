@@ -144,3 +144,13 @@ remain authoritative. Expired sessions display an explicit new-shell notice.
 Eight headed terminal tests pass across Chromium/WebKit, including closed-popup
 state preservation within grace and restart after actual 15-second expiry.
 Frontend build/lint pass. Layout/screenshot and whole-backlog acceptance remain.
+
+### Desktop/mobile verification
+
+Added desktop/mobile viewport bounds and control-visibility assertions plus
+screenshots. Full headed Chromium/WebKit suite: 50 tests passed with one worker,
+no retries/skips. Backend remains 399 passing; frontend build/lint pass. Captured
+1440x1000 desktop and 390x844 mobile terminal screenshots (attached in task chat).
+This establishes renderability, not pixel-identical host layout: the fixed bottom
+host, launcher placement and splitter nesting remain tracked deviations from
+Piclaw's shared pane shell. Do not equate these screenshots with final parity.

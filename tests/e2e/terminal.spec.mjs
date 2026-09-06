@@ -75,3 +75,24 @@ test('expired popout session clearly starts a new shell', async ({ page }) => {
     await expect(page.getByRole('alert')).toContainText('started a new shell');
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
 });
+
+for (const [name, viewport] of [
+    ['desktop', { width: 1440, height: 1000 }],
+    ['mobile', { width: 390, height: 844 }],
+]) {
+    test(`terminal ${name} layout and screenshot`, async ({ page }, testInfo) => {
+        await page.setViewportSize(viewport);
+        await page.goto('/');
+        await page.getByTitle('Open terminal', { exact: true }).click();
+        await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+        await page.locator('.xterm-helper-textarea').pressSequentially("printf 'Vibes terminal verification\\n'");
+        await page.locator('.xterm-helper-textarea').press('Enter');
+        await expect(page.getByTestId('terminal-output')).toContainText('Vibes terminal verification');
+        const box = await page.locator('.terminal-panel').boundingBox();
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
+        expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
+        await expect(page.getByRole('button', { name: 'Hide terminal', exact: true })).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`terminal-${name}.png`), fullPage: true });
+    });
+}
