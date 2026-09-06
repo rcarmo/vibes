@@ -2193,3 +2193,13 @@ nested splitter (structural deviation remains). Geometry test checks sibling
 hierarchy plus offset/height. Build/lint and all 72 headed Chromium/WebKit terminal
 and editor-tab tests pass, including mobile and handoff workflows. Full visual
 acceptance remains separate; standalone 4px offset is no longer outstanding.
+
+### Terminal header reference measurements
+
+Re-ran isolated deployed classic fixture and collected computed styles: standalone
+header y=4, height=27, padding=4px 16px. Added matching local unavailable-state
+assertions; both headed Chromium/WebKit cases pass. Comparison narrows the known
+geometry gap: column, dock and header dimensions now match at 1280x844. This does
+not approve remaining typography/theme or full-page differences, nor mobile/shared
+host visual equivalence. Reference probe is under /workspace/tmp and not runtime
+code; no transport behavior changed.

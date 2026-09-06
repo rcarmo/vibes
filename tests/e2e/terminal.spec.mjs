@@ -316,5 +316,9 @@ test('terminal unavailable reference-state capture', async ({ page }, testInfo) 
     await openTerminal(page);
     await expect(page.locator('.terminal-status')).toHaveText('Unavailable');
     await expect(page.locator('.dock-panel-title')).toHaveText('Terminal');
+    const header = await page.locator('.dock-panel-header').boundingBox();
+    expect(header.y).toBe(4);
+    expect(header.height).toBe(27);
+    await expect(page.locator('.dock-panel-header')).toHaveCSS('padding', '4px 16px');
     await page.screenshot({ path: testInfo.outputPath('terminal-unavailable-reference.png'), fullPage: true });
 });
