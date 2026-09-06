@@ -203,3 +203,16 @@ test('mobile drawer backdrop closes without activating underlying chat', async (
     await expect(page.locator('.workspace-drawer-backdrop')).toHaveCount(0);
     await expect(page.locator('.compose-input-main textarea')).not.toBeFocused();
 });
+
+test('desktop terminal host matches deployed column geometry', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await page.goto('/');
+    await openTerminal(page);
+    const pane = await page.locator('.editor-pane-container').boundingBox();
+    const chat = await page.locator('.container').boundingBox();
+    expect(pane.x).toBeCloseTo(0, 0);
+    expect(pane.width).toBeCloseTo(512, 0);
+    expect(pane.height).toBeCloseTo(844, 0);
+    expect(chat.x).toBeCloseTo(516, 0);
+    expect(chat.width).toBeCloseTo(764, 0);
+});

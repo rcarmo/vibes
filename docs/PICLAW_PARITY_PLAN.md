@@ -1980,3 +1980,12 @@ loads xterm without dynamic-import failure and displays intentional Unavailable
 status from disabled terminal API. No page errors; only favicon missing. Corrected
 reference attached, superseding earlier import-error screenshot. No shell/live
 connection used; full matched host comparison remains open.
+
+### Measured desktop terminal column parity
+
+Deployed isolated 1280x844 reference measures editor column x=0,w=512,h=844 and
+chat x=516,w=764,h=844. Python startup overrode CSS 40vw with 280px; unset editor
+width now uses 40% viewport, retaining explicit saved widths. Two headed Chromium/
+WebKit geometry tests and build/lint pass against reference values. Dock interior
+still differs (deployed top splitter offset 4px); full visual acceptance remains
+open and editor regression must be rerun after default-width change.

@@ -1881,7 +1881,7 @@ function App() {
         }
 
         const savedEditor = parseInt(localStorage.getItem('editorWidth') || '', 10);
-        const editorW = Number.isFinite(savedEditor) ? Math.min(Math.max(savedEditor, 200), window.innerWidth * 0.7) : 280;
+        const editorW = Number.isFinite(savedEditor) ? Math.min(Math.max(savedEditor, 200), window.innerWidth * 0.7) : window.innerWidth * 0.4;
         editorWidthRef.current = editorW;
         if (appShellRef.current) {
             appShellRef.current.style.setProperty('--editor-width', `${editorW}px`);
