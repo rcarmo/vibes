@@ -1569,3 +1569,10 @@ presence and targeting currentId independently of search highlight/filter.
 38 headed picker tests and build/lint pass, including filtered-current dialog
 identity. Existing per-row lifecycle actions remain deliberate local additions;
 full visual comparison still open.
+
+### Explicit root creation footer
+
+Root creation footer now reads New root… with independent-root tooltip, matching
+deployed distinction from New branch. Dialog retains New session title. Six headed
+root/branch/modal tests and build/lint pass. Empty-child versus provider fork
+semantics remain documented; visual equivalence not yet claimed.

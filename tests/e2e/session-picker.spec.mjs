@@ -110,7 +110,7 @@ test('create dialog preserves input on server error then creates selected sessio
         return route.continue();
     });
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('button', { name: 'New session', exact: true }).click();
+    await page.getByRole('button', { name: 'New root…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'New session' });
     const input = dialog.getByRole('textbox', { name: 'Session name' });
     await expect(input).toBeFocused();
