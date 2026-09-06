@@ -710,3 +710,17 @@ test('same-tick model clicks issue one mutation', async ({ page }) => {
     await expect(choice).toHaveCount(0);
     expect(calls).toBe(1);
 });
+
+test('Alt Enter pins focused model without selecting it', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"favorite"}]}' }));
+    let calls = 0;
+    await page.route('**/sessions/default/model', route => { calls++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const choice = page.getByRole('menuitem', { name: 'test/favorite', exact: true });
+    await choice.focus();
+    await choice.press('Alt+Enter');
+    await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toBeVisible();
+    expect(calls).toBe(0);
+});

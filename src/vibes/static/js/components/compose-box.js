@@ -543,6 +543,14 @@ export function ComposeBox({
     };
 
     const modelPickerKeys = event => {
+        if (event.key === 'Enter' && event.altKey && !event.ctrlKey && !event.metaKey) {
+            const choice = event.target?.closest?.('[data-model-label]');
+            if (choice) {
+                event.preventDefault(); event.stopPropagation();
+                if (!event.repeat) toggleModelPin(choice.dataset.modelLabel);
+                return;
+            }
+        }
         if (event.key === 'Escape') {
             event.preventDefault(); event.stopPropagation(); setShowModelPopup(false);
             requestAnimationFrame(() => modelHintRef.current?.focus());
@@ -1044,11 +1052,12 @@ export function ComposeBox({
                             ${!loadingModels && modelGroups.map(group => html`<div role="group" aria-label=${group.label}>
                                 <div class="compose-session-section-heading">${group.label}</div>
                                 ${group.models.map((modelLabel) => html`<div class="compose-model-popup-item-row" key=${modelLabel}>
-                                    <button type="button" class="compose-session-row-pin" aria-label=${`${modelPins.includes(modelLabel) ? 'Unpin' : 'Pin'} model ${modelLabel}`} aria-pressed=${modelPins.includes(modelLabel)} onClick=${() => toggleModelPin(modelLabel)}>${modelPins.includes(modelLabel) ? '★' : '☆'}</button>
+                                    <button type="button" class="compose-session-row-pin" aria-label=${`${modelPins.includes(modelLabel) ? 'Unpin' : 'Pin'} model ${modelLabel}`} aria-pressed=${modelPins.includes(modelLabel)} aria-keyshortcuts="Alt+Enter" onClick=${() => toggleModelPin(modelLabel)}>${modelPins.includes(modelLabel) ? '★' : '☆'}</button>
                                     <button
                                         key=${modelLabel}
                                         type="button"
                                         role="menuitem"
+                                        data-model-label=${modelLabel}
                                         class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}
                                         onClick=${() => { void handleSelectModel(modelLabel); }}
                                         disabled=${switchingModel}

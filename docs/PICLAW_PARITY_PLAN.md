@@ -1919,3 +1919,10 @@ same-tick duplicate invocation before disabled state renders. Guard releases in
 finally on success/failure. Ten headed duplicate/thinking tests and build/lint
 pass, including two synchronous button clicks with one mutation. Backend locking
 remains authoritative; this is not network-level exactly-once delivery.
+
+### Model pin keyboard shortcut
+
+Alt+Enter on a focused model choice toggles its browser pin without selection;
+repeats ignored and pin controls advertise shortcut. Two headed Chromium/WebKit
+shortcut tests and build/lint pass, verifying zero model mutations. Full settings
+and visual acceptance remain open.
