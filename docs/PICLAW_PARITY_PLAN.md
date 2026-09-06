@@ -2385,3 +2385,12 @@ native close event, reopening dialog. Explicit Close and native cancel now clear
 open state immediately, before reconciliation; close event remains fallback.
 Ten headed Chromium/WebKit modal/pin tests and build/lint pass. Test also verifies
 Escape leaves underlying picker open and returns focus to settings trigger.
+
+### Explicit successful-catalogue refresh
+
+Added Refresh model catalog alongside settings entry, disabled while loading or
+switching. Reuses existing scoped/disposal-guarded fetch path; no provider/model
+mutation. New browser case changes supplied catalogue and verifies stale choice
+removal and unchanged current model. Build/lint plus 12 headed refresh/capture/
+large-catalogue tests pass. Explicit refresh button is a local convenience beyond
+deployed footer; full visual acceptance remains open.

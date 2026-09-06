@@ -915,3 +915,21 @@ test('Models settings modal opens, loads versioned pins and restores focus', asy
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('button', { name: 'Save instance pins', exact: true })).toBeEnabled();
 });
+
+test('explicit catalogue refresh updates choices without model mutation', async ({ page }) => {
+    let refreshed = false, mutations = 0;
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ json: { available: true, model: { provider: 'test', id: 'current' } } }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ json: { available: true, models: [{ provider: 'test', id: refreshed ? 'new' : 'old' }] } }));
+    await page.route('**/sessions/default/model', route => { mutations++; return route.fulfill({ json: {} }); });
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(trigger).toContainText('test/current');
+    await trigger.click();
+    await expect(page.getByRole('option', { name: 'test/old', exact: true })).toBeVisible();
+    refreshed = true;
+    await page.getByRole('button', { name: 'Refresh model catalog', exact: true }).click();
+    await expect(page.getByRole('option', { name: 'test/new', exact: true })).toBeVisible();
+    await expect(page.getByRole('option', { name: 'test/old', exact: true })).toHaveCount(0);
+    await expect(trigger).toContainText('test/current');
+    expect(mutations).toBe(0);
+});

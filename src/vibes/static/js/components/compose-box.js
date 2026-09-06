@@ -1133,6 +1133,7 @@ export function ComposeBox({
                                     ${sessionCatalog.thinking_levels.map(level => html`<option value=${level}>${level}</option>`)}
                                 </select>
                             </label>`}
+                            <button type="button" class="compose-model-popup-btn" disabled=${loadingModels || switchingModel} onClick=${() => setModelRefresh(value => value + 1)}>Refresh model catalog</button>
                             <button type="button" class="compose-model-popup-btn" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
                             <dialog key="model-settings" ref=${modelSettingsRef} onCancel=${() => setModelSettingsOpen(false)} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
                                 <h2>Models settings</h2>
