@@ -775,3 +775,33 @@ def test_reported_capabilities_are_allowlisted_and_unavailable_when_stopped():
         assert acp_client.get_reported_capabilities() == expected
     acp_client.reset_state()
     assert acp_client._state.reported_capabilities is None
+
+
+@pytest.mark.asyncio
+async def test_initialize_captures_reported_capabilities_and_stop_clears_them():
+    from types import SimpleNamespace
+    acp_client.reset_state()
+    process = MagicMock()
+    process.returncode = None
+    process.stdin = MagicMock()
+    process.stdout = MagicMock()
+    process.stderr = None
+    process.wait = AsyncMock(return_value=0)
+    initialize = {'agentCapabilities': {'loadSession': True, 'promptCapabilities': {'image': True}, 'private': 'excluded'}}
+    try:
+        with patch.object(acp_client, 'get_config', return_value=SimpleNamespace(acp_agent='fake-acp')), \
+             patch.object(acp_client.shutil, 'which', return_value='/fake-acp'), \
+             patch.object(acp_client.asyncio, 'create_subprocess_exec', new_callable=AsyncMock, return_value=process), \
+             patch.object(acp_client, '_send_request', new_callable=AsyncMock, side_effect=[initialize, {'sessionId': 'confirmed'}]) as rpc, \
+             patch.object(acp_client, '_messages_mcp_servers', return_value=[]):
+            await acp_client._ensure_agent()
+            assert rpc.await_args_list[0].args[0] == 'initialize'
+            assert acp_client.get_reported_capabilities() == {'loadSession': True, 'promptCapabilities': {'image': True}}
+            assert acp_client.get_state().load_session_supported is True
+            assert acp_client.get_state().session_id == 'confirmed'
+            await acp_client.stop_agent()
+            assert acp_client.get_reported_capabilities() is None
+            assert acp_client.get_state().reported_capabilities is None
+            process.terminate.assert_called_once()
+    finally:
+        acp_client.reset_state()

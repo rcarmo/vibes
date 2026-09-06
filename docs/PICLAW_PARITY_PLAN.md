@@ -1225,3 +1225,11 @@ not inherit ACP claims. 483 backend tests pass, including both default-backend
 configurations and unavailable declarations. This is descriptive initialize
 metadata, not proof of image/audio/MCP consumption or live model availability;
 UI capability presentation and third-party acceptance remain open.
+
+### ACP initialize/stop declaration lifecycle test
+
+Added startup test exercising _ensure_agent with mocked subprocess and initialize/
+session-new RPC responses, then stop_agent: sanitized declarations and resume
+flag are captured after initialize and removed on shutdown. 484 backend tests
+pass. This is protocol-lifecycle unit coverage, not an installed third-party
+agent handshake or attachment consumption acceptance.
