@@ -275,3 +275,25 @@ test('closing host during reattach does not mount late response', async ({ page 
     expect(popup.isClosed()).toBe(false);
     await popup.close();
 });
+
+test('closing host closes blank popout before pending handoff completes', async ({ page }) => {
+    let release;
+    await page.route('**/terminal/handoff', async route => {
+        await new Promise(resolve => { release = resolve; });
+        await route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Fixture handoff cancelled"}' });
+    });
+    await page.goto('/');
+    await openTerminal(page);
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await expect.poll(() => !!release).toBe(true);
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'Open terminal in window', exact: true }).click();
+    const popup = await popupPromise;
+    expect(popup.url()).toBe('about:blank');
+    await page.getByRole('button', { name: 'Hide terminal', exact: true }).click();
+    await expect.poll(() => popup.isClosed()).toBe(true);
+    const responsePromise = page.waitForResponse(response => response.url().endsWith('/terminal/handoff'));
+    release();
+    await (await responsePromise).finished();
+    await expect(page.locator('.terminal-panel')).toHaveCount(0);
+});

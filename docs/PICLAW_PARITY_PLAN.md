@@ -2045,5 +2045,8 @@ response processing; new synchronization exercises the intended continuation.
 Host tracks blank window separately while detach handoff is pending and closes it
 on unmount; successfully transferred popup is not closed by host cleanup. Four
 headed handoff/unmount regression tests and build/lint pass. Dedicated blocked-
-detach blank-window test remains unverified; reattach settled-response test remains
-covered. No active detached shell is intentionally terminated by this cleanup.
+detach blank-window coverage subsequently passed in Chromium/WebKit: the blank
+window closes before the held handoff request is released. Consolidated terminal
+suite: 34 passed (headed, one worker, both browsers). Reattach settled-response
+coverage remains included. No active detached shell is intentionally terminated
+by this cleanup. These functional checks do not establish visual equivalence.
