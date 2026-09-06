@@ -125,3 +125,13 @@ Four headed Chromium/WebKit terminal tests pass; frontend build/lint pass.
 Splitter sits inside Vibes' fixed-panel host rather than adjacent in the shared
 Piclaw layout; retain this explicit structural deviation until host integration.
 Detached placeholder/reattach remains pending.
+
+### Detached placeholder and return handoff
+
+Dock now remains visible with Piclaw's detached-placeholder structure and a
+Reattach here action. Returning requests a new single-use token and mounts the
+same shell locally; failed handoff requests retain the placeholder and surface
+an error. Chromium/WebKit verify a shell variable survives dock -> popup -> dock
+and that the popup closes. Four terminal tests and frontend build/lint pass.
+Still pending: whole-layout parity and recovery when an external popup dies or
+its session expires, plus screenshot comparisons and final regression sweep.
