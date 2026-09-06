@@ -50,7 +50,7 @@ function formatK(n) {
  */
 function ContextPie({ usage }) {
     if (typeof usage.percent !== 'number' || !Number.isFinite(usage.percent) || usage.percent < 0) return null;
-    const pct = Math.min(100, usage.percent);
+    const pct = usage.percent;
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
     const label = Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
@@ -59,7 +59,7 @@ function ContextPie({ usage }) {
 
     const r = 8;
     const circ = 2 * Math.PI * r;
-    const filled = (pct / 100) * circ;
+    const filled = (Math.min(100, pct) / 100) * circ;
 
     const color = pct > 90 ? 'var(--context-red, #ef4444)'
         : pct > 75 ? 'var(--context-amber, #f59e0b)'

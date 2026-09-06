@@ -1396,3 +1396,10 @@ self-contention on Pi's intentional single-request lock. Overlapping scheduled
 refresh cycles are suppressed; disposed effects do not start context continuation.
 Ten headed context/compaction tests and build/lint pass. Event-triggered refreshes
 remain independently guarded by backend locks and latest-response ownership.
+
+### Over-capacity context label
+
+Context labels retain reported percentages above 100%; only SVG fill geometry is
+clamped. Two headed Chromium/WebKit tests verify 125% label with full bounded
+circle; build/lint pass. This prevents hiding over-capacity reports as exactly
+100% usage. Final visual/live-agent acceptance remains open.

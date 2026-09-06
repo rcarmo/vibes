@@ -410,3 +410,13 @@ test('context refresh follows completion of held model inspection', async ({ pag
     await expect.poll(() => contextAfterModel).toBe(true);
     await expect(page.locator('.compose-context-pie')).toBeVisible();
 });
+
+test('over-capacity context retains true percentage with bounded gauge geometry', async ({ page }) => {
+    await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: '{"percent":125,"tokens":5000,"contextWindow":4000}' }));
+    await page.goto('/');
+    const gauge = page.getByRole('img', { name: /Context:.*125%/ });
+    await expect(gauge).toBeVisible();
+    const dash = await gauge.locator('circle').last().getAttribute('stroke-dasharray');
+    const values = dash.split(' ').map(Number);
+    expect(values[0]).toBe(values[1]);
+});
