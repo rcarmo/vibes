@@ -1894,3 +1894,10 @@ Eight headed Chromium/WebKit thinking tests pass, including catalog changing fro
 off/high to off between popup load and selection. Removed high choice produces
 visible error with zero model mutation requests. This validates stale-choice
 rejection, not provider execution acceptance.
+
+### Refresh thinking choices after revalidation
+
+Thinking preflight now updates displayed catalog/model options before validating
+requested level, removing stale choices even when selection is rejected. Eight
+headed thinking tests and build/lint pass; removed-high case now verifies option
+removal and restoration of confirmed off selection, with no mutation.

@@ -510,6 +510,8 @@ export function ComposeBox({
         try {
             const catalog = await getSessionModels(sessionId);
             if (!modelCallbacksActive.current) return;
+            setSessionCatalog(catalog);
+            setModelOptions(catalog.available ? catalog.models.map(item => `${item.provider}/${item.id}`) : []);
             const levels = catalog.available ? catalog.thinking_levels : [];
             if (!levels?.length) throw new Error('Thinking controls unavailable for this session');
             if (requestedLevel !== null && !levels.includes(requestedLevel)) throw new Error('Thinking level is no longer available');

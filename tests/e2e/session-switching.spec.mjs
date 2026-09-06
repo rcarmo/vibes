@@ -685,5 +685,7 @@ test('removed thinking choice is rejected before mutation', async ({ page }) => 
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('combobox', { name: 'Select thinking level' }).selectOption('high');
     await expect(page.getByRole('alert').filter({ hasText: 'Thinking level is no longer available' })).toBeVisible();
+    await expect(page.getByRole('combobox', { name: 'Select thinking level' }).locator('option[value="high"]')).toHaveCount(0);
+    await expect(page.getByRole('combobox', { name: 'Select thinking level' })).toHaveValue('off');
     expect(mutations).toBe(0);
 });
