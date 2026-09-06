@@ -2230,3 +2230,14 @@ model/thinking-level capabilities. Browser checks verify model choices and think
 selector are visible and entire popup stays within viewport. Four headed Chromium/
 WebKit cases pass. These are local review artifacts, not deployed visual approval
 or evidence of provider execution; no model mutation is performed.
+
+### Model catalogue gap clarification and clear search
+
+Direct deployed model-picker.ts inspection confirms a dedicated catalogue header,
+combobox/listbox, provider grouping, capability/pricing badges and Models-settings
+footer. Local menu and inline thinking/preferences are not that structure; this
+is substantive remaining visual/interaction work, not just approval. Added explicit
+clear-search action restoring focus and unfiltered choices, matching deployed
+behavior while retaining truthful local menu roles. Styling remains local until
+catalogue migration. Build/lint and 10 headed retry/capture tests pass across both
+browsers; empty-query control removal and focus restoration are asserted.

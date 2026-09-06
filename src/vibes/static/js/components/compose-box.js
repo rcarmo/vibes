@@ -1049,6 +1049,7 @@ export function ComposeBox({
                             ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
                             ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
                             <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                            ${modelQuery && html`<button type="button" class="compose-model-popup-btn" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>Clear search</button>`}
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>

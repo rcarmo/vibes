@@ -233,6 +233,11 @@ test('model catalog retry recovers and search filters selectable choices', async
     await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toBeVisible();
     await search.fill('missing');
     await expect(page.getByText('No matching models', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Clear model search', exact: true }).click();
+    await expect(search).toHaveValue('');
+    await expect(search).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Clear model search', exact: true })).toHaveCount(0);
 });
 
 test('model picker keyboard navigation focuses choices and Escape restores trigger', async ({ page }) => {
