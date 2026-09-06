@@ -624,3 +624,11 @@ in status/draft/thought/timeout and generated message payloads. This supplies th
 frontend with a reliable filter key before picker mounting. A real-database worker
 test checks emitted status scope; 452 backend tests pass. Browser event filtering
 and current-session status reset still need integration.
+
+### Live conversation event filtering foundation
+
+Current default view rejects explicitly other-session post/status/draft/request
+events; legacy untagged conversation events remain default-only. Global transport
+and workspace events remain shared. Eight frontend unit and eight focused browser
+tests pass; build/lint pass. Current ID is still default until picker mounting;
+queue/model event ownership and global timeline loads require further integration.

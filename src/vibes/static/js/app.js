@@ -1,4 +1,5 @@
 import { composeDrafts } from './components/compose-drafts.js';
+import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
@@ -1722,6 +1723,7 @@ function App() {
     }, [finalizeStalledResponse]);
 
     const handleSseEvent = useCallback((eventType, data) => {
+        if (!eventMatchesSession(eventType, data, 'default')) return;
         const turnId = data?.turn_id;
 
         if (eventType === 'connected') {
