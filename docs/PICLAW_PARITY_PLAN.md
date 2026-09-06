@@ -568,3 +568,12 @@ process restart, and records the confirmed path before prompting. Failed switche
 remain fail-closed. Default legacy startup behavior is unchanged; durable default
 binding and ACP provider-supported restart loading remain pending. 448 backend
 tests pass, including persisted-path command selection and worker store wiring.
+
+### Capability-gated ACP restart resume
+
+Initialization records agentCapabilities.loadSession. Non-default workers persist
+conversation bindings by ACP command identity; after restart a saved conversation
+uses session/load only if advertised. Unsupported resume fails before prompting
+rather than replacing history with a new conversation. 449 backend tests pass,
+including unsupported/supported load selection. Third-party ACP live acceptance
+remains pending; provider changes intentionally create a separate binding key.

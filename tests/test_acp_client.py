@@ -726,3 +726,21 @@ async def test_legacy_prompt_restores_default_conversation(multimodal):
             await acp_client.send_message_simple('hello')
     assert state.chat_id == 'default'
     acp_client.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_saved_acp_conversation_requires_load_capability():
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    state.session_id = 'default-conversation'
+    with patch.object(acp_client, '_ensure_agent', AsyncMock()), \
+         patch.object(acp_client, '_messages_mcp_servers', return_value=[]), \
+         patch.object(acp_client, '_send_request', AsyncMock(return_value={})) as send:
+        with pytest.raises(RuntimeError, match='cannot resume'):
+            await acp_client._select_chat_session_locked('other', persisted_id='saved')
+        send.assert_not_awaited()
+        state.load_session_supported = True
+        assert await acp_client._select_chat_session_locked('other', persisted_id='saved') == 'saved'
+        assert send.call_args.args[0] == 'session/load'
+        assert send.call_args.args[1]['sessionId'] == 'saved'
+    acp_client.reset_state()

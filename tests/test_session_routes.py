@@ -42,7 +42,7 @@ async def test_worker_dispatch_uses_persisted_chat_identity(db, monkeypatch):
     sender = AsyncMock(return_value={'text': 'ok'})
     monkeypatch.setattr(agents, 'send_acp_message_multimodal', sender)
     await agents._dispatch_acp_thread('hello', root, None)
-    sender.assert_awaited_with('hello', root, None, chat_id=session['id'])
+    sender.assert_awaited_with('hello', root, None, chat_id=session['id'], session_store=ANY)
     await agents._dispatch_acp_thread('default', default, None)
     sender.assert_awaited_with('default', default, None)
     await store.update(session['id'], archived=True)

@@ -557,7 +557,7 @@ async def _dispatch_acp_thread(content, thread_id, status_callback):
     session = await store.get(chat_id)
     if not session or session['archived']:
         raise ValueError('Chat session unavailable')
-    return await send_acp_message_multimodal(content, thread_id, status_callback, chat_id=chat_id)
+    return await send_acp_message_multimodal(content, thread_id, status_callback, chat_id=chat_id, session_store=store)
 
 
 async def _dispatch_pi_thread(content, thread_id, status_callback):

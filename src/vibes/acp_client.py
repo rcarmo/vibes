@@ -73,6 +73,7 @@ class _ACPState:
         self.cancel_event: asyncio.Event | None = None
         self.session_id = None
         self.chat_conversations = {}
+        self.load_session_supported = False
         self.chat_id = 'default'
         self.request_id = 0
         self.pending_requests = {}  # request_id -> asyncio.Future
@@ -130,6 +131,7 @@ async def _interrupt_inflight_request() -> bool:
     await stop_agent()
     _state.session_id = None
     _state.chat_conversations = {}
+    _state.load_session_supported = False
     _state.chat_id = 'default'
     return await _wait_for_request_slot(5.0)
 
@@ -144,6 +146,7 @@ def reset_state() -> None:
     _state.cancel_event = None
     _state.session_id = None
     _state.chat_conversations = {}
+    _state.load_session_supported = False
     _state.chat_id = 'default'
     _state.request_id = 0
     _state.pending_requests = {}
@@ -950,12 +953,21 @@ async def select_chat_session(chat_id: str):
         return await _select_chat_session_locked(chat_id)
 
 
-async def _select_chat_session_locked(chat_id):
+async def _select_chat_session_locked(chat_id, persisted_id=None):
     """Caller owns request_lock through selection and subsequent prompt."""
     await _ensure_agent()
     if _state.session_id:
         _state.chat_conversations[_state.chat_id] = _state.session_id
     conversation = _state.chat_conversations.get(chat_id)
+    if conversation is None and persisted_id:
+        if not _state.load_session_supported:
+            raise RuntimeError('ACP provider cannot resume the saved conversation')
+        await _send_request('session/load', {
+            'sessionId': persisted_id, 'cwd': str(Path.cwd()),
+            'mcpServers': _messages_mcp_servers(chat_id),
+        })
+        conversation = persisted_id
+        _state.chat_conversations[chat_id] = conversation
     if conversation is None:
         result = await _send_request('session/new', {
             'cwd': str(Path.cwd()), 'mcpServers': _messages_mcp_servers(chat_id),
@@ -990,6 +1002,7 @@ async def _ensure_agent():
         _state.agent_writer = None
         _state.session_id = None
         _state.chat_conversations = {}
+        _state.load_session_supported = False
         _state.chat_id = 'default'
         
         config = get_config()
@@ -1036,6 +1049,7 @@ async def _ensure_agent():
                 "version": "0.1.0"
             }
         })
+        _state.load_session_supported = result.get("agentCapabilities", {}).get("loadSession") is True
         logger.info(f"Agent initialized: {result}")
         
         # Create a new session
@@ -1108,7 +1122,7 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
             return f"[Error: {e}]"
 
 
-async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None) -> dict:
+async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None, session_store=None) -> dict:
     """Send a message to the agent and return multimodal response.
     
     Returns a dict with:
@@ -1131,7 +1145,14 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
         _state.cancel_event = asyncio.Event()
         try:
             if chat_id is not None or _state.chat_id != 'default':
-                await _select_chat_session_locked(chat_id or 'default')
+                if session_store is not None:
+                    backend = 'acp:' + get_config().acp_agent
+                    binding = await session_store.backend_binding(chat_id or 'default', backend)
+                    conversation = await _select_chat_session_locked(chat_id or 'default',
+                        persisted_id=binding['conversation_id'] if binding else None)
+                    await session_store.bind_backend(chat_id or 'default', backend, conversation)
+                else:
+                    await _select_chat_session_locked(chat_id or 'default')
             else:
                 await _ensure_agent()
             
@@ -1278,6 +1299,7 @@ async def stop_agent():
         _state.agent_writer = None
         _state.session_id = None
         _state.chat_conversations = {}
+        _state.load_session_supported = False
         _state.chat_id = 'default'
 
 
