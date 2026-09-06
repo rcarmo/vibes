@@ -1526,3 +1526,14 @@ that throw on property access before load/save helpers run. Eighteen frontend
 unit tests and build/lint pass, including SecurityError-style getter rejection.
 This protects the pin feature; it is not a claim that every legacy app storage
 access has been audited.
+
+### Deployed session-popup reference captured
+
+Isolated classic.test fixture now renders two synthetic chats through deployed
+2.15.3 assets and opens session-switcher. Desktop capture at
+/workspace/tmp/piclaw-classic-session-desktop.png attached to chat; no page errors,
+only missing favicon. Reference shows search close control, Current/Other Sessions
+sections, inline current/active pills, and New branch/New root/Rename current
+footer actions. Synthetic fields do not establish backend lifecycle equivalence.
+Python has per-row lifecycle actions and a single New session action; these are
+remaining explicit interaction deviations, not approved screenshot equivalence.
