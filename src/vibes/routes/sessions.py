@@ -5,6 +5,23 @@ from ..sessions import SessionStore
 from .sse import broadcast_event
 
 
+def valid_text(value):
+    return isinstance(value, str) and bool(value.strip()) and len(value) <= 512 and not any(ord(char) < 32 or ord(char) == 127 for char in value)
+
+
+def sanitize_model(item):
+    if not isinstance(item, dict) or not all(valid_text(item.get(key)) for key in ('id', 'provider')):
+        return None
+    model = {key: item[key] for key in ('id', 'provider')}
+    if valid_text(item.get('name')):
+        model['name'] = item['name']
+    if type(item.get('reasoning')) is bool:
+        model['reasoning'] = item['reasoning']
+    if type(item.get('contextWindow')) is int and 0 < item['contextWindow'] <= 1_000_000_000:
+        model['contextWindow'] = item['contextWindow']
+    return model
+
+
 async def list_sessions(request):
     include = request.query.get('include_archived', 'false')
     if include not in {'true', 'false'}:
@@ -30,9 +47,9 @@ async def session_model_state(request):
         state = response.get('data', {})
         model = state.get('model')
         # Exclude provider URLs and credentials from raw model configuration.
-        model = {key: model[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in model} if isinstance(model, dict) else None
+        model = sanitize_model(model)
         thinking = state.get('thinkingLevel')
-        if not isinstance(thinking, str) or not thinking.strip() or len(thinking) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in thinking):
+        if not valid_text(thinking):
             thinking = None
         compacting = state.get('isCompacting')
         return web.json_response({'session_id': session_id, 'available': True,
@@ -55,21 +72,12 @@ async def session_model_catalog(request):
         catalog = await inspect_model_catalog(session_id)
         if not catalog:
             return web.json_response(unavailable)
-        def valid_text(value):
-            return isinstance(value, str) and bool(value.strip()) and len(value) <= 512 and not any(ord(char) < 32 or ord(char) == 127 for char in value)
         models = []
         raw_models = catalog.get('models', [])
         for item in (raw_models[:500] if isinstance(raw_models, list) else []):
-            if not isinstance(item, dict) or not all(valid_text(item.get(key)) for key in ('id', 'provider')):
-                continue
-            model = {key: item[key] for key in ('id', 'provider')}
-            if valid_text(item.get('name')):
-                model['name'] = item['name']
-            if type(item.get('reasoning')) is bool:
-                model['reasoning'] = item['reasoning']
-            if type(item.get('contextWindow')) is int and 0 < item['contextWindow'] <= 1_000_000_000:
-                model['contextWindow'] = item['contextWindow']
-            models.append(model)
+            model = sanitize_model(item)
+            if model is not None:
+                models.append(model)
         raw_levels = catalog.get('thinking_levels', [])
         levels = list(dict.fromkeys(level for level in (raw_levels[:16] if isinstance(raw_levels, list) else []) if valid_text(level)))
         return web.json_response({'available': True, 'models': models, 'thinking_levels': levels})
@@ -95,18 +103,19 @@ async def change_session_model(request):
             raise RuntimeError('Unable to confirm model change')
         state = response.get('data', {})
         model = state.get('model')
-        model = {key: model[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in model} if isinstance(model, dict) else None
+        model = sanitize_model(model)
     except (ValueError, TypeError) as exc:
         return web.json_response({'error': str(exc)}, status=400)
     except RuntimeError as exc:
         return web.json_response({'error': str(exc)}, status=409)
+    thinking = state.get('thinkingLevel') if valid_text(state.get('thinkingLevel')) else None
     session_file = state.get('sessionFile')
     if isinstance(session_file, str) and session_file:
         label = '/'.join(str(model[key]) for key in ('provider', 'id') if model and model.get(key)) or None
         await store.bind_backend(session_id, 'pi', session_file,
-            model=label, thinking_level=state.get('thinkingLevel'))
+            model=label, thinking_level=thinking)
     result = {'session_id': session_id, 'available': True, 'model': model,
-              'thinking_level': state.get('thinkingLevel')}
+              'thinking_level': thinking}
     await broadcast_event('session_model_changed', result)
     return web.json_response(result)
 

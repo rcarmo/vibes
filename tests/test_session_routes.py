@@ -282,3 +282,19 @@ async def test_model_state_rejects_malformed_thinking_and_compaction(db, aiohttp
     result = await (await client.get('/sessions/default/model-state')).json()
     assert result['thinking_level'] is None
     assert result['compacting'] is None
+
+
+@pytest.mark.asyncio
+async def test_model_mutation_filters_malformed_response_metadata(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(pi, 'change_chat_model', AsyncMock(return_value={'success': True, 'data': {
+        'model': {'id': 'm', 'provider': 'p', 'name': {'private': True}, 'reasoning': 'true', 'contextWindow': -1},
+        'thinkingLevel': {'private': True},
+    }}))
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.post('/sessions/default/model', json={'provider': 'p', 'model_id': 'm'})).json()
+    assert result['model'] == {'id': 'm', 'provider': 'p'}
+    assert result['thinking_level'] is None

@@ -1425,3 +1425,11 @@ Added Chromium/WebKit test with a 220-character model ID at 390px. Existing styl
 already keep choice geometry and scroll width within bounds; no CSS change was
 needed. Two tests pass. This is targeted overflow acceptance, not full deployed
 model picker screenshot equivalence.
+
+### Shared model response sanitization
+
+Catalog, state and mutation responses now share model identity/optional metadata
+validation. Mutation thinking values are sanitized before response/broadcast and
+binding persistence. 489 backend tests pass, including malformed mutation model
+metadata and nested thinking value rejection. Provider URLs/credentials and
+invalid optional types remain excluded consistently across response paths.
