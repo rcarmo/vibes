@@ -2003,3 +2003,10 @@ Terminal header uses deployed 12px/16-viewBox popout and close SVG paths/strokes
 decorative icons are aria-hidden. Added deployed header reattach action using
 existing transfer handler, retaining body recovery control. 28 headed terminal
 tests and build/lint pass. Full dock screenshot comparison remains open.
+
+### Header reattach transport acceptance
+
+Existing real-shell popout handoff test now returns through Reattach terminal
+header control and verifies preserved environment state plus closed popup.
+Body Reattach here remains covered by closed-popup recovery test. Four headed
+Chromium/WebKit tests pass across both paths; no transport implementation change.

@@ -33,7 +33,7 @@ test('terminal executes and hands the same shell to a popout', async ({ page }) 
     await popup.locator('.xterm-helper-textarea').pressSequentially("printf 'state-%s\\n' \"$PARITY_TOKEN\"");
     await popup.locator('.xterm-helper-textarea').press('Enter');
     await expect(popup.getByTestId('terminal-output')).toContainText('state-preserved');
-    await page.getByRole('button', { name: 'Reattach here' }).click();
+    await page.getByRole('button', { name: 'Reattach terminal', exact: true }).click();
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     await page.locator('.xterm-helper-textarea').pressSequentially("printf 'return-%s\\n' \"$PARITY_TOKEN\"");
     await page.locator('.xterm-helper-textarea').press('Enter');
