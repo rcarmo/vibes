@@ -452,3 +452,10 @@ non-default session IDs instead of silently sending them into default context.
 Invalid IDs and cross-session thread references are rejected before persistence
 or scheduling. 433 tests pass. This is a safety guard, not session dispatch
 completion; replacing it requires end-to-end routing/queue/backend isolation.
+
+### Default-conversation restoration
+
+Legacy simple/multimodal calls now explicitly restore the cached default ACP
+conversation after another chat was selected, under the prompt lock. This avoids
+implicit last-selected context reuse before session-aware route rollout. Tests
+exercise both call paths; 435 backend tests pass. Routing/picker remain pending.

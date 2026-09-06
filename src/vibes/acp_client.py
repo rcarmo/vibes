@@ -1060,7 +1060,10 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
     # Only one request at a time to avoid read conflicts
     async with _state.request_lock:
         try:
-            await _ensure_agent()
+            if _state.chat_id != 'default':
+                await _select_chat_session_locked('default')
+            else:
+                await _ensure_agent()
             
             if not _state.session_id:
                 return "[Error: No active session]"
@@ -1127,8 +1130,8 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
     async with _state.request_lock:
         _state.cancel_event = asyncio.Event()
         try:
-            if chat_id is not None:
-                await _select_chat_session_locked(chat_id)
+            if chat_id is not None or _state.chat_id != 'default':
+                await _select_chat_session_locked(chat_id or 'default')
             else:
                 await _ensure_agent()
             

@@ -704,3 +704,25 @@ async def test_multimodal_selection_and_prompt_share_request_lock():
     assert response['text'] == 'response'
     assert not state.request_lock.locked()
     acp_client.reset_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('multimodal', [False, True])
+async def test_legacy_prompt_restores_default_conversation(multimodal):
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    state.chat_id = 'other'
+    state.session_id = 'other-conversation'
+    state.chat_conversations = {'default': 'default-conversation', 'other': 'other-conversation'}
+    async def send(method, params, **kwargs):
+        assert method == 'session/prompt'
+        assert params['sessionId'] == 'default-conversation'
+        return {'_collected_text': 'ok', '_collected_content': []}
+    with patch.object(acp_client, '_ensure_agent', AsyncMock()), \
+         patch.object(acp_client, '_send_request', AsyncMock(side_effect=send)):
+        if multimodal:
+            await acp_client.send_message_multimodal('hello')
+        else:
+            await acp_client.send_message_simple('hello')
+    assert state.chat_id == 'default'
+    acp_client.reset_state()
