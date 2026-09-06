@@ -1382,10 +1382,12 @@ mark	line	col
         </div>
         ${S&&et`<div role="alert">${S}</div>`}
         ${m&&et`<div class="dock-panel-body dock-panel-body-detached">
-            <div class="editor-empty-state pane-detached-state">
-                <h3>Terminal detached</h3>
-                <p>The terminal is open in another window.</p>
-                <button type="button" class="editor-empty-action" disabled=${j} onClick=${ze}>Reattach here</button>
+            <div class="editor-empty-state">
+                <h3 class="editor-empty-state-title">Terminal detached</h3>
+                <div class="editor-empty-state-body">The terminal is open in another window.</div>
+                <div class="editor-empty-state-actions">
+                    <button type="button" class="editor-empty-state-button" disabled=${j} onClick=${ze}>Reattach here</button>
+                </div>
             </div>
         </div>`}
         <div ref=${l} class="dock-panel-body" style=${m?"display:none":""}></div>
@@ -2090,4 +2092,4 @@ ${a}
         </div>
     `}p4t(et`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=9F30EE68F83A953E64756E2164756E21
+//# debugId=6883FEF42FA0E0F664756E2164756E21

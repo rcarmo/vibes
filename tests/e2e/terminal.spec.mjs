@@ -29,6 +29,7 @@ test('terminal executes and hands the same shell to a popout', async ({ page }) 
     const popup = await popupPromise;
     await expect(popup.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
     await expect(page.getByRole('heading', { name: 'Terminal detached' })).toBeVisible();
+    await expect(page.locator('.dock-panel-body-detached > .editor-empty-state > .editor-empty-state-actions > .editor-empty-state-button')).toBeVisible();
     await expect(popup.locator('.xterm')).toBeVisible();
     await popup.locator('.xterm-helper-textarea').pressSequentially("printf 'state-%s\\n' \"$PARITY_TOKEN\"");
     await popup.locator('.xterm-helper-textarea').press('Enter');
@@ -237,7 +238,7 @@ test('simultaneous header and body reattach issue one handoff', async ({ page })
     });
     await page.evaluate(() => {
         document.querySelector('[aria-label="Reattach terminal"]').click();
-        document.querySelector('.editor-empty-action').click();
+        document.querySelector('.editor-empty-state-button').click();
     });
     await expect.poll(() => calls).toBe(1);
     await expect(page.getByRole('button', { name: 'Reattach terminal', exact: true })).toBeDisabled();

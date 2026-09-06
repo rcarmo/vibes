@@ -2098,3 +2098,13 @@ Matched detached explanatory text. Kept decorative aria-hidden attributes,
 explicit reattach button type, transfer disabling, and accessible heading as
 intentional local safeguards; detached wrapper class alignment remains open.
 Build/lint and all 38 headed terminal tests pass across Chromium/WebKit.
+
+### Detached terminal card markup and styling
+
+Replaced unmatched detached wrapper/action classes with deployed editor-empty-state
+body/actions/button structure and copied its editor.css card styles. Kept h3 title
+semantics (zero margin), explicit button type and disabled-state feedback as
+accessibility/concurrency deviations. Added DOM hierarchy assertion to live-shell
+handoff test; concurrent-control test now targets the deployed button class.
+Build/lint and 38 headed Chromium/WebKit terminal tests pass. Standalone splitter
+placement and whole-host visual acceptance remain open.

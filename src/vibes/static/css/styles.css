@@ -3598,3 +3598,59 @@ body {
 .compose-agent-capabilities summary { cursor: pointer; }
 .compose-agent-capabilities p { margin: 4px 0; }
 .compose-agent-capabilities ul { margin: 4px 0; padding-left: 20px; }
+.editor-pane-detached-host,
+.dock-panel-body-detached {
+    position: relative;
+    background: var(--bg-primary);
+}
+
+.editor-empty-state {
+    margin: auto;
+    max-width: 360px;
+    padding: 20px;
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    box-shadow: var(--shadow-sm);
+}
+
+.editor-empty-state-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.editor-empty-state-body {
+    font-size: 13px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+.editor-empty-state-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.editor-empty-state-button {
+    appearance: none;
+    border: 1px solid var(--border-color);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.editor-empty-state-button:hover,
+.editor-empty-state-button:focus-visible {
+    border-color: var(--accent-color);
+    background: color-mix(in srgb, var(--accent-color) 10%, var(--bg-primary));
+    outline: none;
+
+/* Preserve heading semantics without browser heading margins. */
+.editor-empty-state-title { margin: 0; }
+.editor-empty-state-button:disabled { cursor: default; opacity: 0.6; }

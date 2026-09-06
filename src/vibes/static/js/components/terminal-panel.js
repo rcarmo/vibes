@@ -131,10 +131,12 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
         </div>
         ${transferError && html`<div role="alert">${transferError}</div>`}
         ${detached && html`<div class="dock-panel-body dock-panel-body-detached">
-            <div class="editor-empty-state pane-detached-state">
-                <h3>Terminal detached</h3>
-                <p>The terminal is open in another window.</p>
-                <button type="button" class="editor-empty-action" disabled=${transferring} onClick=${reattach}>Reattach here</button>
+            <div class="editor-empty-state">
+                <h3 class="editor-empty-state-title">Terminal detached</h3>
+                <div class="editor-empty-state-body">The terminal is open in another window.</div>
+                <div class="editor-empty-state-actions">
+                    <button type="button" class="editor-empty-state-button" disabled=${transferring} onClick=${reattach}>Reattach here</button>
+                </div>
             </div>
         </div>`}
         <div ref=${host} class="dock-panel-body" style=${detached ? 'display:none' : ''}></div>
