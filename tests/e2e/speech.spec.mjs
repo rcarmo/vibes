@@ -117,3 +117,19 @@ test('releasing Space during permission wait stops delayed recognition start', a
     await expect(page.locator('.compose-speech-status')).toHaveCount(0);
     expect(await page.evaluate(() => window.recognition.stopped)).toBe(true);
 });
+
+test('hidden page aborts speech and invalidates delayed transcript', async ({ page }) => {
+    await page.goto('/');
+    const input = page.locator('.compose-input-main textarea');
+    await input.fill('Keep draft');
+    await page.getByRole('button', { name: 'Start speech input' }).click();
+    await page.evaluate(() => {
+        const late = window.recognition.onresult;
+        Object.defineProperty(document, 'hidden', { configurable: true, value: true });
+        document.dispatchEvent(new Event('visibilitychange'));
+        late({ results: [[{ transcript: 'background speech' }]] });
+    });
+    expect(await page.evaluate(() => window.recognition.aborted)).toBe(true);
+    await expect(input).toHaveValue('Keep draft');
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+});

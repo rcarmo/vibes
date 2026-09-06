@@ -210,16 +210,19 @@ export function ComposeBox({
     useEffect(() => {
         cancelSpeech();
         const blur = () => cancelSpeech();
+        const visibility = () => { if (document.hidden) cancelSpeech(); };
         const keyup = event => {
             if (speechHeld.current && (event.key === ' ' || event.code === 'Space')) {
                 event.preventDefault(); speechHeld.current = false; speechRef.current?.stop();
             }
         };
         window.addEventListener('blur', blur);
+        document.addEventListener('visibilitychange', visibility);
         window.addEventListener('keyup', keyup);
         return () => {
             speechRef.current?.dispose(); speechRef.current = null; speechHeld.current = false;
             window.removeEventListener('blur', blur); window.removeEventListener('keyup', keyup);
+            document.removeEventListener('visibilitychange', visibility);
         };
     }, [sessionId, searchMode]);
     const [mentionRange, setMentionRange] = useState(null);

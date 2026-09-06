@@ -1252,3 +1252,11 @@ that reject stop before permission/start completes. 16 frontend unit tests,
 14 headed Chromium/WebKit mocked speech tests and build/lint pass, including
 Space release during pending permission. Live browser microphone service remains
 unverified and separate from deterministic controller acceptance.
+
+### Speech background-page cleanup
+
+visibilitychange to hidden now aborts recognition and invalidates callbacks, in
+addition to existing blur/session/unmount cleanup. Listener is removed on cleanup.
+Sixteen headed Chromium/WebKit mocked-speech tests and build/lint pass, including
+synthetic hidden-page event followed by a retained late transcript callback.
+Physical mobile backgrounding/live speech service acceptance remains separate.
