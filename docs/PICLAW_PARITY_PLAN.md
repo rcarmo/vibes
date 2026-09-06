@@ -1277,3 +1277,13 @@ failed inspection clear it; no history-based activity inference. Six headed
 Chromium/WebKit context/compaction tests and build/lint pass. Indicator follows
 existing 15-second idle inspection polling; prompt-lock periods may make live
 state unavailable, so this is not continuous compaction telemetry.
+
+### Integrated unified-model/ACP/speech/context checkpoint
+
+At 88a69b1: 484 Python tests, 16 frontend unit tests, build/lint and 162/162
+headed Chromium/WebKit tests pass with one worker. Build leaves clean working
+tree. Includes default scoped model controls, catalog validation, archived
+inspection gating, ACP declaration API/lifecycle, pending/background speech
+cleanup, context gauge/compaction and terminal shortcut. No retries/skips added.
+External-agent/live-service acceptance and final deployed visual comparisons
+remain open; this checkpoint is not overall completion.
