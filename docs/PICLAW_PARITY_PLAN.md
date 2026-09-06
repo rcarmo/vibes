@@ -1033,3 +1033,13 @@ operation description and backend-error feedback are explicit. Confirmed deletio
 is not repeated while retrying refresh/switch follow-up. Twelve headed Chromium/
 WebKit picker tests and build/lint pass, including cancellation/focus return,
 backend rejection and successful deletion. Visual parity remains separate.
+
+### Session composer/switcher functional acceptance
+
+At b9bb01c, 34 headed Chromium/WebKit picker/switching tests, two persisted-draft
+browser tests and 14 frontend unit tests pass. Covers scoped drafts/send identity,
+late search rejection, queue/status/model/context scope, registry refresh,
+archive/restore, create/rename/delete dialogs and keyboard action separation.
+The session composer/switcher functional checklist item is complete. Full deployed
+picker grouping/metrics/dialog visual equivalence remains a separate open item;
+this does not claim external provider availability or live-agent acceptance.
