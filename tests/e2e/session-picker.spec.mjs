@@ -401,3 +401,19 @@ test('missing runtime state is unavailable rather than idle', async ({ page }) =
     await expect(row.locator('.compose-session-status-pill.unavailable')).toHaveText('Status unavailable');
     await expect(row.locator('.compose-session-status-pill.idle, .compose-session-status-pill.active')).toHaveCount(0);
 });
+
+test('mobile picker footer actions remain within popup bounds', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    const popup = page.getByTestId('session-popup');
+    const bounds = await popup.boundingBox();
+    for (const name of ['New branch', 'New root…', 'Rename current…']) {
+        const action = popup.getByRole('button', { name, exact: true });
+        await expect(action).toBeVisible();
+        const box = await action.boundingBox();
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+        expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
+    }
+});

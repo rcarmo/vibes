@@ -1617,3 +1617,10 @@ blur/hidden/unmount cleanup, accessible active state and mobile status bounds ar
 implemented and locally verified. Functional speech implementation is complete.
 Exact deployed visual comparison and real microphone/browser-vendor service
 acceptance are still unverified and remain explicit separate checklist work.
+
+### Mobile footer action bounds
+
+Verified New branch, New root and Rename current footer controls remain visible
+and inside mobile popup horizontally and vertically at 390x844 in Chromium and
+WebKit (two tests pass). Existing styles suffice; no CSS workaround added. This
+checks the complete footer after recent additions, not full pixel equivalence.
