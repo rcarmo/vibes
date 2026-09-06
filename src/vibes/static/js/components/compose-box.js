@@ -543,6 +543,7 @@ export function ComposeBox({
     };
 
     const modelPickerKeys = event => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Enter' && event.altKey && !event.ctrlKey && !event.metaKey) {
             const choice = event.target?.closest?.('[data-model-label]');
             if (choice) {

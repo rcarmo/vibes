@@ -2214,3 +2214,11 @@ not a claim of exact deployed mobile equivalence or user approval. New unavailab
 state Chromium/WebKit tests verify full widths, vertical separation and visible
 composer. Both pass after correcting a nonexistent textarea selector in the test;
 no production behavior changed. Reference screenshot is in workspace tmp.
+
+### Model picker composition guard
+
+Model popup keyboard commands now ignore IME composition/keyCode 229 before
+navigation, pin shortcuts or dismissal. Browser regression dispatches composing
+ArrowDown/Escape and checks search retains focus, then verifies normal navigation
+and dismissal. Build/lint and all 88 headed Chromium/WebKit session-switching tests
+pass. Model visual matching and live execution acceptance remain open.

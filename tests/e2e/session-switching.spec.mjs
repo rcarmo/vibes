@@ -248,6 +248,11 @@ test('model picker keyboard navigation focuses choices and Escape restores trigg
     const search = page.getByRole('searchbox', { name: 'Search models' });
     await expect(search).toBeFocused();
     await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    await search.evaluate(node => {
+        node.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, isComposing: true }));
+        node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, isComposing: true }));
+    });
+    await expect(search).toBeFocused();
     await search.press('ArrowDown');
     await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeFocused();
     await page.keyboard.press('ArrowDown');
