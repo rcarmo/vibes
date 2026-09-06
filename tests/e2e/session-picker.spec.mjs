@@ -216,3 +216,28 @@ test('Alt Enter pins highlighted session without selecting and ignores archived 
     expect(await page.evaluate(() => window.pinActions)).toHaveLength(1);
     await expect(fixture.getByRole('button', { name: 'Pin session' })).toBeDisabled();
 });
+
+test('picker renders group precedence and announces empty search', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'groups-fixture'; document.body.append(root);
+        render(html`<${SessionPicker} currentId="current" sessions=${[
+            { id: 'parent', name: 'Parent' },
+            { id: 'current', name: 'Current', parent_id: 'parent', pinned: true },
+            { id: 'pin', name: 'Pinned', pinned: true, is_running: true },
+            { id: 'run', name: 'Running', is_running: true },
+            { id: 'other', name: 'Other', last_message_at: '2099-01-01T00:00:00Z' },
+            { id: 'closed', name: 'Closed', archived: true, pinned: true },
+        ]} />`, root);
+    });
+    const fixture = page.locator('#groups-fixture');
+    await expect(fixture.locator('.compose-session-section-heading')).toHaveText(['Current', 'Pinned', 'Active', 'Tree', 'Other', 'Archived']);
+    for (const [group, id] of [['Current', 'current'], ['Pinned', 'pin'], ['Active', 'run'], ['Tree', 'parent'], ['Other', 'other'], ['Archived', 'closed']]) {
+        await expect(fixture.getByRole('group', { name: group, exact: true }).locator('#session-option-' + id)).toBeVisible();
+    }
+    await fixture.getByRole('combobox').fill('no-such-session');
+    await expect(fixture.getByRole('status')).toHaveText('No matching sessions');
+    await expect(fixture.getByRole('group')).toHaveCount(0);
+});

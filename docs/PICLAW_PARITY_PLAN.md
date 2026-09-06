@@ -1088,3 +1088,12 @@ selecting it; repeats and archived targets are ignored. Pin control advertises
 shortcut, disables unavailable/archived actions, and shows filled/outline star
 for pinned/unpinned state. Twenty headed Chromium/WebKit picker tests and build/
 lint pass. Full screenshot equivalence remains unverified.
+
+### Grouped picker browser acceptance
+
+Empty search now announces No matching sessions. Browser fixture verifies all six
+groups and precedence (current over pinned; pinned over running; archived over
+pinned), and verifies future history timestamps do not imply active runtime.
+22 headed Chromium/WebKit picker tests and build/lint pass. Grouping/search/
+lifecycle behavior is covered locally; final deployed screenshot comparison
+and unsupported runtime metrics remain explicit open acceptance work.

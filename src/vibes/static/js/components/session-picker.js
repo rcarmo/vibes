@@ -39,6 +39,7 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
     return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
         <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
         ${error && html`<div role="alert">${error}</div>`}
+        ${matches.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching sessions</div>`}
         <div ref=${results} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
                 <div class="compose-session-section-heading">${group.label}</div>
