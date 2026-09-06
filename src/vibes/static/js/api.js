@@ -50,6 +50,7 @@ export async function searchPosts(query, limit = 50, offset = 0, filters = {}) {
     if (filters.images) params.set('has_images', 'true');
     if (filters.attachments) params.set('has_attachments', 'true');
     if (filters.threadId) params.set('thread_id', String(filters.threadId));
+    if (filters.sessionId) params.set('session_id', filters.sessionId);
     return request(`/search?${params}`);
 }
 

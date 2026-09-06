@@ -155,6 +155,12 @@ async def search(request: web.Request) -> web.Response:
     except ValueError:
         return web.json_response({'error': 'Invalid search filters'}, status=400)
     filters = {}
+    session_id = request.query.get('session_id')
+    if session_id is not None:
+        from ..sessions import SessionStore
+        if not await SessionStore(db).get(session_id):
+            return web.json_response({'error': 'Session not found'}, status=404)
+        filters['session_id'] = session_id
     if thread_id is not None:
         filters['thread_id'] = thread_id
     for key in ('has_images', 'has_attachments'):

@@ -411,3 +411,11 @@ records belong to default. Call arguments cannot change scope. 427 backend tests
 pass, including cross-session message and attachment rejection. Existing ACP
 injection is still explicit workspace-wide until runtime session selection is
 implemented; no claim that this addition alone isolates current ACP processes.
+
+### Session search boundary
+
+Search now accepts validated session_id and intersects it with optional thread
+and media filters. Legacy messages remain default. Frontend API helper forwards
+session IDs for forthcoming picker scope controls. 428 backend tests pass,
+including cross-session/thread intersection; frontend build/lint pass. Scope
+selector remains pending runtime/session UI integration.
