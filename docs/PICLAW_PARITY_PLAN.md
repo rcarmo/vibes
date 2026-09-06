@@ -1024,3 +1024,12 @@ so a later UI failure does not intentionally issue another create. Ten headed
 Chromium/WebKit picker tests and build/lint pass, including rejected POST/retry.
 Delete confirmation and final visual comparison remain open; network-uncertain
 POST outcomes are not claimed exactly-once.
+
+### In-page session deletion confirmation
+
+Replaced browser confirm with alertdialog using shared dialog classes. Initial
+focus is Cancel; Escape/backdrop cancel, focus loop, busy guard, irreversible
+operation description and backend-error feedback are explicit. Confirmed deletion
+is not repeated while retrying refresh/switch follow-up. Twelve headed Chromium/
+WebKit picker tests and build/lint pass, including cancellation/focus return,
+backend rejection and successful deletion. Visual parity remains separate.

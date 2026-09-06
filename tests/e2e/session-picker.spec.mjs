@@ -123,3 +123,31 @@ test('create dialog preserves input on server error then creates selected sessio
     await expect(dialog).toHaveCount(0);
     await expect(page.getByTestId('session-switcher')).toContainText('Created in dialog');
 });
+
+test('delete dialog defaults to cancel and retains backend rejection', async ({ page }) => {
+    await page.goto('/');
+    const response = await page.request.post('/sessions', { data: { name: 'Delete candidate' } });
+    const id = (await response.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    const action = page.getByRole('button', { name: 'Delete Delete candidate', exact: true });
+    await action.click();
+    const dialog = page.getByRole('alertdialog', { name: 'Delete session' });
+    await expect(dialog.getByRole('button', { name: 'Cancel', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await expect(action).toBeFocused();
+    let reject = true;
+    await page.route(`**/sessions/${id}`, route => {
+        if (route.request().method() === 'DELETE' && reject) {
+            reject = false;
+            return route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"Session now has children"}' });
+        }
+        return route.continue();
+    });
+    await action.click();
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Session now has children');
+    await dialog.getByRole('button', { name: 'Delete', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.locator('#session-option-' + id)).toHaveCount(0);
+});

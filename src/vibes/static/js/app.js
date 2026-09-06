@@ -1,3 +1,4 @@
+import { SessionDeleteDialog } from './components/session-delete-dialog.js';
 import { SessionNameDialog } from './components/session-name-dialog.js';
 import { SessionPicker } from './components/session-picker.js';
 import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue, getSessionModelState } from './api.js';
@@ -693,6 +694,8 @@ function App() {
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const [renamingSession, setRenamingSession] = useState(null);
+    const [deletingSession, setDeletingSession] = useState(null);
+    const deletedSessionRef = useRef(false);
     const [creatingSession, setCreatingSession] = useState(false);
     const createdSessionRef = useRef(null);
     const refreshSessions = async () => {
@@ -2486,7 +2489,7 @@ function App() {
                     onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
                     onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
                     onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
-                    onDelete=${async id => { if (!confirm('Delete empty session?')) return; await deleteSession(id); if (id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
+                    onDelete=${id => { deletedSessionRef.current = false; setDeletingSession(sessionOptions.find(item => item.id === id)); }} />`}
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
                     onPost=${() => { loadPosts(); scrollToBottom(); }}
                     onFocus=${scrollToBottom}
@@ -2519,6 +2522,7 @@ function App() {
                 />
                 ${renamingSession && html`<${SessionNameDialog} key=${renamingSession.id} name=${renamingSession.name} onClose=${() => setRenamingSession(null)} onSave=${async name => { await updateSession(renamingSession.id, { name }); await refreshSessions(); }} />`}
             ${creatingSession && html`<${SessionNameDialog} creating=${true} onClose=${() => setCreatingSession(false)} onSave=${async name => { if (!createdSessionRef.current) { const result = await createSession(name); createdSessionRef.current = result.session.id; } await refreshSessions(); await selectSession(createdSessionRef.current); }} />`}
+            ${deletingSession && html`<${SessionDeleteDialog} key=${deletingSession.id} name=${deletingSession.name} onClose=${() => setDeletingSession(null)} onDelete=${async () => { if (!deletedSessionRef.current) { await deleteSession(deletingSession.id); deletedSessionRef.current = true; } if (deletingSession.id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
             <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
             </div>`}
