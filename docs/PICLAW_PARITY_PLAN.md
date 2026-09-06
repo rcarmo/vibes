@@ -1785,3 +1785,12 @@ invalid writes preserve previous values. Reconnect persistence verified. 504
 backend tests pass (existing migration assertion updated from v6 to v7). No API/UI
 wiring yet; browser-local pins remain current UI source until migration is designed.
 Preferences store no credentials and confer no model availability.
+
+### Instance model-pin preferences API
+
+GET/PUT /model-preferences expose bounded persisted pins with scope=instance and
+no-store responses. PUT accepts exactly pins, validates before write and emits
+model_preferences_changed. No runtime mutation occurs. 505 backend tests pass,
+including deduplication, malformed/oversized writes preserving prior values and
+no Pi mutation. Uses existing local deployment trust boundary, not per-user auth;
+UI remains browser-local until explicit migration/integration.

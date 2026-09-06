@@ -313,3 +313,23 @@ async def test_invalid_model_mutation_text_never_reaches_pi(db, aiohttp_client, 
     response = await client.post('/sessions/default/model', json=values)
     assert response.status == 400
     change.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_model_preferences_api_is_bounded_and_does_not_mutate_runtime(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    change = AsyncMock()
+    monkeypatch.setattr(pi, 'change_chat_model', change)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    response = await client.get('/model-preferences')
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert await response.json() == {'pins': [], 'scope': 'instance'}
+    response = await client.put('/model-preferences', json={'pins': ['p/m', 'p/m']})
+    assert await response.json() == {'pins': ['p/m'], 'scope': 'instance'}
+    for payload in ({'pins': ['invalid']}, {'pins': [], 'secret': 'no'}, {}, [], {'pins': ['p/m'] * 101}):
+        assert (await client.put('/model-preferences', json=payload)).status == 400
+    assert (await (await client.get('/model-preferences')).json())['pins'] == ['p/m']
+    change.assert_not_awaited()

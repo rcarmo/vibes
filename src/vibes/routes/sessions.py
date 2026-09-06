@@ -155,7 +155,26 @@ async def mutate_session(request):
     return web.json_response(result, status=201 if request.method == 'POST' else 200)
 
 
+async def model_preferences(request):
+    from ..model_preferences import ModelPreferences
+    store = ModelPreferences(await get_db())
+    if request.method == 'GET':
+        result = await store.get()
+    else:
+        try:
+            data = await request.json()
+            if not isinstance(data, dict) or set(data) != {'pins'}:
+                raise ValueError('Expected only pins')
+            result = await store.set_pins(data['pins'])
+        except (ValueError, TypeError) as exc:
+            return web.json_response({'error': str(exc)}, status=400)
+        await broadcast_event('model_preferences_changed', result)
+    return web.json_response({**result, 'scope': 'instance'}, headers={'Cache-Control': 'no-store'})
+
+
 def setup_routes(app):
+    app.router.add_get('/model-preferences', model_preferences)
+    app.router.add_put('/model-preferences', model_preferences)
     app.router.add_get('/sessions', list_sessions)
     app.router.add_get('/sessions/{id}/timeline', session_timeline)
     app.router.add_get('/sessions/{id}/model-state', session_model_state)
