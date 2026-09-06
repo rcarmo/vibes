@@ -2455,3 +2455,11 @@ unpinning remains allowed through API. Regression verifies rejected mixed-field
 updates leave name/archive/pin state unchanged. Full backend check: 510 passed;
 after naming-only readability cleanup, session-store tests also pass. Browser UI
 unchanged. This closes an API/UI lifecycle-policy mismatch, not visual acceptance.
+
+### Archived pin HTTP acceptance
+
+Route-level regression verifies archived pin attempts return HTTP 400 with the
+restore instruction, mixed rename/pin requests preserve persisted state, rejected
+mutations emit no sessions_changed broadcast, and combined restore-and-pin returns
+200 with exactly one successful broadcast. Full backend check: 511 tests pass.
+This supplements store transaction tests with the actual HTTP request boundary.

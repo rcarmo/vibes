@@ -365,3 +365,31 @@ async def test_model_catalog_deduplicates_provider_identity_preserving_first(db,
     client = await aiohttp_client(app)
     result = await (await client.get('/sessions/default/models')).json()
     assert result['models'] == [{'provider': 'p', 'id': 'm', 'name': 'First'}, {'provider': 'other', 'id': 'm'}]
+
+
+@pytest.mark.asyncio
+async def test_archived_pin_api_rejection_is_atomic_and_not_broadcast(db, aiohttp_client, monkeypatch):
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    broadcast = AsyncMock()
+    monkeypatch.setattr(routes, 'broadcast_event', broadcast)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    response = await client.post('/sessions', json={'name': 'Archived'})
+    key = (await response.json())['session']['id']
+    path = '/sessions/' + key
+    assert (await client.patch(path, json={'archived': True})).status == 200
+    broadcast.reset_mock()
+    rejected = await client.patch(path, json={'pinned': True, 'name': 'Rejected rename'})
+    assert rejected.status == 400
+    assert (await rejected.json())['error'] == 'Restore session before pinning'
+    broadcast.assert_not_awaited()
+    listing = await (await client.get('/sessions?include_archived=true')).json()
+    session = next(row for row in listing['sessions'] if row['id'] == key)
+    assert session['name'] == 'Archived'
+    assert session['archived'] and not session['pinned']
+    restored = await client.patch(path, json={'archived': False, 'pinned': True})
+    assert restored.status == 200
+    session = (await restored.json())['session']
+    assert session['pinned'] and not session['archived']
+    broadcast.assert_awaited_once_with('sessions_changed', {})
