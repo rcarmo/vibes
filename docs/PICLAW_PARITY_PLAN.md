@@ -918,3 +918,13 @@ verify transcript updates, denied permission, key release and blur; 14 frontend
 unit tests and build/lint pass. Live speech-service acceptance, pointer-hold
 behavior and final mobile/markup comparison remain pending. Browser recognition
 may use a remote browser-vendor service; this is not local audio transcription.
+
+### Speech pointer hold interaction
+
+Touch/pen primary-pointer hold starts speech only in an empty composer, matching
+deployed eligibility. Release stops, cancellation/lost capture aborts, and the
+compatibility click is suppressed without disabling keyboard activation or the
+next pointer gesture. Mouse remains click-toggle. Eight headed Chromium/WebKit
+speech tests pass; pointer tests dispatch synthetic events (capture is stubbed),
+not physical touch/microphone acceptance. Build/lint pass. Native pointer capture,
+mobile visual comparison and live recognition remain unverified.

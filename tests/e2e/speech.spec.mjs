@@ -39,3 +39,33 @@ test('Space push-to-talk stops on release and blur aborts recognition', async ({
     await expect(page.locator('.compose-speech-status')).toHaveCount(0);
     expect(await page.evaluate(() => window.recognition.aborted)).toBe(true);
 });
+
+test('touch hold releases without restarting from compatibility click', async ({ page }) => {
+    await page.goto('/');
+    const button = page.locator('.compose-mic-btn');
+    // Synthetic pointer events cannot own capture; exercise handlers without capture.
+    await button.evaluate(el => { el.setPointerCapture = () => {}; });
+    await button.dispatchEvent('pointerdown', { pointerType: 'touch', pointerId: 7, isPrimary: true, button: 0 });
+    await expect(page.locator('.compose-speech-status')).toContainText('Listening');
+    await button.dispatchEvent('pointerup', { pointerType: 'touch', pointerId: 7, isPrimary: true, button: 0 });
+    await button.dispatchEvent('click', { detail: 1 });
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+    expect(await page.evaluate(() => window.recognition.stopped)).toBe(true);
+    await button.dispatchEvent('click', { detail: 0 });
+    await expect(page.locator('.compose-speech-status')).toContainText('Listening');
+});
+
+test('touch cancellation aborts and unsupported browsers hide speech', async ({ page }) => {
+    await page.goto('/');
+    const button = page.locator('.compose-mic-btn');
+    await button.evaluate(el => { el.setPointerCapture = () => {}; });
+    await button.dispatchEvent('pointerdown', { pointerType: 'pen', pointerId: 9, isPrimary: true, button: 0 });
+    await expect(page.locator('.compose-speech-status')).toContainText('Listening');
+    await button.dispatchEvent('pointercancel', { pointerType: 'pen', pointerId: 9 });
+    expect(await page.evaluate(() => window.recognition.aborted)).toBe(true);
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+    await page.addInitScript(() => { window.SpeechRecognition = undefined; window.webkitSpeechRecognition = undefined; });
+    await page.reload();
+    await expect(page.locator('.compose-input-main textarea')).toBeVisible();
+    await expect(button).toHaveCount(0);
+});

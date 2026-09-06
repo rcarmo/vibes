@@ -168,11 +168,14 @@ export function ComposeBox({
     const [speechState, setSpeechState] = useState({ kind: 'idle', detail: '' });
     const speechRef = useRef(null);
     const speechHeld = useRef(false);
+    const speechPointer = useRef(null);
+    const suppressSpeechClick = useRef(false);
     const speechAvailable = !!speechInputConstructor();
     const speechActive = ['requesting_permission', 'listening'].includes(speechState.kind);
     const cancelSpeech = () => {
         speechRef.current?.dispose(); speechRef.current = null;
         speechHeld.current = false;
+        speechPointer.current = null;
         setSpeechState({ kind: 'idle', detail: '' });
     };
     const startSpeech = () => {
@@ -187,6 +190,22 @@ export function ComposeBox({
             },
         });
         speechRef.current = controller; controller.start();
+    };
+    const handleSpeechPointerDown = event => {
+        suppressSpeechClick.current = false;
+        if (event.pointerType === 'mouse' || event.button !== 0 || !event.isPrimary) return;
+        if (!shouldStartSpeechPushToTalk({ key: ' ' }, content, { searchMode, available: speechAvailable && !loading, active: !!speechRef.current })) return;
+        event.preventDefault();
+        speechPointer.current = event.pointerId;
+        suppressSpeechClick.current = true;
+        event.currentTarget.setPointerCapture?.(event.pointerId);
+        startSpeech();
+    };
+    const releaseSpeechPointer = event => {
+        if (speechPointer.current !== event.pointerId) return;
+        speechPointer.current = null;
+        if (event.type === 'pointercancel' || event.type === 'lostpointercapture') cancelSpeech();
+        else speechRef.current?.stop();
     };
     useEffect(() => {
         cancelSpeech();
@@ -1010,7 +1029,11 @@ export function ComposeBox({
                             </svg>
                         </button>
                     `}
-                    ${speechAvailable && !searchMode && html`<button type="button" class=${`compose-icon-btn compose-mic-btn${speechActive ? ' active' : ''}`} title="Speech input (hold Space in an empty composer to talk)" aria-label=${speechActive ? 'Stop speech input' : 'Start speech input'} aria-pressed=${speechActive} disabled=${loading} onClick=${() => speechActive ? speechRef.current?.stop() : startSpeech()}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
+                    ${speechAvailable && !searchMode && html`<button type="button" class=${`compose-icon-btn compose-mic-btn${speechActive ? ' active' : ''}`} title="Speech input (hold Space in an empty composer to talk)" aria-label=${speechActive ? 'Stop speech input' : 'Start speech input'} aria-pressed=${speechActive} disabled=${loading} onPointerDown=${handleSpeechPointerDown} onPointerUp=${releaseSpeechPointer} onPointerCancel=${releaseSpeechPointer} onLostPointerCapture=${releaseSpeechPointer} onClick=${event => {
+                        if (suppressSpeechClick.current && event.detail !== 0) { suppressSpeechClick.current = false; return; }
+                        suppressSpeechClick.current = false;
+                        if (speechActive) speechRef.current?.stop(); else startSpeech();
+                    }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
                     ${notificationsAvailable && !searchMode && html`
                         <button
                             class=${`icon-btn notification-btn${notificationActive ? ' active' : ''}`}
