@@ -295,7 +295,7 @@ ${K.map((Rt,kt)=>{let Wn=Pl[kt]?.name||`image-${kt+1}`;return`- attachment:${Rt}
                         </div>
                     `}
                     ${T0&&!l&&Je`
-                        <div class="compose-model-popup" ref=${Vu} onKeyDown=${p4}>
+                        <div class="compose-model-popup compose-model-catalogue" ref=${Vu} onKeyDown=${p4}>
                             <div class="compose-model-catalogue-header">
                                 <div class="compose-session-popup-header"><label class="compose-model-catalogue-search-label" for="compose-model-search">Search models</label><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${()=>{Ou(!1),requestAnimationFrame(()=>Hu.current?.focus())}}>×</button></div>
                                 <div class="compose-model-catalogue-search-row">
@@ -2115,4 +2115,4 @@ ${a}
         </div>
     `}p4t(Je`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=D48E76A3516E83D764756E2164756E21
+//# debugId=4AA6DDA620E6065964756E2164756E21

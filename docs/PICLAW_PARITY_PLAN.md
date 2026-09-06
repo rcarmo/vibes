@@ -2312,3 +2312,14 @@ convenience; summary honestly distinguishes refreshing and unavailable catalogue
 Build/lint and all 96 headed Chromium/WebKit model/session tests pass, including
 viewport captures and search clear/focus behavior. Whole catalogue sizing/rows and
 Models-settings footer are not yet fully migrated.
+
+### Catalogue sizing and scroll region
+
+Applied deployed 680px/viewport-limited catalogue width and 70vh/620px maximum
+height, with flexible scrolling results bounded to 48vh/430px. Local max-width:100%
+keeps it inside composer and non-results controls do not shrink. Eight initial
+capture/keyboard cases passed. Full suite produced 92 passes plus four new test
+failures from checking a button inside closed details; corrected test opens pin
+preferences first. Four desktop/mobile cases then passed, verifying Next model
+and revealed Load control stay in viewport. No automatic test retries used.
+Expanded settings still local inline details rather than deployed settings page.

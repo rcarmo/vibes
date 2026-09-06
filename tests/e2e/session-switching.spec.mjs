@@ -790,6 +790,10 @@ for (const width of [1280, 390]) {
         await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
         await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
+        await expect(page.getByRole('button', { name: 'Next model', exact: true })).toBeInViewport();
+        await page.getByText('Instance pin preferences', { exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Load instance pins', exact: true })).toBeInViewport();
+        await page.getByText('Instance pin preferences', { exact: true }).click();
         await expect(page.getByRole('group', { name: 'Current', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/alpha');
         await expect(page.getByRole('group', { name: 'Other models', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/beta');
         const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('combobox', { name: 'Search models' }) });

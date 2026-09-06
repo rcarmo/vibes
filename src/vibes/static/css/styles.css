@@ -3745,3 +3745,19 @@ body {
     color: var(--text-secondary);
     font-size: 11px;
 }
+.compose-model-popup.compose-model-catalogue {
+    width:min(680px, calc(100vw - 24px));
+    max-width:100%;
+    max-height:min(70vh, 620px);
+    padding:0;
+    gap:0;
+    overflow:hidden;
+}
+.compose-model-catalogue .compose-model-catalogue-results {
+    flex:1 1 auto;
+    max-height:min(48vh, 430px);
+    min-height:110px;
+    border:0;
+    border-radius:0;
+}
+.compose-model-catalogue > :not(.compose-model-catalogue-results) { flex-shrink:0; }

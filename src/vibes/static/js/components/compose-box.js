@@ -1072,7 +1072,7 @@ export function ComposeBox({
                         </div>
                     `}
                     ${showModelPopup && !searchMode && html`
-                        <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
+                        <div class="compose-model-popup compose-model-catalogue" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
                             <div class="compose-model-catalogue-header">
                                 <div class="compose-session-popup-header"><label class="compose-model-catalogue-search-label" for="compose-model-search">Search models</label><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
                                 <div class="compose-model-catalogue-search-row">
