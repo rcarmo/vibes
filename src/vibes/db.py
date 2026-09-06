@@ -464,6 +464,26 @@ class Database:
         return True
 
     # Media methods
+    async def cleanup_abandoned_uploads(self, *, age_days: int = 7) -> int:
+        """Delete only marked, old uploads that no stored message references."""
+        if type(age_days) is not int or age_days < 7:
+            raise ValueError('Upload retention must be at least seven days')
+        async with self.transaction():
+            cursor = await self._connection.execute('''
+                DELETE FROM media
+                WHERE json_extract(metadata, '$.source') = 'composer-upload'
+                  AND created_at < datetime('now', ?)
+                  AND NOT EXISTS (
+                    SELECT 1 FROM interactions i, json_each(i.data, '$.media_ids') ref
+                    WHERE ref.value = media.id
+                  )
+                  AND NOT EXISTS (
+                    SELECT 1 FROM interactions i
+                    WHERE instr(json_extract(i.data, '$.content'), 'attachment:' || media.id) > 0
+                  )
+            ''', (f'-{age_days} days',))
+            return cursor.rowcount
+
     async def create_media(
         self,
         filename: str,

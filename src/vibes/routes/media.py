@@ -63,7 +63,7 @@ async def upload_media(request: web.Request) -> web.Response:
     thumbnail = generate_thumbnail(data, content_type)
     
     # Extract metadata
-    metadata = {"size": len(data)}
+    metadata = {"size": len(data), "source": "composer-upload"}
     if content_type.startswith("image/"):
         try:
             img = Image.open(io.BytesIO(data))

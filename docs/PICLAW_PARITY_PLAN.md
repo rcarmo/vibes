@@ -266,3 +266,13 @@ message, workspace file and upload pills with existing state handlers. Removed
 three duplicate markup blocks. Six headed Chromium/WebKit attachment tests and
 frontend build/lint pass. Server-side abandoned upload cleanup and broader agent
 binary handling remain open; this is markup reuse, not a claim of full parity.
+
+### Abandoned upload retention
+
+New upload records carry source=composer-upload. Startup cleanup removes only
+marked uploads older than seven days, with neither structured media_ids nor
+textual attachment:N references in stored messages. Untagged historic media and
+recent uploads are never swept. Conservative substring matching may retain
+extra uploads; avoiding reference deletion is preferred. Tests cover referenced,
+text-referenced, recent, legacy and orphan records plus idempotence. 414 backend
+tests pass. Cleanup runs on startup, not a new background scheduler.

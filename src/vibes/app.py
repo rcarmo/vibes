@@ -71,6 +71,10 @@ async def on_startup(app: web.Application) -> None:
     config = get_config()
     await init_db(config.db_path)
     logger.info(f"Database initialized at {config.db_path}")
+    # Conservative retention: only explicitly marked unreferenced uploads.
+    removed_uploads = await (await get_db()).cleanup_abandoned_uploads()
+    if removed_uploads:
+        logger.info("Removed %s expired abandoned uploads", removed_uploads)
     
     await start_task_queue(num_workers=3)
     logger.info("Background task queue started")
