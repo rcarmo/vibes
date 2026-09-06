@@ -2585,3 +2585,15 @@ then releasing the older response. Six targeted headed Chromium/WebKit cases,
 19 frontend tests/85 assertions and build/lint pass. Fixture dismissal was corrected
 to use the explicit Close button (trigger is covered by popup; immediate Escape
 was focus-dependent in WebKit). This does not establish an intermittent-picker fix.
+
+### Post-SSE integrated checkpoint (28c8a48)
+
+All checks pass without retries: 511 backend tests, 19 frontend tests/85 assertions,
+build/lint, and 294 headed Chromium/WebKit browser tests (one worker, 5.8m,
+retain-on-failure tracing). Logs: /workspace/tmp/sse-integrated-{backend,frontend,
+build,browser}.log. Includes the model subscription, real local session-list push
+refresh and deterministic stale-list response regression. No existing failure
+artifacts were removed. Passing this run does not identify or fix the previously
+intermittent picker-opening failures, approve visual equivalence, or satisfy
+third-party ACP, persistent runtime isolation, attachment consumption or speech
+service acceptance.
