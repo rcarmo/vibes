@@ -24,17 +24,17 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
             act(() => onSelect?.(matches[index].id));
         }
     };
-    return html`<div class="model-popup session-popup" data-testid="session-popup" onKeyDown=${keys}>
-        <div class="session-popup-search-wrap"><input ref=${search} class="session-popup-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
+    return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
+        <div class="compose-session-popup-header"><input ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
         ${error && html`<div role="alert">${error}</div>`}
-        <div class="session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[index] ? `session-option-${matches[index].id}` : undefined}>
+        <div class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[index] ? `session-option-${matches[index].id}` : undefined}>
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
-                <div class="session-popup-group-title">${group.label}</div>
-                ${group.items.map(item => html`<div key=${item.id} class=${`session-option-row${item.id === currentId ? ' active' : ''}${matches[index]?.id === item.id ? ' keyboard-active' : ''}`}>
-                <button type="button" class=${`session-pin-toggle${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>☆</button>
-                <button type="button" id=${`session-option-${item.id}`} class="model-option session-option" role="option" aria-selected=${item.id === currentId} onClick=${() => act(() => onSelect?.(item.id))}>
-                    <span class="session-option-main"><span class="model-option-name session-option-name">${item.name}</span><span class="model-option-id">${item.id}</span><span class="session-option-metrics">${item.message_count ?? 0} messages</span></span>
-                    <span class=${`session-option-state ${item.archived ? 'closed' : item.is_running ? 'running' : 'idle'}`}>${item.archived ? 'Archived' : item.is_running ? 'Running' : 'Idle'}</span>
+                <div class="compose-session-section-heading">${group.label}</div>
+                ${group.items.map(item => html`<div key=${item.id} class=${`compose-model-option-row${item.id === currentId ? ' active' : ''}${matches[index]?.id === item.id ? ' keyboard-active' : ''}`}>
+                <button type="button" class=${`compose-model-pin-toggle${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>☆</button>
+                <button type="button" id=${`session-option-${item.id}`} class="compose-model-option compose-model-option-session" role="option" aria-selected=${item.id === currentId} onClick=${() => act(() => onSelect?.(item.id))}>
+                    <span class="compose-session-row-content"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${item.id}</span><span class="compose-session-row-meta">${item.message_count ?? 0} messages</span></span>
+                    <span class=${`compose-session-status-pill ${item.archived ? 'closed' : item.is_running ? 'active' : 'idle'}`}>${item.archived ? 'Archived' : item.is_running ? 'Running' : 'Idle'}</span>
                 </button>
                 <button type="button" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
                 ${item.id !== 'default' && onArchive && html`<button type="button" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}

@@ -698,3 +698,11 @@ thread ownership; history timestamps do not drive it. Picker renders running/
 idle/archived badges and can populate Active group. 456 backend tests plus two
 picker browser tests pass; build/lint pass. Refresh is currently on picker open
 or registry mutation; live status refresh and queued lifecycle remain pending.
+
+### Corrected deployed picker CSS/classes
+
+Re-extracted the installed source map directly and aligned picker to actual
+compose-session/compose-model class names (earlier temporary reference had older
+unprefixed names). Ported matching deployed CSS. Eight picker/switching browser
+tests and build/lint pass. Action buttons/native dialogs and complete row markup
+still differ; do not claim pixel-identical parity from class alignment alone.
