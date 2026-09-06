@@ -1504,3 +1504,10 @@ or mutate active model. Pins are bounded to 100 browser-local identities, malfor
 storage is ignored and failed writes disclosed. 17 frontend unit tests, 26 headed
 model tests and build/lint pass. Server-synced preferences/settings and full visual
 comparison remain open; pin persistence is explicitly browser-local.
+
+### Model pin browser acceptance
+
+Chromium/WebKit verify pin action makes no model mutation, survives page reload,
+and does not render a stored favorite absent from the refreshed backend catalog.
+Two targeted browser tests pass. Browser-local preference remains distinct from
+server-synced settings and runtime model availability.

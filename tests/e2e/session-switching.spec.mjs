@@ -435,3 +435,26 @@ test('long model identities remain within mobile picker bounds', async ({ page }
     expect(box.x + box.width).toBeLessThanOrEqual(391);
     expect(await choice.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
 });
+
+test('model pins persist without mutation and never expose unavailable choices', async ({ page }) => {
+    let includePinned = true;
+    let mutations = 0;
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: [{ provider: 'test', id: 'current' }, ...(includePinned ? [{ provider: 'test', id: 'favorite' }] : [])] }) }));
+    await page.route('**/sessions/default/model', route => { mutations++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await trigger.click();
+    await page.getByRole('button', { name: 'Pin model test/favorite', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Pinned', exact: true }).getByRole('menuitem', { name: 'test/favorite', exact: true })).toBeVisible();
+    expect(mutations).toBe(0);
+    await page.reload();
+    await trigger.click();
+    await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    includePinned = false;
+    await page.reload();
+    await trigger.click();
+    await expect(page.getByRole('menuitem', { name: 'test/current', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'test/favorite', exact: true })).toHaveCount(0);
+    expect(mutations).toBe(0);
+});
