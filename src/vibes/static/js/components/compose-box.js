@@ -266,6 +266,7 @@ export function ComposeBox({
     const [modelOptions, setModelOptions] = useState([]);
     const [sessionCatalog, setSessionCatalog] = useState(null);
     const [loadingModels, setLoadingModels] = useState(false);
+    const [modelCatalogError, setModelCatalogError] = useState('');
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
@@ -793,9 +794,14 @@ export function ComposeBox({
 
     useEffect(() => {
         if (!showModelPopup) return;
+        let disposed = false;
         setLoadingModels(true);
+        setModelOptions([]);
+        setSessionCatalog(null);
+        setModelCatalogError('');
         (sessionId === 'default' ? getAgentModels() : getSessionModels(sessionId))
             .then((payload) => {
+                if (disposed) return;
                 if (sessionId !== 'default') {
                     setSessionCatalog(payload);
                     setModelOptions(payload.available ? payload.models.map(item => `${item.provider}/${item.id}`) : []);
@@ -808,11 +814,14 @@ export function ComposeBox({
                 emitModelState(payload);
             })
             .catch((error) => {
+                if (disposed) return;
                 console.warn('Failed to load model list:', error);
+                setModelCatalogError(error.message || 'Unable to load models');
                 setModelOptions([]);
             })
-            .finally(() => setLoadingModels(false));
-    }, [showModelPopup, activeModel]);
+            .finally(() => { if (!disposed) setLoadingModels(false); });
+        return () => { disposed = true; };
+    }, [showModelPopup, activeModel, sessionId]);
 
     useEffect(() => {
         if (searchMode) setShowModelPopup(false);
@@ -968,7 +977,8 @@ export function ComposeBox({
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>
                                 `}
-                                ${!loadingModels && modelOptions.length === 0 && html`
+                                ${modelCatalogError && html`<div role="alert" class="compose-model-popup-empty">${modelCatalogError}</div>`}
+                            ${!loadingModels && !modelCatalogError && modelOptions.length === 0 && html`
                                     <div class="compose-model-popup-empty">No models available.</div>
                                 `}
                                 ${!loadingModels && modelOptions.map((modelLabel) => html`

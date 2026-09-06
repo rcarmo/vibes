@@ -181,3 +181,31 @@ test('nondefault thinking cycle uses supported scoped levels', async ({ page }) 
     await expect.poll(() => payload?.thinking_level).toBe('low');
     expect(path).toBe(`/sessions/${id}/model`);
 });
+
+test('model catalog errors are visible and closing discards late responses', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"old"}}' }));
+    let release;
+    let calls = 0;
+    await page.route('**/sessions/*/models', async route => {
+        calls++;
+        if (calls === 1) {
+            await new Promise(resolve => { release = resolve; });
+            await route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"stale"}]}' });
+        } else {
+            await route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"Catalog unavailable"}' });
+        }
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Catalog race' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    const toggle = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await toggle.click();
+    await expect.poll(() => !!release).toBe(true);
+    await toggle.click();
+    await toggle.click();
+    await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('Catalog unavailable');
+    release();
+    await expect(page.getByRole('menuitem', { name: 'test/stale', exact: true })).toHaveCount(0);
+});

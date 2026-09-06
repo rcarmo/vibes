@@ -1097,3 +1097,12 @@ pinned), and verifies future history timestamps do not imply active runtime.
 22 headed Chromium/WebKit picker tests and build/lint pass. Grouping/search/
 lifecycle behavior is covered locally; final deployed screenshot comparison
 and unsupported runtime metrics remain explicit open acceptance work.
+
+### Model catalog lifecycle isolation
+
+Model popup clears old choices/catalog at load, keys fetching to session identity,
+and discards completion/error/finally callbacks after close or dependency change.
+Catalog failures render an explicit alert rather than silently looking empty.
+Ten headed Chromium/WebKit model/thinking tests and build/lint pass, including
+close/reopen with delayed stale response and visible newer failure. Default
+command-path consolidation and complete picker markup remain open.
