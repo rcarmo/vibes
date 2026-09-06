@@ -752,3 +752,11 @@ steers using persisted thread ownership. Scoped busy flags no longer reflect
 another chat's backend lock. 459 tests pass, including other-chat turn exclusion.
 Frontend polling still needs to supply selected ID and handle response races;
 unscoped endpoint remains compatible for existing callers.
+
+### Selected-session status polling
+
+Status API client now passes selected session on reconnect, active polling and
+immediate selection. Late responses from prior selections are ignored; in-flight
+turn state can restore on switch. Twelve switching browser tests and build/lint
+pass. Context/model information remains separately guarded pending scoped backend
+inspection; this is status-turn scoping, not full model/context parity.

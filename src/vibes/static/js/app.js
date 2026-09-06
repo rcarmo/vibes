@@ -813,6 +813,20 @@ function App() {
         const timer = setInterval(refresh, 3000);
         return () => { disposed = true; clearInterval(timer); };
     }, [selectedSession]);
+    useEffect(() => {
+        let disposed = false;
+        getAgentStatus(selectedSession).then(status => {
+            if (disposed || selectedSessionRef.current !== selectedSession) return;
+            const turns = status.active_turns || [];
+            if (turns.length) {
+                const turn = turns[turns.length - 1];
+                setActiveTurn(turn.turn_id);
+                isAgentRunningRef.current = true;
+                setAgentStatus({ ...(turn.last_status || { type: 'thinking', title: 'Thinking...' }), turn_id: turn.turn_id, thread_id: turn.thread_id });
+            }
+        }).catch(error => console.warn('Session status refresh failed:', error));
+        return () => { disposed = true; };
+    }, [selectedSession]);
     const syncQueueState = useCallback((statusData) => {
         if (!statusData) return;
         refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
@@ -1479,8 +1493,9 @@ function App() {
             hasConnectedOnceRef.current = true;
         }
         // On every (re)connect, poll agent status to restore in-flight state
-        getAgentStatus().then((statusData) => {
-            if (!statusData) return;
+        const statusSession = selectedSessionRef.current;
+        getAgentStatus(statusSession).then((statusData) => {
+            if (!statusData || statusSession !== selectedSessionRef.current) return;
             syncQueueState(statusData);
             const turns = statusData.active_turns || [];
             if (turns.length > 0) {
@@ -2127,8 +2142,9 @@ function App() {
             if (isAgentActive) {
                 // Poll server to verify agent is still active and update status
                 try {
-                    const statusData = await getAgentStatus();
-                    if (selectedSessionRef.current !== 'default') return;
+                    const statusSession = selectedSessionRef.current;
+                    const statusData = await getAgentStatus(statusSession);
+                    if (selectedSessionRef.current !== statusSession) return;
                     if (!statusData) return;
                     syncQueueState(statusData);
                     const turns = statusData.active_turns || [];

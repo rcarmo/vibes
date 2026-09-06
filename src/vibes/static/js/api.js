@@ -139,8 +139,8 @@ export async function getAgentContext() {
 /**
  * Get current agent busy state and active turns (for polling on SSE reconnect).
  */
-export async function getAgentStatus() {
-    return request('/agents/status');
+export async function getAgentStatus(sessionId = 'default') {
+    return request(`/agents/status?session_id=${encodeURIComponent(sessionId)}`);
 }
 
 export async function getAgentQueue(agentId = null, threadId = null, sessionId = null) {

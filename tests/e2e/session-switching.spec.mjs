@@ -86,3 +86,18 @@ test('selected chat loads only its scoped queue endpoint', async ({ page }) => {
     await page.locator('#session-option-default').click();
     await expect(page.getByText('Selected queue only', { exact: true })).toHaveCount(0);
 });
+
+test('switch requests status for the selected session', async ({ page }) => {
+    const seen = [];
+    await page.route('**/agents/status?*', async route => {
+        seen.push(new URL(route.request().url()).searchParams.get('session_id'));
+        await route.fulfill({ contentType: 'application/json', body: '{"active_turns":[],"busy":false}' });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Scoped status' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect.poll(() => seen.includes(id)).toBe(true);
+    expect(seen).toContain('default');
+});
