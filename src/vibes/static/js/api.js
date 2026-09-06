@@ -551,6 +551,10 @@ export class SSEClient {
             this.onEvent('agent_followup_consumed', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('agent_queue_reordered', (e) => {
+            this.onEvent('agent_queue_reordered', JSON.parse(e.data));
+        });
+
         this.eventSource.addEventListener('agent_followup_removed', (e) => {
             this.onEvent('agent_followup_removed', JSON.parse(e.data));
         });

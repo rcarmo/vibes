@@ -2607,3 +2607,14 @@ older context responses. A delayed-response mounted regression confirms the gaug
 is absent while fresh usage is pending and then exposes the new 50% reading.
 Ten targeted Chromium/WebKit tests, 19 frontend tests and build/lint pass. Synthetic
 model event coverage does not establish real-provider usage reporting.
+
+### Queue reorder transport audit
+
+Event audit found agent_queue_reordered emitted by the backend and handled by the
+app but absent from EventSource subscriptions. Registered it; the existing handler
+refreshes the selected queue rather than applying a foreign session's payload.
+Added a transport regression covering all seven session/queue notifications and
+payload preservation/disconnect cleanup. 20 frontend tests/95 assertions, build/lint
+and four headed queue browser cases pass. An initial title-filter command matched
+no tests; verification used the explicit queue.spec.mjs file instead. These existing
+browser cases cover queue UI behavior; the new subscription itself is unit tested.
