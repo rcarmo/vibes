@@ -593,3 +593,11 @@ delete control is disabled to reflect current server policy. Not mounted in app
 and not browser-accepted yet; this is a scaffold, not delivered switching UI.
 Remaining visual details/grouping and all app state/routing must be completed.
 Frontend build/lint pass; no browser behavior claim for this component yet.
+
+### Picker browser behavior
+
+Standalone picker fixture now verifies search, keyboard selection, Escape and
+Rename-button Enter without accidental session switching in Chromium/WebKit.
+Fixed deferred index reset racing rapid input/ArrowDown, and added stable row
+keys. Build/lint pass. Fixture is not app integration or full markup parity;
+main-shell state changes/grouping and registry actions still need wiring.
