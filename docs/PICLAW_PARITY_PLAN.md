@@ -384,3 +384,12 @@ nonempty history is never silently destroyed. Responses disclose runtime_isolati
 false. 425 backend tests pass, including route create/rename/pin/delete and
 nonempty/default protection. Message routing, isolated agents and picker remain
 pending; the registry endpoint is not an independent runtime session launcher.
+
+### Stored-message session boundary
+
+New interactions record a validated session_id (default when omitted); replies
+inherit their root message's session and conflicting explicit IDs are rejected.
+SessionStore timeline and GET /sessions/{id}/timeline filter by session, treating
+legacy records without IDs as default and providing bounded cursor pagination.
+426 backend tests pass. Existing global routes/runtime still behave as before;
+UI switching and session-specific model contexts are not yet implemented.

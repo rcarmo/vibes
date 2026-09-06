@@ -14,6 +14,24 @@ class SessionStore:
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
+    async def timeline(self, session_id, *, limit=50, before_id=None):
+        if not await self.get(session_id):
+            raise ValueError('Session not found')
+        if type(limit) is not int or not 1 <= limit <= 100:
+            raise ValueError('Invalid limit')
+        if before_id is not None and (type(before_id) is not int or before_id < 1):
+            raise ValueError('Invalid before ID')
+        params = [session_id]
+        where = "COALESCE(json_extract(data, '$.session_id'), 'default')=?"
+        if before_id is not None:
+            where += ' AND id < ?'
+            params.append(before_id)
+        async with self.db._connection.execute('SELECT id,timestamp,data FROM interactions WHERE ' + where + ' ORDER BY id DESC LIMIT ?', (*params, limit + 1)) as cursor:
+            rows = await cursor.fetchall()
+        import json
+        posts = [{'id': row['id'], 'timestamp': row['timestamp'], 'data': json.loads(row['data'])} for row in rows[:limit]]
+        return {'posts': list(reversed(posts)), 'has_more': len(rows) > limit}
+
     async def delete_empty(self, session_id):
         if session_id == 'default':
             raise ValueError('Default session cannot be deleted')

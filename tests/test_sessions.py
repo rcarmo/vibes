@@ -36,3 +36,19 @@ async def test_registry_survives_reopen_without_duplicate_migration(db):
         rows = await cursor.fetchall()
     assert len(rows) == 1
     assert rows[0]['version'] == 5
+
+
+@pytest.mark.asyncio
+async def test_messages_inherit_session_and_timeline_isolates(db):
+    store = SessionStore(db)
+    session = await store.create('Other')
+    root = await db.create_interaction({'type': 'user', 'content': 'root', 'session_id': session['id']})
+    reply = await db.create_interaction({'type': 'agent', 'content': 'reply', 'thread_id': root})
+    default = await db.create_interaction({'type': 'user', 'content': 'default'})
+    assert (await db.get_interaction(reply))['data']['session_id'] == session['id']
+    assert [p['id'] for p in (await store.timeline(session['id']))['posts']] == [root, reply]
+    assert [p['id'] for p in (await store.timeline('default'))['posts']] == [default]
+    with pytest.raises(ValueError):
+        await db.create_interaction({'type': 'agent', 'content': 'wrong', 'thread_id': root, 'session_id': 'default'})
+    with pytest.raises(ValueError):
+        await db.create_interaction({'type': 'user', 'content': 'wrong', 'session_id': 'missing'})

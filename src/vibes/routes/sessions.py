@@ -13,6 +13,17 @@ async def list_sessions(request):
     return web.json_response({'sessions': await store.list(include == 'true'), 'runtime_isolation': False})
 
 
+async def session_timeline(request):
+    try:
+        store = SessionStore(await get_db())
+        result = await store.timeline(request.match_info['id'],
+            limit=int(request.query.get('limit', '50')),
+            before_id=int(request.query['before']) if 'before' in request.query else None)
+        return web.json_response(result)
+    except ValueError as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+
+
 async def mutate_session(request):
     store = SessionStore(await get_db())
     try:
@@ -39,6 +50,7 @@ async def mutate_session(request):
 
 def setup_routes(app):
     app.router.add_get('/sessions', list_sessions)
+    app.router.add_get('/sessions/{id}/timeline', session_timeline)
     app.router.add_post('/sessions', mutate_session)
     app.router.add_patch('/sessions/{id}', mutate_session)
     app.router.add_delete('/sessions/{id}', mutate_session)

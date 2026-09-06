@@ -211,6 +211,19 @@ class Database:
     # Interaction methods
     async def create_interaction(self, data: dict) -> int:
         """Create a new interaction and return its ID."""
+        data = dict(data)
+        session_id = data.get('session_id', 'default')
+        if data.get('thread_id') is not None:
+            parent = await self.get_interaction(data['thread_id'])
+            if parent:
+                parent_session = parent['data'].get('session_id', 'default')
+                if 'session_id' in data and session_id != parent_session:
+                    raise ValueError('Reply session does not match thread')
+                session_id = parent_session
+        async with self._connection.execute('SELECT id FROM chat_sessions WHERE id=?', (session_id,)) as cursor:
+            if not await cursor.fetchone():
+                raise ValueError('Session not found')
+        data['session_id'] = session_id
         async with self.transaction():
             cursor = await self._connection.execute(
                 "INSERT INTO interactions (data) VALUES (?)",
