@@ -1,3 +1,4 @@
+import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
@@ -164,6 +165,44 @@ export function ComposeBox({
 }) {
     const [content, setContent] = useState(() => composeDrafts.load(sessionId).text);
     const [searchText, setSearchText] = useState('');
+    const [speechState, setSpeechState] = useState({ kind: 'idle', detail: '' });
+    const speechRef = useRef(null);
+    const speechHeld = useRef(false);
+    const speechAvailable = !!speechInputConstructor();
+    const speechActive = ['requesting_permission', 'listening'].includes(speechState.kind);
+    const cancelSpeech = () => {
+        speechRef.current?.dispose(); speechRef.current = null;
+        speechHeld.current = false;
+        setSpeechState({ kind: 'idle', detail: '' });
+    };
+    const startSpeech = () => {
+        if (!speechAvailable || searchMode || loading || speechRef.current) return;
+        const controller = createSpeechInput(speechInputConstructor(), {
+            base: content, onText: setContent,
+            onState: (kind, detail = '') => {
+                setSpeechState({ kind, detail });
+                if (kind === 'idle' || kind === 'error') {
+                    speechRef.current?.dispose(); speechRef.current = null;
+                }
+            },
+        });
+        speechRef.current = controller; controller.start();
+    };
+    useEffect(() => {
+        cancelSpeech();
+        const blur = () => cancelSpeech();
+        const keyup = event => {
+            if (speechHeld.current && (event.key === ' ' || event.code === 'Space')) {
+                event.preventDefault(); speechHeld.current = false; speechRef.current?.stop();
+            }
+        };
+        window.addEventListener('blur', blur);
+        window.addEventListener('keyup', keyup);
+        return () => {
+            speechRef.current?.dispose(); speechRef.current = null; speechHeld.current = false;
+            window.removeEventListener('blur', blur); window.removeEventListener('keyup', keyup);
+        };
+    }, [sessionId, searchMode]);
     const [mentionRange, setMentionRange] = useState(null);
     const [mentionSessions, setMentionSessions] = useState([]);
     const [mentionIndex, setMentionIndex] = useState(0);
@@ -444,6 +483,7 @@ export function ComposeBox({
     };
 
     const handleSubmit = async (mode = 'auto') => {
+        cancelSpeech();
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && folderRefs.length === 0 && messageRefs.length === 0) return;
 
         setLoading(true);
@@ -527,6 +567,10 @@ export function ComposeBox({
     };
 
     const handleKeyDown = (e) => {
+        if (shouldStartSpeechPushToTalk(e, content, { searchMode, available: speechAvailable && !loading, active: !!speechRef.current })) {
+            e.preventDefault(); startSpeech(); speechHeld.current = true; return;
+        }
+        if (speechHeld.current && (e.key === ' ' || e.code === 'Space')) { e.preventDefault(); return; }
         if (!searchMode && mentionMatches.length) {
             if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
                 e.preventDefault();
@@ -698,6 +742,7 @@ export function ComposeBox({
     };
 
     const handleInput = (e) => {
+        cancelSpeech();
         const value = e.target.value;
         updateValue(value);
         const range = !searchMode ? sessionMentionQuery(value, e.target.selectionStart) : null;
@@ -809,6 +854,7 @@ export function ComposeBox({
                 onDrop=${handleComposeDrop}
             >
                 <div class="compose-input-main">
+                    ${speechState.kind !== 'idle' && html`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${speechState.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-title">${speechState.kind === 'listening' ? 'Listening…' : speechState.kind === 'requesting_permission' ? 'Requesting microphone permission…' : 'Speech input error'}</span></div>${speechState.detail && html`<div class="compose-inline-status-detail">${speechState.detail}</div>`}</div>`}
                     ${!searchMode && html`
                         <${FollowupQueue}
                             items=${queuedFollowups}
@@ -964,6 +1010,7 @@ export function ComposeBox({
                             </svg>
                         </button>
                     `}
+                    ${speechAvailable && !searchMode && html`<button type="button" class=${`compose-icon-btn compose-mic-btn${speechActive ? ' active' : ''}`} title="Speech input (hold Space in an empty composer to talk)" aria-label=${speechActive ? 'Stop speech input' : 'Start speech input'} aria-pressed=${speechActive} disabled=${loading} onClick=${() => speechActive ? speechRef.current?.stop() : startSpeech()}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
                     ${notificationsAvailable && !searchMode && html`
                         <button
                             class=${`icon-btn notification-btn${notificationActive ? ' active' : ''}`}

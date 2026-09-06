@@ -906,3 +906,15 @@ behavior and rejects modifiers/repeats/search. Four new unit tests (14 total)
 and build/lint pass. Controller is not yet mounted: toolbar/status markup, keyup,
 blur/session/unmount wiring and browser acceptance remain pending. No live
 microphone or speech-service acceptance is claimed.
+
+### Mounted speech input
+
+Composer now mounts capability-gated microphone toggle, deployed mic/status
+classes, accessible permission/listening/error status and empty-composer Space
+push-to-talk. Key release stops; window blur, session/search transitions, manual
+input, submission and unmount invalidate/abort recognition. Unsupported browser
+APIs render no control. Four headed Chromium/WebKit tests with mock recognition
+verify transcript updates, denied permission, key release and blur; 14 frontend
+unit tests and build/lint pass. Live speech-service acceptance, pointer-hold
+behavior and final mobile/markup comparison remain pending. Browser recognition
+may use a remote browser-vendor service; this is not local audio transcription.
