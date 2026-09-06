@@ -6,6 +6,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
     const host = useRef(null);
     const pane = useRef(null);
     const popupRef = useRef(null);
+    const pendingPopup = useRef(null);
     const [detached, setDetached] = useState(false);
     const [transferError, setTransferError] = useState('');
     const transferPending = useRef(false);
@@ -50,13 +51,14 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             url.searchParams.delete('terminal_handoff');
             history.replaceState(null, '', url);
         }
-        return () => { mounted.current = false; dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
+        return () => { mounted.current = false; pendingPopup.current?.close(); pendingPopup.current = null; dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
     }, []);
     const detach = async () => {
         if (transferPending.current) return;
         // Open synchronously for popup blockers, then request one-use handoff.
         const popup = window.open('about:blank', 'vibes-terminal');
         if (!popup) return;
+        pendingPopup.current = popup;
         transferPending.current = true; setTransferring(true);
         try {
             const transfer = await pane.current?.preparePopoutTransfer();
@@ -67,12 +69,13 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             url.searchParams.set('terminal_handoff', transfer.terminal_handoff);
             popup.location.replace(url.href);
             popupRef.current = popup;
+            pendingPopup.current = null;
             pane.current?.dispose();
             pane.current = null;
             setDetached(true);
             setTransferError('');
         } catch { popup.close(); setTransferError('Unable to detach terminal.'); }
-        finally { transferPending.current = false; setTransferring(false); }
+        finally { pendingPopup.current = null; transferPending.current = false; setTransferring(false); }
     };
     const reattach = async () => {
         if (transferPending.current) return;

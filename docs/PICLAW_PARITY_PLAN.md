@@ -2039,3 +2039,11 @@ Strengthened close-during-reattach test to await actual HTTP response completion
 and browser frames before asserting no host/xterm remount and live popup retained.
 Two headed Chromium/WebKit tests pass. Prior immediate assertion could precede
 response processing; new synchronization exercises the intended continuation.
+
+### Pending blank popout cleanup
+
+Host tracks blank window separately while detach handoff is pending and closes it
+on unmount; successfully transferred popup is not closed by host cleanup. Four
+headed handoff/unmount regression tests and build/lint pass. Dedicated blocked-
+detach blank-window test remains unverified; reattach settled-response test remains
+covered. No active detached shell is intentionally terminated by this cleanup.
