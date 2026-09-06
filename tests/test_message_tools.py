@@ -48,3 +48,23 @@ async def test_attachment_references_are_scoped_bounded_and_sanitized(db):
     malformed = await db.create_interaction({'type': 'user', 'content': 'bad metadata', 'media_ids': 'not a list'})
     result = await MessageTools(db._connection, workspace_access=True).query('get', row_ids=[malformed])
     assert result['messages'][0]['attachment_references'] == []
+
+
+@pytest.mark.asyncio
+async def test_attachment_text_and_scope(db):
+    text_id = await db.create_media('text.txt', 'text/plain', b'hello ' * 6000)
+    binary_id = await db.create_media('binary.bin', 'application/octet-stream', b'\x00\xff')
+    secret_id = await db.create_media('text.txt', 'text/plain', b'secret')
+    root = await db.create_interaction({'type': 'user', 'content': 'uploads', 'media_ids': [text_id, binary_id]})
+    await db.create_interaction({'type': 'user', 'content': 'other', 'media_ids': [secret_id]})
+    tools = MessageTools(db._connection, thread_id=root)
+    preview = await tools.query('attachment', media_id=text_id)
+    assert len(preview['text']) == 24000
+    assert preview['truncated']
+    binary = await tools.query('attachment', media_id=binary_id)
+    assert 'text' not in binary
+    assert binary['size'] == 2
+    with pytest.raises(ValueError):
+        await tools.query('attachment', media_id=secret_id)
+    with pytest.raises(ValueError):
+        await tools.query('attachment', media_id=True)

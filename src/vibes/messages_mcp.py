@@ -12,13 +12,14 @@ from vibes._vendor.umcp.aioumcp import AsyncMCPServer
 
 TOOL = {
     'name': 'messages',
-    'description': 'Retrieve message references by row ID or search message text within the configured scope. Read-only, bounded and paginated.',
+    'description': 'Retrieve message references by row ID or search message text within the configured scope. Use action=attachment with media_id to read bounded text previews of uploads referenced in scope. Binary uploads return metadata only. Read-only, bounded and paginated.',
     'inputSchema': {
         'type': 'object', 'additionalProperties': False, 'required': ['action'],
         'properties': {
-            'action': {'type': 'string', 'enum': ['get', 'search']},
+            'action': {'type': 'string', 'enum': ['get', 'search', 'attachment']},
             'row_ids': {'type': 'array', 'minItems': 1, 'maxItems': 50, 'items': {'type': 'integer', 'minimum': 1}},
             'query': {'type': 'string', 'maxLength': 500},
+            'media_id': {'type': 'integer', 'minimum': 1},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50, 'default': 10},
             'before_row': {'type': 'integer', 'minimum': 1},
         },
@@ -39,9 +40,9 @@ class MessagesMCP(AsyncMCPServer):
             description=TOOL['description'], input_schema=TOOL['inputSchema'],
             annotations=TOOL['annotations'])
 
-    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None):
+    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None, media_id=None):
         return await self.tools.query(action, row_ids=row_ids, query=query,
-            limit=limit, before_row=before_row)
+            limit=limit, before_row=before_row, media_id=media_id)
 
     async def handle(self, request):
         return await self.process_request_async(json.dumps(request))

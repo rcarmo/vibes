@@ -248,3 +248,13 @@ positive integers only, capped at 50; unrelated threads remain excluded. Malform
 metadata does not break retrieval. Backend suite: 412 passed. These references
 are not binary attachment contents and do not grant out-of-scope attachment reads;
 content resolution remains an outstanding integration requirement.
+
+### Scoped attachment text resolution
+
+Messages MCP action=attachment accepts media_id. Authorization requires a message
+in the tool's configured scope to reference the upload; guessing an ID alone is
+insufficient. Text/JSON/XML/YAML previews are bounded to 24,000 bytes; binary media
+returns MIME/size plus an unsupported-preview notice, not fabricated text or
+unbounded base64. SQL limits the fetched blob prefix. Backend suite: 413 passed,
+including cross-thread rejection, truncation and binary metadata handling.
+Image/PDF parsing and arbitrary binary delivery to model backends are not implied.
