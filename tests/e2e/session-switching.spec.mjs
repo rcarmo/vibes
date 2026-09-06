@@ -276,3 +276,33 @@ test('Next model cycles scoped catalog without default commands', async ({ page 
     await expect.poll(() => mutation).toEqual({ path: `/sessions/${id}/model`, data: { provider: 'test', model_id: 'beta' } });
     expect(commandCount).toBe(0);
 });
+
+test('late model mutation cannot relabel a newly selected chat', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"own"}}' }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"late"}]}' }));
+    let release;
+    const completed = new Promise(resolve => {
+        page.route('**/sessions/*/model', async route => {
+            await new Promise(done => { release = done; });
+            await route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"late"}}' });
+            resolve();
+        });
+    });
+    await page.goto('/');
+    const first = (await (await page.request.post('/sessions', { data: { name: 'First mutation' } })).json()).session.id;
+    const second = (await (await page.request.post('/sessions', { data: { name: 'Second mutation' } })).json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + first).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'test/late', exact: true }).click();
+    await expect.poll(() => !!release).toBe(true);
+    await page.keyboard.press('Escape');
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + second).click();
+    const label = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(label).toContainText('own');
+    release(); await completed;
+    // Drain browser work after the response, including the old promise continuation.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(label).toContainText('own');
+});

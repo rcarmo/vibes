@@ -343,8 +343,13 @@ export function ComposeBox({
         ? `Thinking: ${thinkingLevel || 'default'}`
         : '';
 
+    const modelCallbacksActive = useRef(true);
+    useEffect(() => {
+        modelCallbacksActive.current = true;
+        return () => { modelCallbacksActive.current = false; };
+    }, []);
     const emitModelState = (payload) => {
-        if (!payload || typeof payload !== 'object') return;
+        if (!modelCallbacksActive.current || !payload || typeof payload !== 'object') return;
         const modelLabel = payload.model ?? payload.current;
         if (typeof onModelStateChange === 'function') {
             onModelStateChange({

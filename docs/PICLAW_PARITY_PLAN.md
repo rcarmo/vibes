@@ -1131,3 +1131,12 @@ disabled while loading/switching or without available choices. Sixteen headed
 Chromium/WebKit model/thinking tests and build/lint pass; new test verifies next
 catalog selection and zero default message commands. Default command-path
 consolidation and full deployed model picker remain open.
+
+### Mutation callback ownership across composer unmount
+
+Model-state callbacks are invalidated on composer unmount, preventing late scoped
+mutation or legacy command results from relabeling the newly selected chat.
+Eighteen headed Chromium/WebKit model/thinking tests and build/lint pass; added
+held mutation response test switches chats before release and retains the new
+chat's own label. Test closes popup with Escape before switching to avoid its
+legitimate pointer overlay. Server mutation itself is not cancelled or rolled back.
