@@ -7,6 +7,8 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
     const [query, setQuery] = useState('');
     const [index, setIndex] = useState(0);
     const [error, setError] = useState('');
+    const [busy, setBusy] = useState(false);
+    const actionPending = useRef(false);
     const search = useRef(null);
     const results = useRef(null);
     const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase())) })).filter(group => group.items.length), [sessions, currentId, query]);
@@ -21,7 +23,14 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
         option?.scrollIntoView({ block: 'nearest' });
     }, [selectedId]);
 
-    const act = async fn => { try { setError(''); await fn?.(); } catch (err) { setError(err.message || 'Session action failed'); } };
+    const act = async fn => {
+        if (actionPending.current) return;
+        actionPending.current = true;
+        setBusy(true);
+        try { setError(''); await fn?.(); }
+        catch (err) { setError(err.message || 'Session action failed'); }
+        finally { actionPending.current = false; setBusy(false); }
+    };
     const keys = event => {
         if (event.key === 'Escape') { event.preventDefault(); onClose?.(); }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -36,8 +45,9 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             act(() => onSelect?.(item.id));
         }
     };
-    return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
+    return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" aria-busy=${busy} onKeyDown=${keys}>
         <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
+        ${busy && html`<div class="compose-model-popup-empty" role="status">Updating session…</div>`}
         ${refreshError && html`<div class="compose-model-popup-empty" role="alert">${refreshError}</div>`}
         ${error && html`<div role="alert">${error}</div>`}
         ${matches.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching sessions</div>`}

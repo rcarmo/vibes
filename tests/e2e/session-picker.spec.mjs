@@ -288,3 +288,29 @@ test('mounted picker Escape restores trigger and outside click preserves target 
     await expect(page.getByTestId('session-popup')).toHaveCount(0);
     await expect(page.locator('#outside-target')).toBeFocused();
 });
+
+test('picker serializes pending actions and recovers after rejection', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'busy-fixture'; document.body.append(root);
+        window.actionCalls = 0;
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Main' }]} onSelect=${() => {
+            window.actionCalls++;
+            return new Promise((resolve, reject) => { window.rejectAction = reject; });
+        }} />`, root);
+    });
+    const fixture = page.locator('#busy-fixture');
+    const search = fixture.getByRole('combobox');
+    await search.press('Enter');
+    await expect(fixture.getByTestId('session-popup')).toHaveAttribute('aria-busy', 'true');
+    await search.press('Enter');
+    expect(await page.evaluate(() => window.actionCalls)).toBe(1);
+    await page.evaluate(() => window.rejectAction(new Error('Try again')));
+    await expect(fixture.getByRole('alert')).toHaveText('Try again');
+    await expect(fixture.getByTestId('session-popup')).toHaveAttribute('aria-busy', 'false');
+    await search.press('Enter');
+    expect(await page.evaluate(() => window.actionCalls)).toBe(2);
+    await page.evaluate(() => window.rejectAction(new Error('Done')));
+});

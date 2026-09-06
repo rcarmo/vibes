@@ -1451,3 +1451,11 @@ Archived/current item classes now activate existing deployed styling; archived
 pill uses the matching archived class. Thirty headed picker tests and build/lint
 pass, including refreshed captures and long-name mobile bounds. No full visual
 equivalence claim; remaining deviations and external acceptance stay open.
+
+### Picker pending-action serialization
+
+Picker gates rapid action invocation with a synchronous pending ref, exposes
+aria-busy and Updating session status, and releases the gate on failure/success.
+32 headed Chromium/WebKit picker tests and build/lint pass, including duplicate
+Enter suppression and retry after rejection. This prevents duplicate concurrent
+UI actions, not exactly-once server execution across network failures/reopens.
