@@ -1174,3 +1174,11 @@ disable cycling consistently. Twenty headed Chromium/WebKit model/thinking tests
 and build/lint pass, including default selection/thinking with zero message
 commands. Explicit user-entered slash commands remain a separate legacy surface;
 ACP capabilities and complete visual picker parity remain open.
+
+### Independent model/thinking catalog capabilities
+
+Pi model choices remain available when optional thinking-level inspection is
+unsupported, returns failure, or times out; thinking choices stay empty rather
+than fabricated. Failed model inspection still fails closed and skips thinking
+RPC. Existing request-lock/context guards remain intact. 476 backend tests pass,
+including five capability fallback cases. Live provider acceptance remains open.

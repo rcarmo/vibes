@@ -286,11 +286,14 @@ async def inspect_model_catalog(chat_id='default'):
         if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
             return None
         models = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
-        levels = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
-        if not models or not models.get('success') or not levels or not levels.get('success'):
+        if not models or not models.get('success'):
             return None
+        try:
+            levels = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
+        except (RuntimeError, asyncio.TimeoutError):
+            levels = None
         return {'models': models.get('data', {}).get('models', []),
-                'thinking_levels': levels.get('data', {}).get('levels', [])}
+                'thinking_levels': levels.get('data', {}).get('levels', []) if levels and levels.get('success') else []}
 
 
 async def inspect_model_state(chat_id='default'):

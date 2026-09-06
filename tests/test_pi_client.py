@@ -273,3 +273,22 @@ async def test_thinking_change_requires_supported_level():
         with pytest.raises(ValueError):
             await pi.change_chat_model('default', thinking_level='high')
         assert rpc.await_count == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('thinking_response', [None, {'success': False}, RuntimeError('unsupported'), asyncio.TimeoutError()])
+async def test_model_catalog_survives_unavailable_thinking_capability(thinking_response):
+    models = [{'provider': 'test', 'id': 'model'}]
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', new_callable=AsyncMock,
+                      side_effect=[{'success': True, 'data': {'models': models}}, thinking_response]):
+        result = await pi.inspect_model_catalog('default')
+    assert result == {'models': models, 'thinking_levels': []}
+
+
+@pytest.mark.asyncio
+async def test_failed_model_catalog_does_not_request_thinking_choices():
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', new_callable=AsyncMock, return_value={'success': False}) as rpc:
+        assert await pi.inspect_model_catalog('default') is None
+        rpc.assert_awaited_once_with({'type': 'get_available_models'}, timeout=2.0)
