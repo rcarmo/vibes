@@ -928,3 +928,11 @@ next pointer gesture. Mouse remains click-toggle. Eight headed Chromium/WebKit
 speech tests pass; pointer tests dispatch synthetic events (capture is stubbed),
 not physical touch/microphone acceptance. Build/lint pass. Native pointer capture,
 mobile visual comparison and live recognition remain unverified.
+
+### Speech session/draft isolation acceptance
+
+Twelve headed Chromium/WebKit mocked-speech tests now pass. Added explicit
+session-switch and manual-edit cases that retain an old callback and invoke it
+after abort: neither can overwrite the new draft. These confirm mounted cleanup,
+not live microphone-service operation. Mobile/native-touch and final visual
+acceptance remain open.

@@ -69,3 +69,33 @@ test('touch cancellation aborts and unsupported browsers hide speech', async ({ 
     await expect(page.locator('.compose-input-main textarea')).toBeVisible();
     await expect(button).toHaveCount(0);
 });
+
+test('session switch aborts speech and late transcripts cannot overwrite the new draft', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Speech isolation' } });
+    const id = (await created.json()).session.id;
+    const input = page.locator('.compose-input-main textarea');
+    await input.fill('Old draft');
+    await page.getByRole('button', { name: 'Start speech input' }).click();
+    await page.evaluate(() => { window.oldRecognition = window.recognition; window.lateResult = window.recognition.onresult; });
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(input).toHaveValue('');
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+    expect(await page.evaluate(() => window.oldRecognition.aborted)).toBe(true);
+    await input.fill('New draft');
+    await page.evaluate(() => window.lateResult({ results: [[{ transcript: 'late old speech' }]] }));
+    await expect(input).toHaveValue('New draft');
+});
+
+test('manual edit aborts recognition and protects edited text from late results', async ({ page }) => {
+    await page.goto('/');
+    const input = page.locator('.compose-input-main textarea');
+    await page.getByRole('button', { name: 'Start speech input' }).click();
+    await page.evaluate(() => { window.lateResult = window.recognition.onresult; });
+    await input.fill('Typed instead');
+    expect(await page.evaluate(() => window.recognition.aborted)).toBe(true);
+    await page.evaluate(() => window.lateResult({ results: [[{ transcript: 'late speech' }]] }));
+    await expect(input).toHaveValue('Typed instead');
+    await expect(page.locator('.compose-speech-status')).toHaveCount(0);
+});
