@@ -3764,3 +3764,18 @@ body {
 .model-settings-dialog { width:min(600px, calc(100vw - 32px)); max-height:80dvh; overflow:auto; box-sizing:border-box; border:1px solid var(--border-color); border-radius:12px; padding:20px; background:var(--bg-primary); color:var(--text-primary); }
 .model-settings-dialog::backdrop { background:rgb(0 0 0 / 45%); }
 .model-settings-dialog p { overflow-wrap:anywhere; }
+.compose-model-catalogue-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    border-top: 1px solid var(--border-color);
+    background: var(--bg-secondary);
+}
+
+.compose-model-catalogue-footer-start {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}

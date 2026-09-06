@@ -351,8 +351,6 @@ ${de.map((Pn,Dr)=>{let be=Pl[Dr]?.name||`image-${Dr+1}`;return`- attachment:${Pn
                                     ${ua.thinking_levels.map((K)=>Je`<option value=${K}>${K}</option>`)}
                                 </select>
                             </label>`}
-                            <button type="button" class="compose-model-popup-btn" disabled=${Wl||yu} onClick=${()=>C0((K)=>K+1)}>Refresh model catalog</button>
-                            <button type="button" class="compose-model-popup-btn" onClick=${()=>{Rm(!0),au.current?.showModal()}}>Open Models settings</button>
                             <dialog key="model-settings" ref=${au} onCancel=${()=>Rm(!1)} onClose=${()=>Rm(!1)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${(K)=>K.stopPropagation()} onClick=${(K)=>K.stopPropagation()}>
                                 <h2>Models settings</h2>
                                 <p>Browser pins: ${xu.length?xu.join(", "):"None"}</p>
@@ -363,7 +361,9 @@ ${de.map((Pn,Dr)=>{let be=Pl[Dr]?.name||`image-${Dr+1}`;return`- attachment:${Pn
                                 ${h4&&Mf&&Je`<div role="status">${Mf}</div>`}
                                 <button type="button" onClick=${()=>{Rm(!1),au.current?.close()}}>Close Models settings</button>
                             </dialog>
-                            <div class="compose-model-popup-actions">
+                            <div class="compose-model-catalogue-footer">
+                                <div class="compose-model-catalogue-footer-start">
+                                <button type="button" class="compose-model-popup-btn" disabled=${Wl||yu} onClick=${()=>C0((K)=>K+1)}>Refresh model catalog</button>
                                 <button
                                     type="button"
                                     class="compose-model-popup-btn"
@@ -372,6 +372,8 @@ ${de.map((Pn,Dr)=>{let be=Pl[Dr]?.name||`image-${Dr+1}`;return`- attachment:${Pn
                                 >
                                     Next model
                                 </button>
+                                </div>
+                                <button type="button" class="compose-model-popup-btn primary" onClick=${()=>{Rm(!0),au.current?.showModal()}}>Open Models settings</button>
                             </div>
                         </div>
                     `}
@@ -2121,4 +2123,4 @@ ${a}
         </div>
     `}p4t(Je`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=0FE7BE5904FD194764756E2164756E21
+//# debugId=47A1F2CE31F1B42F64756E2164756E21

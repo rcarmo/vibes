@@ -1133,8 +1133,6 @@ export function ComposeBox({
                                     ${sessionCatalog.thinking_levels.map(level => html`<option value=${level}>${level}</option>`)}
                                 </select>
                             </label>`}
-                            <button type="button" class="compose-model-popup-btn" disabled=${loadingModels || switchingModel} onClick=${() => setModelRefresh(value => value + 1)}>Refresh model catalog</button>
-                            <button type="button" class="compose-model-popup-btn" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
                             <dialog key="model-settings" ref=${modelSettingsRef} onCancel=${() => setModelSettingsOpen(false)} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
                                 <h2>Models settings</h2>
                                 <p>Browser pins: ${modelPins.length ? modelPins.join(', ') : 'None'}</p>
@@ -1145,7 +1143,9 @@ export function ComposeBox({
                                 ${modelSettingsOpen && pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
                                 <button type="button" onClick=${() => { setModelSettingsOpen(false); modelSettingsRef.current?.close(); }}>Close Models settings</button>
                             </dialog>
-                            <div class="compose-model-popup-actions">
+                            <div class="compose-model-catalogue-footer">
+                                <div class="compose-model-catalogue-footer-start">
+                                <button type="button" class="compose-model-popup-btn" disabled=${loadingModels || switchingModel} onClick=${() => setModelRefresh(value => value + 1)}>Refresh model catalog</button>
                                 <button
                                     type="button"
                                     class="compose-model-popup-btn"
@@ -1154,6 +1154,8 @@ export function ComposeBox({
                                 >
                                     Next model
                                 </button>
+                                </div>
+                                <button type="button" class="compose-model-popup-btn primary" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
                             </div>
                         </div>
                     `}

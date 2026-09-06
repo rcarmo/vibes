@@ -2394,3 +2394,14 @@ mutation. New browser case changes supplied catalogue and verifies stale choice
 removal and unchanged current model. Build/lint plus 12 headed refresh/capture/
 large-catalogue tests pass. Explicit refresh button is a local convenience beyond
 deployed footer; full visual acceptance remains open.
+
+### Catalogue footer structure
+
+Aligned action grouping with deployed 2.15.3 `.compose-model-catalogue-footer`
+and wrapping `.compose-model-catalogue-footer-start`, copying their reference
+spacing, border and background rules. Models settings is the primary action;
+local refresh/next-model controls remain intentional additions. Full model/session
+suite: 104 headed Chromium/WebKit passes, one worker, no retries; build/lint pass.
+Added DOM/computed-style and viewport assertions to model/thinking captures;
+six capture cases pass after assertions. These checks establish footer structure
+and control reachability, not full screenshot equivalence or live acceptance.

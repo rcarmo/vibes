@@ -795,7 +795,13 @@ for (const width of [1280, 390]) {
         await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
         await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Next model', exact: true })).toBeInViewport();
+        const footer = page.locator('.compose-model-catalogue-footer');
+        await expect(footer).toHaveCSS('display', 'flex');
+        await expect(footer.locator('.compose-model-catalogue-footer-start')).toHaveCSS('flex-wrap', 'wrap');
+        for (const name of ['Next model', 'Refresh model catalog', 'Open Models settings']) {
+            await expect(footer.getByRole('button', { name, exact: true })).toBeInViewport();
+        }
+        await expect(footer.locator('button.primary')).toHaveText('Open Models settings');
         await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Load instance pins', exact: true })).toBeInViewport();
         await page.getByRole('button', { name: 'Close Models settings', exact: true }).click();
