@@ -163,6 +163,13 @@ class SessionStore:
                 values.append(int(value))
         if fields:
             async with self.db.transaction():
+                if pinned is True:
+                    session = await self.get(session_id)
+                    if session is None:
+                        raise ValueError('Session not found')
+                    will_be_archived = archived if archived is not None else session['archived']
+                    if will_be_archived:
+                        raise ValueError('Restore session before pinning')
                 if archived:
                     async with self.db._connection.execute("SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=? LIMIT 1", (session_id,)) as cursor:
                         if await cursor.fetchone():

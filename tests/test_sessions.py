@@ -195,3 +195,22 @@ async def test_running_session_deletion_preserves_session_and_history(db):
     with pytest.raises(ValueError, match='nonempty'):
         await store.delete_empty(session['id'])
     assert await store.get(session['id']) is not None
+
+
+@pytest.mark.asyncio
+async def test_archived_session_pin_requires_restore(db):
+    store = SessionStore(db)
+    session = await store.create('Archived pin')
+    await store.update(session['id'], archived=True)
+    with pytest.raises(ValueError, match='Restore session before pinning'):
+        await store.update(session['id'], pinned=True, name='Must roll back')
+    unchanged = await store.get(session['id'])
+    assert unchanged['name'] == 'Archived pin'
+    assert not unchanged['pinned']
+    restored = await store.update(session['id'], archived=False, pinned=True)
+    assert restored['pinned'] and not restored['archived']
+    with pytest.raises(ValueError, match='Restore session before pinning'):
+        await store.update(session['id'], archived=True, pinned=True)
+    assert not (await store.get(session['id']))['archived']
+    await store.update(session['id'], archived=True)
+    assert not (await store.update(session['id'], pinned=False))['pinned']

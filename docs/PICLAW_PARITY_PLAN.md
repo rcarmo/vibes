@@ -2445,3 +2445,13 @@ Delete for running rows even if supplied message counts are stale/zero, with a
 stop-turn explanation. Browser fixture isolates this from child/history guards.
 509 backend tests, 58 headed session-picker tests and build/lint pass, no retries.
 No backend deletion policy was relaxed or duplicated.
+
+### Archived pin policy enforced server-side
+
+Picker already disables archived pinning; SessionStore now rejects pinned=True
+when the effective archived state is true, inside the same transaction as update.
+Combined restore-and-pin remains supported. Existing pins may survive archiving;
+unpinning remains allowed through API. Regression verifies rejected mixed-field
+updates leave name/archive/pin state unchanged. Full backend check: 510 passed;
+after naming-only readability cleanup, session-store tests also pass. Browser UI
+unchanged. This closes an API/UI lifecycle-policy mismatch, not visual acceptance.
