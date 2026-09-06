@@ -43,16 +43,16 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
         <div ref=${K} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${we[ae]?`session-option-${we[ae].id}`:void 0}>
             ${le.map((ht)=>mt`<div class="session-popup-group" role="group" aria-label=${ht.label}>
                 <div class="compose-session-section-heading">${ht.label}</div>
-                ${ht.items.map((Oe)=>{let Et=w4t(Oe.last_message_at);return mt`<div key=${Oe.id} class=${`compose-model-option-row${Oe.id===s?" active":""}${we[ae]?.id===Oe.id?" keyboard-active":""}`}>
-                <button type="button" class=${`compose-model-pin-toggle${Oe.pinned?" pinned":""}`} aria-label=${Oe.pinned?"Unpin session":"Pin session"} aria-pressed=${!!Oe.pinned} onClick=${()=>He(()=>m?.(Oe.id,!Oe.pinned))}>☆</button>
-                <button type="button" id=${`session-option-${Oe.id}`} class="compose-model-option compose-model-option-session" role="option" aria-selected=${Oe.id===s} onClick=${()=>He(()=>a?.(Oe.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-label">${Oe.name}</span><span class="compose-session-row-meta">${Oe.id}</span><span class="compose-session-row-meta">${Oe.message_count??0} messages</span>${Et&&mt`<time class="compose-session-row-meta" datetime=${Et.datetime} title="Last persisted message (not runtime activity)">Last message: ${Et.label}</time>`}</span>
+                ${ht.items.map((Oe)=>{let Et=w4t(Oe.last_message_at);return mt`<div key=${Oe.id} class=${`compose-model-popup-item-row session-picker-row${Oe.id===s?" active":""}${we[ae]?.id===Oe.id?" keyboard-active":""}`}>
+                <button type="button" class=${`compose-session-row-pin${Oe.pinned?" pinned":""}`} aria-label=${Oe.pinned?"Unpin session":"Pin session"} aria-pressed=${!!Oe.pinned} onClick=${()=>He(()=>m?.(Oe.id,!Oe.pinned))}>☆</button>
+                <button type="button" id=${`session-option-${Oe.id}`} class="compose-model-popup-item session-item" role="option" aria-selected=${Oe.id===s} onClick=${()=>He(()=>a?.(Oe.id))}>
+                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${Oe.name}</span><span class="compose-session-row-meta">${Oe.id}</span><span class="compose-session-row-meta">${Oe.message_count??0} messages</span>${Et&&mt`<time class="compose-session-row-meta" datetime=${Et.datetime} title="Last persisted message (not runtime activity)">Last message: ${Et.label}</time>`}</span></span>
                     <span class=${`compose-session-status-pill ${Oe.archived?"closed":Oe.is_running?"active":"idle"}`}>${Oe.archived?"Archived":Oe.is_running?"Running":"Idle"}</span>
                     ${Oe.queued_count>0&&mt`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${Oe.queued_count} queued</span>`}
                 </button>
-                <button type="button" aria-label=${`Rename ${Oe.name}`} onClick=${()=>He(()=>g?.(Oe.id))}>Rename</button>
-                ${Oe.id!=="default"&&y&&mt`<button type="button" aria-label=${`${Oe.archived?"Restore":"Archive"} ${Oe.name}`} disabled=${!Oe.archived&&Oe.is_running===!0} title=${!Oe.archived&&Oe.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>He(()=>y(Oe.id,!Oe.archived))}>${Oe.archived?"Restore":"Archive"}</button>`}
-                ${Oe.id!=="default"&&mt`<button type="button" aria-label=${`Delete ${Oe.name}`} disabled=${!!Oe.message_count||qe.has(Oe.id)} title=${qe.has(Oe.id)?"Sessions with children cannot be deleted":Oe.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>He(()=>w?.(Oe.id))}>Delete</button>`}
+                <button type="button" class="session-row-action" aria-label=${`Rename ${Oe.name}`} onClick=${()=>He(()=>g?.(Oe.id))}>Rename</button>
+                ${Oe.id!=="default"&&y&&mt`<button type="button" class="session-row-action" aria-label=${`${Oe.archived?"Restore":"Archive"} ${Oe.name}`} disabled=${!Oe.archived&&Oe.is_running===!0} title=${!Oe.archived&&Oe.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>He(()=>y(Oe.id,!Oe.archived))}>${Oe.archived?"Restore":"Archive"}</button>`}
+                ${Oe.id!=="default"&&mt`<button type="button" class="session-row-action" aria-label=${`Delete ${Oe.name}`} disabled=${!!Oe.message_count||qe.has(Oe.id)} title=${qe.has(Oe.id)?"Sessions with children cannot be deleted":Oe.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>He(()=>w?.(Oe.id))}>Delete</button>`}
             </div>`})}
             </div>`)}
         </div>
@@ -2050,4 +2050,4 @@ ${a}
         </div>
     `}d4t(mt`<${Y7n} />`,document.getElementById("app"));
 
-//# debugId=108536C8C0B8E98D64756E2164756E21
+//# debugId=633D5208C76DDF7364756E2164756E21

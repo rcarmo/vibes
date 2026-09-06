@@ -3557,3 +3557,13 @@ body {
 .rename-branch-help { margin: 8px 0; font-size: 12px; color: var(--text-secondary); }
 .rename-branch-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
 .rename-branch-actions button { padding: 6px 12px; }
+
+/* Local lifecycle actions have no chat-popout equivalent; wrap below the
+   deployed pin + session item structure on narrow screens. */
+.compose-session-popup .session-picker-row { flex-wrap: wrap; min-width: 0; }
+.compose-session-popup .session-row-action { min-height: 32px; flex-shrink: 0; }
+.compose-session-popup .session-picker-row.keyboard-active { background: var(--bg-hover); }
+@media (max-width: 600px) {
+    .compose-session-popup .session-picker-row > .session-item { flex-basis: calc(100% - 58px); }
+    .compose-session-popup .session-row-action { min-height: 44px; }
+}

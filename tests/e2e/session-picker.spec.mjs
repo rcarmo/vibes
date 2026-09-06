@@ -179,3 +179,20 @@ for (const width of [1280, 390]) {
         expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
     });
 }
+
+test('long session row and lifecycle actions fit narrow picker', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await page.request.post('/sessions', { data: { name: 'Long session name '.repeat(4) } });
+    await page.getByTestId('session-switcher').click();
+    const popup = page.getByTestId('session-popup');
+    const bounds = await popup.boundingBox();
+    const rows = popup.locator('.session-picker-row');
+    expect(await rows.count()).toBeGreaterThanOrEqual(2);
+    for (const button of await rows.locator('button').all()) {
+        const box = await button.boundingBox();
+        expect(box.x).toBeGreaterThanOrEqual(bounds.x);
+        expect(box.x + box.width).toBeLessThanOrEqual(bounds.x + bounds.width + 1);
+    }
+    await expect(popup.locator('.compose-session-row-main').first()).toBeVisible();
+});

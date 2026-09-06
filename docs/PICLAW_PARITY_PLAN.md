@@ -1069,3 +1069,14 @@ valid persisted time exposes UTC datetime and invalid time is omitted. Popup
 bounds remain inside viewport. Sixteen headed picker tests pass. This bounded
 layout check is not screenshot equivalence or exhaustive action-row overflow
 acceptance; those visual requirements remain open.
+
+### Picker row DOM/class alignment and action bounds
+
+Corrected unstyled local row/pin/item classes to deployed
+compose-model-popup-item-row, compose-session-row-pin and session-item structure;
+added missing compose-session-row-main metadata wrapper. Local lifecycle actions
+wrap below pin/item on narrow screens (chat popout remains excluded). Eighteen
+headed Chromium/WebKit picker tests and build/lint pass, including all action
+button horizontal bounds for long names at 390px. Initial exact row-count test
+assumption was corrected for the shared test server registry. Screenshot parity
+and remaining lifecycle styling are still not claimed complete.
