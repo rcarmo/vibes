@@ -2472,3 +2472,11 @@ and exact crossed-line SVG geometry from classic source map. SVG is decorative
 flow and disable guards remain. Existing local CSS deliberately keeps control
 visible without hover and provides mobile touch sizing. All 58 headed picker
 tests and build/lint pass. Rename/Archive, metadata and footer density remain open.
+
+### Compact local lifecycle controls
+
+Rename and Archive/Restore now use decorative SVG icons with unchanged accessible
+names, explicit tooltips and mutation guards. Local extension, not exact deployed
+icon parity: 28px desktop controls, 44px mobile targets. Metadata/footer differences
+remain. Build/lint and all 58 headed picker tests pass without retries, including
+rename/restore workflows and mobile readable-name coverage.

@@ -3779,3 +3779,8 @@ body {
     flex-wrap: wrap;
     gap: 6px;
 }
+/* Local lifecycle actions use compact icons; retain touch-sized mobile targets. */
+.session-row-icon { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; width: 28px; height: 28px; padding: 0; }
+@media (max-width: 639px) {
+    .session-row-icon { width: 44px; height: 44px; }
+}
