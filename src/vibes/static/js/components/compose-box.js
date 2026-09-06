@@ -285,6 +285,7 @@ export function ComposeBox({
     const pinSyncPending = useRef(false);
     const pinRevision = useRef(0);
     const instancePinEtag = useRef(null);
+    const [instancePinsLoaded, setInstancePinsLoaded] = useState(false);
     const syncInstancePins = async save => {
         if (pinSyncPending.current) return;
         const revision = pinRevision.current;
@@ -293,6 +294,7 @@ export function ComposeBox({
             const result = save ? await saveModelPreferences(modelPins, instancePinEtag.current) : await getModelPreferences();
             if (!modelCallbacksActive.current) return;
             instancePinEtag.current = result.etag;
+            setInstancePinsLoaded(typeof result.etag === 'string' && result.etag.length > 0);
             if (!save) {
                 if (revision !== pinRevision.current) {
                     setPinSyncStatus('Browser pins changed during loading; instance pins were not applied.');
@@ -1048,7 +1050,7 @@ export function ComposeBox({
                             <details class="compose-agent-capabilities"><summary>Instance pin preferences</summary>
                                 <p>Load replaces browser pins and is required before Save. Save replaces instance pins only if they have not changed since loading.</p>
                                 <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(false)}>Load instance pins</button>
-                                <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(true)}>Save instance pins</button>
+                                <button type="button" disabled=${pinSyncBusy || !instancePinsLoaded} title=${instancePinsLoaded ? 'Save against loaded instance version' : 'Load instance pins before saving'} onClick=${() => syncInstancePins(true)}>Save instance pins</button>
                                 ${pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
                             </details>
                             <div class="compose-model-popup-actions">

@@ -560,6 +560,7 @@ test('instance pins load and save only through explicit controls', async ({ page
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Pin model test/current', exact: true })).toBeVisible();
     await page.getByText('Instance pin preferences', { exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save instance pins', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Unpin model test/current', exact: true }).click();

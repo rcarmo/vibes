@@ -1849,3 +1849,10 @@ Chromium/WebKit tests pass with one worker. Build leaves clean tree. Includes v6
 migration preservation, preference API/ETags, explicit load/save, revision guards
 and conflict/failure handling. No retries/skips. Full deployed Models settings,
 visual acceptance and real-agent/live-service criteria remain open.
+
+### Visible preference-save prerequisite
+
+Save instance pins is disabled until a response supplies a usable ETag and its
+tooltip explains loading first. Missing ETag cannot silently enable conditional
+save. Eight headed instance-pin tests and build/lint pass, including disabled
+initial Save followed by successful loaded-version update.
