@@ -608,3 +608,11 @@ Added registry CRUD/timeline client helpers with escaped session IDs. Composer
 submission explicitly forwards its sessionId prop (default remains default).
 Five frontend unit tests and six browser mode tests pass; build/lint pass. Main
 app still needs picker, timeline/event scoping and atomic draft/status switching.
+
+### Race-safe session navigation coordinator
+
+SessionNavigation commits selected ID, loaded timeline and matching draft together
+only for the latest request. Stale responses/errors and disposed requests cannot
+replace current UI; current-request failure leaves UI untouched. Seven frontend
+unit tests pass; build/lint pass. Coordinator is not mounted yet; global timeline
+loads/SSE still need session filtering before picker integration is complete.
