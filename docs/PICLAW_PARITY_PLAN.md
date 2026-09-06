@@ -584,3 +584,12 @@ Failed/cancelled session/load discards the agent process before propagating the
 failure, because the provider may already have changed active context. No target
 chat binding is cached on failure. Error/cancellation tests pass; 451 backend
 tests. This deliberately sacrifices process liveness for context isolation.
+
+### Session picker component scaffold
+
+Added standalone SessionPicker with deployed popup/results/option class structure,
+search, keyboard arrows/Enter/Escape, pin and registry action callbacks. Nonempty
+delete control is disabled to reflect current server policy. Not mounted in app
+and not browser-accepted yet; this is a scaffold, not delivered switching UI.
+Remaining visual details/grouping and all app state/routing must be completed.
+Frontend build/lint pass; no browser behavior claim for this component yet.
