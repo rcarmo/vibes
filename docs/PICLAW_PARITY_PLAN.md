@@ -427,3 +427,12 @@ backend identity. Binding APIs validate owning session and keep ACP/Pi mappings
 separate; persistence/isolation tests pass (429 backend tests). Mappings are
 internal only: runtime dispatch/resume has not yet been wired. Merely storing a
 conversation ID does not imply a provider can load it or preserve live context.
+
+### In-process ACP conversation selector
+
+Added busy-guarded select_chat_session, caching conversation IDs per chat for the
+current agent process. New conversations get session-scoped messages descriptors;
+process reset/stop clears mappings rather than pretending stale IDs are loadable.
+430 backend tests pass, including reuse and busy rejection. Not yet exposed to
+UI/message dispatch, no restart-resume claim, and default legacy startup still
+uses explicitly opted-in workspace scope until that integration is completed.

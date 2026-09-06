@@ -662,3 +662,24 @@ class TestContentParsing:
         result = await asyncio.wait_for(acp_client._send_request("test", {}, collect_updates=False), timeout=0.2)
         assert result.get("_cancelled") is True
         stop_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_chat_conversation_selection_reuses_ids_and_rejects_busy():
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    state.session_id = 'default-conversation'
+    with patch.object(acp_client, '_ensure_agent', AsyncMock()), \
+         patch.object(acp_client, '_messages_mcp_servers', return_value=[]), \
+         patch.object(acp_client, '_send_request', AsyncMock(return_value={'sessionId': 'other-conversation'})) as send:
+        assert await acp_client.select_chat_session('other') == 'other-conversation'
+        assert await acp_client.select_chat_session('default') == 'default-conversation'
+        assert await acp_client.select_chat_session('other') == 'other-conversation'
+        assert send.await_count == 1
+        await state.request_lock.acquire()
+        try:
+            with pytest.raises(RuntimeError):
+                await acp_client.select_chat_session('third')
+        finally:
+            state.request_lock.release()
+    acp_client.reset_state()

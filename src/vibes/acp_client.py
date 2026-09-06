@@ -72,6 +72,8 @@ class _ACPState:
         self.request_lock = asyncio.Lock()  # Ensures only one request at a time
         self.cancel_event: asyncio.Event | None = None
         self.session_id = None
+        self.chat_conversations = {}
+        self.chat_id = 'default'
         self.request_id = 0
         self.pending_requests = {}  # request_id -> asyncio.Future
         self.request_callback = None  # Callback to notify UI of pending requests
@@ -127,6 +129,8 @@ async def _interrupt_inflight_request() -> bool:
     await cancel_session()
     await stop_agent()
     _state.session_id = None
+    _state.chat_conversations = {}
+    _state.chat_id = 'default'
     return await _wait_for_request_slot(5.0)
 
 
@@ -139,6 +143,8 @@ def reset_state() -> None:
     _state.request_lock = asyncio.Lock()
     _state.cancel_event = None
     _state.session_id = None
+    _state.chat_conversations = {}
+    _state.chat_id = 'default'
     _state.request_id = 0
     _state.pending_requests = {}
     _state.request_callback = None
@@ -916,7 +922,7 @@ def _parse_content_block(block: dict) -> dict | None:
     return None
 
 
-def _messages_mcp_servers():
+def _messages_mcp_servers(chat_id=None):
     """Single ACP session currently implies explicitly enabled workspace scope."""
     config = get_config()
     if not getattr(config, 'acp_messages_enabled', False):
@@ -928,10 +934,34 @@ def _messages_mcp_servers():
         raise ValueError('ACP messages database does not exist')
     return [{
         'name': 'vibes-messages', 'command': sys.executable,
-        'args': ['-m', 'vibes.messages_mcp', '--database', str(database), '--workspace-access']
+        'args': ['-m', 'vibes.messages_mcp', '--database', str(database), ] + (['--session-id', chat_id] if chat_id is not None else ['--workspace-access'])
                 + (['--workspace-root', str(Path.cwd().resolve())] if getattr(config, 'acp_workspace_read_enabled', False) else []),
         'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])}],
     }]
+
+
+async def select_chat_session(chat_id: str):
+    """Select an in-process ACP conversation only while no prompt owns the stream."""
+    if not isinstance(chat_id, str) or not chat_id:
+        raise ValueError('Chat session ID required')
+    if _state.request_lock.locked():
+        raise RuntimeError('Cannot switch ACP session while agent is busy')
+    async with _state.request_lock:
+        await _ensure_agent()
+        if _state.session_id:
+            _state.chat_conversations[_state.chat_id] = _state.session_id
+        conversation = _state.chat_conversations.get(chat_id)
+        if conversation is None:
+            result = await _send_request('session/new', {
+                'cwd': str(Path.cwd()), 'mcpServers': _messages_mcp_servers(chat_id),
+            })
+            conversation = result.get('sessionId')
+            if not isinstance(conversation, str) or not conversation:
+                raise RuntimeError('Agent returned no conversation ID')
+            _state.chat_conversations[chat_id] = conversation
+        _state.chat_id = chat_id
+        _state.session_id = conversation
+        return conversation
 
 
 async def _ensure_agent():
@@ -954,6 +984,8 @@ async def _ensure_agent():
         _state.agent_reader = None
         _state.agent_writer = None
         _state.session_id = None
+        _state.chat_conversations = {}
+        _state.chat_id = 'default'
         
         config = get_config()
         agent_cmd = config.acp_agent
@@ -1234,6 +1266,8 @@ async def stop_agent():
         _state.agent_reader = None
         _state.agent_writer = None
         _state.session_id = None
+        _state.chat_conversations = {}
+        _state.chat_id = 'default'
 
 
 async def cancel_session():
