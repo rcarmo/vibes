@@ -2627,3 +2627,12 @@ ones (including same-ID A→B→A selection). Mounted synthetic reorder-event te
 holds the older response until a newer snapshot renders, then verifies it stays
 new. Six queue browser tests, 20 frontend tests and build/lint pass. The new browser
 case verifies out-of-order responses, not the A→B→A scenario or live ACP execution.
+
+### Queue revisit race regression
+
+Added the explicit A→B→A mounted scenario left open in d8ffdf4: hold an
+SSE-triggered A queue request, switch to B and verify its queue, return to A and
+verify the fresh queue, then release the old A response and verify the fresh queue
+remains. All eight headed Chromium/WebKit queue cases pass without retries.
+This exercises browser request isolation with mocked queue data and synthetic SSE;
+it does not establish persistent agent-runtime or message-tool isolation.

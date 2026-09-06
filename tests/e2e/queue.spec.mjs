@@ -61,3 +61,51 @@ test('older queue refresh cannot overwrite a newer reorder notification', async 
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(row).toContainText('New queue');
 });
+
+test('queue response from a previous visit cannot replace the revisited session queue', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    let holdNext = false;
+    let waiting = false;
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let revisiting = false;
+    await page.route('**/agent/queue?*', async route => {
+        const session = new URL(route.request().url()).searchParams.get('session_id');
+        let content = session === 'default' ? (revisiting ? 'Fresh A queue' : 'Initial A queue') : 'B queue';
+        if (holdNext && session === 'default') {
+            holdNext = false;
+            waiting = true;
+            content = 'Stale A queue';
+            await held;
+        }
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            items: [{ row_id: -1, content, agent_id: 'default', thread_id: 1 }],
+        }) });
+    });
+    await page.goto('/');
+    const row = page.locator('.compose-queue-item');
+    await expect(row).toContainText('Initial A queue');
+    const created = await page.request.post('/sessions', { data: { name: 'Queue B' } });
+    const id = (await created.json()).session.id;
+    holdNext = true;
+    await page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('agent_queue_reordered', { data: '{}' })));
+    await expect.poll(() => waiting).toBe(true);
+    const trigger = page.getByTestId('session-switcher');
+    await trigger.click();
+    await page.locator(`#session-option-${id}`).click();
+    await expect(row).toContainText('B queue');
+    revisiting = true;
+    await trigger.click();
+    await page.locator('#session-option-default').click();
+    await expect(row).toContainText('Fresh A queue');
+    const response = page.waitForResponse(res => res.url().includes('/agent/queue?'));
+    release();
+    await response;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(row).toContainText('Fresh A queue');
+});
