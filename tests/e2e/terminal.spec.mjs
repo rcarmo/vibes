@@ -1,5 +1,13 @@
 import { test, expect } from '@playwright/test';
 
+async function openEditor(page) {
+    const sidebar = page.locator('.workspace-sidebar');
+    if (!await sidebar.isVisible()) await page.locator('.workspace-toggle-tab').click();
+    await page.locator('.workspace-row .workspace-label').filter({ hasText: 'README.md' }).first().click();
+    await page.locator('.workspace-edit').click();
+    await expect(page.locator('.editor-stack')).toBeVisible();
+}
+
 test('terminal executes and hands the same shell to a popout', async ({ page }) => {
     await page.goto('/');
     await page.getByTitle('Open terminal', { exact: true }).click();
@@ -30,6 +38,7 @@ test('terminal executes and hands the same shell to a popout', async ({ page }) 
 test('terminal splitter supports keyboard resizing', async ({ page }) => {
     await page.goto('/');
     await page.getByTitle('Open terminal', { exact: true }).click();
+    await openEditor(page);
     const splitter = page.getByRole('separator', { name: 'Resize terminal' });
     const initial = Number(await splitter.getAttribute('aria-valuenow'));
     await splitter.focus();
@@ -102,6 +111,7 @@ test('terminal height stays bounded after viewport shrink and keyboard resize', 
     await page.goto('/');
     await page.getByTitle('Open terminal', { exact: true }).click();
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await openEditor(page);
     const splitter = page.getByRole('separator', { name: 'Resize terminal' });
     await splitter.focus();
     const before = Number(await splitter.getAttribute('aria-valuenow'));

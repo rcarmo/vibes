@@ -2,7 +2,7 @@
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { terminalPaneExtension } from '../panes/terminal-pane.js';
 
-export function TerminalPanel({ onClose, popout = false }) {
+export function TerminalPanel({ onClose, popout = false, shared = false }) {
     const host = useRef(null);
     const pane = useRef(null);
     const popupRef = useRef(null);
@@ -10,8 +10,9 @@ export function TerminalPanel({ onClose, popout = false }) {
     const [transferError, setTransferError] = useState('');
     const [height, setHeight] = useState(() => Math.round(window.innerHeight * 0.45));
     const dragCleanup = useRef(null);
+    const maxHeight = () => Math.max(100, (host.current?.closest('.editor-pane-container')?.clientHeight || window.innerHeight) - 60);
     const resize = (value) => {
-        const next = Math.max(100, Math.min(window.innerHeight - 60, value));
+        const next = Math.max(100, Math.min(maxHeight(), value));
         setHeight(next);
         requestAnimationFrame(() => window.dispatchEvent(new Event('dock-resize')));
     };
@@ -19,7 +20,7 @@ export function TerminalPanel({ onClose, popout = false }) {
         if (event.button !== undefined && event.button !== 0) return;
         event.preventDefault();
         dragCleanup.current?.();
-        const move = (e) => resize(window.innerHeight - e.clientY);
+        const move = (e) => resize((host.current?.closest('.editor-pane-container')?.getBoundingClientRect().bottom || window.innerHeight) - e.clientY);
         const stop = () => {
             window.removeEventListener('pointermove', move);
             window.removeEventListener('pointerup', stop);
@@ -35,7 +36,7 @@ export function TerminalPanel({ onClose, popout = false }) {
         const fitViewport = () => resize(Math.min(height, window.innerHeight - 60));
         window.addEventListener('resize', fitViewport);
         return () => window.removeEventListener('resize', fitViewport);
-    }, [height]);
+    }, [height, shared]);
     useEffect(() => {
         const token = new URL(location.href).searchParams.get('terminal_handoff');
         pane.current = terminalPaneExtension.mount(host.current, {
@@ -94,8 +95,8 @@ export function TerminalPanel({ onClose, popout = false }) {
             requestAnimationFrame(() => window.dispatchEvent(new Event('dock-resize')));
         } catch { setTransferError('Unable to reattach. Check that the terminal window is connected.'); }
     };
-    return html`<div class="terminal-panel dock-panel standalone" role="region" aria-label="Terminal" style=${popout ? '' : `height:${height}px`}>
-        ${!popout && html`<div class="dock-splitter" role="separator" aria-label="Resize terminal" aria-orientation="horizontal" aria-valuemin="100" aria-valuemax=${window.innerHeight - 60} aria-valuenow=${height} tabindex="0"
+    return html`<div class=${`terminal-panel dock-panel${shared ? '' : ' standalone'}`} role="region" aria-label="Terminal" style=${popout ? '' : `height:${height}px`}>
+        ${!popout && shared && html`<div class="dock-splitter" role="separator" aria-label="Resize terminal" aria-orientation="horizontal" aria-valuemin="100" aria-valuemax=${maxHeight()} aria-valuenow=${height} tabindex="0"
             onPointerDown=${startResize}
             onKeyDown=${(event) => {
                 if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {

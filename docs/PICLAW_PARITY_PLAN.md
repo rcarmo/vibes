@@ -955,3 +955,14 @@ column above chat (documented responsive adaptation). 52 headed Chromium/WebKit
 terminal/editor-tab tests pass, including explicit no-composer-overlap at 1440
 and 390px; build/lint pass. Launcher remains fixed, standalone resize semantics
 and final screenshot comparison need refinement; host parity stays open.
+
+### Shared dock resize semantics
+
+Height splitter is now shown only when an editor shares the terminal column;
+terminal-only columns fill their available space without a no-op height control.
+Pointer sizing uses the column bottom and clamps against container height, not
+viewport coordinates. Existing resize tests now open an editor to exercise real
+shared-height behavior. 18 headed Chromium/WebKit terminal tests and build/lint
+pass. Initial test run exposed an incorrect new workspace test selector (fixed);
+its timed-out isolated server was explicitly stopped before rerunning. Launcher
+placement and final screenshot parity remain open.
