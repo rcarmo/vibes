@@ -1140,3 +1140,18 @@ Eighteen headed Chromium/WebKit model/thinking tests and build/lint pass; added
 held mutation response test switches chats before release and retains the new
 chat's own label. Test closes popup with Escape before switching to avoid its
 legitimate pointer overlay. Server mutation itself is not cancelled or rolled back.
+
+### Full regression: owner-cap leak and mention reopen race
+
+Full suite exposed /terminal/session owner exhaustion after 128 isolated browser
+visitors. At the cap, reclaim only owners without shell, socket, grace timer or
+unexpired handoff; retain the cap and active ownership. Regression exercises 140
+cookie-less visitors while a live shell remains protected. Also moved mention
+suggestion clearing to dismissal rather than opening, avoiding transient visible
+stale options disappearing before keyboard acceptance.
+
+Initial integrated run timed out after terminal 503 failures; isolated leftover
+server was stopped. Next run had 149 passes and one mention race failure. After
+both fixes: 470 backend tests, 15 frontend unit tests, build/lint and 150/150 headed
+Chromium/WebKit tests pass with one worker. No retries/skips or cap increase.
+Overall parity and external-agent acceptance remain open.

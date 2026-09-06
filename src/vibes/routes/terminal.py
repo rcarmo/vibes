@@ -50,6 +50,12 @@ class TerminalAdapter:
         owner = request.cookies.get(COOKIE)
         if owner not in self.owners:
             if len(self.owners) >= 128:
+                now = time.monotonic()
+                self.handoffs = {token: value for token, value in self.handoffs.items() if value[1] >= now}
+                protected = set(self.service.sessions) | set(self.sockets) | set(self.timers)
+                protected.update(value[0] for value in self.handoffs.values())
+                self.owners.intersection_update(protected)
+            if len(self.owners) >= 128:
                 raise web.HTTPServiceUnavailable(reason="Terminal owner limit")
             owner = secrets.token_urlsafe(32)
             self.owners.add(owner)

@@ -231,9 +231,8 @@ export function ComposeBox({
         setMentionSessions([]);
     }, [sessionId, searchMode]);
     useEffect(() => {
-        if (!mentioning) return;
+        if (!mentioning) { setMentionSessions([]); return; }
         let disposed = false;
-        setMentionSessions([]);
         getSessions().then(result => { if (!disposed) setMentionSessions(result.sessions || []); })
             .catch(() => { if (!disposed) setMentionSessions([]); });
         return () => { disposed = true; };

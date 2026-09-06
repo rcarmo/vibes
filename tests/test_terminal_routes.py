@@ -119,3 +119,21 @@ async def test_deployed_client_metadata_ping_and_exit(aiohttp_client, tmp_path):
                 assert event['exit_code'] == 7
                 break
     await ws.close()
+
+
+@pytest.mark.asyncio
+async def test_owner_limit_reclaims_unused_page_visitors_without_evicting_live_shell(aiohttp_client, tmp_path):
+    import aiohttp
+    c, adapter, headers = await client_for(aiohttp_client, tmp_path)
+    await c.get('/terminal/session')
+    ws = await c.ws_connect('/terminal/ws', headers={'Origin': str(c.make_url('')).rstrip('/')})
+    live_owner = next(iter(adapter.sockets))
+    async with aiohttp.ClientSession(cookie_jar=aiohttp.DummyCookieJar()) as visitors:
+        for _ in range(140):
+            async with visitors.get(c.make_url('/terminal/session')) as response:
+                assert response.status == 200
+    assert live_owner in adapter.owners
+    assert live_owner in adapter.sockets
+    assert live_owner in adapter.service.sessions
+    assert len(adapter.owners) <= 128
+    await ws.close()
