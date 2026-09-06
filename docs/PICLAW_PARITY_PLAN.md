@@ -864,3 +864,11 @@ No skips or retry configuration added. Working tree remained clean after build.
 This validates the implemented slices together, not the unfinished acceptance
 items: mentions, speech, default model-path consolidation/ACP controls, full dock
 layout, complete picker markup, and third-party agent acceptance remain open.
+
+### Session mention autocomplete foundation
+
+Composer @ queries active registry sessions by name/ID (max ten suggestions),
+keyboard-selects a stable @session:ID reference and leaves send destination
+unchanged. Archived chats excluded. Chromium/WebKit verify insertion and no
+rerouting; build/lint pass. Mention resolution tooling, exact deployed suggestion
+markup/styles and request coalescing remain pending; references grant no access.

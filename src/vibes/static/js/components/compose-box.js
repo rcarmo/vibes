@@ -1,9 +1,10 @@
+import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getAgentModels, getSessionModels, changeSessionModel, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { getAgentModels, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -163,6 +164,15 @@ export function ComposeBox({
 }) {
     const [content, setContent] = useState(() => composeDrafts.load(sessionId).text);
     const [searchText, setSearchText] = useState('');
+    const [mentionRange, setMentionRange] = useState(null);
+    const [mentionSessions, setMentionSessions] = useState([]);
+    const [mentionIndex, setMentionIndex] = useState(0);
+    const mentionMatches = mentionRange ? sessionMentionMatches(mentionSessions, mentionRange.query) : [];
+    const acceptMention = item => {
+        setContent(insertSessionMention(content, mentionRange, item.id));
+        setMentionRange(null);
+        requestAnimationFrame(() => textareaRef.current?.focus());
+    };
     const [searchScope, setSearchScope] = useState('current');
     const [searchFilterImages, setSearchFilterImages] = useState(false);
     const [searchFilterAttachments, setSearchFilterAttachments] = useState(false);
@@ -503,6 +513,17 @@ export function ComposeBox({
     };
 
     const handleKeyDown = (e) => {
+        if (!searchMode && mentionMatches.length) {
+            if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+                e.preventDefault();
+                setMentionIndex(index => (index + (e.key === 'ArrowDown' ? 1 : -1) + mentionMatches.length) % mentionMatches.length);
+                return;
+            }
+            if ((e.key === 'Enter' && !e.shiftKey) || e.key === 'Tab') {
+                e.preventDefault(); acceptMention(mentionMatches[mentionIndex] || mentionMatches[0]); return;
+            }
+            if (e.key === 'Escape') { e.preventDefault(); setMentionRange(null); return; }
+        }
         if (searchMode && e.key === 'Escape') {
             e.preventDefault();
             setSearchText('');
@@ -665,6 +686,9 @@ export function ComposeBox({
     const handleInput = (e) => {
         const value = e.target.value;
         updateValue(value);
+        const range = !searchMode ? sessionMentionQuery(value, e.target.selectionStart) : null;
+        setMentionRange(range); setMentionIndex(0);
+        if (range) getSessions().then(result => setMentionSessions(result.sessions || [])).catch(() => setMentionSessions([]));
     };
 
     const handleLocation = () => {
@@ -796,6 +820,9 @@ export function ComposeBox({
                             </button>
                         </div>
                     `}
+                    ${mentionMatches.length > 0 && html`<div class="mention-autocomplete" role="listbox" aria-label="Session mentions">
+                        ${mentionMatches.map((item, index) => html`<button type="button" class=${`mention-autocomplete-item${index === mentionIndex ? ' active' : ''}`} role="option" aria-selected=${index === mentionIndex} onMouseDown=${e => e.preventDefault()} onClick=${() => acceptMention(item)}>${item.name} <small>${item.id}</small></button>`)}
+                    </div>`}
                     <textarea
                         ref=${textareaRef}
                         placeholder=${searchMode ? "Search (Enter to run)..." : "Message (Enter to send, Shift+Enter for newline)..."}
