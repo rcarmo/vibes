@@ -14,11 +14,11 @@ async def test_discovery_and_reject_scope_escalation(db):
     server = MessagesMCP(MessageTools(db._connection, thread_id=1))
     def req(method, params=None):
         return {'jsonrpc': '2.0', 'id': 1, 'method': method, 'params': params or {}}
-    assert 'error' in await server.handle(req('tools/list'))
+    assert (await server.handle(req('tools/list')))['result']['tools']
     assert (await server.handle(req('initialize', {'protocolVersion': '2024-11-05'})))['result']['protocolVersion'] == '2024-11-05'
     assert (await server.handle(req('tools/list')))['result']['tools'][0]['name'] == 'messages'
     assert 'error' in await server.handle(req('tools/call', {'name': 'messages', 'arguments': {'action': 'search', 'query': 'test', 'workspace_access': True}}))
-    assert (await server.handle(req('resources/list')))['error']['code'] == -32601
+    assert (await server.handle(req('resources/list')))['result']['resources'] == []
 
 
 @pytest.mark.asyncio

@@ -2,12 +2,13 @@
 import argparse
 import asyncio
 import json
-import sqlite3
+import logging
 import sys
 from pathlib import Path
 
 import aiosqlite
 from vibes.message_tools import MessageTools
+from vibes._vendor.umcp.aioumcp import AsyncMCPServer
 
 TOOL = {
     'name': 'messages',
@@ -26,52 +27,24 @@ TOOL = {
 }
 
 
-class MessagesMCP:
+class MessagesMCP(AsyncMCPServer):
+    def _setup_logging(self):
+        # Never create vendor-directory log files or put diagnostics on stdout.
+        self.logger = logging.getLogger('vibes.messages_mcp')
+
     def __init__(self, tools):
+        super().__init__()
         self.tools = tools
-        self.initialized = False
+        self.register_tool('messages', self.messages,
+            description=TOOL['description'], input_schema=TOOL['inputSchema'],
+            annotations=TOOL['annotations'])
+
+    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None):
+        return await self.tools.query(action, row_ids=row_ids, query=query,
+            limit=limit, before_row=before_row)
 
     async def handle(self, request):
-        if not isinstance(request, dict) or request.get('jsonrpc') != '2.0' or not isinstance(request.get('method'), str):
-            return {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32600, 'message': 'Invalid request'}}
-        method = request['method']
-        if 'id' not in request:
-            return None
-        response = {'jsonrpc': '2.0', 'id': request['id']}
-        params = request.get('params', {})
-        try:
-            if not isinstance(params, dict):
-                raise ValueError('Invalid params')
-            if method == 'initialize':
-                self.initialized = True
-                requested = params.get('protocolVersion')
-                version = requested if requested in {'2024-11-05', '2025-03-26', '2025-06-18'} else '2025-06-18'
-                result = {'protocolVersion': version, 'capabilities': {'tools': {}},
-                    'serverInfo': {'name': 'vibes-messages', 'version': '1.0.0'}}
-            elif method == 'ping':
-                result = {}
-            elif not self.initialized:
-                raise ValueError('Initialize first')
-            elif method == 'tools/list':
-                result = {'tools': [TOOL]}
-            elif method == 'tools/call':
-                if params.get('name') != 'messages':
-                    raise ValueError('Unknown tool')
-                arguments = params.get('arguments', {})
-                if not isinstance(arguments, dict) or set(arguments) - set(TOOL['inputSchema']['properties']):
-                    raise ValueError('Invalid tool arguments')
-                try:
-                    value = await self.tools.query(**arguments)
-                    result = {'content': [{'type': 'text', 'text': json.dumps(value, ensure_ascii=False)}]}
-                except (ValueError, TypeError, sqlite3.Error):
-                    result = {'isError': True, 'content': [{'type': 'text', 'text': 'Invalid message query or unavailable message store.'}]}
-            else:
-                response['error'] = {'code': -32601, 'message': 'Method not found'}
-                return response
-            response['result'] = result
-        except ValueError as exc:
-            response['error'] = {'code': -32602, 'message': str(exc)}
-        return response
+        return await self.process_request_async(json.dumps(request))
 
 
 async def serve(database, thread_id=None, workspace_access=False):

@@ -174,3 +174,13 @@ JSON framing is bounded to 64KiB. Tool schema exposes only get/search fields;
 caller scope escalation is rejected. Tests include actual subprocess stdio
 initialization/discovery/get and exclusion of another thread. Backend: 403 pass.
 ACP injection still pending; this executable alone is not automatic integration.
+
+### uMCP adoption
+
+Replaced the bespoke protocol dispatcher with pinned rcarmo/umcp 0.2.2 at
+30cce7dfe08c6ee63de235f7d81754ba286dafbb. Vendored async/shared modules and MIT
+license; only relative imports patched. Retained bounded stdio input and read-only
+SQLite scope core. uMCP supports discovery before initialization and empty resource
+listing; tests now reflect library behavior rather than bespoke restrictions.
+403 backend tests pass, including real subprocess MCP retrieval/scope isolation.
+ACP injection remains pending.
