@@ -341,3 +341,12 @@ It lists at most 200 entries without following symlinks or traversing upward,
 reports symlink/special types without opening targets, and marks truncated results.
 No recursive scan or unbounded sorting. Backend: 421 passed. Folder composer/tree
 selection and pills remain to wire; bounded listing is not full directory search.
+
+### Folder composer wiring
+
+Selecting a workspace folder adds a deduplicated folder reference, not recursive
+uploads. Shared Piclaw folder pill supports removal/clear-all and folder-only
+submission as a Folders block. Agents with workspace access enabled can resolve
+it through workspace_list/read. Chromium/WebKit verify tree selection, pill,
+folder-only payload and clearing; build/lint pass. Parent/session-level draft
+persistence remains part of the session work, not provided by this slice.

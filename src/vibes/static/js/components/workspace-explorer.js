@@ -149,7 +149,7 @@ function FileAttachmentCard({ mediaId }) {
     `;
 }
 
-export function WorkspaceExplorer({ onFileSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {
+export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true, active = undefined, onOpenEditor, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
     const [selectedPath, setSelectedPath] = useState(null);
@@ -538,6 +538,7 @@ export function WorkspaceExplorer({ onFileSelect, visible = true, active = undef
         }
 
         if (type === 'dir') {
+            onFolderSelect?.(path);
             setSelectedPath(path);
             setPreview(null);
             setDownloadId(null);

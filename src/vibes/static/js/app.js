@@ -686,6 +686,7 @@ function App() {
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
     const [fileRefs, setFileRefs] = useState([]);
+    const [folderRefs, setFolderRefs] = useState([]);
     const [messageRefs, setMessageRefs] = useState([]);
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState({ text: '', totalLines: 0 });
@@ -2235,7 +2236,7 @@ function App() {
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
             ${terminalEnabled && !terminalVisible && !terminalPopout && html`<button class="terminal-open-button" onClick=${() => setTerminalVisible(true)} title="Open terminal">Terminal</button>`}
             ${terminalVisible && html`<${TerminalPanel} popout=${terminalPopout} onClose=${() => { setTerminalVisible(false); if (terminalPopout) window.close(); }} />`}
-            ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
+            ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
@@ -2337,6 +2338,9 @@ function App() {
                     onSearch=${handleSearch}
                     onEnterSearch=${enterSearchMode}
                     onExitSearch=${exitSearchMode}
+                    folderRefs=${folderRefs}
+                    onRemoveFolderRef=${path => setFolderRefs(prev => prev.filter(item => item !== path))}
+                    onClearFolderRefs=${() => setFolderRefs([])}
                     fileRefs=${fileRefs}
                     onRemoveFileRef=${removeFileRef}
                     onClearFileRefs=${clearFileRefs}

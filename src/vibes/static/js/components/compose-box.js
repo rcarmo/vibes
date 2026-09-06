@@ -136,6 +136,9 @@ export function ComposeBox({
     onEnterSearch,
     onExitSearch,
     fileRefs = [],
+    folderRefs = [],
+    onRemoveFolderRef,
+    onClearFolderRefs,
     onRemoveFileRef,
     onClearFileRefs,
     messageRefs = [],
@@ -235,7 +238,7 @@ export function ComposeBox({
             .catch(() => {});
     }, []);
 
-    const canSend = !loading && (content.trim() || mediaFiles.length > 0 || fileRefs.length > 0 || messageRefs.length > 0);
+    const canSend = !loading && (content.trim() || mediaFiles.length > 0 || folderRefs.length > 0 || fileRefs.length > 0 || messageRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
         && typeof navigator !== 'undefined'
         && Boolean(navigator.geolocation)
@@ -392,7 +395,7 @@ export function ComposeBox({
     };
 
     const handleSubmit = async (mode = 'auto') => {
-        if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
+        if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && folderRefs.length === 0 && messageRefs.length === 0) return;
 
         setLoading(true);
         setSubmitError('');
@@ -421,6 +424,7 @@ export function ComposeBox({
             const fileBlock = fileRefs.length
                 ? `Files:\n${fileRefs.map((path) => `- ${path}`).join('\n')}`
                 : '';
+            const folderBlock = folderRefs.length ? `Folders:\n${folderRefs.map(path => `- ${path}`).join('\n')}` : '';
             const messageBlock = messageRefs.length
                 ? `Messages:\n${messageRefs.map((id) => `- ${id}`).join('\n')}`
                 : '';
@@ -431,7 +435,7 @@ export function ComposeBox({
                     return `- attachment:${id} (${label})`;
                 }).join('\n')}`
                 : '';
-            const message = [baseContent, fileBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
+            const message = [baseContent, fileBlock, folderBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
 
             const response = await sendAgentMessage('default', message, null, mediaIds, mode);
             if (response?.command) {
@@ -459,6 +463,7 @@ export function ComposeBox({
             setMediaFiles([]);
             uploadedFiles.current = new WeakMap();
             onClearFileRefs?.();
+            onClearFolderRefs?.();
             onClearMessageRefs?.();
             onPost?.();
         } catch (error) {
@@ -576,6 +581,7 @@ export function ComposeBox({
     const clearAllAttachmentRefs = () => {
         setMediaFiles([]);
         onClearFileRefs?.();
+            onClearFolderRefs?.();
         onClearMessageRefs?.();
         setSubmitError('');
     };
@@ -725,9 +731,10 @@ export function ComposeBox({
                             onReorder=${onQueueReorder}
                         />
                     `}
-                    ${(fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`
+                    ${(folderRefs.length > 0 || fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`
                         <div class="compose-file-refs">
                             ${messageRefs.map(id => html`<${FilePill} key=${'message-' + id} prefix="compose" icon="message" label=${'msg:' + id} title=${'Message ' + id} removeTitle="Remove message reference" onRemove=${() => onRemoveMessageRef?.(id)} />`)}
+                            ${folderRefs.map(path => html`<${FilePill} key=${'folder-' + path} prefix="compose" icon="folder" label=${path.split('/').pop() || path} title=${path} removeTitle="Remove folder" onRemove=${() => onRemoveFolderRef?.(path)} />`)}
                             ${fileRefs.map(path => html`<${FilePill} key=${'file-' + path} prefix="compose" label=${path.split('/').pop() || path} title=${path} removeTitle="Remove file" onRemove=${() => onRemoveFileRef?.(path)} />`)}
                             ${mediaFiles.map((file, index) => html`<${FilePill} key=${file.name + index} prefix="compose" label=${file.name || `attachment-${index + 1}`} removeTitle="Remove attachment" onRemove=${() => removeMediaFile(index)} />`)}
                             <button
