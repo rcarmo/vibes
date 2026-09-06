@@ -47,10 +47,11 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 <div class="compose-session-section-heading">${xe.label}</div>
                 ${xe.items.map((Ze)=>{let Wt=m4t(Ze.last_message_at);return dt`<div key=${Ze.id} class=${`compose-model-popup-item-row session-picker-row${Ze.id===a?" active":""}${Xe[Ce]?.id===Ze.id?" keyboard-active":""}`}>
                 <button type="button" class=${`compose-session-row-pin${Ze.pinned?" pinned":""}`} aria-label=${Ze.pinned?"Unpin session":"Pin session"} aria-pressed=${!!Ze.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!Ze.archived||!y} onClick=${()=>Ne(()=>y?.(Ze.id,!Ze.pinned))}>${Ze.pinned?"★":"☆"}</button>
-                <button type="button" id=${`session-option-${Ze.id}`} class="compose-model-popup-item session-item" role="option" aria-selected=${Ze.id===a} onClick=${()=>Ne(()=>l?.(Ze.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${Ze.name}</span><span class="compose-session-row-meta">${Ze.id}</span><span class="compose-session-row-meta">${Ze.message_count??0} messages</span>${Wt&&dt`<time class="compose-session-row-meta" datetime=${Wt.datetime} title="Last persisted message (not runtime activity)">Last message: ${Wt.label}</time>`}</span></span>
-                    <span class=${`compose-session-status-pill ${Ze.archived?"closed":Ze.is_running?"active":"idle"}`}>${Ze.archived?"Archived":Ze.is_running?"Running":"Idle"}</span>
+                <button type="button" id=${`session-option-${Ze.id}`} class=${`compose-model-popup-item session-item${Ze.archived?" archived":Ze.id===a?" current":""}`} role="option" aria-selected=${Ze.id===a} onClick=${()=>Ne(()=>l?.(Ze.id))}>
+                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${Ze.name}</span><span class="compose-session-row-meta">${Ze.id}</span><span class="compose-session-row-meta">${Ze.message_count??0} messages</span>${Wt&&dt`<time class="compose-session-row-meta" datetime=${Wt.datetime} title="Last persisted message (not runtime activity)">Last message: ${Wt.label}</time>`}</span><span class="compose-session-row-pills">
+                    <span class=${`compose-session-status-pill ${Ze.archived?"archived":Ze.is_running?"active":"idle"}`}>${Ze.archived?"Archived":Ze.is_running?"Running":"Idle"}</span>
                     ${Ze.queued_count>0&&dt`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${Ze.queued_count} queued</span>`}
+                    </span></span>
                 </button>
                 <button type="button" class="session-row-action" aria-label=${`Rename ${Ze.name}`} onClick=${()=>Ne(()=>w?.(Ze.id))}>Rename</button>
                 ${Ze.id!=="default"&&S&&dt`<button type="button" class="session-row-action" aria-label=${`${Ze.archived?"Restore":"Archive"} ${Ze.name}`} disabled=${!Ze.archived&&Ze.is_running===!0} title=${!Ze.archived&&Ze.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>Ne(()=>S(Ze.id,!Ze.archived))}>${Ze.archived?"Restore":"Archive"}</button>`}
@@ -2059,4 +2060,4 @@ ${a}
         </div>
     `}f4t(dt`<${U7n} />`,document.getElementById("app"));
 
-//# debugId=1901A9B0FB9841B564756E2164756E21
+//# debugId=5379EACD10E6D20164756E2164756E21

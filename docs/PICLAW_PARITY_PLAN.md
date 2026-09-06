@@ -1442,3 +1442,12 @@ Includes mobile drawer backdrop/Escape, scoped context refresh sequencing,
 over-capacity labels and shared model-response validation. No retries/skips.
 Final deployed visual comparison, remaining capability presentation and external
 agent/live-service acceptance remain open; no overall completion claim.
+
+### Picker lifecycle pill nesting alignment
+
+Moved status/queued pills inside deployed compose-session-row-content and
+compose-session-row-pills wrapper beside metadata, rather than below the row.
+Archived/current item classes now activate existing deployed styling; archived
+pill uses the matching archived class. Thirty headed picker tests and build/lint
+pass, including refreshed captures and long-name mobile bounds. No full visual
+equivalence claim; remaining deviations and external acceptance stay open.
