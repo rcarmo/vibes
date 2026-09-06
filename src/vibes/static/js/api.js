@@ -616,3 +616,11 @@ export class SSEClient {
         }
     }
 }
+
+export async function getModelPreferences() {
+    return request('/model-preferences');
+}
+
+export async function saveModelPreferences(pins) {
+    return request('/model-preferences', { method: 'PUT', body: JSON.stringify({ pins }) });
+}

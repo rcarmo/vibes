@@ -7,7 +7,7 @@ import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { getModelPreferences, saveModelPreferences, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -280,6 +280,23 @@ export function ComposeBox({
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [modelPins, setModelPins] = useState(() => loadModelPins(modelPinStorage()));
     const [modelPinError, setModelPinError] = useState('');
+    const [pinSyncStatus, setPinSyncStatus] = useState('');
+    const [pinSyncBusy, setPinSyncBusy] = useState(false);
+    const pinSyncPending = useRef(false);
+    const syncInstancePins = async save => {
+        if (pinSyncPending.current) return;
+        pinSyncPending.current = true; setPinSyncBusy(true); setPinSyncStatus('');
+        try {
+            const result = save ? await saveModelPreferences(modelPins) : await getModelPreferences();
+            if (!modelCallbacksActive.current) return;
+            if (!save) {
+                setModelPins(result.pins);
+                setModelPinError(saveModelPins(modelPinStorage(), result.pins) ? '' : 'Loaded pins are temporary in this browser.');
+            }
+            setPinSyncStatus(save ? 'Pins saved for this instance.' : 'Instance pins loaded into this browser.');
+        } catch (error) { if (modelCallbacksActive.current) setModelPinError(error.message || 'Pin synchronization failed'); }
+        finally { pinSyncPending.current = false; setPinSyncBusy(false); }
+    };
     useEffect(() => {
         const syncPins = event => {
             if (event.key !== null && event.key !== 'vibes_model_pins') return;
@@ -1016,6 +1033,12 @@ export function ComposeBox({
                                 `)}
                             </div>`)}
                             </div>
+                            <details class="compose-agent-capabilities"><summary>Instance pin preferences</summary>
+                                <p>Load replaces browser pins. Save replaces pins shared by this instance.</p>
+                                <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(false)}>Load instance pins</button>
+                                <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(true)}>Save instance pins</button>
+                                ${pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
+                            </details>
                             <div class="compose-model-popup-actions">
                                 <button
                                     type="button"

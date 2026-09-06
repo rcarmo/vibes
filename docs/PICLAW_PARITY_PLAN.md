@@ -1794,3 +1794,12 @@ model_preferences_changed. No runtime mutation occurs. 505 backend tests pass,
 including deduplication, malformed/oversized writes preserving prior values and
 no Pi mutation. Uses existing local deployment trust boundary, not per-user auth;
 UI remains browser-local until explicit migration/integration.
+
+### Explicit instance/browser pin transfer
+
+Model popup exposes Instance pin preferences details with Load/Save controls and
+clear replacement scope. Load replaces browser pins; Save replaces instance pins;
+neither happens automatically. Busy/error/success feedback and unmounted callback
+guard included. Two headed Chromium/WebKit tests and build/lint pass against real
+preferences API, verifying browser edits do not silently overwrite instance state.
+This explicit transfer UI is not a complete deployed Models settings replacement.
