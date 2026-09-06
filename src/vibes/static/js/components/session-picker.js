@@ -3,7 +3,7 @@ import { sessionLastMessage } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
 
-export function SessionPicker({ sessions = [], currentId = 'default', onSelect, onClose, onCreate, onRename, onDelete, onPin, onArchive }) {
+export function SessionPicker({ sessions = [], refreshError = '', currentId = 'default', onSelect, onClose, onCreate, onRename, onDelete, onPin, onArchive }) {
     const [query, setQuery] = useState('');
     const [index, setIndex] = useState(0);
     const [error, setError] = useState('');
@@ -38,6 +38,7 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
     };
     return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
         <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /></div>
+        ${refreshError && html`<div class="compose-model-popup-empty" role="alert">${refreshError}</div>`}
         ${error && html`<div role="alert">${error}</div>`}
         ${matches.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching sessions</div>`}
         <div ref=${results} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>

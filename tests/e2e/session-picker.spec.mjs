@@ -252,3 +252,18 @@ for (const width of [1280, 390]) {
         await page.screenshot({ path: testInfo.outputPath(`session-picker-${width}.png`), fullPage: true });
     });
 }
+
+test('picker discloses stale registry after polling failure and clears on recovery', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    const popup = page.getByTestId('session-popup');
+    await expect(popup).toBeVisible();
+    let fail = true;
+    await page.route('**/sessions?*', route => fail
+        ? route.fulfill({ status: 503, contentType: 'application/json', body: '{"error":"offline"}' })
+        : route.continue());
+    await expect(popup.getByRole('alert')).toContainText('activity may be stale', { timeout: 10000 });
+    await expect(popup.locator('#session-option-default')).toBeVisible();
+    fail = false;
+    await expect(popup.getByRole('alert')).toHaveCount(0, { timeout: 10000 });
+});

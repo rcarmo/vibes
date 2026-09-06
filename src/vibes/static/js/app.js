@@ -703,6 +703,7 @@ function App() {
     const searchGeneration = useRef(0);
     const modelGeneration = useRef(0);
     const [sessionOptions, setSessionOptions] = useState([]);
+    const [sessionRefreshError, setSessionRefreshError] = useState('');
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const [renamingSession, setRenamingSession] = useState(null);
     const [deletingSession, setDeletingSession] = useState(null);
@@ -712,6 +713,7 @@ function App() {
     const refreshSessions = async () => {
         const result = await getSessions(true);
         setSessionOptions(result.sessions);
+        setSessionRefreshError('');
     };
     useEffect(() => {
         if (!sessionPickerOpen) return;
@@ -722,8 +724,11 @@ function App() {
             loading = true;
             try {
                 const result = await getSessions(true);
-                if (!disposed) setSessionOptions(result.sessions);
-            } catch (error) { console.warn('Session picker refresh failed:', error); }
+                if (!disposed) { setSessionOptions(result.sessions); setSessionRefreshError(''); }
+            } catch (error) {
+                console.warn('Session picker refresh failed:', error);
+                if (!disposed) setSessionRefreshError('Session refresh failed. Showing the last snapshot; activity may be stale.');
+            }
             finally { loading = false; }
         };
         const timer = window.setInterval(refresh, 3000);
@@ -2497,7 +2502,7 @@ function App() {
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
                 <button class="session-trigger" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
-                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${() => setSessionPickerOpen(false)}
+                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${() => setSessionPickerOpen(false)}
                     onCreate=${() => { createdSessionRef.current = null; setCreatingSession(true); }}
                     onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
                     onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}

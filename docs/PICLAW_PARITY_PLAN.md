@@ -1303,3 +1303,10 @@ test-results (Chromium/WebKit, four capture tests pass). WebKit images attached
 to the working chat for review. These are current-implementation captures, not
 approved visual baselines or deployed-reference diffs. Existing bounds/interaction
 coverage remains separate; visual equivalence has not been established.
+
+### Stale picker snapshot disclosure
+
+Failed registry polling retains the last snapshot but shows an explicit warning
+that activity may be stale; successful refresh clears it. Two headed Chromium/
+WebKit polling failure/recovery tests and build/lint pass. Backend remains the
+authority for actions; cached activity is not represented as newly confirmed.
