@@ -33,6 +33,7 @@ async function openFileInEditor(page, filename) {
     const editBtn = page.locator('.workspace-edit');
     await editBtn.waitFor({ state: 'visible', timeout: 5000 });
     await editBtn.click();
+    await expect(page.locator('.tab-item', { hasText: filename }).first()).toBeVisible();
 }
 
 test.describe('Editor Tab UX', () => {

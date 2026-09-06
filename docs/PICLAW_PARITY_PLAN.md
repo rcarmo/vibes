@@ -1953,3 +1953,13 @@ entry; same model ID from different providers remains distinct. Existing 500-inp
 bound retained and tested with unique entries. 508 backend tests pass, including
 duplicate identity handling. Prevents duplicate UI keys/count inflation without
 asserting provider availability.
+
+### Terminal host functional acceptance reconciliation
+
+Shared editor/dock column, workspace launcher, mobile drawer/backdrop, splitter,
+shortcut and popout functionality are implemented. Combined acceptance initially
+had 59 passes/one WebKit missing-tab failure: editor helper opened successive files
+without waiting for the requested tab. It now waits for that visible tab before
+continuing. Rerun: 60 headed Chromium/WebKit editor/terminal tests pass, no retries.
+Functional host implementation is complete; exact deployed/current terminal host
+screenshots and approval of responsive deviations remain separate open work.
