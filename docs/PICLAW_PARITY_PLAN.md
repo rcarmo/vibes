@@ -444,3 +444,11 @@ while retaining request_lock through session/prompt. Public selection delegates
 to the same lock-held helper. Test asserts lock ownership and selected session ID
 at dispatch; 431 backend tests pass. Route/session picker wiring still pending;
 existing calls without chat_id preserve baseline behavior.
+
+### Fail-closed session submission boundary
+
+Before picker/runtime integration, agent message routes now reject supplied
+non-default session IDs instead of silently sending them into default context.
+Invalid IDs and cross-session thread references are rejected before persistence
+or scheduling. 433 tests pass. This is a safety guard, not session dispatch
+completion; replacing it requires end-to-end routing/queue/backend isolation.

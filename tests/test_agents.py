@@ -719,3 +719,22 @@ async def test_concurrent_queue_promotion_sends_once(mock_deps):
         assert second.status == 404
         assert response.status == 200
         assert sender.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_nondefault_dispatch_fails_closed_until_runtime_wired(mock_deps):
+    req = _make_send_request('private')
+    req.json = AsyncMock(return_value={'content': 'private', 'session_id': 'other'})
+    response = await agents_mod.send_message(req)
+    assert response.status == 409
+    assert 'not enabled' in json.loads(response.text)['error']
+    mock_deps['enqueue'].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_invalid_session_identity_rejected(mock_deps):
+    req = _make_send_request('private')
+    req.json = AsyncMock(return_value={'content': 'private', 'session_id': []})
+    response = await agents_mod.send_message(req)
+    assert response.status == 400
+    mock_deps['enqueue'].assert_not_called()

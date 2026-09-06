@@ -960,6 +960,16 @@ async def send_message(request: web.Request) -> web.Response:
     
     # Store user message as interaction
     db = await get_db()
+    session_id = data.get('session_id', 'default')
+    if not isinstance(session_id, str) or not session_id:
+        return web.json_response({'error': 'Invalid session_id'}, status=400)
+    if session_id != 'default':
+        # Fail closed until dispatch and both backend selectors are integrated.
+        return web.json_response({'error': 'Session-specific agent dispatch is not enabled yet'}, status=409)
+    if thread_id:
+        parent = await db.get_interaction(thread_id)
+        if parent and parent['data'].get('session_id', 'default') != session_id:
+            return web.json_response({'error': 'Thread belongs to another session'}, status=409)
     user_msg = {
         "type": "user_message",
         "content": data["content"],
