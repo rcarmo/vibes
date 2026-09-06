@@ -1656,3 +1656,11 @@ composer model state. Agent registry still supplies branding, but scoped inspect
 and confirmed mutation own live model labels. Four headed registry/scoped-model
 tests and build/lint pass. ACP capability presentation remains open; this closes
 an identified metadata/live-state boundary rather than displaying unverified data.
+
+### Legacy model-event inspection generation
+
+Default-only legacy model_changed events now advance model inspection generation,
+matching scoped mutation events, so pre-event polling cannot overwrite confirmed
+command changes. 32 headed model/thinking/catalog regression tests and build/lint
+pass. Dedicated live SSE race acceptance remains unverified; current change shares
+the existing generation guard rather than inventing a second mechanism.

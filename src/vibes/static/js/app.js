@@ -2120,6 +2120,7 @@ function App() {
         }
 
         if (eventType === 'model_changed') {
+            modelGeneration.current++;
             if (data?.model !== undefined) setActiveModel(data.model);
             if (data?.thinking_level !== undefined) setActiveThinkingLevel(data.thinking_level ?? null);
             if (data?.supports_thinking !== undefined) setSupportsThinking(Boolean(data.supports_thinking));
