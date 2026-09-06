@@ -1006,19 +1006,23 @@ async def get_agent_models(request: web.Request) -> web.Response:
     if not is_pi_running():
         return web.json_response(empty)
     try:
-        # Get current model from get_state
+        from ..pi_client import inspect_model_state, inspect_model_catalog
         current = None
-        state_resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        state_resp = await inspect_model_state('default')
+        if state_resp is None:
+            return web.json_response(empty)
         if state_resp and state_resp.get("success"):
             current = _format_model_label(state_resp.get("data", {}).get("model"))
 
         # Get available models via dedicated RPC command
         models = []
-        models_resp = await send_rpc_command({"type": "get_available_models"}, timeout=2.0)
-        if models_resp and models_resp.get("success"):
-            raw_models = models_resp.get("data", {}).get("models", [])
+        catalog = await inspect_model_catalog('default')
+        if catalog is None:
+            return web.json_response(empty)
+        if catalog:
+            raw_models = catalog.get("models", [])
             if isinstance(raw_models, list):
-                for m in raw_models:
+                for m in raw_models[:500]:
                     label = _format_model_label(m)
                     if label:
                         models.append(label)

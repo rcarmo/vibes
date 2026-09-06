@@ -1155,3 +1155,12 @@ server was stopped. Next run had 149 passes and one mention race failure. After
 both fixes: 470 backend tests, 15 frontend unit tests, build/lint and 150/150 headed
 Chromium/WebKit tests pass with one worker. No retries/skips or cap increase.
 Overall parity and external-agent acceptance remain open.
+
+### Guard legacy default model catalog inspection
+
+GET /agent/models now uses locked, context-matching Pi inspection helpers for
+explicit default chat instead of raw RPC against whichever conversation is loaded.
+Unavailable/busy/uncertain default returns the existing empty response; raw models
+are bounded to 500. 471 backend tests pass, including explicit default helper calls
+and no raw RPC when inspection is unavailable. Default mutation command-path and
+full model-picker parity remain open.

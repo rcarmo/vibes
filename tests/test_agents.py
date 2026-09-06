@@ -646,16 +646,12 @@ async def test_get_agent_models_with_data():
         },
     }
 
-    async def rpc_side_effect(cmd, **kwargs):
-        if cmd.get("type") == "get_state":
-            return state_resp
-        if cmd.get("type") == "get_available_models":
-            return models_resp
-        return None
-
     with patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=rpc_side_effect):
+         patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, return_value=state_resp) as state, \
+         patch('vibes.pi_client.inspect_model_catalog', new_callable=AsyncMock, return_value=models_resp['data']) as catalog:
         resp = await agents_mod.get_agent_models(req)
+        state.assert_awaited_once_with('default')
+        catalog.assert_awaited_once_with('default')
     body = json.loads(resp.body)
     assert body["current"] == "anthropic/claude-sonnet-4"
     assert "anthropic/claude-sonnet-4" in body["models"]
@@ -667,7 +663,7 @@ async def test_get_agent_models_rpc_failure():
     """Returns empty when RPC fails."""
     req = make_mocked_request("GET", "/agent/models")
     with patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=Exception("timeout")):
+         patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, side_effect=Exception("timeout")):
         resp = await agents_mod.get_agent_models(req)
     body = json.loads(resp.body)
     assert body == {"current": None, "models": []}
@@ -801,3 +797,14 @@ async def test_cross_session_busy_submission_rejected_before_storage(mock_deps):
     assert response.status == 409
     assert mock_deps['db']._counter == 0
     mock_deps['enqueue'].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_legacy_model_catalog_hides_uninspectable_default_context():
+    req = make_mocked_request('GET', '/agent/models')
+    with patch.object(agents_mod, 'is_pi_running', return_value=True), \
+         patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, return_value=None), \
+         patch.object(agents_mod, 'send_rpc_command', new_callable=AsyncMock) as raw:
+        response = await agents_mod.get_agent_models(req)
+        assert json.loads(response.body) == {'current': None, 'models': []}
+        raw.assert_not_awaited()
