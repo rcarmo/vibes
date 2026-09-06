@@ -379,7 +379,7 @@ export function ComposeBox({
         setShowModelPopup((prev) => !prev);
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (mode = 'auto') => {
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && messageRefs.length === 0) return;
 
         setLoading(true);
@@ -421,7 +421,7 @@ export function ComposeBox({
                 : '';
             const message = [baseContent, fileBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
 
-            const response = await sendAgentMessage('default', message, null, mediaIds);
+            const response = await sendAgentMessage('default', message, null, mediaIds, mode);
             if (response?.command) {
                 emitModelState({
                     model: response.command.model_label ?? activeModel ?? null,
@@ -539,7 +539,7 @@ export function ComposeBox({
                     onSearch?.(searchText.trim());
                 }
             } else {
-                handleSubmit();
+                handleSubmit(e.ctrlKey || e.metaKey ? 'steer' : 'auto');
             }
         }
     };
@@ -868,15 +868,15 @@ export function ComposeBox({
                         </button>
                     `}
                     ${!searchMode && html`
-                        <label class="icon-btn" title="Attach image">
+                        <label class="icon-btn" title="Attach files">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <input type="file" multiple hidden onChange=${handleFileChange} />
                         </label>
                         <button
                             class="icon-btn send-btn"
-                            onClick=${handleSubmit}
+                            onClick=${() => handleSubmit('auto')}
                             disabled=${!canSend}
-                            title="Send (Ctrl+Enter)"
+                            title="Send (Enter); steer with Ctrl/Cmd+Enter"
                         >
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>

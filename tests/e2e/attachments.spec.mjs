@@ -29,10 +29,10 @@ test('failed send retains attachments and retry reuses completed upload', async 
     });
     await page.goto('/');
     await page.locator('input[type=file][hidden]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('reference text') });
-    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await page.getByTitle('Send (Enter); steer with Ctrl/Cmd+Enter', { exact: true }).click();
     await expect(page.locator('.compose-file-pill', { hasText: 'notes.txt' })).toBeVisible();
     await expect(page.getByText('Temporary send failure', { exact: true })).toBeVisible();
-    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await page.getByTitle('Send (Enter); steer with Ctrl/Cmd+Enter', { exact: true }).click();
     await expect(page.locator('.compose-file-pill', { hasText: 'notes.txt' })).toHaveCount(0);
     expect(uploads).toBe(1);
     expect(sends).toBe(2);
@@ -49,7 +49,7 @@ test('upload cancellation keeps draft and prevents send', async ({ page }) => {
     await page.route('**/agent/default/message', async route => { sends++; await route.fulfill({ body: '{}' }); });
     await page.goto('/');
     await page.locator('input[type=file][hidden]').setInputFiles({ name: 'slow.txt', mimeType: 'text/plain', buffer: Buffer.from('data') });
-    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await page.getByTitle('Send (Enter); steer with Ctrl/Cmd+Enter', { exact: true }).click();
     await expect(page.getByTestId('compose-upload-status')).toBeVisible();
     await expect(page.getByRole('progressbar')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel upload' }).click();

@@ -276,3 +276,11 @@ recent uploads are never swept. Conservative substring matching may retain
 extra uploads; avoiding reference deletion is preferred. Tests cover referenced,
 text-referenced, recent, legacy and orphan records plus idempotence. 414 backend
 tests pass. Cleanup runs on startup, not a new background scheduler.
+
+### Explicit composer steering shortcut
+
+Enter and send button submit mode=auto (existing backend queues when busy);
+Ctrl/Cmd+Enter submits mode=steer. Search and slash completion retain their own
+handling. Updated misleading Send/Attach image titles. Twelve combined mode and
+attachment browser tests pass across Chromium/WebKit; build/lint pass. Backend
+atomic queue promotion/reordering remains separate pending work.
