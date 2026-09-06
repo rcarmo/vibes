@@ -216,3 +216,33 @@ test('desktop terminal host matches deployed column geometry', async ({ page }) 
     expect(chat.x).toBeCloseTo(516, 0);
     expect(chat.width).toBeCloseTo(764, 0);
 });
+
+test('simultaneous header and body reattach issue one handoff', async ({ page }) => {
+    await page.goto('/');
+    await openTerminal(page);
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'Open terminal in window', exact: true }).click();
+    const popup = await popupPromise;
+    await expect(popup.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    let calls = 0, release;
+    await page.route('**/terminal/handoff', async route => {
+        // Vendored pane prepares a standby token after reconnect; count only
+        // host reattach requests, which do not carry the pane client header.
+        if (route.request().headers()['x-piclaw-terminal-client']) return route.continue();
+        calls++;
+        await new Promise(resolve => { release = resolve; });
+        await route.continue();
+    });
+    await page.evaluate(() => {
+        document.querySelector('[aria-label="Reattach terminal"]').click();
+        document.querySelector('.editor-empty-action').click();
+    });
+    await expect.poll(() => calls).toBe(1);
+    await expect(page.getByRole('button', { name: 'Reattach terminal', exact: true })).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Reattach here', exact: true })).toBeDisabled();
+    release();
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await expect.poll(() => popup.isClosed()).toBe(true);
+    expect(calls).toBe(1);
+});

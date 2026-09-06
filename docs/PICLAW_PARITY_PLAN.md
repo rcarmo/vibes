@@ -2017,3 +2017,11 @@ Detach and both reattach controls share synchronous pending guard; visible trans
 buttons disable until completion/failure. Prevents overlapping header/body handoff
 requests before busy rerender. 28 headed terminal regression tests and build/lint
 pass; dedicated simultaneous-control stress acceptance remains unverified.
+
+### Simultaneous reattach controls acceptance
+
+Two headed Chromium/WebKit tests activate header/body reattach synchronously,
+hold host handoff request, verify both disabled and exactly one host request,
+then verify successful reconnect/popup closure. Initial count also included the
+vendored pane's legitimate post-reconnect standby-token request; test now separates
+it by x-piclaw-terminal-client header rather than suppressing that protocol work.
