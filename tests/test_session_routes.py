@@ -268,3 +268,17 @@ async def test_archived_session_model_reads_do_not_inspect_live_backend(db, aioh
     state.assert_not_awaited()
     catalog.assert_not_awaited()
     assert (await client.post(f"/sessions/{session['id']}/model", json={'thinking_level': 'low'})).status == 404
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('thinking,compacting', [({'private': 'value'}, 'true'), ('bad\nlevel', 1), ('x' * 513, []), ('', {})])
+async def test_model_state_rejects_malformed_thinking_and_compaction(db, aiohttp_client, monkeypatch, thinking, compacting):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(pi, 'inspect_model_state', AsyncMock(return_value={'success': True, 'data': {'thinkingLevel': thinking, 'isCompacting': compacting}}))
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/model-state')).json()
+    assert result['thinking_level'] is None
+    assert result['compacting'] is None

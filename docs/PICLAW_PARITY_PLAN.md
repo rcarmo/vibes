@@ -1364,3 +1364,10 @@ new test waits for confirmed chat switch before releasing held catalog and asser
 zero mutations. Requests already issued before switching remain server-owned and
 are not rolled back. Initial test released before async chat switch completed;
 corrected test synchronization rather than adding retries.
+
+### Model-state thinking/compaction validation
+
+Model-state reads return null for malformed/oversized/control-character thinking
+levels and nonboolean compaction values. Raw nested provider data cannot pass
+through these fields. 488 backend tests pass, including four malformed-state
+cases. Unknown remains distinct from false/idle; visual/live-agent parity stays open.

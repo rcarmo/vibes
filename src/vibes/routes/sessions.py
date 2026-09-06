@@ -31,9 +31,13 @@ async def session_model_state(request):
         model = state.get('model')
         # Exclude provider URLs and credentials from raw model configuration.
         model = {key: model[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in model} if isinstance(model, dict) else None
+        thinking = state.get('thinkingLevel')
+        if not isinstance(thinking, str) or not thinking.strip() or len(thinking) > 512 or any(ord(char) < 32 or ord(char) == 127 for char in thinking):
+            thinking = None
+        compacting = state.get('isCompacting')
         return web.json_response({'session_id': session_id, 'available': True,
-            'model': model, 'thinking_level': state.get('thinkingLevel'),
-            'compacting': state.get('isCompacting')})
+            'model': model, 'thinking_level': thinking,
+            'compacting': compacting if type(compacting) is bool else None})
     except Exception:
         return web.json_response(unavailable)
 
