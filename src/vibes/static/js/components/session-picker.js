@@ -2,7 +2,7 @@
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
 
-export function SessionPicker({ sessions = [], currentId = 'default', onSelect, onClose, onCreate, onRename, onDelete, onPin }) {
+export function SessionPicker({ sessions = [], currentId = 'default', onSelect, onClose, onCreate, onRename, onDelete, onPin, onArchive }) {
     const [query, setQuery] = useState('');
     const [index, setIndex] = useState(0);
     const [error, setError] = useState('');
@@ -36,6 +36,7 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
                     <span class="session-option-main"><span class="model-option-name session-option-name">${item.name}</span><span class="model-option-id">${item.id}</span><span class="session-option-metrics">${item.message_count ?? 0} messages</span></span>
                 </button>
                 <button type="button" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
+                ${item.id !== 'default' && onArchive && html`<button type="button" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
                 ${item.id !== 'default' && html`<button type="button" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
             </div>`)}
             </div>`)}

@@ -691,7 +691,7 @@ function App() {
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const refreshSessions = async () => {
-        const result = await getSessions();
+        const result = await getSessions(true);
         setSessionOptions(result.sessions);
     };
     const selectSession = async (id) => {
@@ -2378,9 +2378,10 @@ function App() {
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
                 <button class="session-trigger" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
-                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} currentId=${selectedSession} onSelect=${selectSession} onClose=${() => setSessionPickerOpen(false)}
+                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${() => setSessionPickerOpen(false)}
                     onCreate=${async () => { const name = prompt('Session name'); if (!name) return; const result = await createSession(name); await refreshSessions(); await selectSession(result.session.id); }}
                     onRename=${async id => { const name = prompt('Session name'); if (name) { await updateSession(id, { name }); await refreshSessions(); } }}
+                    onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
                     onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
                     onDelete=${async id => { if (!confirm('Delete empty session?')) return; await deleteSession(id); if (id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}

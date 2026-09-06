@@ -682,3 +682,11 @@ and preserves flattened keyboard navigation through filtered groups. History
 activity is never used as a running-state proxy. Nine unit and six picker/switching
 browser tests pass; build/lint pass. App listing still excludes archived sessions
 until restore actions are wired; actual running metadata remains pending.
+
+### Picker archive/restore
+
+Picker includes archived entries and explicit archive/restore controls; choosing
+an archived option restores it before switching. Active current chat returns to
+default after successful archive. Backend rejects archive while a persisted turn
+is active. 455 backend and six switching browser tests pass; build/lint pass.
+Queued-but-not-started turns and final action markup parity remain to audit.

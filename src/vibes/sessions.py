@@ -137,5 +137,9 @@ class SessionStore:
                 values.append(int(value))
         if fields:
             async with self.db.transaction():
+                if archived:
+                    async with self.db._connection.execute("SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=? LIMIT 1", (session_id,)) as cursor:
+                        if await cursor.fetchone():
+                            raise ValueError('Cannot archive a running session')
                 await self.db._connection.execute('UPDATE chat_sessions SET ' + ','.join(fields) + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', (*values, session_id))
         return await self.get(session_id)

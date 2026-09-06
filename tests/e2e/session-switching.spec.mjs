@@ -48,3 +48,15 @@ test('late search response cannot overwrite another session timeline', async ({ 
     await response;
     await expect(page.getByText('STALE SEARCH RESULT', { exact: true })).toHaveCount(0);
 });
+
+test('picker archives and restores a session without deleting history', async ({ page }) => {
+    await page.goto('/');
+    const result = await page.request.post('/sessions', { data: { name: 'Archive test' } });
+    const id = (await result.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    const row = page.locator('#session-option-' + id).locator('..');
+    await row.getByRole('button', { name: 'Archive Archive test', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Archived', exact: true }).locator('#session-option-' + id)).toBeVisible();
+    await row.getByRole('button', { name: 'Restore Archive test', exact: true }).click();
+    await expect(row.getByRole('button', { name: 'Archive Archive test', exact: true })).toBeVisible();
+});

@@ -102,3 +102,15 @@ async def test_session_listing_reports_stored_activity_not_runtime(db):
     assert sessions[other['id']]['last_message_id'] is None
     assert 'is_running' not in sessions['default']
     assert first < last
+
+
+@pytest.mark.asyncio
+async def test_running_session_cannot_be_archived(db):
+    store = SessionStore(db)
+    session = await store.create('Running')
+    root = await db.create_interaction({'type': 'user', 'content': 'work', 'session_id': session['id']})
+    await db.begin_turn('archive-test', root, 'default')
+    with pytest.raises(ValueError, match='running'):
+        await store.update(session['id'], archived=True)
+    await db.end_turn('archive-test')
+    assert (await store.update(session['id'], archived=True))['archived'] == 1
