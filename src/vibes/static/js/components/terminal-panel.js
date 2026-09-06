@@ -32,12 +32,20 @@ export function TerminalPanel({ onClose, popout = false }) {
             onClose?.();
         } catch { popup.close(); }
     };
-    return html`<section class="terminal-panel" aria-label="Terminal">
-        <div class="terminal-panel-toolbar">
-            <span>Terminal</span>
-            ${!popout && html`<button onClick=${detach} title="Open terminal in window">Open in Window</button>`}
-            <button onClick=${onClose} title="Close terminal">Close</button>
+    return html`<div class="terminal-panel dock-panel standalone" role="region" aria-label="Terminal">
+        <div class="dock-panel-header">
+            <span class="dock-panel-title">Terminal</span>
+            <div class="dock-panel-actions">
+                ${!popout && html`<button class="dock-panel-action" onClick=${detach} title="Open terminal in window" aria-label="Open terminal in window">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
+                        <path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
+                    </svg>
+                </button>`}
+                <button class="dock-panel-close" onClick=${onClose} title="Hide terminal" aria-label="Hide terminal">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 6l12 12M6 18L18 6" /></svg>
+                </button>
+            </div>
         </div>
-        <div ref=${host} class="terminal-panel-host" style="height:100%;min-height:0;flex:1"></div>
-    </section>`;
+        <div ref=${host} class="dock-panel-body"></div>
+    </div>`;
 }

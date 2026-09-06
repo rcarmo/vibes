@@ -107,3 +107,12 @@ popout test to assert hydrated UI rather than transient URL parameters that app
 startup intentionally consumes. Full headed Chromium/WebKit run with one worker:
 40/40 passed; backend 399 passed; frontend build/lint passed. An earlier unrelated
 WebKit pin/unpin timeout did not recur; no application fix is claimed for it.
+
+### Dock header markup alignment
+
+Replaced provisional text toolbar with deployed dock-panel/header/title/actions/
+body structure and identical pop-out/close SVG paths. Ported deployed dock CSS.
+Added browser assertions for this structure; Chromium/WebKit terminal tests pass.
+Remaining host deviation: Vibes mounts it as a fixed bottom panel rather than a
+shared pane layout manager; detached-placeholder/reattach and splitter behavior
+remain outstanding. Do not mark complete based on header alignment alone.

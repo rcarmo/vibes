@@ -3378,3 +3378,22 @@ body {
 
 @font-face { font-family:"FiraCode Nerd Font Mono"; src:url("/static/common/fonts/vendor/firacode-nerd-font-mono-regular.ttf") format("truetype"); font-weight:400; font-style:normal; font-display:swap; }
 @font-face { font-family:"FiraCode Nerd Font Mono"; src:url("/static/common/fonts/vendor/firacode-nerd-font-mono-bold.ttf") format("truetype"); font-weight:700; font-style:normal; font-display:swap; }
+.dock-splitter{cursor:row-resize;background:var(--border-color);transition:background-color var(--ui-transition-fast);position:relative;z-index:2;flex-shrink:0;height:4px}
+.dock-splitter:hover,.dock-splitter.dragging{background:var(--accent-color)}
+.dock-panel{border-top:1px solid var(--border-color);background:var(--bg-primary);height:var(--dock-height,200px);display:flex;overflow:hidden;flex-direction:column;flex-shrink:0;min-height:100px;max-height:50vh}
+.dock-panel.standalone{border-top:none;flex:auto;height:100%;min-height:0;max-height:none}
+.dock-panel.hidden{display:none}
+.dock-panel-header{display:flex;padding:4px var(--spacing-md);border-bottom:1px solid var(--border-color);background:var(--bg-secondary);flex-shrink:0;justify-content:space-between;align-items: center}
+.dock-panel-title{color:var(--text-primary);text-transform:uppercase;letter-spacing:.03em;font-size:11px;font-weight:600}
+.dock-panel-actions{display:inline-flex;align-items: center;gap:4px}
+.dock-panel-action,.dock-panel-close{display:inline-flex;border-radius:var(--radius-sm);cursor:pointer;color:inherit;appearance:none;-webkit-appearance:none;transition:opacity var(--ui-transition-fast),background-color var(--ui-transition-fast),color var(--ui-transition-fast);background:0 0;border:none;flex-shrink:0;justify-content:center;align-items: center;width:22px;min-width:22px;height:22px;min-height:22px;margin:-2px;padding:0}
+.dock-panel-action>svg,.dock-panel-action>svg *,.dock-panel-close>svg,.dock-panel-close>svg *{pointer-events:none}
+.dock-panel-action:hover,.dock-panel-close:hover{background:var(--bg-hover)}
+.dock-panel-action:focus-visible{background:var(--bg-hover)}
+.dock-panel-close:focus-visible{background:var(--bg-hover)}
+.dock-panel-body{overflow:hidden;display:flex;flex-direction:column;flex:1;min-height:0}
+.dock-panel-body>*{flex:auto;min-height:0}
+.dock-panel-body-detached{overflow:hidden}
+/* Host positioning differs until Vibes has the shared pane layout manager. */
+.terminal-panel.dock-panel.standalone { height:45vh; }
+.terminal-popout .terminal-panel.dock-panel.standalone { height:100dvh; }
