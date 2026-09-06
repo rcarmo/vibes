@@ -574,7 +574,16 @@ async def _dispatch_pi_thread(content, thread_id, status_callback):
     return await send_pi_message_multimodal(content, thread_id, status_callback, chat_id=chat_id)
 
 
+_agent_dispatch_lock = asyncio.Lock()
+
+
 async def process_agent_response(thread_id: int, content: str, agent_id: str):
+    """The process owns one shared ACP/Pi runtime: never overlap worker turns."""
+    async with _agent_dispatch_lock:
+        return await _process_agent_response_locked(thread_id, content, agent_id)
+
+
+async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str):
     """Background task to get agent response and broadcast it."""
     import random
     import string

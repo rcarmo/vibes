@@ -541,3 +541,11 @@ forward it to the lock-held selector; archived sessions are rejected before
 prompting. Default calls preserve legacy compatibility. 444 backend tests pass.
 Public non-default route guard remains until queued/active admission is made
 session-safe; picker/runtime integration is still incomplete.
+
+### Shared runtime worker serialization
+
+Agent-response workers now acquire one dispatch lock before turn setup and retain
+it through completion/follow-up scheduling. This prevents the generic three-worker
+task pool from overlapping turns against the single shared ACP/Pi runtime. Test
+blocks one worker and verifies the next cannot enter; 445 backend tests pass.
+Admission/session UI remains pending; this is serialization, not parallel agents.

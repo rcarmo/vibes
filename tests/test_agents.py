@@ -738,3 +738,32 @@ async def test_invalid_session_identity_rejected(mock_deps):
     response = await agents_mod.send_message(req)
     assert response.status == 400
     mock_deps['enqueue'].assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_background_agent_dispatch_serializes_worker_turns():
+    import asyncio
+    entered, release = asyncio.Event(), asyncio.Event()
+    running = 0
+    peak = 0
+    order = []
+    async def run(thread_id, content, agent_id):
+        nonlocal running, peak
+        running += 1
+        peak = max(peak, running)
+        order.append(thread_id)
+        if thread_id == 1:
+            entered.set()
+            await release.wait()
+        running -= 1
+    with patch.object(agents_mod, '_agent_dispatch_lock', asyncio.Lock()), \
+         patch.object(agents_mod, '_process_agent_response_locked', AsyncMock(side_effect=run)):
+        first = asyncio.create_task(agents_mod.process_agent_response(1, 'one', 'default'))
+        await entered.wait()
+        second = asyncio.create_task(agents_mod.process_agent_response(2, 'two', 'default'))
+        await asyncio.sleep(0)
+        assert order == [1]
+        release.set()
+        await asyncio.gather(first, second)
+    assert order == [1, 2]
+    assert peak == 1
