@@ -2547,3 +2547,20 @@ control. Tooltip explains confirmed-empty requirement. Existing running/children
 callback guards and authoritative backend nonempty predicate remain unchanged.
 Expanded browser fixture verifies malformed counts with onDelete present, alongside
 an enabled genuine-zero control. Build/lint and all 60 headed picker tests pass.
+
+### Scoped model SSE subscription
+
+Found and fixed missing EventSource registration for session_model_changed: backend
+emits it and app handles it, but the transport previously never delivered it.
+Added mounted browser regression through a synthetic EventSource: after completing
+a session switch, an owned model update applies and a late default-session update
+cannot overwrite it. Initial fixture was corrected to wait for destination-specific
+state rather than identical labels in both sessions. Both browser projects pass
+this new case. This is synthetic event routing evidence, not live ACP acceptance.
+
+Build/lint and 19 frontend tests/85 assertions pass. Session-switching suite:
+105 pass, 1 WebKit failure opening Models settings (line 932, missing Open Models
+settings button after model-picker click). No retries; NOT a green suite checkpoint.
+Artifacts preserved at /workspace/tmp/sse-modal-failure and log at
+/workspace/tmp/sse-browser-final.log. Existing intermittent-picker investigation
+remains open; this transport fix is not claimed to resolve that issue.

@@ -968,3 +968,35 @@ test('explicit catalogue refresh updates choices without model mutation', async 
     await expect(trigger).toContainText('test/current');
     expect(mutations).toBe(0);
 });
+
+test('late session model SSE events cannot overwrite the newly selected session', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    await page.route('**/sessions/*/model-state', route => route.fulfill({
+        contentType: 'application/json', body: JSON.stringify({ available: true, model: { provider: 'test', id: new URL(route.request().url()).pathname.includes('/default/') ? 'default-initial' : 'destination-initial' } }),
+    }));
+    await page.goto('/');
+    const response = await page.request.post('/sessions', { data: { name: 'SSE destination' } });
+    const id = (await response.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator(`#session-option-${id}`).click();
+    const model = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(page.getByTestId('session-switcher')).toContainText('SSE destination');
+    await expect(model).toContainText('destination-initial');
+    const emit = async (session_id, modelId) => page.evaluate(({ session_id, modelId }) => {
+        window.testEventSource.dispatchEvent(new MessageEvent('session_model_changed', {
+            data: JSON.stringify({ session_id, model: { provider: 'test', id: modelId } }),
+        }));
+    }, { session_id, modelId });
+    await emit(id, 'destination-current');
+    await expect(model).toContainText('destination-current');
+    await emit('default', 'stale-default');
+    // Flush rendering, rather than waiting for a negative assertion to pass immediately.
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(model).toContainText('destination-current');
+    await expect(model).not.toContainText('stale-default');
+});
