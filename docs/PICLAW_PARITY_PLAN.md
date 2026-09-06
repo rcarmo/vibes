@@ -1511,3 +1511,10 @@ Chromium/WebKit verify pin action makes no model mutation, survives page reload,
 and does not render a stored favorite absent from the refreshed backend catalog.
 Two targeted browser tests pass. Browser-local preference remains distinct from
 server-synced settings and runtime model availability.
+
+### Separate pin persistence errors
+
+Failed browser pin storage now has its own temporary-preference warning rather
+than contaminating catalog error/count/retry state. Valid choices remain usable.
+Two headed Chromium/WebKit storage-denial tests and build/lint pass. Server-synced
+preferences and full visual parity remain open.

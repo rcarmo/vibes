@@ -277,10 +277,11 @@ export function ComposeBox({
     const modelSearchRef = useRef(null);
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [modelPins, setModelPins] = useState(() => loadModelPins(localStorage));
+    const [modelPinError, setModelPinError] = useState('');
     const toggleModelPin = label => {
         const next = modelPins.includes(label) ? modelPins.filter(item => item !== label) : [...modelPins, label].slice(-100);
         setModelPins(next);
-        if (!saveModelPins(localStorage, next)) setModelCatalogError('Model pins could not be saved in this browser');
+        setModelPinError(saveModelPins(localStorage, next) ? '' : 'Model pins could not be saved in this browser; changes are temporary.');
     };
     const modelGroups = [
         { label: 'Current', models: filteredModels.filter(label => label === activeModel) },
@@ -974,6 +975,7 @@ export function ComposeBox({
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
                             <div class="compose-model-popup-title">Search models</div>
+                            ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
                             ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
                             <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">

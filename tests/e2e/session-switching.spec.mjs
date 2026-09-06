@@ -458,3 +458,21 @@ test('model pins persist without mutation and never expose unavailable choices',
     await expect(page.getByRole('menuitem', { name: 'test/favorite', exact: true })).toHaveCount(0);
     expect(mutations).toBe(0);
 });
+
+test('pin storage failure does not invalidate model catalog', async ({ page }) => {
+    await page.addInitScript(() => {
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+            if (key === 'vibes_model_pins') throw new Error('Storage denied');
+            return original.call(this, key, value);
+        };
+    });
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}]}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
+    await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('changes are temporary');
+    await expect(page.getByRole('menuitem', { name: 'test/current', exact: true })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Retry model catalog' })).toHaveCount(0);
+});
