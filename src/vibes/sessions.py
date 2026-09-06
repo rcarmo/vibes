@@ -14,6 +14,19 @@ class SessionStore:
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
+    async def delete_empty(self, session_id):
+        if session_id == 'default':
+            raise ValueError('Default session cannot be deleted')
+        async with self.db.transaction():
+            cursor = await self.db._connection.execute('''
+                DELETE FROM chat_sessions WHERE id=?
+                AND NOT EXISTS (SELECT 1 FROM interactions WHERE json_extract(data, '$.session_id')=?)
+                AND NOT EXISTS (SELECT 1 FROM chat_sessions WHERE parent_id=?)
+            ''', (session_id, session_id, session_id))
+            if not cursor.rowcount:
+                raise ValueError('Session missing, nonempty, or has children')
+        return True
+
     async def get(self, session_id):
         async with self.db._connection.execute('SELECT * FROM chat_sessions WHERE id=?', (session_id,)) as cursor:
             row = await cursor.fetchone()

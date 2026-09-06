@@ -375,3 +375,12 @@ archive. Migration version rows are consolidated to avoid selecting stale versio
 on subsequent starts. Persistence/reopen and validation tests pass: 424 backend
 tests. This does not yet route messages, isolate model context, delete histories,
 or switch running agents. Session APIs/picker/state isolation remain pending.
+
+### Session registry API
+
+Added GET/POST /sessions and PATCH/DELETE /sessions/{id}, validated fields and
+sessions_changed events. DELETE only permits empty non-default leaf sessions;
+nonempty history is never silently destroyed. Responses disclose runtime_isolation
+false. 425 backend tests pass, including route create/rename/pin/delete and
+nonempty/default protection. Message routing, isolated agents and picker remain
+pending; the registry endpoint is not an independent runtime session launcher.
