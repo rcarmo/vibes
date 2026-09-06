@@ -995,3 +995,12 @@ active descendant rather than referencing a nonexistent node. Four headed
 Chromium/WebKit picker tests and build/lint pass. Updated prior searchbox test
 locator for the deliberate combobox role change. Full deployed picker actions,
 metrics and dialog styling acceptance remains open.
+
+### Session picker lifecycle action gating
+
+Archive is disabled for running sessions; deletion is disabled for nonempty
+sessions or sessions with children. Parent checks use the entire supplied registry,
+not filtered search results, with explanatory titles. Backend rejection still
+surfaces as an alert for stale state. Six headed Chromium/WebKit picker tests and
+build/lint pass, including filtered parent, archived restore, and error feedback.
+This is UI guidance, not replacement authorization; backend remains authoritative.

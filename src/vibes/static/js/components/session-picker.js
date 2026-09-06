@@ -10,6 +10,7 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
     const results = useRef(null);
     const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase())) })).filter(group => group.items.length), [sessions, currentId, query]);
     const matches = groups.flatMap(group => group.items);
+    const parents = new Set(sessions.map(item => item.parent_id).filter(Boolean));
     const selectedIndex = Math.max(0, Math.min(index, matches.length - 1));
     const selectedId = matches[selectedIndex]?.id;
     useEffect(() => { search.current?.focus(); }, []);
@@ -45,8 +46,8 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
                     <span class=${`compose-session-status-pill ${item.archived ? 'closed' : item.is_running ? 'active' : 'idle'}`}>${item.archived ? 'Archived' : item.is_running ? 'Running' : 'Idle'}</span>
                 </button>
                 <button type="button" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
-                ${item.id !== 'default' && onArchive && html`<button type="button" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
-                ${item.id !== 'default' && html`<button type="button" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
+                ${item.id !== 'default' && onArchive && html`<button type="button" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} disabled=${!item.archived && item.is_running === true} title=${!item.archived && item.is_running ? 'Stop the running turn before archiving' : undefined} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
+                ${item.id !== 'default' && html`<button type="button" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count || parents.has(item.id)} title=${parents.has(item.id) ? 'Sessions with children cannot be deleted' : item.message_count ? 'Only empty sessions can be deleted' : undefined} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
             </div>`)}
             </div>`)}
         </div>

@@ -55,3 +55,27 @@ test('session search exposes keyboard active option and clears it for no matches
     await search.fill('Main');
     await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
 });
+
+test('picker gates archive and delete using unfiltered session state', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'actions-fixture'; document.body.append(root);
+        render(html`<${SessionPicker} sessions=${[
+            { id: 'parent', name: 'Parent', message_count: 0, is_running: true },
+            { id: 'child', name: 'Child', parent_id: 'parent', message_count: 0 },
+            { id: 'closed', name: 'Closed', archived: true, message_count: 1 },
+        ]} onArchive=${() => { throw new Error('State changed; try again'); }} onDelete=${() => {}} />`, root);
+    });
+    const fixture = page.locator('#actions-fixture');
+    await expect(fixture.getByRole('button', { name: 'Archive Parent', exact: true })).toBeDisabled();
+    await expect(fixture.getByRole('button', { name: 'Delete Parent', exact: true })).toBeDisabled();
+    await fixture.getByRole('combobox').fill('Parent');
+    await expect(fixture.getByRole('button', { name: 'Delete Parent', exact: true })).toBeDisabled();
+    await fixture.getByRole('combobox').fill('');
+    await expect(fixture.getByRole('button', { name: 'Delete Child', exact: true })).toBeEnabled();
+    await expect(fixture.getByRole('button', { name: 'Delete Closed', exact: true })).toBeDisabled();
+    await fixture.getByRole('button', { name: 'Restore Closed', exact: true }).click();
+    await expect(fixture.getByRole('alert')).toHaveText('State changed; try again');
+});
