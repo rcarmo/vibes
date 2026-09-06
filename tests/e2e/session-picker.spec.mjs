@@ -151,3 +151,31 @@ test('delete dialog defaults to cancel and retains backend rejection', async ({ 
     await expect(dialog).toHaveCount(0);
     await expect(page.locator('#session-option-' + id)).toHaveCount(0);
 });
+
+for (const width of [1280, 390]) {
+    test(`picker metrics remain distinct and bounded at ${width}px`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto('/');
+        await page.evaluate(async () => {
+            const { html, render } = await import('/static/js/vendor/preact-htm.js');
+            const { SessionPicker } = await import('/static/js/components/session-picker.js');
+            const root = document.createElement('div'); root.id = 'metrics-fixture'; document.body.append(root);
+            render(html`<${SessionPicker} sessions=${[
+                { id: 'default', name: 'Queued idle chat', queued_count: 2, is_running: false, message_count: 5, last_message_at: '2026-09-06 12:30:00' },
+                { id: 'running', name: 'Running chat', queued_count: 0, is_running: true, message_count: 0, last_message_at: 'invalid' },
+            ]} />`, root);
+        });
+        const fixture = page.locator('#metrics-fixture');
+        const idle = fixture.locator('#session-option-default');
+        await expect(idle.locator('.compose-session-status-pill.idle')).toHaveText('Idle');
+        await expect(idle.locator('.queued')).toHaveText('2 queued');
+        await expect(idle.locator('time')).toHaveAttribute('datetime', '2026-09-06T12:30:00.000Z');
+        await expect(idle.locator('time')).toContainText('Last message:');
+        const running = fixture.locator('#session-option-running');
+        await expect(running.locator('.compose-session-status-pill.active')).toHaveText('Running');
+        await expect(running.locator('time, .queued')).toHaveCount(0);
+        const box = await fixture.getByTestId('session-popup').boundingBox();
+        expect(box.x).toBeGreaterThanOrEqual(0);
+        expect(box.x + box.width).toBeLessThanOrEqual(width + 1);
+    });
+}

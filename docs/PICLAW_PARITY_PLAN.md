@@ -1060,3 +1060,12 @@ belong to default. Picker shows a separate queued badge without inferring runnin
 state or persistence. 469 backend tests, 12 headed picker tests and build/lint
 pass. Counts are snapshots of current process memory, not durable delivery or
 exactly-once guarantees; final grouped metrics/visual acceptance remains open.
+
+### Picker metric browser acceptance
+
+Added desktop 1280px and narrow 390px Chromium/WebKit coverage: an idle chat can
+show queued work without becoming Running; running chat hides absent queue/time;
+valid persisted time exposes UTC datetime and invalid time is omitted. Popup
+bounds remain inside viewport. Sixteen headed picker tests pass. This bounded
+layout check is not screenshot equivalence or exhaustive action-row overflow
+acceptance; those visual requirements remain open.
