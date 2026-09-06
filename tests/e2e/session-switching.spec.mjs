@@ -904,4 +904,14 @@ test('Models settings modal opens, loads versioned pins and restores focus', asy
     await dialog.getByRole('button', { name: 'Close Models settings', exact: true }).click();
     await expect(dialog).not.toBeVisible();
     await expect(trigger).toBeFocused();
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await dialog.getByRole('button', { name: 'Load instance pins', exact: true }).focus();
+    await page.keyboard.press('Escape');
+    await expect(dialog).not.toBeVisible();
+    await expect(trigger).toBeFocused();
+    await expect(page.getByRole('combobox', { name: 'Search models' })).toBeVisible();
+    await trigger.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Save instance pins', exact: true })).toBeEnabled();
 });

@@ -2376,3 +2376,12 @@ Initial run timed out (cleaned only its orphan e2e server), and subsequent retry
 cases failed before modality fix. Final complete run: 102 headed model/session
 tests pass; build/lint passes. No retries configured. Full settings parity and
 external/visual acceptance remain separate.
+
+### Settings dismissal race
+
+Extended modal coverage through button close, reopen, Escape close and reopen with
+loaded version retained. Chromium exposed open-state reconciliation racing delayed
+native close event, reopening dialog. Explicit Close and native cancel now clear
+open state immediately, before reconciliation; close event remains fallback.
+Ten headed Chromium/WebKit modal/pin tests and build/lint pass. Test also verifies
+Escape leaves underlying picker open and returns focus to settings trigger.

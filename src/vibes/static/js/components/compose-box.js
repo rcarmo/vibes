@@ -1134,7 +1134,7 @@ export function ComposeBox({
                                 </select>
                             </label>`}
                             <button type="button" class="compose-model-popup-btn" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
-                            <dialog key="model-settings" ref=${modelSettingsRef} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
+                            <dialog key="model-settings" ref=${modelSettingsRef} onCancel=${() => setModelSettingsOpen(false)} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
                                 <h2>Models settings</h2>
                                 <p>Browser pins: ${modelPins.length ? modelPins.join(', ') : 'None'}</p>
                                 <p>Provider credentials and model defaults are not managed here. Catalogue availability does not verify provider authentication.</p>
@@ -1142,7 +1142,7 @@ export function ComposeBox({
                                 <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(false)}>Load instance pins</button>
                                 <button type="button" disabled=${pinSyncBusy || !instancePinsLoaded} onClick=${() => syncInstancePins(true)}>Save instance pins</button>
                                 ${modelSettingsOpen && pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
-                                <button type="button" onClick=${() => modelSettingsRef.current?.close()}>Close Models settings</button>
+                                <button type="button" onClick=${() => { setModelSettingsOpen(false); modelSettingsRef.current?.close(); }}>Close Models settings</button>
                             </dialog>
                             <div class="compose-model-popup-actions">
                                 <button
