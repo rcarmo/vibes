@@ -1539,6 +1539,27 @@ body {
     padding: 0 2px 2px 2px;
 }
 
+.compose-model-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+}
+
+.compose-model-meta-subline {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    min-width: 0;
+    width: 100%;
+}
+
+.compose-model-meta > .compose-model-hint {
+    max-width: 100%;
+}
+
 .compose-model-hint {
     font-size: 11.5px;
     color: var(--text-secondary);

@@ -264,6 +264,7 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                     `}
                     ${!l&&(Z||We||Me&&Me.percent!=null)&&Ke`
                         <div class="compose-meta-row">
+                            ${(Z||We)&&Ke`<div class="compose-model-meta">
                             ${Z&&Ke`
                                 <button
                                     ref=${ah}
@@ -277,6 +278,7 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                                     ${Mf?"Switching…":r5}
                                 </button>
                             `}
+                            <div class="compose-model-meta-subline">
                             ${We&&Ke`
                                 <button
                                     type="button"
@@ -289,6 +291,8 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                                     ${ke||"thinking"}
                                 </button>
                             `}
+                            </div>
+                            </div>`}
                             ${Me&&Me.percent!=null&&Ke`
                                 <${afn} usage=${Me} />
                             `}
@@ -2123,4 +2127,4 @@ ${a}
         </div>
     `}p4t(Ke`<${J7n} />`,document.getElementById("app"));
 
-//# debugId=35228C7D00AE034B64756E2164756E21
+//# debugId=4889D6F1F08D509764756E2164756E21

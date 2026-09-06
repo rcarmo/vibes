@@ -36,3 +36,17 @@ button types, accessible labels, selection callbacks and context-gauge behavior.
 The local thinking selector inside the catalog also remains a local extension;
 this audit does not authorize removing working per-session controls merely to
 obtain screenshot similarity. Full picker and status visual acceptance remain open.
+
+## Implemented metadata wrappers
+
+Local model trigger and thinking action now sit inside compose-model-meta, with
+thinking inside compose-model-meta-subline. Copied deployed column layout, 2px
+gaps and min-width rules, with max-width containment on the local model trigger.
+The pill remains an explicitly interactive local extension rather than a copied
+usage-hint span. No provider usage/pricing data was invented.
+
+Ten targeted headed Chromium/WebKit tests pass, including desktop/mobile structural
+and bounding-box assertions plus thinking/context behavior. 20 frontend tests and
+build/lint pass. Rechecked 1280px/390px Chromium captures: model and thinking stack
+without overlap; controls fit the viewport. This is scoped structure verification,
+not full footer/picker visual equivalence or approval of the local pill treatment.

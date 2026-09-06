@@ -1081,3 +1081,24 @@ test('model SSE clears stale context while fresh usage is pending', async ({ pag
     await expect(gauge).toHaveCount(1);
     await expect(gauge).toHaveAttribute('aria-label', /50%/);
 });
+
+for (const width of [1280, 390]) {
+    test(`model metadata stacks thinking beneath model at ${width}px`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            available: true, model: { provider: 'test', id: 'reasoner', reasoning: true }, thinking_level: 'low',
+        }) }));
+        await page.goto('/');
+        const meta = page.locator('.compose-model-meta');
+        const model = meta.getByRole('button', { name: 'Open model picker', exact: true });
+        const thinking = meta.locator('.compose-model-meta-subline').getByRole('button', { name: 'Cycle thinking level', exact: true });
+        await expect(model).toContainText('reasoner');
+        await expect(thinking).toHaveText('low');
+        const top = await model.boundingBox();
+        const bottom = await thinking.boundingBox();
+        expect(bottom.y).toBeGreaterThanOrEqual(top.y + top.height);
+        expect(top.x + top.width).toBeLessThanOrEqual(width);
+        expect(bottom.x + bottom.width).toBeLessThanOrEqual(width);
+        await page.screenshot({ path: testInfo.outputPath(`model-meta-${width}.png`) });
+    });
+}

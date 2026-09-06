@@ -1046,6 +1046,7 @@ export function ComposeBox({
                     `}
                     ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
+                            ${(activeModel || supportsThinking) && html`<div class="compose-model-meta">
                             ${activeModel && html`
                                 <button
                                     ref=${modelHintRef}
@@ -1059,6 +1060,7 @@ export function ComposeBox({
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>
                             `}
+                            <div class="compose-model-meta-subline">
                             ${supportsThinking && html`
                                 <button
                                     type="button"
@@ -1071,6 +1073,8 @@ export function ComposeBox({
                                     ${thinkingLevel || 'thinking'}
                                 </button>
                             `}
+                            </div>
+                            </div>`}
                             ${contextUsage && contextUsage.percent != null && html`
                                 <${ContextPie} usage=${contextUsage} />
                             `}
