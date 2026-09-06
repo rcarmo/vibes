@@ -154,3 +154,13 @@ no retries/skips. Backend remains 399 passing; frontend build/lint pass. Capture
 This establishes renderability, not pixel-identical host layout: the fixed bottom
 host, launcher placement and splitter nesting remain tracked deviations from
 Piclaw's shared pane shell. Do not equate these screenshots with final parity.
+
+### Messages query foundation
+
+Added read-only get/search core with explicit constructor-bound thread scope or
+explicit workspace access, not caller-selectable tool scope. Literal FTS phrase
+search, ID pagination, 50-result cap, 4,000-character per-message and 24,000 total
+content caps. Returns selected message fields, not arbitrary stored JSON metadata.
+Tests prove out-of-scope IDs/search hits are excluded and limits enforced.
+Backend suite: 401 passed. This is NOT yet an ACP-accessible tool: MCP transport,
+initialization/tool schemas and agent session injection remain to implement.
