@@ -855,3 +855,12 @@ Successful scoped model mutation persists confirmed Pi sessionFile and sanitized
 model label/level when supplied by RPC. 466 backend tests pass, including repeated
 binding and partial metadata updates. Stored metadata is not proof of live state;
 inactive-context UI still reports unavailable rather than inventing current usage.
+
+### Integrated regression checkpoint
+
+At 0fd4b70, re-ran all backend tests (466 passed), frontend unit tests (10 passed),
+frontend build/lint and headed Chromium/WebKit suite with one worker (98 passed).
+No skips or retry configuration added. Working tree remained clean after build.
+This validates the implemented slices together, not the unfinished acceptance
+items: mentions, speech, default model-path consolidation/ACP controls, full dock
+layout, complete picker markup, and third-party agent acceptance remain open.
