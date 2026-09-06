@@ -1,5 +1,5 @@
 import { SessionPicker } from './components/session-picker.js';
-import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession } from './api.js';
+import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
@@ -796,6 +796,24 @@ function App() {
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
 
+    const refreshSelectedQueue = async () => {
+        const session = selectedSessionRef.current;
+        const result = await getAgentQueue(null, null, session);
+        if (session === selectedSessionRef.current) setQueuedFollowups(result.items || []);
+    };
+    useEffect(() => {
+        if (selectedSession === 'default') return;
+        let disposed = false;
+        const refresh = async () => {
+            try {
+                const result = await getAgentQueue(null, null, selectedSession);
+                if (!disposed) setQueuedFollowups(result.items || []);
+            } catch (error) { console.warn('Queue refresh failed:', error); }
+        };
+        refresh();
+        const timer = setInterval(refresh, 3000);
+        return () => { disposed = true; clearInterval(timer); };
+    }, [selectedSession]);
     const syncQueueState = useCallback((statusData) => {
         if (!statusData) return;
         const queued = Array.isArray(statusData.queued_followups) ? statusData.queued_followups : [];
@@ -1699,6 +1717,7 @@ function App() {
         if (rowId == null) return;
         try {
             await removeAgentQueueItem(rowId);
+            if (selectedSessionRef.current !== 'default') await refreshSelectedQueue();
         } catch (error) {
             console.error('Failed to remove queued item:', error);
             alert('Failed to remove queued item: ' + error.message);
@@ -1708,7 +1727,8 @@ function App() {
     const handleQueueReorder = useCallback(async (rowId, direction) => {
         try {
             const result = await reorderAgentQueueItem(rowId, direction);
-            setQueuedFollowups(result.items);
+            if (selectedSessionRef.current === 'default') setQueuedFollowups(result.items);
+            else await refreshSelectedQueue();
         } catch (err) { alert(err.message || 'Failed to reorder queue.'); }
     }, []);
 
@@ -1716,6 +1736,7 @@ function App() {
         if (rowId == null) return;
         try {
             await steerAgentQueueItem(rowId);
+            if (selectedSessionRef.current !== 'default') await refreshSelectedQueue();
         } catch (error) {
             console.error('Failed to steer queued item:', error);
             alert('Failed to steer queued item: ' + error.message);

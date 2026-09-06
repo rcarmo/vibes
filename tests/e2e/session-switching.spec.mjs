@@ -70,3 +70,19 @@ test('open picker refreshes registry changes from another client', async ({ page
     await page.request.patch('/sessions/' + id, { data: { name: 'External rename' } });
     await expect(page.locator('#session-option-' + id)).toContainText('External rename', { timeout: 10000 });
 });
+
+test('selected chat loads only its scoped queue endpoint', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Queued chat' } });
+    const id = (await created.json()).session.id;
+    await page.route('**/agent/queue?*', async route => {
+        const session = new URL(route.request().url()).searchParams.get('session_id');
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ items: session === id ? [{ row_id: -999, agent_id: 'default', thread_id: 99, content: 'Selected queue only' }] : [], pending_steers: [] }) });
+    });
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(page.locator('.compose-queue-item')).toContainText('Selected queue only');
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-default').click();
+    await expect(page.getByText('Selected queue only', { exact: true })).toHaveCount(0);
+});

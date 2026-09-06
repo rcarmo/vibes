@@ -143,10 +143,11 @@ export async function getAgentStatus() {
     return request('/agents/status');
 }
 
-export async function getAgentQueue(agentId = null, threadId = null) {
+export async function getAgentQueue(agentId = null, threadId = null, sessionId = null) {
     const params = new URLSearchParams();
     if (agentId) params.set('agent_id', agentId);
     if (threadId != null) params.set('thread_id', String(threadId));
+    if (sessionId !== null) params.set('session_id', sessionId);
     const query = params.toString();
     return request(query ? `/agent/queue?${query}` : '/agent/queue');
 }

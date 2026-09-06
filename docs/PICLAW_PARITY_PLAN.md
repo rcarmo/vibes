@@ -728,3 +728,11 @@ Promotion compares persisted queue-thread and active-turn session ownership befo
 claiming or writing Pi steering. Cross-session or unknown ownership returns 409
 and retains the queued item. 458 backend tests pass, including no-write/no-removal
 assertions. Selected-session queue UI refresh/mutation response scoping remains.
+
+### Selected-chat queue polling
+
+Non-default chats load scoped queues on selection and periodically, discard results
+after unmount/switch, and refetch scoped state after mutations instead of using
+unscoped reorder results. Ten switching tests pass including scoped queue display
+and clearing on return to default; build/lint pass. Default global status queue
+snapshot still needs full scope normalization; this slice is not final acceptance.
