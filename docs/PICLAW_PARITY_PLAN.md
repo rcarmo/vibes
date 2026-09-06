@@ -760,3 +760,11 @@ immediate selection. Late responses from prior selections are ignored; in-flight
 turn state can restore on switch. Twelve switching browser tests and build/lint
 pass. Context/model information remains separately guarded pending scoped backend
 inspection; this is status-turn scoping, not full model/context parity.
+
+### Correct Pi context inspection
+
+Context endpoint now uses documented get_session_stats.contextUsage instead of
+invented get_state context fields. Inspection owns request_lock, declines while
+busy and rejects nonactive/uncertain chat selection so it cannot consume prompt
+stream events or expose another chat's usage. 460 backend tests pass. Busy usage
+currently returns unavailable; cached/live event metrics remain future work.

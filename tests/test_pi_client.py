@@ -229,3 +229,18 @@ async def test_pi_dispatch_selects_chat_under_prompt_lock_and_stops_on_failure()
     assert 'Selection failed' in response['text']
     send.assert_not_awaited()
     assert not pi._state.request_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_stats_inspection_respects_prompt_lock_and_chat_identity():
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', AsyncMock(return_value={'success': True})) as rpc:
+        assert await pi.inspect_session_stats('other') is None
+        await pi._state.request_lock.acquire()
+        try:
+            assert await pi.inspect_session_stats('default') is None
+        finally:
+            pi._state.request_lock.release()
+        rpc.assert_not_awaited()
+        assert await pi.inspect_session_stats('default') == {'success': True}
+        rpc.assert_awaited_once_with({'type': 'get_session_stats'}, timeout=2.0)

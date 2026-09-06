@@ -591,11 +591,11 @@ async def test_get_agent_context_with_usage():
     state_resp = {
         "success": True,
         "data": {
-            "context": {"tokens": 15000, "contextWindow": 200000},
+            "contextUsage": {"tokens": 15000, "contextWindow": 200000},
         },
     }
     with patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=state_resp):
+         patch.object(agents_mod, "inspect_session_stats", new_callable=AsyncMock, return_value=state_resp):
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
     assert body["tokens"] == 15000
@@ -608,7 +608,7 @@ async def test_get_agent_context_rpc_failure():
     """Returns null usage when RPC fails."""
     req = make_mocked_request("GET", "/agent/context")
     with patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, side_effect=Exception("timeout")):
+         patch.object(agents_mod, "inspect_session_stats", new_callable=AsyncMock, side_effect=Exception("timeout")):
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
     assert body == {"tokens": None, "contextWindow": None, "percent": None}

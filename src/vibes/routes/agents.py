@@ -20,6 +20,7 @@ from ..acp_client import (
 from ..pi_client import (
     send_message_multimodal as send_pi_message_multimodal,
     is_pi_running,
+    inspect_session_stats,
     is_busy as is_pi_busy,
     send_rpc_command,
     send_rpc_fire_and_forget as send_pi_rpc_fire_and_forget,
@@ -957,12 +958,12 @@ async def get_agent_context(request: web.Request) -> web.Response:
     if not is_pi_running():
         return web.json_response(null_resp)
     try:
-        resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+        resp = await inspect_session_stats(request.query.get('session_id', 'default'))
         if not resp or not resp.get("success"):
             return web.json_response(null_resp)
         data = resp.get("data", {})
         # Try extracting context usage from state — Pi may include it.
-        context = data.get("context") or data.get("context_usage") or {}
+        context = data.get("contextUsage") or {}
         tokens = context.get("tokens")
         context_window = context.get("contextWindow") or context.get("context_window")
         # Also try model-level contextWindow
