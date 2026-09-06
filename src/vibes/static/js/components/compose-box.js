@@ -1,4 +1,4 @@
-import { loadModelPins, saveModelPins } from './model-pins.js';
+import { loadModelPins, saveModelPins, modelPinStorage } from './model-pins.js';
 import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
@@ -276,12 +276,12 @@ export function ComposeBox({
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
-    const [modelPins, setModelPins] = useState(() => loadModelPins(localStorage));
+    const [modelPins, setModelPins] = useState(() => loadModelPins(modelPinStorage()));
     const [modelPinError, setModelPinError] = useState('');
     const toggleModelPin = label => {
         const next = modelPins.includes(label) ? modelPins.filter(item => item !== label) : [...modelPins, label].slice(-100);
         setModelPins(next);
-        setModelPinError(saveModelPins(localStorage, next) ? '' : 'Model pins could not be saved in this browser; changes are temporary.');
+        setModelPinError(saveModelPins(modelPinStorage(), next) ? '' : 'Model pins could not be saved in this browser; changes are temporary.');
     };
     const modelGroups = [
         { label: 'Current', models: filteredModels.filter(label => label === activeModel) },

@@ -1,4 +1,7 @@
 const KEY = 'vibes_model_pins';
+export function modelPinStorage(host = globalThis) {
+    try { return host.localStorage; } catch { return null; }
+}
 export function loadModelPins(storage) {
     try {
         const value = JSON.parse(storage.getItem(KEY) || '[]');

@@ -1518,3 +1518,11 @@ Failed browser pin storage now has its own temporary-preference warning rather
 than contaminating catalog error/count/retry state. Valid choices remain usable.
 Two headed Chromium/WebKit storage-denial tests and build/lint pass. Server-synced
 preferences and full visual parity remain open.
+
+### Model pin storage access guard
+
+Pin callers now acquire localStorage inside a guarded helper, covering browsers
+that throw on property access before load/save helpers run. Eighteen frontend
+unit tests and build/lint pass, including SecurityError-style getter rejection.
+This protects the pin feature; it is not a claim that every legacy app storage
+access has been audited.

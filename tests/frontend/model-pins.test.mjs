@@ -9,3 +9,11 @@ test('model pins validate storage and tolerate denied writes', () => {
     expect(loadModelPins({ getItem() { throw Error(); } })).toEqual([]);
     expect(saveModelPins({ setItem() { throw Error(); } }, [])).toBe(false);
 });
+
+test('denied storage property access is safe for model pin callers', async () => {
+    const { modelPinStorage } = await import('../../src/vibes/static/js/components/model-pins.js');
+    const host = { get localStorage() { throw new Error('SecurityError'); } };
+    expect(modelPinStorage(host)).toBe(null);
+    expect(loadModelPins(modelPinStorage(host))).toEqual([]);
+    expect(saveModelPins(modelPinStorage(host), ['p/m'])).toBe(false);
+});
