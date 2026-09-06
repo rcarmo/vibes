@@ -816,3 +816,10 @@ unarchived session and delegates to guarded matching-idle Pi mutation. Returns
 sanitized confirmed state and session_model_changed event; busy/mismatched context
 returns 409. 464 backend tests pass. ACP mutation and frontend catalog/control
 integration remain pending; endpoint does not implicitly activate inactive chats.
+
+### Scoped model/thinking catalog
+
+GET /sessions/{id}/models returns bounded sanitized Pi model and thinking choices
+only for matching idle context under the stream lock. Otherwise available=false;
+no active-context switch occurs during inspection. 465 backend tests pass.
+Frontend per-session mutation/catalog wiring and ACP capability handling remain.

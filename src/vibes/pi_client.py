@@ -278,6 +278,21 @@ async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_l
         return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
 
 
+async def inspect_model_catalog(chat_id='default'):
+    """Read choices without changing contexts or consuming an active prompt stream."""
+    if _state.request_lock.locked() or not is_pi_running():
+        return None
+    async with _state.request_lock:
+        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
+            return None
+        models = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
+        levels = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
+        if not models or not models.get('success') or not levels or not levels.get('success'):
+            return None
+        return {'models': models.get('data', {}).get('models', []),
+                'thinking_levels': levels.get('data', {}).get('levels', [])}
+
+
 async def inspect_model_state(chat_id='default'):
     """Inspect only the selected idle conversation, without switching it."""
     if _state.request_lock.locked() or not is_pi_running():

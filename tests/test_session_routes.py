@@ -205,3 +205,20 @@ async def test_model_mutation_route_scopes_validates_and_sanitizes(db, aiohttp_c
     assert (await client.post('/sessions/missing/model', json={'thinking_level': 'low'})).status == 404
     change.side_effect = RuntimeError('busy')
     assert (await client.post('/sessions/default/model', json={'thinking_level': 'low'})).status == 409
+
+
+@pytest.mark.asyncio
+async def test_model_catalog_route_sanitizes_and_bounds(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    inspect = AsyncMock(return_value={'models': [{'id': 'm', 'provider': 'p', 'baseUrl': 'private'}] * 501, 'thinking_levels': ['off', 'low']})
+    monkeypatch.setattr(pi, 'inspect_model_catalog', inspect)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/models')).json()
+    assert len(result['models']) == 500
+    assert result['models'][0] == {'id': 'm', 'provider': 'p'}
+    assert result['thinking_levels'] == ['off', 'low']
+    inspect.return_value = None
+    assert (await (await client.get('/sessions/default/models')).json())['available'] is False

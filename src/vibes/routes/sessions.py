@@ -35,6 +35,24 @@ async def session_model_state(request):
         return web.json_response(unavailable)
 
 
+async def session_model_catalog(request):
+    from ..pi_client import inspect_model_catalog
+    session_id = request.match_info['id']
+    if not await SessionStore(await get_db()).get(session_id):
+        return web.json_response({'error': 'Session not found'}, status=404)
+    unavailable = {'available': False, 'models': [], 'thinking_levels': []}
+    try:
+        catalog = await inspect_model_catalog(session_id)
+        if not catalog:
+            return web.json_response(unavailable)
+        models = [{key: item[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in item}
+                  for item in catalog['models'][:500] if isinstance(item, dict)]
+        levels = [level for level in catalog['thinking_levels'][:16] if isinstance(level, str)]
+        return web.json_response({'available': True, 'models': models, 'thinking_levels': levels})
+    except Exception:
+        return web.json_response(unavailable)
+
+
 async def change_session_model(request):
     from ..pi_client import change_chat_model
     session_id = request.match_info['id']
@@ -104,6 +122,7 @@ def setup_routes(app):
     app.router.add_get('/sessions/{id}/timeline', session_timeline)
     app.router.add_get('/sessions/{id}/model-state', session_model_state)
     app.router.add_post('/sessions/{id}/model', change_session_model)
+    app.router.add_get('/sessions/{id}/models', session_model_catalog)
     app.router.add_post('/sessions', mutate_session)
     app.router.add_patch('/sessions/{id}', mutate_session)
     app.router.add_delete('/sessions/{id}', mutate_session)
