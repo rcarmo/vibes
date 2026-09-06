@@ -96,7 +96,7 @@ async def change_session_model(request):
         data = await request.json()
         if not isinstance(data, dict) or not data or set(data) - {'provider', 'model_id', 'thinking_level'}:
             raise ValueError('Invalid model change fields')
-        if any(not isinstance(value, str) or not value or len(value) > 512 for value in data.values()):
+        if any(not valid_text(value) for value in data.values()):
             raise ValueError('Invalid model change values')
         response = await change_chat_model(session_id, **data)
         if not response or not response.get('success'):

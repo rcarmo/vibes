@@ -298,3 +298,18 @@ async def test_model_mutation_filters_malformed_response_metadata(db, aiohttp_cl
     result = await (await client.post('/sessions/default/model', json={'provider': 'p', 'model_id': 'm'})).json()
     assert result['model'] == {'id': 'm', 'provider': 'p'}
     assert result['thinking_level'] is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('values', [{'thinking_level': '   '}, {'thinking_level': 'low\n'}, {'provider': 'p\x7f', 'model_id': 'm'}, {'provider': 'p', 'model_id': '\x00m'}])
+async def test_invalid_model_mutation_text_never_reaches_pi(db, aiohttp_client, monkeypatch, values):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    change = AsyncMock()
+    monkeypatch.setattr(pi, 'change_chat_model', change)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    response = await client.post('/sessions/default/model', json=values)
+    assert response.status == 400
+    change.assert_not_awaited()

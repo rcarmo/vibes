@@ -1664,3 +1664,10 @@ matching scoped mutation events, so pre-event polling cannot overwrite confirmed
 command changes. 32 headed model/thinking/catalog regression tests and build/lint
 pass. Dedicated live SSE race acceptance remains unverified; current change shares
 the existing generation guard rather than inventing a second mechanism.
+
+### Model mutation text contract
+
+Model mutation input reuses validated text contract: whitespace-only and control-
+character provider/model/thinking values return 400 before Pi RPC. 494 backend
+tests pass, including four no-RPC malformed-input cases. Full external model
+acceptance remains separate from input validation.
