@@ -1841,3 +1841,11 @@ load before save and supplies If-Match. Concurrent server changes produce visibl
 pass, including real API concurrent change. Unconditional API writes remain for
 explicit trusted clients; composer no longer uses them. Full Models settings
 parity remains open.
+
+### Integrated schema-v7/conditional-preferences checkpoint
+
+At 085ca3f: 507 Python tests, 18 frontend unit tests, build/lint and 232/232 headed
+Chromium/WebKit tests pass with one worker. Build leaves clean tree. Includes v6
+migration preservation, preference API/ETags, explicit load/save, revision guards
+and conflict/failure handling. No retries/skips. Full deployed Models settings,
+visual acceptance and real-agent/live-service criteria remain open.
