@@ -2355,3 +2355,13 @@ failures; dialog status is now only rendered while open. Subsequent full run had
 101 passes and one WebKit option-focus timeout; explicit visibility synchronization
 added before focus. Twelve affected modal/pin/shortcut cases then pass; build/lint
 passes. Full integrated run after this correction remains due.
+
+### Settings-modal integrated checkpoint
+
+At 78b61ca, clean integrated run: 508 backend tests, 18 frontend tests/73 assertions,
+frontend build/lint, and 282 headed Chromium/WebKit tests passed. Browser run used
+one worker, completed in 5.3 minutes, and required no retries. This closes the
+post-modal full-suite verification item. Modal pin preferences remain a supported
+subset rather than complete deployed Models settings (no credential/default
+management). Inline duplicate controls, final visual comparison, third-party ACP
+messages/attachment consumption and live browser speech acceptance remain open.
