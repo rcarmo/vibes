@@ -66,8 +66,9 @@ class SessionStore:
             await self.db._connection.execute('''
                 INSERT INTO chat_session_backends(session_id,backend,conversation_id,model,thinking_level)
                 VALUES (?,?,?,?,?) ON CONFLICT(session_id,backend) DO UPDATE SET
-                conversation_id=excluded.conversation_id, model=excluded.model,
-                thinking_level=excluded.thinking_level, updated_at=CURRENT_TIMESTAMP
+                conversation_id=excluded.conversation_id,
+                model=COALESCE(excluded.model, chat_session_backends.model),
+                thinking_level=COALESCE(excluded.thinking_level, chat_session_backends.thinking_level), updated_at=CURRENT_TIMESTAMP
             ''', (session_id, backend, conversation_id, model, thinking_level))
         return await self.backend_binding(session_id, backend)
 

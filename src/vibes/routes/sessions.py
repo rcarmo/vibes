@@ -76,6 +76,11 @@ async def change_session_model(request):
         return web.json_response({'error': str(exc)}, status=400)
     except RuntimeError as exc:
         return web.json_response({'error': str(exc)}, status=409)
+    session_file = state.get('sessionFile')
+    if isinstance(session_file, str) and session_file:
+        label = '/'.join(str(model[key]) for key in ('provider', 'id') if model and model.get(key)) or None
+        await store.bind_backend(session_id, 'pi', session_file,
+            model=label, thinking_level=state.get('thinkingLevel'))
     result = {'session_id': session_id, 'available': True, 'model': model,
               'thinking_level': state.get('thinkingLevel')}
     await broadcast_event('session_model_changed', result)

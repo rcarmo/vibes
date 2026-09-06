@@ -128,3 +128,17 @@ async def test_listing_running_flag_tracks_active_turn_not_history(db):
     await db.end_turn('running-list')
     rows = {row['id']: row for row in await store.list()}
     assert rows[session['id']]['is_running'] is False
+
+
+@pytest.mark.asyncio
+async def test_rebinding_preserves_confirmed_model_metadata(db):
+    store = SessionStore(db)
+    await store.bind_backend('default', 'pi', '/session.jsonl', model='provider/model', thinking_level='low')
+    await store.bind_backend('default', 'pi', '/session.jsonl')
+    binding = await store.backend_binding('default', 'pi')
+    assert binding['model'] == 'provider/model'
+    assert binding['thinking_level'] == 'low'
+    await store.bind_backend('default', 'pi', '/session.jsonl', thinking_level='high')
+    binding = await store.backend_binding('default', 'pi')
+    assert binding['model'] == 'provider/model'
+    assert binding['thinking_level'] == 'high'

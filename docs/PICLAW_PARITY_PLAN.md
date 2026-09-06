@@ -847,3 +847,11 @@ started before a change event cannot overwrite newer confirmed labels; errors
 from such stale polls likewise cannot clear them. Ten frontend unit tests and
 eight model/thinking browser tests pass; build/lint pass. Full polling/event race
 browser acceptance remains part of the final regression work.
+
+### Preserve model metadata across rebinding
+
+Conversation-only binding updates no longer erase confirmed model/thinking fields.
+Successful scoped model mutation persists confirmed Pi sessionFile and sanitized
+model label/level when supplied by RPC. 466 backend tests pass, including repeated
+binding and partial metadata updates. Stored metadata is not proof of live state;
+inactive-context UI still reports unavailable rather than inventing current usage.
