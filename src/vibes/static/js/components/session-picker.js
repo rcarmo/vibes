@@ -9,6 +9,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
     const [error, setError] = useState('');
     const [busy, setBusy] = useState(false);
     const actionPending = useRef(false);
+    const typeahead = useRef({ query: '', time: 0 });
     const search = useRef(null);
     const results = useRef(null);
     const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase())) })).filter(group => group.items.length), [sessions, currentId, query]);
@@ -34,7 +35,21 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
     const keys = event => {
         if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape') { event.preventDefault(); onClose?.(); }
+        if (event.target !== search.current && event.key.length === 1 && event.key.trim() && !event.ctrlKey && !event.metaKey && !event.altKey) {
+            const now = Date.now();
+            const text = (now - typeahead.current.time > 700 ? '' : typeahead.current.query) + event.key.toLowerCase();
+            typeahead.current = { query: text, time: now };
+            const normalize = value => value.toLowerCase().replace(/^@/, '').replace(/\s+/g, ' ').trim();
+            const needle = normalize(text);
+            const labels = matches.map(item => normalize(item.name || item.id));
+            let next = labels[selectedIndex]?.includes(needle) ? selectedIndex : labels.findIndex(label => label.startsWith(needle));
+            if (next < 0) next = labels.findIndex(label => label.includes(needle));
+            event.preventDefault();
+            if (next >= 0) setIndex(next);
+            return;
+        }
         if (event.target?.closest('button')) return;
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End', 'PageDown', 'PageUp'].includes(event.key)) typeahead.current = { query: '', time: 0 };
         if (event.key === 'Home' || event.key === 'End') {
             event.preventDefault();
             setIndex(event.key === 'Home' ? 0 : Math.max(0, matches.length - 1));
@@ -55,7 +70,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             act(() => onSelect?.(item.id));
         }
     };
-    return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" aria-busy=${busy} onKeyDown=${keys}>
+    return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" tabindex="-1" aria-busy=${busy} onKeyDown=${keys}>
         <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /><button type="button" class="compose-session-popup-close" aria-label="Close session picker" onClick=${onClose}>×</button></div>
         ${busy && html`<div class="compose-model-popup-empty" role="status">Updating session…</div>`}
         ${refreshError && html`<div class="compose-model-popup-empty" role="alert">${refreshError}</div>`}

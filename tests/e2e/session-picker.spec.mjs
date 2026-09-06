@@ -519,3 +519,27 @@ test('picker search Tab selects while composition and reverse Tab do not', async
     await expect(page.getByRole('button', { name: 'Close session picker' })).toBeFocused();
     expect(await page.evaluate(() => window.tabSelections)).toEqual(['second']);
 });
+
+test('non-search typeahead selects labels without changing search text', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); document.body.append(root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Main' }, { id: 'beta', name: 'Beta' }, { id: 'bravo', name: 'Bravo' }]} />`, root);
+    });
+    const popup = page.getByTestId('session-popup');
+    const search = page.getByRole('combobox', { name: 'Search sessions' });
+    await popup.focus();
+    await popup.press('b');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-beta');
+    await popup.press('r');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-bravo');
+    await expect(search).toHaveValue('');
+    await popup.press('Home');
+    await popup.press('m');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
+    await search.fill('Beta');
+    await expect(search).toHaveValue('Beta');
+    await expect(page.locator('#session-picker-results [role="option"]')).toHaveCount(1);
+});

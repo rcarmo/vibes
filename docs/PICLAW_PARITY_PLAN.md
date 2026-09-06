@@ -2135,3 +2135,12 @@ navigation rather than selecting a session. New browser coverage checks composit
 reverse Tab, selected-match Tab and empty-result focus escape. Build/lint and all
 54 headed Chromium/WebKit picker tests pass. Non-search typeahead and final visual
 acceptance remain open.
+
+### Non-search session typeahead
+
+Added focusable popup root and non-search printable-key label matching, following
+deployed normalization, current-match retention, prefix-before-substring fallback,
+and 700ms buffer expiry. Navigation clears the buffer; modifiers/IME bypass it.
+Browser tests cover multi-character matching, navigation reset and unchanged search
+text; expiry-specific timing acceptance is not separately exercised. Build/lint
+and all 56 headed Chromium/WebKit picker tests pass. Visual acceptance remains open.
