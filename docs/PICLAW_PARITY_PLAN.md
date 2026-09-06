@@ -2151,3 +2151,13 @@ Extended non-search browser test with Playwright fixed Date clock: exactly 700ms
 retains the prefix; 701ms since the latest key starts a new query. Both headed
 Chromium/WebKit tests pass without sleeps or retries. This closes the previously
 noted expiry-specific test gap; no implementation change.
+
+### Session-picker search header structure
+
+Matched deployed label/close header followed by sibling search input, linked the
+label, and disabled browser autocomplete. Placeholder truthfully advertises local
+name/ID filtering rather than unsupported model/state search. Combobox ARIA stays.
+DOM assertions verify hierarchy. Empty-result Tab follows new document order
+(past search rather than back to close); test checks focus exits search without
+selection. Build/lint and 56 headed Chromium/WebKit picker tests pass, including
+desktop/mobile capture cases. Full visual acceptance remains open.

@@ -21,6 +21,8 @@ test('session picker searches, navigates and keeps action buttons separate', asy
     const fixture = page.locator('#picker-fixture');
     const input = fixture.getByRole('combobox', { name: 'Search sessions' });
     await expect(input).toBeFocused();
+    await expect(fixture.locator('.compose-session-popup-header > label[for="compose-session-search"]')).toHaveText('Search sessions');
+    await expect(fixture.locator('.compose-session-popup-header + input')).toHaveAttribute('placeholder', 'Session name or ID');
     await input.fill('Research');
     await expect(fixture.getByRole('option')).toHaveCount(1);
     await input.press('Enter');
@@ -516,7 +518,7 @@ test('picker search Tab selects while composition and reverse Tab do not', async
     await expect.poll(() => page.evaluate(() => window.tabSelections)).toEqual(['second']);
     await search.fill('no matches');
     await search.press('Tab');
-    await expect(page.getByRole('button', { name: 'Close session picker' })).toBeFocused();
+    await expect(search).not.toBeFocused();
     expect(await page.evaluate(() => window.tabSelections)).toEqual(['second']);
 });
 

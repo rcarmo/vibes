@@ -71,7 +71,11 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
         }
     };
     return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" tabindex="-1" aria-busy=${busy} onKeyDown=${keys}>
-        <div class="compose-session-popup-header"><input role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Search sessions" aria-label="Search sessions" /><button type="button" class="compose-session-popup-close" aria-label="Close session picker" onClick=${onClose}>×</button></div>
+        <div class="compose-session-popup-header">
+            <label class="compose-model-popup-title compose-session-search-heading" for="compose-session-search">Search sessions</label>
+            <button type="button" class="compose-session-popup-close" aria-label="Close session picker" onClick=${onClose}>×</button>
+        </div>
+        <input id="compose-session-search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" autocomplete="off" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Session name or ID" aria-label="Search sessions" />
         ${busy && html`<div class="compose-model-popup-empty" role="status">Updating session…</div>`}
         ${refreshError && html`<div class="compose-model-popup-empty" role="alert">${refreshError}</div>`}
         ${error && html`<div role="alert">${error}</div>`}
