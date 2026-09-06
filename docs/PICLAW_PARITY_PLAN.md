@@ -164,3 +164,13 @@ content caps. Returns selected message fields, not arbitrary stored JSON metadat
 Tests prove out-of-scope IDs/search hits are excluded and limits enforced.
 Backend suite: 401 passed. This is NOT yet an ACP-accessible tool: MCP transport,
 initialization/tool schemas and agent session injection remain to implement.
+
+### Read-only stdio MCP transport
+
+Added `python -m vibes.messages_mcp --database PATH --thread-id ID` (or explicit
+`--workspace-access`) with initialize, ping, tools/list and tools/call. SQLite
+opens mode=ro with query_only; no migrations or writable store handles. Newline
+JSON framing is bounded to 64KiB. Tool schema exposes only get/search fields;
+caller scope escalation is rejected. Tests include actual subprocess stdio
+initialization/discovery/get and exclusion of another thread. Backend: 403 pass.
+ACP injection still pending; this executable alone is not automatic integration.
