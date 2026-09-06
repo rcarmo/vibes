@@ -43,6 +43,20 @@ async def main():
             if not original or original == other or restored != original:
                 raise RuntimeError('Session isolation or restoration failed')
             print('PASS: distinct Pi session created and original restored; no model prompt sent.')
+            catalog = await rpc({'type': 'get_available_models'})
+            if not catalog.get('success') or not isinstance(catalog.get('data', {}).get('models'), list):
+                raise RuntimeError('Installed Pi did not return a model list')
+            models = catalog['data']['models']
+            valid = sum(isinstance(item, dict) and isinstance(item.get('provider'), str)
+                        and isinstance(item.get('id'), str) for item in models)
+            if valid != len(models):
+                raise RuntimeError('Installed Pi model identities do not match scoped catalog contract')
+            levels = await rpc({'type': 'get_available_thinking_levels'})
+            supported = bool(levels.get('success'))
+            if supported and not isinstance(levels.get('data', {}).get('levels'), list):
+                raise RuntimeError('Installed Pi thinking levels have unexpected shape')
+            print(f'PASS: model catalog shape ({len(models)} entries); thinking-level RPC supported={supported}.')
+            print('Catalog presence does not establish authentication or successful model execution.')
         finally:
             if process.returncode is None:
                 process.terminate()

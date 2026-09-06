@@ -1371,3 +1371,11 @@ Model-state reads return null for malformed/oversized/control-character thinking
 levels and nonboolean compaction values. Raw nested provider data cannot pass
 through these fields. 488 backend tests pass, including four malformed-state
 cases. Unknown remains distinct from false/idle; visual/live-agent parity stays open.
+
+### Installed Pi catalog contract smoke
+
+Extended no-prompt installed-Pi smoke to inspect model and thinking catalogs after
+session restoration. Actual runtime returned 33 model entries with provider/id
+strings and supported thinking-level RPC with list-shaped levels. Smoke and
+script lint pass. No model prompts, credentials or model labels emitted; catalog
+presence is not authentication/execution acceptance. Third-party ACP remains open.
