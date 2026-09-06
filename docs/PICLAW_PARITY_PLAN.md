@@ -1388,3 +1388,11 @@ reconnect/turn recovery paths; all refreshes use selected-session helper and cle
 unavailable usage. Eight headed context/compaction tests and build/lint pass.
 Initial test revealed legacy concurrent refresh paths, now consolidated rather
 than relaxing assertions. Context remains inspection-based, not live token streaming.
+
+### Sequential scheduled inspection
+
+Scheduled refresh now awaits model inspection before requesting context, avoiding
+self-contention on Pi's intentional single-request lock. Overlapping scheduled
+refresh cycles are suppressed; disposed effects do not start context continuation.
+Ten headed context/compaction tests and build/lint pass. Event-triggered refreshes
+remain independently guarded by backend locks and latest-response ownership.

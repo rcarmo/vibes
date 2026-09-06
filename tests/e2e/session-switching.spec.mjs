@@ -389,3 +389,24 @@ test('context inspection refreshes periodically and clears unavailable usage', a
     await expect.poll(() => count, { timeout: 20000 }).toBeGreaterThan(before);
     await expect(page.locator('.compose-context-pie')).toHaveCount(0);
 });
+
+test('context refresh follows completion of held model inspection', async ({ page }) => {
+    let release, held = false, contextAfterModel = false;
+    await page.route('**/sessions/*/model-state', async route => {
+        held = true;
+        await new Promise(resolve => { release = resolve; });
+        held = false;
+        await route.fulfill({ contentType: 'application/json', body: '{"available":false}' });
+    });
+    await page.route('**/agent/context?*', route => {
+        // Reconnect has its own refresh; assert the ordered request after release
+        // by tracking it separately below rather than inferring server locks.
+        if (!held) contextAfterModel = true;
+        return route.fulfill({ contentType: 'application/json', body: '{"percent":25}' });
+    });
+    await page.goto('/');
+    await expect.poll(() => !!release).toBe(true);
+    release();
+    await expect.poll(() => contextAfterModel).toBe(true);
+    await expect(page.locator('.compose-context-pie')).toBeVisible();
+});

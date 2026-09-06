@@ -864,8 +864,8 @@ function App() {
         }
     };
     useEffect(() => {
-        refreshSelectedContext();
         let disposed = false;
+        let refreshing = false;
         const refreshModel = async () => {
             const generation = modelGeneration.current;
             try {
@@ -882,8 +882,16 @@ function App() {
                 }
             }
         };
-        refreshModel();
-        const timer = setInterval(() => { refreshModel(); refreshSelectedContext(); }, 15000);
+        const refreshInspection = async () => {
+            if (refreshing || disposed) return;
+            refreshing = true;
+            try {
+                await refreshModel();
+                if (!disposed) await refreshSelectedContext();
+            } finally { refreshing = false; }
+        };
+        refreshInspection();
+        const timer = setInterval(refreshInspection, 15000);
         return () => { disposed = true; clearInterval(timer); };
     }, [selectedSession]);
     const refreshSelectedQueue = async () => {
