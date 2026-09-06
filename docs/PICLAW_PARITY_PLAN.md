@@ -1678,3 +1678,37 @@ Chromium/WebKit test archives selected parent through API after branch dialog
 opens, then verifies creation rejection, retained typed name, and no fallback root
 or child insertion. Two targeted tests pass. This covers stale UI/backend lifecycle
 boundary; provider history fork semantics remain out of this metadata-only action.
+
+## Current acceptance map (supersedes historical provisional notes)
+
+The chronological entries above intentionally retain failures and intermediate
+limitations. Do not read an early provisional note as current implementation state.
+
+- **Session picker functionality:** groups, search, keyboard navigation, pins,
+  current/runtime/queued/history distinction, stale snapshot disclosure, root/
+  empty-child creation, rename/delete dialogs and focus lifecycle implemented.
+  Mobile popup outer geometry matches rendered deployed fixture. Still open:
+  matched-content visual review and approval of local row-action/empty-child
+  deviations. Provider history fork is not implemented.
+- **Model controls:** all composer actions use scoped locked APIs; search/count/
+  current/pinned grouping, browser-local pins, retry/errors and keyboard control
+  implemented. Still open: server-synced preferences/Models settings, ACP model
+  configuration controls where actually supported, final rendered comparison.
+- **Context/status:** scoped inspection, periodic ordered refresh, stale-response
+  rejection, validated gauge and confirmed compaction indicator implemented.
+  Still open: continuous runtime/compaction telemetry beyond idle inspection and
+  capability presentation. Registry declarations are not execution evidence.
+- **Terminal host:** shared editor column, standalone/popout, resizing, workspace
+  launcher, mobile drawer/backdrop and keyboard toggle implemented and tested.
+  Still open: matched deployed/current host screenshots and remaining responsive
+  layout deviations. No longer a fixed bottom overlay.
+- **Speech:** functional implementation checked off separately; live microphone/
+  browser service and exact visual reference acceptance remain unverified.
+- **External acceptance:** no installed third-party ACP executable found. Installed
+  Pi no-prompt session and catalog smoke passes; actual prompt/attachment/MCP
+  consumption has not been established.
+
+Latest full checkpoint is d01e4f5 (490 backend, 18 frontend unit, 210 browser tests).
+Later targeted validations do not imply a newer full-suite total. Overall goal
+remains open until unmet criteria are implemented/verified or explicitly revised
+by the user—not merely because many tests pass.
