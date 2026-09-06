@@ -258,9 +258,9 @@ test.describe('Editor Tab UX', () => {
         const popup = await popupPromise;
         await popup.waitForLoadState('domcontentloaded');
 
-        // Popup URL should contain editor and popout params
-        expect(popup.url()).toContain('editor=README.md');
-        expect(popup.url()).toContain('popout=1');
+        // Startup consumes URL parameters; assert the resulting UI instead.
+        await expect(popup.locator('.app-shell')).toHaveClass(/popout-mode/);
+        await expect(popup.locator('.cm-editor')).toBeVisible();
 
         // Tab should be removed from the parent window
         await expect(page.locator('.tab-item', { hasText: 'README.md' })).not.toBeVisible();

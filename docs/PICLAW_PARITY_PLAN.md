@@ -97,3 +97,13 @@ variable through pop-out handoff. Backend: 399 passing tests; build/lint pass.
 Full 40-test runs reached 39 passed, with different existing WebKit editor tests
 failing in parallel/serial runs. Do not claim full suite green; investigate before
 final acceptance. No tests skipped or retries configured.
+
+### Terminal typography and browser verification
+
+Vendored the deployed FiraCode Nerd Font Mono regular/bold assets, metadata,
+and upstream license texts. Added matching font faces. Test server explicitly
+enables terminals while production remains default-off. Corrected the editor
+popout test to assert hydrated UI rather than transient URL parameters that app
+startup intentionally consumes. Full headed Chromium/WebKit run with one worker:
+40/40 passed; backend 399 passed; frontend build/lint passed. An earlier unrelated
+WebKit pin/unpin timeout did not recur; no application fix is claimed for it.

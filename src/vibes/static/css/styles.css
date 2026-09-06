@@ -3375,3 +3375,6 @@ body {
 .terminal-open-button { position:fixed; right:12px; top:12px; z-index:110; }
 .terminal-popout > :not(.terminal-panel) { display:none !important; }
 .terminal-popout .terminal-panel { height:100dvh; }
+
+@font-face { font-family:"FiraCode Nerd Font Mono"; src:url("/static/common/fonts/vendor/firacode-nerd-font-mono-regular.ttf") format("truetype"); font-weight:400; font-style:normal; font-display:swap; }
+@font-face { font-family:"FiraCode Nerd Font Mono"; src:url("/static/common/fonts/vendor/firacode-nerd-font-mono-bold.ttf") format("truetype"); font-weight:700; font-style:normal; font-display:swap; }
