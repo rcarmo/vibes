@@ -17,9 +17,12 @@ async def session_model_state(request):
     from ..pi_client import inspect_model_state
     store = SessionStore(await get_db())
     session_id = request.match_info['id']
-    if not await store.get(session_id):
+    session = await store.get(session_id)
+    if not session:
         return web.json_response({'error': 'Session not found'}, status=404)
     unavailable = {'session_id': session_id, 'available': False, 'model': None, 'thinking_level': None, 'compacting': None}
+    if session['archived']:
+        return web.json_response(unavailable)
     try:
         response = await inspect_model_state(session_id)
         if not response or not response.get('success'):
@@ -38,9 +41,12 @@ async def session_model_state(request):
 async def session_model_catalog(request):
     from ..pi_client import inspect_model_catalog
     session_id = request.match_info['id']
-    if not await SessionStore(await get_db()).get(session_id):
+    session = await SessionStore(await get_db()).get(session_id)
+    if not session:
         return web.json_response({'error': 'Session not found'}, status=404)
     unavailable = {'available': False, 'models': [], 'thinking_levels': []}
+    if session['archived']:
+        return web.json_response(unavailable)
     try:
         catalog = await inspect_model_catalog(session_id)
         if not catalog:

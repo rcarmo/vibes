@@ -1191,3 +1191,11 @@ windows are type/bounds checked. Thinking choices are bounded valid strings and
 deduplicated. Null list fields safely yield empty choices. 477 backend tests pass,
 including malformed provider metadata. This validates response shape, not provider
 availability or authorization to run any listed model.
+
+### Archived model inspection gating
+
+Archived session model-state/catalog reads return explicit unavailable responses
+without inspecting Pi, consistent with existing mutation rejection. Missing IDs
+remain 404. 478 backend tests pass, including archived read no-RPC assertions and
+mutation rejection. Stored history/bindings remain untouched; restore is required
+before live controls can become available.

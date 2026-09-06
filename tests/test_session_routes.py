@@ -244,3 +244,27 @@ async def test_model_catalog_rejects_unusable_identities_and_metadata(db, aiohtt
     inspect.return_value = {'models': None, 'thinking_levels': None}
     result = await (await client.get('/sessions/default/models')).json()
     assert result == {'available': True, 'models': [], 'thinking_levels': []}
+
+
+@pytest.mark.asyncio
+async def test_archived_session_model_reads_do_not_inspect_live_backend(db, aiohttp_client, monkeypatch):
+    from vibes.sessions import SessionStore
+    pi = importlib.import_module('vibes.pi_client')
+    store = SessionStore(db)
+    session = await store.create('Archived model')
+    await store.update(session['id'], archived=True)
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    state = AsyncMock()
+    catalog = AsyncMock()
+    monkeypatch.setattr(pi, 'inspect_model_state', state)
+    monkeypatch.setattr(pi, 'inspect_model_catalog', catalog)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    for suffix in ('model-state', 'models'):
+        response = await client.get(f"/sessions/{session['id']}/{suffix}")
+        assert response.status == 200
+        assert (await response.json())['available'] is False
+    state.assert_not_awaited()
+    catalog.assert_not_awaited()
+    assert (await client.post(f"/sessions/{session['id']}/model", json={'thinking_level': 'low'})).status == 404
