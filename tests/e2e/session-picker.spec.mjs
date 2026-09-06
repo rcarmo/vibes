@@ -249,6 +249,13 @@ for (const width of [1280, 390]) {
         await page.request.post('/sessions', { data: { name: 'Visual review session' } });
         await page.getByTestId('session-switcher').click();
         await expect(page.getByTestId('session-popup')).toBeVisible();
+        const popup = await page.getByTestId('session-popup').boundingBox();
+        if (width === 390) {
+            expect(popup.x).toBeCloseTo(8, 0);
+            expect(popup.y).toBeCloseTo(8, 0);
+            expect(popup.width).toBeCloseTo(374, 0);
+            expect(popup.height).toBeCloseTo(828, 0);
+        }
         await page.screenshot({ path: testInfo.outputPath(`session-picker-${width}.png`), fullPage: true });
     });
 }

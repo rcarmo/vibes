@@ -1576,3 +1576,12 @@ Root creation footer now reads New root… with independent-root tooltip, matchi
 deployed distinction from New branch. Dialog retains New session title. Six headed
 root/branch/modal tests and build/lint pass. Empty-child versus provider fork
 semantics remain documented; visual equivalence not yet claimed.
+
+### Deployed/current mobile popup geometry comparison
+
+Captured deployed 2.15.3 session popup in headed WebKit at 390x844 using isolated
+fixture: x=8, y=8, width=374, height=828, no page errors. Attached reference image.
+Current Chromium/WebKit capture tests now assert those same popup bounds (four
+capture tests pass). This verifies outer popup geometry only; differing seeded
+sessions, row actions and metadata prevent pixel-equivalence claims. Internal
+layout/state comparison remains open.
