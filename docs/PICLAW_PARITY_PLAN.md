@@ -258,3 +258,11 @@ returns MIME/size plus an unsupported-preview notice, not fabricated text or
 unbounded base64. SQL limits the fetched blob prefix. Backend suite: 413 passed,
 including cross-thread rejection, truncation and binary metadata handling.
 Image/PDF parsing and arbitrary binary delivery to model backends are not implied.
+
+### Shared reference pills
+
+Ported deployed Piclaw FilePill source unchanged (MIT); composer now uses it for
+message, workspace file and upload pills with existing state handlers. Removed
+three duplicate markup blocks. Six headed Chromium/WebKit attachment tests and
+frontend build/lint pass. Server-side abandoned upload cleanup and broader agent
+binary handling remain open; this is markup reuse, not a claim of full parity.
