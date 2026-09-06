@@ -6,6 +6,7 @@ import json
 import logging
 import mimetypes
 import shlex
+import sys
 import shutil
 from typing import Optional, AsyncIterator
 from pathlib import Path
@@ -915,6 +916,23 @@ def _parse_content_block(block: dict) -> dict | None:
     return None
 
 
+def _messages_mcp_servers():
+    """Single ACP session currently implies explicitly enabled workspace scope."""
+    config = get_config()
+    if not getattr(config, 'acp_messages_enabled', False):
+        return []
+    if config.db_path == ':memory:':
+        raise ValueError('ACP messages require a persistent database')
+    database = Path(config.db_path).resolve()
+    if not database.is_file():
+        raise ValueError('ACP messages database does not exist')
+    return [{
+        'name': 'vibes-messages', 'command': sys.executable,
+        'args': ['-m', 'vibes.messages_mcp', '--database', str(database), '--workspace-access'],
+        'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])}],
+    }]
+
+
 async def _ensure_agent():
     """Ensure the agent is running and initialized."""
     async with _state.agent_lock:
@@ -924,7 +942,7 @@ async def _ensure_agent():
                 cwd = str(Path.cwd())
                 result = await _send_request("session/new", {
                     "cwd": cwd,
-                    "mcpServers": []
+                    "mcpServers": _messages_mcp_servers()
                 })
                 _state.session_id = result.get("sessionId")
                 logger.info(f"Session created: {_state.session_id}")
@@ -986,7 +1004,7 @@ async def _ensure_agent():
         cwd = str(Path.cwd())
         result = await _send_request("session/new", {
             "cwd": cwd,
-            "mcpServers": []
+            "mcpServers": _messages_mcp_servers()
         })
         _state.session_id = result.get("sessionId")
         logger.info(f"Session created: {_state.session_id}")

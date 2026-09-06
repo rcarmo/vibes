@@ -184,3 +184,18 @@ SQLite scope core. uMCP supports discovery before initialization and empty resou
 listing; tests now reflect library behavior rather than bespoke restrictions.
 403 backend tests pass, including real subprocess MCP retrieval/scope isolation.
 ACP injection remains pending.
+
+### ACP messages injection
+
+Set VIBES_ACP_MESSAGES_ENABLED=true before creating/restarting an ACP session to
+inject the bundled uMCP stdio server in both session/new paths. Default false.
+Requires an existing persistent database; in-memory stores are rejected. Uses
+the running Python executable, absolute database/module paths and explicit stdio
+server env. Descriptor-generated subprocess discovery is tested (404 tests pass).
+
+Important scope: the current Python ACP backend reuses a single agent session
+across threads, so enabling this integration grants read access to the configured
+workspace message database. Do not claim per-thread isolation for this mode.
+Standalone --thread-id remains available; per-session injection must be revisited
+with the planned session model. An actual third-party ACP agent consuming the
+injected descriptor is still an acceptance check, not proven by descriptor tests.
