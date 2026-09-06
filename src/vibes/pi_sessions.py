@@ -5,8 +5,11 @@ class PiSessionSelector:
     def __init__(self):
         self.active = 'default'
         self.paths = {}
+        self.uncertain = False
 
     async def select(self, chat_id, rpc):
+        if self.uncertain:
+            raise RuntimeError('Pi session state is uncertain; restart/recovery required')
         if not isinstance(chat_id, str) or not chat_id:
             raise ValueError('Chat ID required')
         state = await rpc({'type': 'get_state'})
@@ -24,9 +27,13 @@ class PiSessionSelector:
             raise RuntimeError('Pi session persistence is required for switching')
         target = self.paths.get(chat_id)
         command = {'type': 'switch_session', 'sessionPath': target} if target else {'type': 'new_session'}
+        self.uncertain = True
         result = await rpc(command)
-        if not result or not result.get('success') or result.get('data', {}).get('cancelled'):
-            raise RuntimeError('Pi session switch failed or was cancelled')
+        if result and result.get('success') and result.get('data', {}).get('cancelled'):
+            self.uncertain = False
+            raise RuntimeError('Pi session switch was cancelled')
+        if not result or not result.get('success'):
+            raise RuntimeError('Pi session switch failed')
         confirmed = await rpc({'type': 'get_state'})
         path = (confirmed or {}).get('data', {}).get('sessionFile')
         if not confirmed or not confirmed.get('success') or not path:
@@ -36,4 +43,5 @@ class PiSessionSelector:
             raise RuntimeError('Pi selected an unexpected session file')
         self.active = chat_id
         self.paths[chat_id] = path
+        self.uncertain = False
         return path

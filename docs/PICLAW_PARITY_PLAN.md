@@ -509,3 +509,11 @@ session file before accepting a switch. Tests cover create/switch-back and
 cancelled/busy/no-persistence cases; 440 backend tests pass. Caller must own Pi's
 request lock. Not yet wired into client/route dispatch; confirmation failure
 requires recovery before prompting. Live installed-Pi smoke still pending.
+
+### Pi selector uncertain-state guard
+
+A dispatched but unconfirmed Pi switch now marks the selector uncertain and
+blocks subsequent selection until recovery/restart. This prevents overwriting the
+old chat's path with an unexpectedly active context. Explicit extension-cancelled
+switches remain usable. Failure/retry regression tests pass; 442 backend tests.
+Runtime integration and live session smoke remain pending.

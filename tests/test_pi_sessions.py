@@ -27,3 +27,27 @@ async def test_pi_cancel_busy_and_no_persistence_do_not_switch():
         with pytest.raises(RuntimeError):
             await selector.select('other', AsyncMock(side_effect=responses))
         assert selector.active == 'default'
+
+
+@pytest.mark.asyncio
+async def test_unconfirmed_switch_blocks_further_selection_without_corrupting_map():
+    selector = PiSessionSelector()
+    rpc = AsyncMock(side_effect=[state('/default.jsonl'), {'success': True, 'data': {'cancelled': False}}, {'success': False}])
+    with pytest.raises(RuntimeError):
+        await selector.select('other', rpc)
+    assert selector.uncertain
+    assert selector.paths == {'default': '/default.jsonl'}
+    next_rpc = AsyncMock(return_value=state('/other.jsonl'))
+    with pytest.raises(RuntimeError, match='uncertain'):
+        await selector.select('default', next_rpc)
+    next_rpc.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_switch_keeps_selector_usable():
+    selector = PiSessionSelector()
+    rpc = AsyncMock(side_effect=[state('/default.jsonl'), {'success': True, 'data': {'cancelled': True}}])
+    with pytest.raises(RuntimeError):
+        await selector.select('other', rpc)
+    assert not selector.uncertain
+    assert await selector.select('default', AsyncMock(return_value=state('/default.jsonl'))) == '/default.jsonl'
