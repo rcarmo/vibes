@@ -459,3 +459,11 @@ Legacy simple/multimodal calls now explicitly restore the cached default ACP
 conversation after another chat was selected, under the prompt lock. This avoids
 implicit last-selected context reuse before session-aware route rollout. Tests
 exercise both call paths; 435 backend tests pass. Routing/picker remain pending.
+
+### Thread reassignment boundary
+
+Database thread reassignment validates that source and target belong to the same
+session and rejects missing target threads. Same-session moves and self-rooting
+remain supported. This closes the post-insert busy-agent reassignment path before
+session-aware dispatch rollout. 436 backend tests pass, including rollback after
+cross-session rejection. Runtime routing/picker work remains in progress.

@@ -70,3 +70,19 @@ async def test_backend_bindings_isolate_conversations_and_persist(db):
         await store.bind_backend('missing', 'pi', 'anything')
     with pytest.raises(ValueError):
         await store.bind_backend('default', '', 'anything')
+
+
+@pytest.mark.asyncio
+async def test_thread_reassignment_cannot_cross_session_boundary(db):
+    store = SessionStore(db)
+    other = await store.create('Other')
+    a = await db.create_interaction({'type': 'user', 'content': 'a'})
+    b = await db.create_interaction({'type': 'user', 'content': 'b'})
+    foreign = await db.create_interaction({'type': 'user', 'content': 'foreign', 'session_id': other['id']})
+    assert await db.set_interaction_thread_id(a, b)
+    with pytest.raises(ValueError):
+        await db.set_interaction_thread_id(a, foreign)
+    assert (await db.get_interaction(a))['data']['thread_id'] == b
+    with pytest.raises(ValueError):
+        await db.set_interaction_thread_id(a, 999999)
+    assert await db.set_interaction_thread_id(b, b)

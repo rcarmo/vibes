@@ -272,6 +272,11 @@ class Database:
                 if not row:
                     return False
             data = json.loads(row["data"])
+            parent = await self.get_interaction(thread_id)
+            if not parent:
+                raise ValueError('Target thread not found')
+            if data.get('session_id', 'default') != parent['data'].get('session_id', 'default'):
+                raise ValueError('Cannot move a message across sessions')
             data["thread_id"] = thread_id
             await self._connection.execute(
                 "UPDATE interactions SET data = ? WHERE id = ?",
