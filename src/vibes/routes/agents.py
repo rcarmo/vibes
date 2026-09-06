@@ -312,13 +312,32 @@ async def get_agent_status(request: web.Request) -> web.Response:
             turn["has_draft"] = bool(preview.get("draft"))
             turn["has_thought"] = bool(preview.get("thought"))
 
+    queued = list_followups()
+    steers = list_pending_steers()
+    session_id = request.query.get('session_id')
+    if session_id is not None:
+        from ..sessions import SessionStore
+        database = await get_db()
+        if not await SessionStore(database).get(session_id):
+            return web.json_response({'error': 'Session not found'}, status=404)
+        owners = {}
+        for item in active_turns + queued + steers:
+            thread = item.get('thread_id')
+            if thread not in owners:
+                root = await database.get_interaction(thread)
+                owners[thread] = root['data'].get('session_id', 'default') if root else None
+        active_turns = [{**item, 'session_id': session_id} for item in active_turns if owners[item.get('thread_id')] == session_id]
+        queued = [item for item in queued if owners[item.get('thread_id')] == session_id]
+        steers = [item for item in steers if owners[item.get('thread_id')] == session_id]
+        pi_busy = pi_busy and bool(active_turns)
+        acp_busy = acp_busy and bool(active_turns)
     return web.json_response({
         "busy": pi_busy or acp_busy,
         "pi_busy": pi_busy,
         "acp_busy": acp_busy,
         "active_turns": active_turns,
-        "queued_followups": list_followups(),
-        "pending_steers": list_pending_steers(),
+        "queued_followups": queued,
+        "pending_steers": steers,
     })
 
 

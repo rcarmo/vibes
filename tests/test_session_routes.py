@@ -153,3 +153,19 @@ async def test_queue_cannot_steer_other_active_session(db, monkeypatch):
         sender.assert_not_awaited()
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_status_poll_excludes_other_session_turns(db, monkeypatch):
+    from aiohttp.test_utils import make_mocked_request
+    agents = importlib.import_module('vibes.routes.agents')
+    store = importlib.import_module('vibes.sessions').SessionStore(db)
+    other = await store.create('Status')
+    root = await db.create_interaction({'type': 'user', 'content': 'work', 'session_id': other['id']})
+    await db.begin_turn('scoped-poll', root, 'default')
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    import json
+    result = json.loads((await agents.get_agent_status(make_mocked_request('GET', '/agents/status?session_id=default'))).text)
+    assert result['active_turns'] == []
+    result = json.loads((await agents.get_agent_status(make_mocked_request('GET', '/agents/status?session_id=' + other['id']))).text)
+    assert result['active_turns'][0]['session_id'] == other['id']

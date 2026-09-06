@@ -744,3 +744,11 @@ endpoint; global queue broadcasts trigger scoped reload instead of applying raw
 rows. Mutation responses likewise reload selected scope. Fourteen Chromium/WebKit
 queue/switch tests and build/lint pass. Pending steer badge/status ownership still
 needs dedicated scoped status normalization; no cross-chat queue rows are intended.
+
+### Scoped status polling backend
+
+/agents/status accepts session_id and filters active turns, queues and pending
+steers using persisted thread ownership. Scoped busy flags no longer reflect
+another chat's backend lock. 459 tests pass, including other-chat turn exclusion.
+Frontend polling still needs to supply selected ID and handle response races;
+unscoped endpoint remains compatible for existing callers.
