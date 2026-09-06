@@ -352,8 +352,18 @@ class Database:
                 for row in rows
             ]
 
-    async def search(self, query: str, limit: int = 50, offset: int = 0) -> list[dict]:
-        """Full-text search across interaction content."""
+    async def search(self, query: str, limit: int = 50, offset: int = 0, *, thread_id=None, has_images=False, has_attachments=False) -> list[dict]:
+        """Full-text search with optional thread and stored-media filters."""
+        filters = []
+        params = [query]
+        if thread_id is not None:
+            filters.append('(i.id = ? OR i.thread_id = ?)')
+            params.extend([thread_id, thread_id])
+        if has_attachments:
+            filters.append("EXISTS (SELECT 1 FROM json_each(i.data, '$.media_ids') ref JOIN media m ON m.id = ref.value)")
+        if has_images:
+            filters.append("EXISTS (SELECT 1 FROM json_each(i.data, '$.media_ids') ref JOIN media m ON m.id = ref.value WHERE m.content_type LIKE 'image/%')")
+        extra = ''.join(' AND ' + item for item in filters)
         async with self._connection.execute(
             """SELECT i.id, i.timestamp, i.data,
                       (SELECT COUNT(*) FROM interactions r WHERE r.thread_id = i.id) as reply_count,
@@ -361,9 +371,9 @@ class Database:
                FROM interactions_fts fts
                JOIN interactions i ON fts.rowid = i.id
                WHERE interactions_fts MATCH ?
-               ORDER BY rank
+               """ + extra + """ ORDER BY rank
                LIMIT ? OFFSET ?""",
-            (query, limit, offset)
+            (*params, limit, offset)
         ) as cursor:
             rows = await cursor.fetchall()
             return [

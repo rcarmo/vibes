@@ -146,7 +146,21 @@ async def search(request: web.Request) -> web.Response:
     limit = max(1, min(100, limit))
     
     db = await get_db()
-    results = await db.search(query, limit=limit, offset=offset)
+    try:
+        thread_id = int(request.query['thread_id']) if 'thread_id' in request.query else None
+        if thread_id is not None and thread_id < 1:
+            raise ValueError()
+        if any(request.query.get(key, 'false') not in {'true', 'false'} for key in ('has_images', 'has_attachments')):
+            raise ValueError()
+    except ValueError:
+        return web.json_response({'error': 'Invalid search filters'}, status=400)
+    filters = {}
+    if thread_id is not None:
+        filters['thread_id'] = thread_id
+    for key in ('has_images', 'has_attachments'):
+        if request.query.get(key) == 'true':
+            filters[key] = True
+    results = await db.search(query, limit=limit, offset=offset, **filters)
     
     return web.json_response({
         "query": query,

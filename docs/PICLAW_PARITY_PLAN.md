@@ -350,3 +350,11 @@ submission as a Folders block. Agents with workspace access enabled can resolve
 it through workspace_list/read. Chromium/WebKit verify tree selection, pill,
 folder-only payload and clearing; build/lint pass. Parent/session-level draft
 persistence remains part of the session work, not provided by this slice.
+
+### Search filter backend
+
+/search supports optional positive thread_id plus has_images=true and
+has_attachments=true. Filters combine with FTS and select stored media references,
+not filename guesses; root and direct replies define current thread scope.
+422 backend tests pass, including combined scope/media cases. Composer controls
+and session-bound scope are pending; no false current-session UI is exposed.
