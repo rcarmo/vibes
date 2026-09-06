@@ -2050,3 +2050,18 @@ window closes before the held handoff request is released. Consolidated terminal
 suite: 34 passed (headed, one worker, both browsers). Reattach settled-response
 coverage remains included. No active detached shell is intentionally terminated
 by this cleanup. These functional checks do not establish visual equivalence.
+
+### Integrated regression checkpoint — 2026-09-06
+
+After terminal lifecycle slice 3e148b8, consolidated validation completed:
+
+- `make check PYTHON=.venv/bin/python`: 508 passed.
+- `bun test tests/frontend`: 18 passed, 73 assertions.
+- `make build-frontend lint-frontend`: passed.
+- `xvfb-run -a bun x playwright test --headed --workers=1`: 256 passed
+  across Chromium/WebKit (5.0 minutes), including desktop/mobile fixtures.
+
+This supersedes the earlier 232-browser-test checkpoint. No test failure was
+retried in this run. Automated fixture coverage does not establish deployed
+visual equivalence, live speech service, external ACP-agent discovery, or real
+attachment consumption. Those acceptance gates remain open.
