@@ -984,8 +984,10 @@ function App() {
         const w = 820, h = 620;
         const left = Math.round((screen.width - w) / 2);
         const top = Math.round((screen.height - h) / 2);
-        window.open(url, `vibes-editor-${tabId}`,
+        const popup = window.open(url, `vibes-editor-${tabId}`,
             `width=${w},height=${h},left=${left},top=${top},toolbar=no,menubar=no,location=no,status=no`);
+        // Popup blockers must never discard the only visible copy of an editor.
+        if (!popup) return;
         // Remove the tab from this window
         setEditorTabs((prev) => prev.filter((t) => t.id !== tabId));
         setActiveEditorTabId((prev) => {
