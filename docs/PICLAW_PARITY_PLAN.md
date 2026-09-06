@@ -1403,3 +1403,10 @@ Context labels retain reported percentages above 100%; only SVG fill geometry is
 clamped. Two headed Chromium/WebKit tests verify 125% label with full bounded
 circle; build/lint pass. This prevents hiding over-capacity reports as exactly
 100% usage. Final visual/live-agent acceptance remains open.
+
+### Mobile workspace backdrop
+
+Added deployed workspace-drawer-backdrop structure on narrow/portrait screens;
+outside pointer dismisses drawer without activating the covered chat. Desktop
+layout and popouts omit visible backdrop. Four headed Chromium/WebKit drawer
+tests and build/lint pass. Final screenshot equivalence remains open.

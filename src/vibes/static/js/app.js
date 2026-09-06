@@ -2435,6 +2435,7 @@ function App() {
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
             ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
+            ${workspaceOpen && !popoutMode && !terminalPopout && html`<div class="workspace-drawer-backdrop" aria-hidden="true" onPointerDown=${event => { event.preventDefault(); setWorkspaceOpen(false); }}></div>`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}

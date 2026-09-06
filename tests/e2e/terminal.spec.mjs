@@ -191,3 +191,15 @@ test('mobile workspace drawer Escape restores toggle and composer access', async
     await page.locator('.compose-input-main textarea').pressSequentially('Drawer dismissed');
     await expect(page.locator('.compose-input-main textarea')).toHaveValue('Drawer dismissed');
 });
+
+test('mobile drawer backdrop closes without activating underlying chat', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const toggle = page.locator('.workspace-toggle-tab');
+    await toggle.click();
+    await expect(page.locator('.workspace-drawer-backdrop')).toBeVisible();
+    await page.mouse.click(380, 400);
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(page.locator('.workspace-drawer-backdrop')).toHaveCount(0);
+    await expect(page.locator('.compose-input-main textarea')).not.toBeFocused();
+});

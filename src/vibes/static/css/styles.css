@@ -3582,3 +3582,8 @@ body {
     }
     .app-shell:not(.workspace-collapsed) > .workspace-toggle-tab { left: min(300px, calc(90vw - 20px)); }
 }
+
+.workspace-drawer-backdrop { display: none; }
+@media (max-width: 1023px), (orientation: portrait) {
+    .workspace-drawer-backdrop { display: block; position: fixed; inset: 0; z-index: 200; background: #0006; }
+}
