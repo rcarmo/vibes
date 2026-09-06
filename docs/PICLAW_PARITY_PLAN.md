@@ -1318,3 +1318,11 @@ stealing focus from the clicked target. Outside dismissal is suspended while a
 session create/rename/delete dialog is active. Trigger advertises popup type and
 expanded state. Thirty headed Chromium/WebKit picker tests and build/lint pass,
 including existing dialog focus tests. Visual reference equivalence remains open.
+
+### Modal-safe terminal shortcut
+
+Global terminal toggle respects already-prevented key events and active aria-modal
+dialogs, avoiding background layout changes during confirmations. Four headed
+Chromium/WebKit shortcut tests and build/lint pass, including blocked toggle in
+New session dialog and restored toggle after dismissal. Launcher and final visual
+parity remain open.

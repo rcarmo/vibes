@@ -152,3 +152,19 @@ test('Control Backquote toggles dock and preserves shell during grace', async ({
     await page.locator('.xterm-helper-textarea').press('Enter');
     await expect(page.getByTestId('terminal-output')).toContainText('kept');
 });
+
+test('terminal shortcut does not bypass modal session dialog', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('button', { name: 'New session', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'New session' });
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Control+Backquote');
+    await expect(page.locator('.terminal-panel')).toHaveCount(0);
+    await expect(dialog.getByRole('textbox', { name: 'Session name' })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+    await page.keyboard.press('Control+Backquote');
+    await expect(page.locator('.terminal-panel')).toBeVisible();
+});

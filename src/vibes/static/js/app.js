@@ -685,6 +685,7 @@ function App() {
     useEffect(() => {
         if (!terminalEnabled || terminalPopout) return;
         const toggleTerminal = event => {
+            if (event.defaultPrevented || document.querySelector('[aria-modal="true"]')) return;
             if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.repeat || event.isComposing) return;
             if (event.code !== 'Backquote' && event.key !== '`') return;
             event.preventDefault();
