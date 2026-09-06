@@ -40,7 +40,11 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
         }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
-            setIndex(value => Math.max(0, Math.min(matches.length - 1, Math.min(value, matches.length - 1) + (event.key === 'ArrowDown' ? 1 : -1))));
+            setIndex(matches.length ? (selectedIndex + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length : 0);
+        }
+        if (event.key === 'PageDown' || event.key === 'PageUp') {
+            event.preventDefault();
+            setIndex(Math.max(0, Math.min(matches.length - 1, selectedIndex + (event.key === 'PageDown' ? 8 : -8))));
         }
         if (event.key === 'Enter' && matches[selectedIndex]) {
             event.preventDefault();

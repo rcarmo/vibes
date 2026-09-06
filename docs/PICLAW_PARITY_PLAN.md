@@ -2117,3 +2117,11 @@ longer change list selection on arrow keys; native button focus remains intact.
 Build/lint and 50 headed Chromium/WebKit session-picker tests pass. PageUp/Down,
 Tab activation and non-search typeahead still differ from deployed behavior;
 these interaction differences and visual acceptance remain open.
+
+### Session-picker page and wrapping navigation
+
+Matched deployed moveSessionPickerIndex rules: arrows wrap, PageUp/PageDown move
+by eight and clamp, Home/End retain boundary behavior. New 12-entry browser test
+checks both directions, wrapping and empty-filter safety. All 52 headed picker
+tests and build/lint pass. Tab activation and non-search typeahead remain open;
+page navigation is no longer a known deviation.

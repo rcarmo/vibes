@@ -462,3 +462,32 @@ test('branch dialog retains parent and input when parent is archived before subm
     const registry = await (await page.request.get('/sessions?include_archived=true')).json();
     expect(registry.sessions.some(item => item.name === 'Must not become root')).toBe(false);
 });
+
+test('picker arrows wrap and page navigation clamps by eight entries', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); document.body.append(root);
+        const sessions = Array.from({ length: 12 }, (_, i) => ({ id: `s${i}`, name: `Session ${String(i).padStart(2, '0')}` }));
+        render(html`<${SessionPicker} sessions=${sessions} currentId="s0" />`, root);
+    });
+    const search = page.getByRole('combobox', { name: 'Search sessions' });
+    const ids = await page.locator('#session-picker-results [role="option"]').evaluateAll(nodes => nodes.map(node => node.id));
+    await search.press('PageDown');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[8]);
+    await search.press('PageDown');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[11]);
+    await search.press('ArrowDown');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[0]);
+    await search.press('ArrowUp');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[11]);
+    await search.press('PageUp');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[3]);
+    await search.press('PageUp');
+    await expect(search).toHaveAttribute('aria-activedescendant', ids[0]);
+    await search.fill('no matching session');
+    await search.press('PageDown');
+    await search.press('ArrowUp');
+    await expect(search).not.toHaveAttribute('aria-activedescendant', /.+/);
+});
