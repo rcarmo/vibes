@@ -2528,3 +2528,13 @@ Complete experiment log: /workspace/tmp/picker-stress.log. No application change
 or fix established. Stop unchanged repetition: original closed-picker failures
 remain unresolved; bounded failure diagnostics stay enabled for future recurrence.
 The successful stress result does not supersede original failure evidence.
+
+### Honest missing message counts
+
+Session rows no longer coerce absent message_count to zero. A validated nonnegative
+safe integer renders its count (with singular message); absent/invalid values say
+Message count unavailable. Unit coverage includes strings, negatives, fractional,
+nonfinite and unsafe integers. Browser fixture distinguishes unknown from real
+zero. 19 frontend tests/85 assertions, build/lint and 60 picker tests pass; two
+strengthened missing-count fixture cases also pass after test update. This is
+presentation validation, not a change to backend deletion authorization.

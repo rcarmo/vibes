@@ -1,5 +1,5 @@
 // Registry adapter using deployed Piclaw classic picker class/role structure.
-import { sessionLastMessage } from './session-metrics.js';
+import { sessionLastMessage, sessionMessageCount } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
 
@@ -86,7 +86,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
                 ${group.items.map(item => { const lastMessage = sessionLastMessage(item.last_message_at); return html`<div key=${item.id} class=${`compose-model-popup-item-row session-picker-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
                 <button type="button" class=${`compose-session-row-pin${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!item.archived || !onPin} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>${item.pinned ? '★' : '☆'}</button>
                 <button type="button" id=${`session-option-${item.id}`} class=${`compose-model-popup-item session-item${item.archived ? ' archived' : item.id === currentId ? ' current' : ''}`} role="option" aria-selected=${item.id === currentId} aria-description=${`Session ID: ${item.id}`} title=${`Session ID: ${item.id}`} onClick=${() => act(() => onSelect?.(item.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${item.message_count ?? 0} messages</span>${lastMessage && html`<time class="compose-session-row-meta" datetime=${lastMessage.datetime} title="Last persisted message (not runtime activity)">Last message: ${lastMessage.label}</time>`}</span><span class="compose-session-row-pills">
+                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${sessionMessageCount(item.message_count)}</span>${lastMessage && html`<time class="compose-session-row-meta" datetime=${lastMessage.datetime} title="Last persisted message (not runtime activity)">Last message: ${lastMessage.label}</time>`}</span><span class="compose-session-row-pills">
                     ${item.id === currentId && html`<span class="compose-session-status-pill current">Current</span>`}
                     <span class=${`compose-session-status-pill ${item.archived ? 'archived' : item.is_running === true ? 'active' : item.is_running === false ? 'idle' : 'unavailable'}`}>${item.archived ? 'Archived' : item.is_running === true ? 'Running' : item.is_running === false ? 'Idle' : 'Status unavailable'}</span>
                     ${item.queued_count > 0 && html`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${item.queued_count} queued</span>`}

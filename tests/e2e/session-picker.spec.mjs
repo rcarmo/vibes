@@ -566,12 +566,18 @@ test('picker disables mutation controls when callbacks are unavailable', async (
         const root = document.createElement('div');
         root.id = 'readonly-picker';
         document.body.appendChild(root);
-        render(html`<${SessionPicker} sessions=${[{ id: 'empty', name: 'Read only', message_count: 0 }]} />`, root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'empty', name: 'Read only', message_count: 0 }, { id: 'unknown', name: 'Unknown history' }]} />`, root);
     });
     const picker = page.locator('#readonly-picker');
-    for (const name of ['Rename Read only', 'Delete Read only', 'New root session…', 'Pin session']) {
+    await expect(picker.locator('#session-option-empty')).toContainText('0 messages');
+    await expect(picker.locator('#session-option-unknown')).toContainText('Message count unavailable');
+    for (const name of ['Rename Read only', 'Delete Read only', 'New root session…']) {
         await expect(picker.getByRole('button', { name, exact: true })).toBeDisabled();
     }
+    const pins = picker.getByRole('button', { name: 'Pin session', exact: true });
+    await expect(pins).toHaveCount(2);
+    await expect(pins.nth(0)).toBeDisabled();
+    await expect(pins.nth(1)).toBeDisabled();
     await expect(picker.getByRole('button', { name: 'Archive Read only', exact: true })).toHaveCount(0);
 });
 
