@@ -13,6 +13,28 @@ async def list_sessions(request):
     return web.json_response({'sessions': await store.list(include == 'true'), 'runtime_isolation': False})
 
 
+async def session_model_state(request):
+    from ..pi_client import inspect_model_state
+    store = SessionStore(await get_db())
+    session_id = request.match_info['id']
+    if not await store.get(session_id):
+        return web.json_response({'error': 'Session not found'}, status=404)
+    unavailable = {'session_id': session_id, 'available': False, 'model': None, 'thinking_level': None, 'compacting': None}
+    try:
+        response = await inspect_model_state(session_id)
+        if not response or not response.get('success'):
+            return web.json_response(unavailable)
+        state = response.get('data', {})
+        model = state.get('model')
+        # Exclude provider URLs and credentials from raw model configuration.
+        model = {key: model[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in model} if isinstance(model, dict) else None
+        return web.json_response({'session_id': session_id, 'available': True,
+            'model': model, 'thinking_level': state.get('thinkingLevel'),
+            'compacting': state.get('isCompacting')})
+    except Exception:
+        return web.json_response(unavailable)
+
+
 async def session_timeline(request):
     try:
         store = SessionStore(await get_db())
@@ -51,6 +73,7 @@ async def mutate_session(request):
 def setup_routes(app):
     app.router.add_get('/sessions', list_sessions)
     app.router.add_get('/sessions/{id}/timeline', session_timeline)
+    app.router.add_get('/sessions/{id}/model-state', session_model_state)
     app.router.add_post('/sessions', mutate_session)
     app.router.add_patch('/sessions/{id}', mutate_session)
     app.router.add_delete('/sessions/{id}', mutate_session)

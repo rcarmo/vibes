@@ -784,3 +784,11 @@ until backend command isolation is implemented. Buttons disable if shown there;
 unknown model state remains hidden after switching. Two focused Chromium/WebKit
 guard tests and build/lint pass. This prevents default-context mutation but does
 not satisfy planned per-session model-picker functionality.
+
+### Scoped model-state inspection
+
+GET /sessions/{id}/model-state inspects only matching idle Pi context under its
+request lock and reports unavailable otherwise. Returns selected model identity,
+thinking and compaction state without raw provider URLs/configuration. 461 backend
+tests pass, including output whitelisting. ACP metadata, cached busy state and
+frontend model-state integration remain pending.

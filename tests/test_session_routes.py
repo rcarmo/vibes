@@ -169,3 +169,19 @@ async def test_status_poll_excludes_other_session_turns(db, monkeypatch):
     assert result['active_turns'] == []
     result = json.loads((await agents.get_agent_status(make_mocked_request('GET', '/agents/status?session_id=' + other['id']))).text)
     assert result['active_turns'][0]['session_id'] == other['id']
+
+
+@pytest.mark.asyncio
+async def test_scoped_model_state_omits_raw_provider_configuration(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    inspect = AsyncMock(return_value={'success': True, 'data': {'model': {'id': 'model', 'provider': 'test', 'baseUrl': 'private-url', 'apiKey': 'secret'}, 'thinkingLevel': 'low', 'isCompacting': False}})
+    monkeypatch.setattr(pi, 'inspect_model_state', inspect)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/model-state')).json()
+    assert result['model'] == {'id': 'model', 'provider': 'test'}
+    assert result['thinking_level'] == 'low'
+    inspect.assert_awaited_once_with('default')
+    assert (await client.get('/sessions/missing/model-state')).status == 404

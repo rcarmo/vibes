@@ -250,6 +250,16 @@ async def _send_command(payload: dict) -> None:
     await _state.agent_writer.drain()
 
 
+async def inspect_model_state(chat_id='default'):
+    """Inspect only the selected idle conversation, without switching it."""
+    if _state.request_lock.locked() or not is_pi_running():
+        return None
+    async with _state.request_lock:
+        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
+            return None
+        return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+
+
 async def inspect_session_stats(chat_id='default'):
     """Never steal prompt-stream events or inspect another chat's active context."""
     if _state.request_lock.locked() or not is_pi_running():
