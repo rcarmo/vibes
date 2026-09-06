@@ -241,3 +241,14 @@ test('picker renders group precedence and announces empty search', async ({ page
     await expect(fixture.getByRole('status')).toHaveText('No matching sessions');
     await expect(fixture.getByRole('group')).toHaveCount(0);
 });
+
+for (const width of [1280, 390]) {
+    test(`capture mounted session picker at ${width}px`, async ({ page }, testInfo) => {
+        await page.setViewportSize({ width, height: 844 });
+        await page.goto('/');
+        await page.request.post('/sessions', { data: { name: 'Visual review session' } });
+        await page.getByTestId('session-switcher').click();
+        await expect(page.getByTestId('session-popup')).toBeVisible();
+        await page.screenshot({ path: testInfo.outputPath(`session-picker-${width}.png`), fullPage: true });
+    });
+}

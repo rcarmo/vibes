@@ -1295,3 +1295,11 @@ status-dot structure and error styling. Narrow status titles wrap. Mic tooltip
 notes browser recognition may use a remote service. Eighteen headed Chromium/
 WebKit speech tests and build/lint pass, including mobile status bounds and
 active accessibility state. Screenshot equivalence/live service remain open.
+
+### Reproducible mounted picker screenshots
+
+Added desktop 1280x844 and mobile 390x844 mounted picker captures under Playwright
+test-results (Chromium/WebKit, four capture tests pass). WebKit images attached
+to the working chat for review. These are current-implementation captures, not
+approved visual baselines or deployed-reference diffs. Existing bounds/interaction
+coverage remains separate; visual equivalence has not been established.
