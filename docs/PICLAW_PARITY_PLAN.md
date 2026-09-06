@@ -2078,3 +2078,14 @@ top splitter and fills the column. Shared local editor/terminal does render its
 hide this difference: standalone top gutter/host markup remains a visual review
 item. Chat content and header controls also differ between these fixtures, so
 whole-page pixel equality is not an acceptance metric yet.
+
+### Disabled-state comparison fixture
+
+Added 1280x844 Unavailable terminal capture (Chromium/WebKit: two passed).
+Initial fixture disabled capability at startup, correctly hiding the launcher;
+corrected fixture advertises launcher then simulates capability loss on mount.
+This tests the real unavailable renderer rather than forcing DOM visibility.
+Deployed source-map inspection confirms app-main-shell-render.ts renders a sibling
+`dock-splitter` whenever dock panes are visible, even without editorOpen. Local
+splitter is nested and only present with an editor. This identifies the source of
+the 4px standalone offset; structural equivalence remains open, not approved.

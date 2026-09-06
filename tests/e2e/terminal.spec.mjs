@@ -298,3 +298,18 @@ test('closing host closes blank popout before pending handoff completes', async 
     await (await responsePromise).finished();
     await expect(page.locator('.terminal-panel')).toHaveCount(0);
 });
+
+test('terminal unavailable reference-state capture', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 844 });
+    let inspections = 0;
+    // Advertise the launcher, then simulate capability loss when the pane mounts.
+    await page.route('**/terminal/session', route => route.fulfill({
+        status: 200, contentType: 'application/json',
+        body: JSON.stringify({ enabled: inspections++ === 0 }),
+    }));
+    await page.goto('/');
+    await openTerminal(page);
+    await expect(page.locator('.terminal-status')).toHaveText('Unavailable');
+    await expect(page.locator('.dock-panel-title')).toHaveText('Terminal');
+    await page.screenshot({ path: testInfo.outputPath('terminal-unavailable-reference.png'), fullPage: true });
+});
