@@ -484,3 +484,18 @@ test('agent registry model cannot substitute for unavailable scoped inspection',
     await expect(page.locator('.compose-input-main textarea')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
 });
+
+test('model pins update across browser tabs through storage events', async ({ page, context }) => {
+    await context.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await context.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}]}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Pin model test/current', exact: true })).toBeVisible();
+    const other = await context.newPage();
+    await other.goto('/');
+    await other.evaluate(() => localStorage.setItem('vibes_model_pins', JSON.stringify(['test/current'])));
+    await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await other.evaluate(() => localStorage.removeItem('vibes_model_pins'));
+    await expect(page.getByRole('button', { name: 'Pin model test/current', exact: true })).toBeVisible();
+    await other.close();
+});

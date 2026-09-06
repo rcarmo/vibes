@@ -278,6 +278,15 @@ export function ComposeBox({
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [modelPins, setModelPins] = useState(() => loadModelPins(modelPinStorage()));
     const [modelPinError, setModelPinError] = useState('');
+    useEffect(() => {
+        const syncPins = event => {
+            if (event.key !== null && event.key !== 'vibes_model_pins') return;
+            setModelPins(loadModelPins(modelPinStorage()));
+            setModelPinError('');
+        };
+        window.addEventListener('storage', syncPins);
+        return () => window.removeEventListener('storage', syncPins);
+    }, []);
     const toggleModelPin = label => {
         const next = modelPins.includes(label) ? modelPins.filter(item => item !== label) : [...modelPins, label].slice(-100);
         setModelPins(next);

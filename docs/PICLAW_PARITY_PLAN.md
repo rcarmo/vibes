@@ -1712,3 +1712,10 @@ Latest full checkpoint is d01e4f5 (490 backend, 18 frontend unit, 210 browser te
 Later targeted validations do not imply a newer full-suite total. Overall goal
 remains open until unmet criteria are implemented/verified or explicitly revised
 by the user—not merely because many tests pass.
+
+### Browser-tab pin synchronization
+
+Composer listens for model-pin storage changes/removal and refreshes local pin
+state, removing listener on unmount. Two headed Chromium/WebKit tests use a second
+real browser tab to update/remove pins and verify first-tab controls; build/lint
+pass. This is same-browser storage synchronization, not server-synced settings.
