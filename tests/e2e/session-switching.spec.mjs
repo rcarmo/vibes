@@ -689,3 +689,24 @@ test('removed thinking choice is rejected before mutation', async ({ page }) => 
     await expect(page.getByRole('combobox', { name: 'Select thinking level' })).toHaveValue('off');
     expect(mutations).toBe(0);
 });
+
+test('same-tick model clicks issue one mutation', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"next"}]}' }));
+    let calls = 0, release;
+    await page.route('**/sessions/default/model', async route => {
+        calls++;
+        await new Promise(resolve => { release = resolve; });
+        await route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"next"}}' });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const choice = page.getByRole('menuitem', { name: 'test/next', exact: true });
+    await expect(choice).toBeVisible();
+    await choice.evaluate(el => { el.click(); el.click(); });
+    await expect.poll(() => calls).toBe(1);
+    await expect(choice).toBeDisabled();
+    release();
+    await expect(choice).toHaveCount(0);
+    expect(calls).toBe(1);
+});

@@ -1911,3 +1911,11 @@ is optional; terminal handoff/PTY assumptions were corrected and tested. This
 closes reference selection/reassessment only, not remaining UI implementation or
 visual-equivalence acceptance. Removed an embedded credential from the local Git
 remote URL during repository inspection; remote now uses the public HTTPS URL.
+
+### Immediate model mutation guard
+
+Model selection and thinking changes share a synchronous pending ref, preventing
+same-tick duplicate invocation before disabled state renders. Guard releases in
+finally on success/failure. Ten headed duplicate/thinking tests and build/lint
+pass, including two synchronous button clicks with one mutation. Backend locking
+remains authoritative; this is not network-level exactly-once delivery.

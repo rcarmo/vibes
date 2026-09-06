@@ -504,8 +504,10 @@ export function ComposeBox({
         await handleSelectModel(next);
     };
 
+    const modelMutationPending = useRef(false);
     const handleCycleThinking = async (requestedLevel = null) => {
-        if (loading || switchingModel) return;
+        if (loading || modelMutationPending.current) return;
+        modelMutationPending.current = true;
         setSwitchingModel(true);
         try {
             const catalog = await getSessionModels(sessionId);
@@ -520,21 +522,22 @@ export function ComposeBox({
             emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel,
                 thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
         } catch (error) { setSubmitError(error.message || 'Thinking change failed'); }
-        finally { setSwitchingModel(false); }
+        finally { modelMutationPending.current = false; setSwitchingModel(false); }
     };
 
     const handleSelectModel = async (modelLabel) => {
-        if (!modelLabel || switchingModel) return;
+        if (!modelLabel || loading || modelMutationPending.current) return;
         {
             const model = sessionCatalog?.models?.find(item => `${item.provider}/${item.id}` === modelLabel);
             if (!model) return;
+            modelMutationPending.current = true;
             setSwitchingModel(true);
             try {
                 const result = await changeSessionModel(sessionId, { provider: model.provider, model_id: model.id });
                 emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel, thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
                 setShowModelPopup(false);
             } catch (error) { setSubmitError(error.message || 'Model change failed'); }
-            finally { setSwitchingModel(false); }
+            finally { modelMutationPending.current = false; setSwitchingModel(false); }
             return;
         }
     };
