@@ -67,3 +67,21 @@ async def test_pi_worker_dispatch_uses_persisted_session(db, monkeypatch):
     with pytest.raises(ValueError):
         await agents._dispatch_pi_thread('blocked', root, None)
     assert sender.await_count == 1
+
+
+@pytest.mark.asyncio
+async def test_worker_status_events_include_session_identity(db, monkeypatch):
+    agents = importlib.import_module('vibes.routes.agents')
+    store = importlib.import_module('vibes.sessions').SessionStore(db)
+    session = await store.create('Status scope')
+    root = await db.create_interaction({'type': 'user', 'content': 'hello', 'session_id': session['id']})
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'acp')
+    sender = AsyncMock(return_value={'text': 'response', 'content': [], 'cancelled': False})
+    monkeypatch.setattr(agents, '_dispatch_acp_thread', sender)
+    events = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', events)
+    await agents.process_agent_response(root, 'hello', 'default')
+    statuses = [call.args[1] for call in events.call_args_list if call.args[0] == 'agent_status']
+    assert statuses
+    assert all(item['session_id'] == session['id'] for item in statuses)

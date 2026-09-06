@@ -616,3 +616,11 @@ only for the latest request. Stale responses/errors and disposed requests cannot
 replace current UI; current-request failure leaves UI untouched. Seven frontend
 unit tests pass; build/lint pass. Coordinator is not mounted yet; global timeline
 loads/SSE still need session filtering before picker integration is complete.
+
+### Session-tagged worker status events
+
+Worker resolves chat identity once from persisted thread and includes session_id
+in status/draft/thought/timeout and generated message payloads. This supplies the
+frontend with a reliable filter key before picker mounting. A real-database worker
+test checks emitted status scope; 452 backend tests pass. Browser event filtering
+and current-session status reset still need integration.

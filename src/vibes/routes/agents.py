@@ -593,6 +593,9 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
     from ..avatar import resolve_avatar_url
 
     turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    database = await get_db()
+    root = await database.get_interaction(thread_id)
+    chat_session_id = root["data"].get("session_id", "default") if root else "default"
     config = get_config()
     agent_profile = {"agent_name": config.agent_name, "agent_avatar": resolve_avatar_url("agent", config.agent_avatar)}
     latest_draft_text = ""
@@ -611,6 +614,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         """Broadcast an agent_status event and persist it for polling."""
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
+                "session_id": chat_session_id,
             "agent_id": agent_id,
             "turn_id": turn_id,
             **status_data,
@@ -640,6 +644,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                     _update_turn_preview(turn_id, draft=latest_draft_text)
                 await broadcast_event("agent_draft", {
                     "thread_id": thread_id,
+                "session_id": chat_session_id,
                     "agent_id": agent_id,
                     "turn_id": turn_id,
                     "text": text,
@@ -658,6 +663,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                         delta_reset = mode == "replace"
                     delta_payload = {
                         "thread_id": thread_id,
+                "session_id": chat_session_id,
                         "agent_id": agent_id,
                         "turn_id": turn_id,
                         "delta": delta_text,
@@ -679,6 +685,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 _update_turn_preview(turn_id, thought=latest_thought_text)
                 await broadcast_event("agent_thought", {
                     "thread_id": thread_id,
+                "session_id": chat_session_id,
                     "agent_id": agent_id,
                     "turn_id": turn_id,
                     "text": text,
@@ -693,6 +700,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 if _is_panel_expanded(turn_id, "thought") and (delta_text or delta_reset):
                     await broadcast_event("agent_thought_delta", {
                         "thread_id": thread_id,
+                "session_id": chat_session_id,
                         "agent_id": agent_id,
                         "turn_id": turn_id,
                         "delta": delta_text,
@@ -718,6 +726,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         if response.get("cancelled") and response.get("cancel_reason") != "abort":
             await broadcast_event("agent_request_timeout", {
                 "thread_id": thread_id,
+                "session_id": chat_session_id,
                 "agent_id": agent_id,
                 "turn_id": turn_id,
                 **agent_profile,
@@ -769,6 +778,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 "content_blocks": content_blocks,
                 "agent_id": agent_id,
                 "thread_id": thread_id,
+                "session_id": chat_session_id,
                 "media_ids": media_ids,
             }
 
@@ -823,6 +833,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
             "content": f"[Error: {e}]",
             "agent_id": agent_id,
             "thread_id": thread_id,
+                "session_id": chat_session_id,
         }
         response_id = await db.create_interaction(error_response)
         response_interaction = await db.get_interaction(response_id)
