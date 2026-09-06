@@ -146,6 +146,9 @@ export function ComposeBox({
     const [searchText, setSearchText] = useState('');
     const [loading, setLoading] = useState(false);
     const [submitError, setSubmitError] = useState('');
+    const [uploadProgress, setUploadProgress] = useState(null);
+    const uploadController = useRef(null);
+    useEffect(() => () => uploadController.current?.abort(), []);
     const [mediaFiles, setMediaFiles] = useState([]);
     const [isDragActive, setIsDragActive] = useState(false);
     const [slashMatches, setSlashMatches] = useState([]);
@@ -382,16 +385,25 @@ export function ComposeBox({
         setSubmitError('');
         try {
             const mediaIds = [];
-            for (const file of mediaFiles) {
+            uploadController.current = new AbortController();
+            for (const [index, file] of mediaFiles.entries()) {
+                if (uploadController.current.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError');
                 let id = uploadedFiles.current.get(file);
                 if (id === undefined) {
-                    const result = await uploadMedia(file);
+                    const progress = { current: index + 1, total: mediaFiles.length, name: file.name, percent: 0 };
+                    setUploadProgress(progress);
+                    const result = await uploadMedia(file, {
+                        signal: uploadController.current.signal,
+                        onProgress: percent => setUploadProgress({ ...progress, percent }),
+                    });
                     id = result.id;
                     uploadedFiles.current.set(file, id);
                 }
                 mediaIds.push(id);
             }
 
+            if (uploadController.current.signal.aborted) throw new DOMException('Upload cancelled', 'AbortError');
+            setUploadProgress(null);
             const baseContent = content.trim();
             const fileBlock = fileRefs.length
                 ? `Files:\n${fileRefs.map((path) => `- ${path}`).join('\n')}`
@@ -440,6 +452,8 @@ export function ComposeBox({
             console.error('Failed to post:', error);
             setSubmitError(error?.message || 'Failed to send message.');
         } finally {
+            setUploadProgress(null);
+            uploadController.current = null;
             setLoading(false);
         }
     };
@@ -668,8 +682,19 @@ export function ComposeBox({
 
     return html`
         <div class="compose-box">
+            ${uploadProgress && html`<div class="compose-inline-status compose-upload-status" role="status" aria-live="polite" data-testid="compose-upload-status">
+                <div class="compose-inline-status-row">
+                    <div class="compose-inline-status-spinner" aria-hidden="true"></div>
+                    <span class="compose-inline-status-title">${`Uploading ${uploadProgress.current}/${uploadProgress.total}: ${uploadProgress.name}`}</span>
+                    <span class="compose-inline-status-elapsed">${uploadProgress.percent}%</span>
+                    <button type="button" onClick=${() => uploadController.current?.abort()}>Cancel upload</button>
+                </div>
+                <div class="upload-progress-bar" role="progressbar" aria-label="Attachment upload progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow=${uploadProgress.percent}>
+                    <div class="upload-progress-fill" style=${`width:${uploadProgress.percent}%`}></div>
+                </div>
+            </div>`}
             ${submitError && html`
-                <div class="compose-submit-error" role="status" aria-live="polite">${submitError}</div>
+                <div class="compose-inline-status compose-submit-error" role="alert" aria-live="assertive"><div class="compose-inline-status-detail">${submitError}</div></div>
             `}
             <div
                 class=${`compose-input-wrapper${isDragActive ? ' drag-active' : ''}`}

@@ -164,7 +164,34 @@ export async function setAgentTurnPanelExpanded(turnId, panel, expanded) {
 /**
  * Upload media file
  */
-export async function uploadMedia(file) {
+export async function uploadMedia(file, { signal, onProgress } = {}) {
+    if (signal || onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            const abort = () => xhr.abort();
+            const finish = (error, value) => {
+                signal?.removeEventListener('abort', abort);
+                if (error) reject(error); else resolve(value);
+            };
+            if (signal?.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
+            xhr.open('POST', API_BASE + '/media/upload');
+            xhr.upload.onprogress = e => {
+                if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100));
+            };
+            xhr.onload = () => {
+                let value;
+                try { value = JSON.parse(xhr.responseText); }
+                catch { finish(new Error('Invalid upload response')); return; }
+                finish(xhr.status >= 200 && xhr.status < 300 ? null : new Error(value.error || `HTTP ${xhr.status}`), value);
+            };
+            xhr.onerror = () => finish(new Error('Upload network error'));
+            xhr.onabort = () => finish(new DOMException('Upload cancelled', 'AbortError'));
+            signal?.addEventListener('abort', abort, { once: true });
+            const data = new FormData();
+            data.append('file', file);
+            xhr.send(data);
+        });
+    }
     const formData = new FormData();
     formData.append('file', file);
     

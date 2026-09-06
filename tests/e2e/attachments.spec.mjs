@@ -39,3 +39,22 @@ test('failed send retains attachments and retry reuses completed upload', async 
     expect(payload.media_ids).toEqual([123]);
     expect(payload.content).toContain('Attachments:\n- attachment:123 (notes.txt)');
 });
+
+test('upload cancellation keeps draft and prevents send', async ({ page }) => {
+    let sends = 0;
+    await page.route('**/media/upload', async route => {
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        await route.fulfill({ status: 201, contentType: 'application/json', body: '{"id":321}' }).catch(() => {});
+    });
+    await page.route('**/agent/default/message', async route => { sends++; await route.fulfill({ body: '{}' }); });
+    await page.goto('/');
+    await page.locator('input[type=file][hidden]').setInputFiles({ name: 'slow.txt', mimeType: 'text/plain', buffer: Buffer.from('data') });
+    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await expect(page.getByTestId('compose-upload-status')).toBeVisible();
+    await expect(page.getByRole('progressbar')).toBeVisible();
+    await page.getByRole('button', { name: 'Cancel upload' }).click();
+    await expect(page.getByTestId('compose-upload-status')).toHaveCount(0);
+    await expect(page.getByRole('alert')).toContainText('Upload cancelled');
+    await expect(page.locator('.compose-file-pill', { hasText: 'slow.txt' })).toBeVisible();
+    expect(sends).toBe(0);
+});

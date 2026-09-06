@@ -229,3 +229,13 @@ simulated failed-send -> successful-retry payload and one-upload assertion;
 frontend build/lint pass. This does not yet garbage-collect server-side uploads
 abandoned when a draft is discarded. Real agent attachment consumption, upload
 progress/cancellation and full Piclaw pill markup remain pending.
+
+### Upload progress and cancellation
+
+Added optional XHR upload progress/AbortSignal support without changing existing
+uploadMedia callers. Composer uses deployed inline-status/progress DOM and CSS,
+with an explicit cancel button. Cancel retains draft and completed upload IDs,
+clears progress, reports cancellation and prevents submission. Unmount aborts
+current upload. Six Chromium/WebKit attachment tests pass; build/lint pass.
+Cancellation cannot guarantee the server did not finish storing bytes before the
+abort arrived; abandoned-upload garbage collection remains separate pending work.
