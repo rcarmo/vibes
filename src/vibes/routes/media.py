@@ -89,6 +89,16 @@ async def upload_media(request: web.Request) -> web.Response:
     }, status=201)
 
 
+def media_response(data, content_type):
+    # HTML/SVG and other active uploads must not execute on the application origin.
+    safe_inline = content_type in {'image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/avif'}
+    headers = {'X-Content-Type-Options': 'nosniff'}
+    if not safe_inline:
+        headers['Content-Disposition'] = 'attachment'
+        headers['Content-Security-Policy'] = "sandbox; default-src 'none'"
+    return web.Response(body=data, content_type=content_type, headers=headers)
+
+
 async def get_media(request: web.Request) -> web.Response:
     """Serve media file from database."""
     media_id = int(request.match_info["id"])
@@ -100,7 +110,7 @@ async def get_media(request: web.Request) -> web.Response:
         return web.json_response({"error": "Media not found"}, status=404)
     
     content_type, data = result
-    return web.Response(body=data, content_type=content_type)
+    return media_response(data, content_type)
 
 
 async def get_media_thumbnail(request: web.Request) -> web.Response:
@@ -117,7 +127,7 @@ async def get_media_thumbnail(request: web.Request) -> web.Response:
             return web.json_response({"error": "Media not found"}, status=404)
     
     content_type, data = result
-    return web.Response(body=data, content_type=content_type)
+    return media_response(data, content_type)
 
 
 async def get_media_info(request: web.Request) -> web.Response:

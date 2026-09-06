@@ -393,7 +393,7 @@ export function ComposeBox({
                 ? `Messages:\n${messageRefs.map((id) => `- ${id}`).join('\n')}`
                 : '';
             const mediaBlock = mediaIds.length
-                ? `Images:\n${mediaIds.map((id, index) => {
+                ? `${mediaFiles.every(file => file.type.startsWith('image/')) ? 'Images' : 'Attachments'}:\n${mediaIds.map((id, index) => {
                     const file = mediaFiles[index];
                     const label = file?.name || `image-${index + 1}`;
                     return `- attachment:${id} (${label})`;
@@ -522,7 +522,7 @@ export function ComposeBox({
     };
 
     const addMediaFiles = (files) => {
-        const list = Array.from(files || []).filter((file) => file && file.type && file.type.startsWith('image/'));
+        const list = Array.from(files || []).filter((file) => file instanceof File && file.name !== '.DS_Store');
         if (!list.length) return;
         setSubmitError('');
         setMediaFiles((current) => [...current, ...list]);
@@ -579,11 +579,12 @@ export function ComposeBox({
     };
 
     const handlePaste = (e) => {
+        if (searchMode) return;
         const items = e.clipboardData?.items;
         if (!items) return;
         const images = [];
         for (const item of items) {
-            if (item.kind === 'file' && item.type.startsWith('image/')) {
+            if (item.kind === 'file') {
                 const file = item.getAsFile();
                 if (file) images.push(file);
             }
@@ -745,7 +746,7 @@ export function ComposeBox({
                                                 event.stopPropagation();
                                                 removeMediaFile(index);
                                             }}
-                                            title="Remove image"
+                                            title="Remove attachment"
                                             type="button"
                                         >
                                             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -908,7 +909,7 @@ export function ComposeBox({
                     ${!searchMode && html`
                         <label class="icon-btn" title="Attach image">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            <input type="file" accept="image/*" multiple hidden onChange=${handleFileChange} />
+                            <input type="file" multiple hidden onChange=${handleFileChange} />
                         </label>
                         <button
                             class="icon-btn send-btn"

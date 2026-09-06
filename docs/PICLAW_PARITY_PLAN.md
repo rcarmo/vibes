@@ -207,3 +207,15 @@ and assert messages descriptors reach session/new. 406 backend tests pass.
 No installed `copilot` executable was found; third-party ACP consumption remains
 unverified. Earlier composer assessment correction: existing Vibes has image
 clipboard paste; the pending gap is general-file clipboard intake, not all paste.
+
+### General attachment intake
+
+Composer picker/drop/clipboard now accepts general File objects; mixed/nonimage
+uploads use Attachments labels instead of Images. Image-only messages preserve
+existing formatting. Removal works for all attachment types. Chromium/WebKit
+picker and synthetic clipboard tests pass. Upload endpoint already supported
+binary data. Media and thumbnail-fallback downloads now force attachment plus
+sandbox headers for non-raster types, preventing uploaded HTML/SVG execution on
+the application origin. Backend: 411 tests pass; build/lint pass. Still pending:
+agent resolution of uploaded IDs, full submission/error/cleanup flows and
+Piclaw FilePill markup alignment. Intake is not end-to-end attachment parity.
