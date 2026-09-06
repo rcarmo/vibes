@@ -1,5 +1,5 @@
 import { SessionPicker } from './components/session-picker.js';
-import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue } from './api.js';
+import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue, getSessionModelState } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
@@ -808,7 +808,27 @@ function App() {
             if (session === selectedSessionRef.current && generation === switchGeneration.current) setContextUsage(null);
         }
     };
-    useEffect(() => { refreshSelectedContext(); }, [selectedSession]);
+    useEffect(() => {
+        refreshSelectedContext();
+        let disposed = false;
+        const refreshModel = async () => {
+            try {
+                const state = await getSessionModelState(selectedSession);
+                if (disposed || selectedSession !== selectedSessionRef.current) return;
+                const model = state.available ? state.model : null;
+                setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
+                setActiveThinkingLevel(state.available ? state.thinking_level : null);
+                setSupportsThinking(model?.reasoning === true);
+            } catch {
+                if (!disposed && selectedSession === selectedSessionRef.current) {
+                    setActiveModel(null); setActiveThinkingLevel(null); setSupportsThinking(false);
+                }
+            }
+        };
+        refreshModel();
+        const timer = setInterval(refreshModel, 15000);
+        return () => { disposed = true; clearInterval(timer); };
+    }, [selectedSession]);
     const refreshSelectedQueue = async () => {
         const session = selectedSessionRef.current;
         const result = await getAgentQueue(null, null, session);

@@ -125,3 +125,21 @@ test('nondefault model control cannot silently mutate default chat', async ({ pa
     await page.locator('#session-option-' + id).click();
     await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
 });
+
+test('selected chat displays only its scoped confirmed model', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', async route => {
+        const id = new URL(route.request().url()).pathname.split('/')[2];
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify(id === 'default' ? { available: false } : { available: true, model: { provider: 'test', id: 'scoped-model', reasoning: true }, thinking_level: 'low' }) });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Model display' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    const model = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(model).toContainText('test/scoped-model');
+    await expect(model).toBeDisabled();
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-default').click();
+    await expect(page.getByText('test/scoped-model', { exact: true })).toHaveCount(0);
+});

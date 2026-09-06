@@ -792,3 +792,11 @@ request lock and reports unavailable otherwise. Returns selected model identity,
 thinking and compaction state without raw provider URLs/configuration. 461 backend
 tests pass, including output whitelisting. ACP metadata, cached busy state and
 frontend model-state integration remain pending.
+
+### Selected model display
+
+Mounted app inspects selected chat model state on switch and periodically; only
+matching current responses update model/thinking labels. Unavailable/errors clear
+labels instead of retaining another chat's model. Non-default controls remain
+disabled pending safe mutation. Eighteen switching browser tests and build/lint
+pass, including scoped model display and clearing on return to default.

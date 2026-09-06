@@ -103,6 +103,10 @@ export async function sendAgentMessage(agentId, content, threadId = null, mediaI
 /**
  * Get available agents
  */
+export async function getSessionModelState(sessionId) {
+    return request(`/sessions/${encodeURIComponent(sessionId)}/model-state`);
+}
+
 export async function getSessions(includeArchived = false) {
     return request(`/sessions?include_archived=${includeArchived}`);
 }
