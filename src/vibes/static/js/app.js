@@ -5,6 +5,7 @@ import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
 import { WorkspaceEditor } from './components/editor.js';
+import { TerminalPanel } from './components/terminal-panel.js';
 import { TabStrip } from './components/tab-strip.js';
 import { stashEditorPopoutState, consumeEditorPopoutState } from './panes/editor-popout-transfer.js';
 import katex from 'katex';
@@ -672,6 +673,12 @@ const dedupePosts = (items) => {
  * Main App component
  */
 function App() {
+    const terminalPopout = new URL(location.href).searchParams.get('terminal') === '1';
+    const [terminalVisible, setTerminalVisible] = useState(terminalPopout);
+    const [terminalEnabled, setTerminalEnabled] = useState(false);
+    useEffect(() => {
+        fetch('/terminal/session').then(r => r.json()).then(s => setTerminalEnabled(!!s.enabled)).catch(() => {});
+    }, []);
     const [posts, setPosts] = useState(null);
     const [hasMore, setHasMore] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState('disconnected');
@@ -2214,7 +2221,9 @@ function App() {
     const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
     
     return html`
-        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}`} ref=${appShellRef}>
+        <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
+            ${terminalEnabled && !terminalVisible && !terminalPopout && html`<button class="terminal-open-button" onClick=${() => setTerminalVisible(true)} title="Open terminal">Terminal</button>`}
+            ${terminalVisible && html`<${TerminalPanel} popout=${terminalPopout} onClose=${() => { setTerminalVisible(false); if (terminalPopout) window.close(); }} />`}
             ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}

@@ -3367,3 +3367,11 @@ body {
     .tok-labelName { color: #d19a66; }
     .tok-url { color: #61afef; }
 }
+
+/* Vibes host adapter; inner terminal DOM/styles are ported from Piclaw. */
+.terminal-panel { position:fixed; bottom:0; left:0; right:0; height:45vh; z-index:110; display:flex; flex-direction:column; background:var(--bg-primary,#171717); border-top:1px solid var(--border-color,#444); }
+.terminal-panel-toolbar { display:flex; align-items:center; gap:12px; padding:6px 12px; }
+.terminal-panel-toolbar span { flex:1; }
+.terminal-open-button { position:fixed; right:12px; top:12px; z-index:110; }
+.terminal-popout > :not(.terminal-panel) { display:none !important; }
+.terminal-popout .terminal-panel { height:100dvh; }

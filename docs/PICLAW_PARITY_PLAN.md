@@ -82,3 +82,18 @@ the deployed client anonymous-token field is not trusted as authority here.
 PTY launch now establishes a controlling terminal with TIOCSCTTY in an exec
 helper (no threaded-server preexec_fn). Real tests cover foreground interruption
 and shell survival. Backend suite: 399 passed. UI parity is not yet verified.
+
+### First terminal UI slice
+
+Ported terminal-pane.js verbatim from deployed Piclaw 2.15.3 classic source-map
+content (MIT), with the matching vendored xterm assets and their embedded license
+notices. Vibes supplies a small mount/pop-out adapter. Inner terminal markup is
+unchanged; outer fixed-bottom panel/toolbar is provisional, NOT final dock markup
+parity. Fonts and host toolbar/dock integration still require alignment.
+
+Terminal enabled browser runs require VIBES_ENABLE_TERMINAL=1. Chromium and WebKit
+both verify actual terminal command output and preservation of a shell environment
+variable through pop-out handoff. Backend: 399 passing tests; build/lint pass.
+Full 40-test runs reached 39 passed, with different existing WebKit editor tests
+failing in parallel/serial runs. Do not claim full suite green; investigate before
+final acceptance. No tests skipped or retries configured.
