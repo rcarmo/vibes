@@ -2161,3 +2161,23 @@ DOM assertions verify hierarchy. Empty-result Tab follows new document order
 (past search rather than back to close); test checks focus exits search without
 selection. Build/lint and 56 headed Chromium/WebKit picker tests pass, including
 desktop/mobile capture cases. Full visual acceptance remains open.
+
+### Post-picker integrated acceptance checkpoint — 2026-09-06
+
+At ab11cc9, all 266 headed Chromium/WebKit tests passed in a single-worker run
+(5.1m), without retries. Backend: 508 passed; frontend: 18 passed/73 assertions.
+Latest build/lint passed with the header slice. Installed Pi smoke again verified
+session switching/restoration and 33 model catalog entries plus thinking RPC.
+No prompt was sent; catalog availability is not provider authentication/execution.
+
+Remaining acceptance is not resolved by these counts:
+- Visual: terminal standalone sibling splitter/4px offset, and matched deployed
+  model/status/settings and grouped-picker comparisons remain unapproved.
+- Agent interoperability: installed-Pi RPC smoke is not third-party ACP messages
+  discovery/retrieval or real attachment consumption. PATH probes for
+  claude-agent-acp, codex-acp, gemini and opencode found no executable.
+- Speech: mocked recognition does not verify microphone permission or a live
+  browser transcription service.
+
+Read-only delegate audit was unavailable under current model policy; this review
+was performed locally, not independently validated by another model.
