@@ -61,7 +61,7 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 </button>
                 <button type="button" class="session-row-action session-row-icon compose-model-popup-btn" aria-label=${`Rename ${Lt.name}`} title=${`Rename ${Lt.name}`} disabled=${!m} onClick=${()=>Kt(()=>m?.(Lt.id))}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5Z"/><path d="m14 5 5 5"/></svg></button>
                 ${Lt.id!=="default"&&Q&&Je`<button type="button" class="session-row-action session-row-icon compose-model-popup-btn" aria-label=${`${Lt.archived?"Restore":"Archive"} ${Lt.name}`} disabled=${!Lt.archived&&Lt.is_running===!0} title=${!Lt.archived&&Lt.is_running?"Stop the running turn before archiving":`${Lt.archived?"Restore":"Archive"} ${Lt.name}`} onClick=${()=>Kt(()=>Q(Lt.id,!Lt.archived))}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v11h16V10M3 3h18v5H3Z"/><path d=${Lt.archived?"M12 18v-6m-3 3 3-3 3 3":"M9 13h6"}/></svg></button>`}
-                ${Lt.id!=="default"&&Je`<button type="button" class="compose-model-popup-item-delete" aria-label=${`Delete ${Lt.name}`} disabled=${!y||Lt.is_running===!0||!!Lt.message_count||Ce.has(Lt.id)} title=${Lt.is_running===!0?"Stop the running turn before deleting":Ce.has(Lt.id)?"Sessions with children cannot be deleted":Lt.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>Kt(()=>y?.(Lt.id))}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>`}
+                ${Lt.id!=="default"&&Je`<button type="button" class="compose-model-popup-item-delete" aria-label=${`Delete ${Lt.name}`} disabled=${!y||Lt.is_running===!0||Lt.message_count!==0||Ce.has(Lt.id)} title=${Lt.is_running===!0?"Stop the running turn before deleting":Ce.has(Lt.id)?"Sessions with children cannot be deleted":Lt.message_count!==0?"Only sessions confirmed empty can be deleted":void 0} onClick=${()=>Kt(()=>y?.(Lt.id))}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>`}
             </div>`})}
             </div>`)}
         </div>
@@ -2123,4 +2123,4 @@ ${a}
         </div>
     `}p4t(Je`<${J7n} />`,document.getElementById("app"));
 
-//# debugId=89EFAE4628ECBFF464756E2164756E21
+//# debugId=8D18EA39673CFFBF64756E2164756E21

@@ -2538,3 +2538,12 @@ nonfinite and unsafe integers. Browser fixture distinguishes unknown from real
 zero. 19 frontend tests/85 assertions, build/lint and 60 picker tests pass; two
 strengthened missing-count fixture cases also pass after test update. This is
 presentation validation, not a change to backend deletion authorization.
+
+### Confirmed-empty deletion affordance
+
+Delete now requires message_count === 0 rather than a falsy count; absent, null,
+string-zero, negative and fractional counts cannot expose an enabled deletion
+control. Tooltip explains confirmed-empty requirement. Existing running/children/
+callback guards and authoritative backend nonempty predicate remain unchanged.
+Expanded browser fixture verifies malformed counts with onDelete present, alongside
+an enabled genuine-zero control. Build/lint and all 60 headed picker tests pass.

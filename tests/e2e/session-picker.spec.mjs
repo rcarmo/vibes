@@ -73,9 +73,15 @@ test('picker gates archive and delete using unfiltered session state', async ({ 
             { id: 'busy', name: 'Busy', message_count: 0, is_running: true },
             { id: 'child', name: 'Child', parent_id: 'parent', message_count: 0 },
             { id: 'closed', name: 'Closed', archived: true, message_count: 1 },
+            ...[undefined, null, '0', -1, 0.5].map((message_count, i) => ({ id: `unknown-${i}`, name: `Unknown ${i}`, message_count })),
         ]} onArchive=${() => { throw new Error('State changed; try again'); }} onDelete=${() => {}} />`, root);
     });
     const fixture = page.locator('#actions-fixture');
+    for (let i = 0; i < 5; i++) {
+        const button = fixture.getByRole('button', { name: `Delete Unknown ${i}`, exact: true });
+        await expect(button).toBeDisabled();
+        await expect(button).toHaveAttribute('title', 'Only sessions confirmed empty can be deleted');
+    }
     await expect(fixture.getByRole('button', { name: 'Delete Busy', exact: true })).toBeDisabled();
     await expect(fixture.getByRole('button', { name: 'Delete Busy', exact: true })).toHaveAttribute('title', 'Stop the running turn before deleting');
     await expect(fixture.getByRole('button', { name: 'Archive Parent', exact: true })).toBeDisabled();
