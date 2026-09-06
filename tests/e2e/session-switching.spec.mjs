@@ -234,3 +234,25 @@ test('model catalog retry recovers and search filters selectable choices', async
     await search.fill('missing');
     await expect(page.getByText('No matching models', { exact: true })).toBeVisible();
 });
+
+test('model picker keyboard navigation focuses choices and Escape restores trigger', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"old"}}' }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"alpha"},{"provider":"test","id":"beta"}]}' }));
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Keyboard models' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await trigger.click();
+    const search = page.getByRole('searchbox', { name: 'Search models' });
+    await expect(search).toBeFocused();
+    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    await search.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(search).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+});

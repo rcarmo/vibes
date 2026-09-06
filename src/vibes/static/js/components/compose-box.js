@@ -269,6 +269,7 @@ export function ComposeBox({
     const [modelCatalogError, setModelCatalogError] = useState('');
     const [modelQuery, setModelQuery] = useState('');
     const [modelRefresh, setModelRefresh] = useState(0);
+    const modelSearchRef = useRef(null);
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
@@ -499,6 +500,22 @@ export function ComposeBox({
         if (ok) setShowModelPopup(false);
     };
 
+    const modelPickerKeys = event => {
+        if (event.key === 'Escape') {
+            event.preventDefault(); event.stopPropagation(); setShowModelPopup(false);
+            requestAnimationFrame(() => modelHintRef.current?.focus());
+            return;
+        }
+        if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+        const choices = [...(modelPopupRef.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])];
+        if (!choices.length) return;
+        event.preventDefault(); event.stopPropagation();
+        const current = choices.indexOf(document.activeElement);
+        const next = current < 0 ? (event.key === 'ArrowDown' ? 0 : choices.length - 1)
+            : (current + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+        choices[next].focus(); choices[next].scrollIntoView({ block: 'nearest' });
+    };
+    useEffect(() => { if (showModelPopup) modelSearchRef.current?.focus(); }, [showModelPopup]);
     const toggleModelPopup = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -974,9 +991,9 @@ export function ComposeBox({
                         </div>
                     `}
                     ${showModelPopup && !searchMode && html`
-                        <div class="compose-model-popup" ref=${modelPopupRef}>
+                        <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
                             <div class="compose-model-popup-title">Select model</div>
-                            <input class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                            <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>

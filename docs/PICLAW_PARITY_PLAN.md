@@ -1114,3 +1114,11 @@ from unavailable catalog, and retries failed catalog loads explicitly. Twelve
 headed Chromium/WebKit model/thinking tests and build/lint pass, including retry
 recovery and filtered choices. Default backend command consolidation and complete
 deployed model-picker interaction/markup remain open.
+
+### Model picker keyboard focus
+
+Model search receives focus on opening; Up/Down moves focus through enabled model
+choices with wrapping and scroll visibility. Native button Enter selects; Escape
+closes and restores the trigger. Fourteen headed Chromium/WebKit model/thinking
+tests and build/lint pass, including arrow focus and Escape restoration. Full
+model control/default-backend and visual parity remain open.
