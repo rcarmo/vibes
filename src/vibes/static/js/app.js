@@ -683,6 +683,17 @@ function App() {
     const [terminalVisible, setTerminalVisible] = useState(terminalPopout);
     const [terminalEnabled, setTerminalEnabled] = useState(false);
     useEffect(() => {
+        if (!terminalEnabled || terminalPopout) return;
+        const toggleTerminal = event => {
+            if (!event.ctrlKey || event.altKey || event.metaKey || event.shiftKey || event.repeat || event.isComposing) return;
+            if (event.code !== 'Backquote' && event.key !== '`') return;
+            event.preventDefault();
+            setTerminalVisible(visible => !visible);
+        };
+        window.addEventListener('keydown', toggleTerminal);
+        return () => window.removeEventListener('keydown', toggleTerminal);
+    }, [terminalEnabled, terminalPopout]);
+    useEffect(() => {
         fetch('/terminal/session').then(r => r.json()).then(s => setTerminalEnabled(!!s.enabled)).catch(() => {});
     }, []);
     const [posts, setPosts] = useState(null);
@@ -2384,7 +2395,7 @@ function App() {
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
-            ${terminalEnabled && !terminalVisible && !terminalPopout && html`<button class="terminal-open-button" onClick=${() => setTerminalVisible(true)} title="Open terminal">Terminal</button>`}
+            ${terminalEnabled && !terminalVisible && !terminalPopout && html`<button class="terminal-open-button" aria-keyshortcuts=${"Control+" + String.fromCharCode(96)} onClick=${() => setTerminalVisible(true)} title="Open terminal">Terminal</button>`}
             ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}

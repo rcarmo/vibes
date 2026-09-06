@@ -1199,3 +1199,11 @@ without inspecting Pi, consistent with existing mutation rejection. Missing IDs
 remain 404. 478 backend tests pass, including archived read no-RPC assertions and
 mutation rejection. Stored history/bindings remain untouched; restore is required
 before live controls can become available.
+
+### Terminal keyboard toggle
+
+Ctrl+Backquote now toggles enabled terminal dock, matching deployed shortcut.
+Extra modifiers, repeats and composition events are ignored; terminal popouts do
+not install the shortcut. Launcher advertises aria-keyshortcuts. Two headed
+Chromium/WebKit tests verify hide/reopen retains shell state during grace;
+build/lint pass. Launcher placement and screenshot equivalence remain open.

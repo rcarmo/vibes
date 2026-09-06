@@ -136,3 +136,19 @@ for (const width of [1440, 390]) {
         expect(terminal.x + terminal.width <= compose.x + 1 || terminal.y + terminal.height <= compose.y + 1).toBe(true);
     });
 }
+
+test('Control Backquote toggles dock and preserves shell during grace', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
+    await page.keyboard.press('Control+Backquote');
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await page.locator('.xterm-helper-textarea').pressSequentially('export SHORTCUT_TOKEN=kept');
+    await page.locator('.xterm-helper-textarea').press('Enter');
+    await page.keyboard.press('Control+Backquote');
+    await expect(page.locator('.terminal-panel')).toHaveCount(0);
+    await page.keyboard.press('Control+Backquote');
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await page.locator('.xterm-helper-textarea').pressSequentially('echo $SHORTCUT_TOKEN');
+    await page.locator('.xterm-helper-textarea').press('Enter');
+    await expect(page.getByTestId('terminal-output')).toContainText('kept');
+});
