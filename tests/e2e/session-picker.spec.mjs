@@ -314,3 +314,12 @@ test('picker serializes pending actions and recovers after rejection', async ({ 
     expect(await page.evaluate(() => window.actionCalls)).toBe(2);
     await page.evaluate(() => window.rejectAction(new Error('Done')));
 });
+
+test('explicit session picker close control restores trigger focus', async ({ page }) => {
+    await page.goto('/');
+    const trigger = page.getByTestId('session-switcher');
+    await trigger.click();
+    await page.getByRole('button', { name: 'Close session picker', exact: true }).click();
+    await expect(page.getByTestId('session-popup')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+});

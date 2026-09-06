@@ -1537,3 +1537,11 @@ sections, inline current/active pills, and New branch/New root/Rename current
 footer actions. Synthetic fields do not establish backend lifecycle equivalence.
 Python has per-row lifecycle actions and a single New session action; these are
 remaining explicit interaction deviations, not approved screenshot equivalence.
+
+### Deployed picker close control
+
+Added compose-session-popup-close × button beside search, matching deployed DOM
+and existing styles. Uses same focus-restoring close callback as Escape.
+34 headed Chromium/WebKit picker tests and build/lint pass, including explicit
+close activation. Branch/root footer semantics and final visual comparison remain
+open.
