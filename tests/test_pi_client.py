@@ -244,3 +244,32 @@ async def test_stats_inspection_respects_prompt_lock_and_chat_identity():
         rpc.assert_not_awaited()
         assert await pi.inspect_session_stats('default') == {'success': True}
         rpc.assert_awaited_once_with({'type': 'get_session_stats'}, timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_model_change_rejects_wrong_chat_and_validates_catalog():
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', AsyncMock()) as rpc:
+        with pytest.raises(RuntimeError):
+            await pi.change_chat_model('other', provider='test', model_id='m')
+        rpc.assert_not_awaited()
+    async def rpc(command, **kwargs):
+        assert pi._state.request_lock.locked()
+        if command['type'] == 'get_available_models':
+            return {'success': True, 'data': {'models': [{'provider': 'test', 'id': 'm'}]}}
+        return {'success': True, 'data': {}}
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', AsyncMock(side_effect=rpc)) as sender:
+        await pi.change_chat_model('default', provider='test', model_id='m')
+        assert sender.call_args_list[1].args[0] == {'type': 'set_model', 'provider': 'test', 'modelId': 'm'}
+        with pytest.raises(ValueError):
+            await pi.change_chat_model('default', provider='test', model_id='unknown')
+
+
+@pytest.mark.asyncio
+async def test_thinking_change_requires_supported_level():
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, 'send_rpc_command', AsyncMock(return_value={'success': True, 'data': {'levels': ['off']}})) as rpc:
+        with pytest.raises(ValueError):
+            await pi.change_chat_model('default', thinking_level='high')
+        assert rpc.await_count == 1

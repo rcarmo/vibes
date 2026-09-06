@@ -250,6 +250,34 @@ async def _send_command(payload: dict) -> None:
     await _state.agent_writer.drain()
 
 
+async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_level=None):
+    """Change only a confirmed active idle chat, under the stream ownership lock."""
+    if _state.request_lock.locked() or not is_pi_running():
+        raise RuntimeError('Pi is unavailable or busy')
+    async with _state.request_lock:
+        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
+            raise RuntimeError('Selected chat is not the active Pi conversation')
+        if thinking_level is not None:
+            if provider is not None or model_id is not None:
+                raise ValueError('Change either model or thinking level')
+            catalog = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
+            if not catalog or not catalog.get('success') or thinking_level not in catalog.get('data', {}).get('levels', []):
+                raise ValueError('Unsupported thinking level')
+            command = {'type': 'set_thinking_level', 'level': thinking_level}
+        else:
+            if not isinstance(provider, str) or not isinstance(model_id, str):
+                raise ValueError('Provider and model ID required')
+            catalog = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
+            models = (catalog or {}).get('data', {}).get('models', [])
+            if not catalog or not catalog.get('success') or not any(model.get('provider') == provider and model.get('id') == model_id for model in models):
+                raise ValueError('Model unavailable')
+            command = {'type': 'set_model', 'provider': provider, 'modelId': model_id}
+        result = await send_rpc_command(command, timeout=5.0)
+        if not result or not result.get('success'):
+            raise RuntimeError('Pi rejected the requested change')
+        return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+
+
 async def inspect_model_state(chat_id='default'):
     """Inspect only the selected idle conversation, without switching it."""
     if _state.request_lock.locked() or not is_pi_running():

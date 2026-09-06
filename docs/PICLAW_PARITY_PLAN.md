@@ -800,3 +800,11 @@ matching current responses update model/thinking labels. Unavailable/errors clea
 labels instead of retaining another chat's model. Non-default controls remain
 disabled pending safe mutation. Eighteen switching browser tests and build/lint
 pass, including scoped model display and clearing on return to default.
+
+### Scoped Pi model mutation foundation
+
+change_chat_model holds request_lock, requires matching active idle Pi chat, and
+validates model/thinking selection against live catalogs before mutation. Rejects
+busy/wrong-context and unsupported choices without sending mutation. 463 backend
+tests pass. No HTTP/UI mutation route yet; inactive chat selection and durable
+model preference behavior remain pending rather than falling back to default.
