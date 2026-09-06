@@ -549,3 +549,13 @@ it through completion/follow-up scheduling. This prevents the generic three-work
 task pool from overlapping turns against the single shared ACP/Pi runtime. Test
 blocks one worker and verifies the next cannot enter; 445 backend tests pass.
 Admission/session UI remains pending; this is serialization, not parallel agents.
+
+### Session-aware submission admission
+
+Non-default plain-text submissions now validate registry/archive state, persist
+session identity and route through serialized workers. Busy cross-session sends
+(including steering) are rejected before storage; same-session busy queue behavior
+is retained. Non-default slash commands remain blocked until command/model state
+is session-aware. Tests cover accepted idle submissions and cross-session rejection;
+447 backend tests pass. Picker, persistent backend resume and full integration
+acceptance are still pending; this does not enable parallel agent execution.

@@ -1002,8 +1002,18 @@ async def send_message(request: web.Request) -> web.Response:
     if not isinstance(session_id, str) or not session_id:
         return web.json_response({'error': 'Invalid session_id'}, status=400)
     if session_id != 'default':
-        # Fail closed until dispatch and both backend selectors are integrated.
-        return web.json_response({'error': 'Session-specific agent dispatch is not enabled yet'}, status=409)
+        from ..sessions import SessionStore
+        session = await SessionStore(db).get(session_id)
+        if not session or session['archived']:
+            return web.json_response({'error': 'Session unavailable'}, status=404)
+        if data['content'].lstrip().startswith('/'):
+            return web.json_response({'error': 'Session-specific commands are not enabled yet'}, status=409)
+    if _agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id)):
+        active = await _get_active_turn_for_agent(agent_id)
+        active_root = await db.get_interaction(active['thread_id']) if active else None
+        active_session = active_root['data'].get('session_id', 'default') if active_root else None
+        if active_session != session_id:
+            return web.json_response({'error': 'Another session is active; retry after its turn completes'}, status=409)
     if thread_id:
         parent = await db.get_interaction(thread_id)
         if parent and parent['data'].get('session_id', 'default') != session_id:
@@ -1014,6 +1024,8 @@ async def send_message(request: web.Request) -> web.Response:
         "agent_id": agent_id,
         "media_ids": data.get("media_ids", []),
     }
+    if session_id != 'default':
+        user_msg['session_id'] = session_id
     if thread_id:
         user_msg["thread_id"] = thread_id
     

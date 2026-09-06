@@ -318,6 +318,7 @@ async def test_send_message_busy_defaults_to_queue(mock_deps):
     """Busy submissions should default to queued follow-up behavior."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
+        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
         fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
              patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
@@ -336,6 +337,7 @@ async def test_send_message_explicit_pi_steer_when_busy(mock_deps):
     """Explicit steer mode uses real Pi steering when available."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
+        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
         fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
              patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]), \
@@ -367,6 +369,8 @@ async def test_send_message_explicit_acp_steer_is_emulated(mock_deps):
     """ACP steer mode should queue a prioritized steer item."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "acp"
+        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
+        mock_deps["db"]._interactions[7] = {"id": 7, "data": {"session_id": "default"}}
         fake_turn = {"turn_id": "turn-2", "thread_id": 7, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "_is_agent_busy", return_value=True), \
              patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
@@ -722,12 +726,13 @@ async def test_concurrent_queue_promotion_sends_once(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_nondefault_dispatch_fails_closed_until_runtime_wired(mock_deps):
+async def test_nondefault_missing_session_rejected(mock_deps):
+    from vibes.sessions import SessionStore
     req = _make_send_request('private')
     req.json = AsyncMock(return_value={'content': 'private', 'session_id': 'other'})
-    response = await agents_mod.send_message(req)
-    assert response.status == 409
-    assert 'not enabled' in json.loads(response.text)['error']
+    with patch.object(SessionStore, 'get', AsyncMock(return_value=None)):
+        response = await agents_mod.send_message(req)
+    assert response.status == 404
     mock_deps['enqueue'].assert_not_called()
 
 
@@ -767,3 +772,31 @@ async def test_background_agent_dispatch_serializes_worker_turns():
         await asyncio.gather(first, second)
     assert order == [1, 2]
     assert peak == 1
+
+
+@pytest.mark.asyncio
+async def test_nondefault_idle_submission_persists_session(mock_deps):
+    from vibes.sessions import SessionStore
+    req = _make_send_request('private')
+    req.json = AsyncMock(return_value={'content': 'private', 'session_id': 'other'})
+    with patch.object(SessionStore, 'get', AsyncMock(return_value={'id': 'other', 'archived': 0})), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=False):
+        response = await agents_mod.send_message(req)
+    assert response.status == 201
+    assert mock_deps['db']._interactions[1]['data']['session_id'] == 'other'
+    assert mock_deps['enqueue'].called
+
+
+@pytest.mark.asyncio
+async def test_cross_session_busy_submission_rejected_before_storage(mock_deps):
+    from vibes.sessions import SessionStore
+    mock_deps['db']._interactions[42] = {'id': 42, 'data': {'session_id': 'default'}}
+    req = _make_send_request('private')
+    req.json = AsyncMock(return_value={'content': 'private', 'session_id': 'other', 'mode': 'steer'})
+    with patch.object(SessionStore, 'get', AsyncMock(return_value={'id': 'other', 'archived': 0})), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=True), \
+         patch.object(agents_mod, '_get_active_turn_for_agent', AsyncMock(return_value={'thread_id': 42})):
+        response = await agents_mod.send_message(req)
+    assert response.status == 409
+    assert mock_deps['db']._counter == 0
+    mock_deps['enqueue'].assert_not_called()
