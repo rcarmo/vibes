@@ -11,6 +11,7 @@ The default callback is a no-op that allows all requests through.
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlsplit
 from collections.abc import Awaitable, Callable
 
 from aiohttp import web
@@ -23,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 # Paths that should never require authentication.
 PUBLIC_PREFIXES: tuple[str, ...] = (
-    "/health",
     "/static/",
     "/avatar/",
 )
@@ -84,6 +84,13 @@ def create_cors_middleware() -> web.middleware:
         request: web.Request,
         handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
     ) -> web.StreamResponse:
+        origin = request.headers.get("Origin")
+        if origin:
+            parsed = urlsplit(origin)
+            if parsed.scheme not in {"http", "https"} or parsed.netloc != request.host:
+                response = web.json_response({"error": "Cross-origin access denied"}, status=403)
+                _apply_security_headers(response)
+                return response
         if request.method == "OPTIONS":
             response = web.Response()
         else:
