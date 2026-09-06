@@ -722,5 +722,9 @@ test('Alt Enter pins focused model without selecting it', async ({ page }) => {
     await choice.focus();
     await choice.press('Alt+Enter');
     await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toBeVisible();
+    await expect(choice).toBeFocused();
+    await choice.press('Alt+Enter');
+    await expect(page.getByRole('button', { name: 'Pin model test/favorite', exact: true })).toBeVisible();
+    await expect(choice).toBeFocused();
     expect(calls).toBe(0);
 });

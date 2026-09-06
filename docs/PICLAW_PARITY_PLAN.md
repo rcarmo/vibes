@@ -1926,3 +1926,9 @@ Alt+Enter on a focused model choice toggles its browser pin without selection;
 repeats ignored and pin controls advertise shortcut. Two headed Chromium/WebKit
 shortcut tests and build/lint pass, verifying zero model mutations. Full settings
 and visual acceptance remain open.
+
+### Model pin regrouping focus
+
+Keyboard pin/unpin restores focus by stable model identity after the row moves
+between groups. Two headed Chromium/WebKit shortcut tests and build/lint pass,
+including pin then unpin with focus retained and no model mutation.

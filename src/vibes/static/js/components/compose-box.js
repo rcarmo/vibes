@@ -547,7 +547,15 @@ export function ComposeBox({
             const choice = event.target?.closest?.('[data-model-label]');
             if (choice) {
                 event.preventDefault(); event.stopPropagation();
-                if (!event.repeat) toggleModelPin(choice.dataset.modelLabel);
+                if (!event.repeat) {
+                    const label = choice.dataset.modelLabel;
+                    toggleModelPin(label);
+                    requestAnimationFrame(() => {
+                        const moved = [...(modelPopupRef.current?.querySelectorAll('[data-model-label]') || [])]
+                            .find(item => item.dataset.modelLabel === label);
+                        moved?.focus();
+                    });
+                }
                 return;
             }
         }
