@@ -1207,3 +1207,12 @@ Extra modifiers, repeats and composition events are ignored; terminal popouts do
 not install the shortcut. Launcher advertises aria-keyshortcuts. Two headed
 Chromium/WebKit tests verify hide/reopen retains shell state during grace;
 build/lint pass. Launcher placement and screenshot equivalence remain open.
+
+### ACP declared-capability capture foundation
+
+ACP initialization retains an allowlisted copy of declared loadSession, prompt
+image/audio/embeddedContext and MCP http/sse booleans. Unknown fields and nonboolean
+claims are discarded; reset/start/stop clear declarations. Read helper reports
+None when disconnected. 479 backend tests pass. This foundation is not yet exposed
+in agent-list/UI and does not prove actual capability execution; ACP UI acceptance
+remains open.

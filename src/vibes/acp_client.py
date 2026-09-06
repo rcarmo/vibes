@@ -74,6 +74,7 @@ class _ACPState:
         self.session_id = None
         self.chat_conversations = {}
         self.load_session_supported = False
+        self.reported_capabilities = None
         self.chat_id = 'default'
         self.request_id = 0
         self.pending_requests = {}  # request_id -> asyncio.Future
@@ -132,6 +133,7 @@ async def _interrupt_inflight_request() -> bool:
     _state.session_id = None
     _state.chat_conversations = {}
     _state.load_session_supported = False
+    _state.reported_capabilities = None
     _state.chat_id = 'default'
     return await _wait_for_request_slot(5.0)
 
@@ -147,6 +149,7 @@ def reset_state() -> None:
     _state.session_id = None
     _state.chat_conversations = {}
     _state.load_session_supported = False
+    _state.reported_capabilities = None
     _state.chat_id = 'default'
     _state.request_id = 0
     _state.pending_requests = {}
@@ -1009,6 +1012,7 @@ async def _ensure_agent():
         _state.session_id = None
         _state.chat_conversations = {}
         _state.load_session_supported = False
+        _state.reported_capabilities = None
         _state.chat_id = 'default'
         
         config = get_config()
@@ -1055,7 +1059,8 @@ async def _ensure_agent():
                 "version": "0.1.0"
             }
         })
-        _state.load_session_supported = result.get("agentCapabilities", {}).get("loadSession") is True
+        _state.reported_capabilities = sanitize_agent_capabilities(result.get("agentCapabilities"))
+        _state.load_session_supported = _state.reported_capabilities.get("loadSession") is True
         logger.info(f"Agent initialized: {result}")
         
         # Create a new session
@@ -1255,6 +1260,26 @@ async def send_message(content: str, thread_id: Optional[int] = None) -> AsyncIt
     yield response
 
 
+def sanitize_agent_capabilities(value):
+    """Allowlisted declared capabilities, not proof of successful execution."""
+    value = value if isinstance(value, dict) else {}
+    result = {}
+    if type(value.get('loadSession')) is bool:
+        result['loadSession'] = value['loadSession']
+    for group, keys in (('promptCapabilities', ('image', 'audio', 'embeddedContext')),
+                        ('mcpCapabilities', ('http', 'sse'))):
+        source = value.get(group)
+        if isinstance(source, dict):
+            result[group] = {key: source[key] for key in keys if type(source.get(key)) is bool}
+    return result
+
+
+def get_reported_capabilities():
+    if not is_agent_running() or _state.reported_capabilities is None:
+        return None
+    return sanitize_agent_capabilities(_state.reported_capabilities)
+
+
 def is_agent_running() -> bool:
     """Check if the agent is currently running."""
     return _state.agent_proc is not None and _state.agent_proc.returncode is None
@@ -1306,6 +1331,7 @@ async def stop_agent():
         _state.session_id = None
         _state.chat_conversations = {}
         _state.load_session_supported = False
+        _state.reported_capabilities = None
         _state.chat_id = 'default'
 
 

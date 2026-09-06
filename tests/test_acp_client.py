@@ -762,3 +762,16 @@ async def test_failed_acp_load_discards_uncertain_process(failure):
         stop.assert_awaited_once()
         assert 'other' not in state.chat_conversations
     acp_client.reset_state()
+
+
+def test_reported_capabilities_are_allowlisted_and_unavailable_when_stopped():
+    value = {'loadSession': True, 'secret': 'hidden', 'promptCapabilities': {'image': True, 'audio': 'yes', 'embeddedContext': False}, 'mcpCapabilities': {'http': True, 'url': 'private'}}
+    expected = {'loadSession': True, 'promptCapabilities': {'image': True, 'embeddedContext': False}, 'mcpCapabilities': {'http': True}}
+    assert acp_client.sanitize_agent_capabilities(value) == expected
+    acp_client._state.reported_capabilities = expected
+    with patch.object(acp_client, 'is_agent_running', return_value=False):
+        assert acp_client.get_reported_capabilities() is None
+    with patch.object(acp_client, 'is_agent_running', return_value=True):
+        assert acp_client.get_reported_capabilities() == expected
+    acp_client.reset_state()
+    assert acp_client._state.reported_capabilities is None
