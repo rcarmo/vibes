@@ -467,3 +467,11 @@ session and rejects missing target threads. Same-session moves and self-rooting
 remain supported. This closes the post-insert busy-agent reassignment path before
 session-aware dispatch rollout. 436 backend tests pass, including rollback after
 cross-session rejection. Runtime routing/picker work remains in progress.
+
+### Session draft store foundation
+
+Added ComposeDrafts: text/reference metadata persisted per encoded session key;
+File objects retained only in page memory and never serialized as bytes. Bounds,
+malformed/quota handling, cross-session isolation, reload and clearing tested.
+Four frontend unit tests pass; build/lint pass. Store not wired into mounted
+composer yet; do not claim switching/reload draft preservation until integration.
