@@ -246,3 +246,27 @@ test('simultaneous header and body reattach issue one handoff', async ({ page })
     await expect.poll(() => popup.isClosed()).toBe(true);
     expect(calls).toBe(1);
 });
+
+test('closing host during reattach does not mount late response', async ({ page }) => {
+    await page.goto('/');
+    await openTerminal(page);
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByRole('button', { name: 'Open terminal in window', exact: true }).click();
+    const popup = await popupPromise;
+    await expect(popup.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    let release;
+    await page.route('**/terminal/handoff', async route => {
+        if (route.request().headers()['x-piclaw-terminal-client']) return route.continue();
+        await new Promise(resolve => { release = resolve; });
+        await route.continue();
+    });
+    await page.getByRole('button', { name: 'Reattach terminal', exact: true }).click();
+    await expect.poll(() => !!release).toBe(true);
+    await page.getByRole('button', { name: 'Hide terminal', exact: true }).click();
+    await expect(page.locator('.terminal-panel')).toHaveCount(0);
+    release();
+    await expect(popup.locator('.terminal-status')).toHaveText('Connected');
+    expect(popup.isClosed()).toBe(false);
+    await popup.close();
+});

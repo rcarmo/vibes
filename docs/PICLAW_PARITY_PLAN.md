@@ -2025,3 +2025,10 @@ hold host handoff request, verify both disabled and exactly one host request,
 then verify successful reconnect/popup closure. Initial count also included the
 vendored pane's legitimate post-reconnect standby-token request; test now separates
 it by x-piclaw-terminal-client header rather than suppressing that protocol work.
+
+### Terminal transfer continuation ownership
+
+Unmounted hosts discard reattach continuation before mount and close a pending
+blank detach window instead of navigating it after disposal. Two headed Chromium/
+WebKit tests and build/lint pass, closing host during held reattach while existing
+popup stays connected. Server-issued unused handoff remains bounded by expiry.

@@ -9,6 +9,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
     const [detached, setDetached] = useState(false);
     const [transferError, setTransferError] = useState('');
     const transferPending = useRef(false);
+    const mounted = useRef(true);
     const [transferring, setTransferring] = useState(false);
     const [height, setHeight] = useState(() => Math.round(window.innerHeight * 0.45));
     const dragCleanup = useRef(null);
@@ -49,7 +50,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             url.searchParams.delete('terminal_handoff');
             history.replaceState(null, '', url);
         }
-        return () => { dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
+        return () => { mounted.current = false; dragCleanup.current?.(); pane.current?.dispose(); pane.current = null; };
     }, []);
     const detach = async () => {
         if (transferPending.current) return;
@@ -59,7 +60,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
         transferPending.current = true; setTransferring(true);
         try {
             const transfer = await pane.current?.preparePopoutTransfer();
-            if (!transfer?.terminal_handoff) { popup.close(); return; }
+            if (!mounted.current || !transfer?.terminal_handoff) { popup.close(); return; }
             const url = new URL(location.href);
             url.search = '';
             url.searchParams.set('terminal', '1');
@@ -92,6 +93,7 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
                 if (!response.ok || !result.handoff?.token) throw new Error('No handoff');
                 token = result.handoff.token;
             }
+            if (!mounted.current) return;
             pane.current = terminalPaneExtension.mount(host.current, {
                 transferState: token ? { handoffToken: token } : undefined,
             });
