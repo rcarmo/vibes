@@ -2509,3 +2509,13 @@ session option), and model pins persist without mutation and never expose
 unavailable choices (missing unpin button after reload). Evidence log:
 /workspace/tmp/picker-final-browser.log. This is not a green integrated checkpoint;
 root-cause investigation remains due before declaring picker acceptance complete.
+
+### Intermittent picker diagnostics
+
+Added bounded pointerdown/up/click diagnostics to the two intermittent cases only,
+attached on failure (target identity, coordinates, popup presence, monotonic time;
+80-event limit). No retries or application behavior changes. Full headed suite
+with retain-on-failure tracing: 288 passed, one worker, 5.9m. This successful run
+does NOT establish a fix for the earlier two closed-picker failures. Original
+failure artifacts remain in /workspace/tmp/picker-failure-evidence; root cause is
+still unconfirmed. Diagnostics remain to make the next occurrence actionable.

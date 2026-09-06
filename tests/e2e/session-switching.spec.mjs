@@ -1,5 +1,34 @@
 import { test, expect } from '@playwright/test';
 
+// Bounded diagnostics for intermittent closed-picker failures; no retry or timing changes.
+const diagnosticCases = new Set([
+    'nondefault model selection uses scoped mutation endpoint',
+    'model pins persist without mutation and never expose unavailable choices',
+]);
+test.beforeEach(async ({ page }, testInfo) => {
+    if (!diagnosticCases.has(testInfo.title)) return;
+    await page.addInitScript(() => {
+        window.pickerDiagnostics = [];
+        for (const type of ['pointerdown', 'pointerup', 'click']) {
+            document.addEventListener(type, event => {
+                const target = event.target.closest?.('button, input, [role="option"]');
+                window.pickerDiagnostics.push({
+                    type, time: performance.now(), x: event.clientX, y: event.clientY,
+                    target: target?.getAttribute('aria-label') || target?.getAttribute('data-testid') || target?.id || target?.textContent?.slice(0, 80),
+                    sessionOpen: !!document.querySelector('[data-testid="session-popup"]'),
+                    modelOpen: !!document.querySelector('[aria-label="Search models"]'),
+                });
+                if (window.pickerDiagnostics.length > 80) window.pickerDiagnostics.shift();
+            }, true);
+        }
+    });
+});
+test.afterEach(async ({ page }, testInfo) => {
+    if (!diagnosticCases.has(testInfo.title) || testInfo.status === testInfo.expectedStatus) return;
+    const events = await page.evaluate(() => window.pickerDiagnostics || []).catch(() => []);
+    await testInfo.attach('picker-interactions', { body: JSON.stringify(events, null, 2), contentType: 'application/json' });
+});
+
 test('app switches sessions with separate drafts and explicit send identity', async ({ page }) => {
     await page.goto('/');
     const created = await page.request.post('/sessions', { data: { name: 'Other chat' } });
