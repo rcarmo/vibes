@@ -574,3 +574,14 @@ test('picker disables mutation controls when callbacks are unavailable', async (
     }
     await expect(picker.getByRole('button', { name: 'Archive Read only', exact: true })).toHaveCount(0);
 });
+
+test('canonical ID stays searchable and described without a metadata row', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('combobox', { name: 'Search sessions', exact: true }).fill('default');
+    const option = page.locator('#session-option-default');
+    await expect(option).toBeVisible();
+    await expect(option).toHaveAccessibleDescription('Session ID: default');
+    await expect(option).toHaveAttribute('title', 'Session ID: default');
+    await expect(option.locator('.compose-session-row-meta').filter({ hasText: /^default$/ })).toHaveCount(0);
+});

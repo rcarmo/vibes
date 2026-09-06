@@ -2488,3 +2488,12 @@ New branch, New root session… and Rename current session entries. Kept support
 actions and aligned labels. Local actions intentionally remain available during
 search (deployed requires empty query); existing filtered-rename regression retained.
 Updated visual comparison. Build/lint and 98 headed picker/terminal tests pass.
+
+### Session metadata density
+
+Removed the dedicated canonical-ID metadata line; full ID remains in option title
+and accessible description, and search still uses ID as well as name. Message
+counts, persisted timestamps and lifecycle pills remain visible as intentional
+supported-metric extensions. New regression verifies ID search/description/title
+without the extra row. Build/lint and all 60 headed picker tests pass. This reduces
+row density; it does not claim screenshot equivalence for differing populations.

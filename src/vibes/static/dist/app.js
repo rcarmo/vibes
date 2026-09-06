@@ -52,8 +52,8 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 <div class="compose-session-section-heading">${xt.label}</div>
                 ${xt.items.map((Lt)=>{let rr=O4t(Lt.last_message_at);return Je`<div key=${Lt.id} class=${`compose-model-popup-item-row session-picker-row${Lt.id===a?" active":""}${it[Ot]?.id===Lt.id?" keyboard-active":""}`}>
                 <button type="button" class=${`compose-session-row-pin${Lt.pinned?" pinned":""}`} aria-label=${Lt.pinned?"Unpin session":"Pin session"} aria-pressed=${!!Lt.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!Lt.archived||!S} onClick=${()=>Kt(()=>S?.(Lt.id,!Lt.pinned))}>${Lt.pinned?"★":"☆"}</button>
-                <button type="button" id=${`session-option-${Lt.id}`} class=${`compose-model-popup-item session-item${Lt.archived?" archived":Lt.id===a?" current":""}`} role="option" aria-selected=${Lt.id===a} onClick=${()=>Kt(()=>l?.(Lt.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${Lt.name}</span><span class="compose-session-row-meta">${Lt.id}</span><span class="compose-session-row-meta">${Lt.message_count??0} messages</span>${rr&&Je`<time class="compose-session-row-meta" datetime=${rr.datetime} title="Last persisted message (not runtime activity)">Last message: ${rr.label}</time>`}</span><span class="compose-session-row-pills">
+                <button type="button" id=${`session-option-${Lt.id}`} class=${`compose-model-popup-item session-item${Lt.archived?" archived":Lt.id===a?" current":""}`} role="option" aria-selected=${Lt.id===a} aria-description=${`Session ID: ${Lt.id}`} title=${`Session ID: ${Lt.id}`} onClick=${()=>Kt(()=>l?.(Lt.id))}>
+                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${Lt.name}</span><span class="compose-session-row-meta">${Lt.message_count??0} messages</span>${rr&&Je`<time class="compose-session-row-meta" datetime=${rr.datetime} title="Last persisted message (not runtime activity)">Last message: ${rr.label}</time>`}</span><span class="compose-session-row-pills">
                     ${Lt.id===a&&Je`<span class="compose-session-status-pill current">Current</span>`}
                     <span class=${`compose-session-status-pill ${Lt.archived?"archived":Lt.is_running===!0?"active":Lt.is_running===!1?"idle":"unavailable"}`}>${Lt.archived?"Archived":Lt.is_running===!0?"Running":Lt.is_running===!1?"Idle":"Status unavailable"}</span>
                     ${Lt.queued_count>0&&Je`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${Lt.queued_count} queued</span>`}
@@ -2123,4 +2123,4 @@ ${a}
         </div>
     `}p4t(Je`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=6C20500B46282FF364756E2164756E21
+//# debugId=5E1022B13F58EB6864756E2164756E21
