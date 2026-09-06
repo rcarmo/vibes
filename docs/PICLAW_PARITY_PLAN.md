@@ -2416,3 +2416,11 @@ missing or invalid token counts use percentage-only accessible labels rather tha
 invented counts. Existing context tests are included in this full run. No new
 status implementation was needed for that validation rule. Remaining visual,
 persistent-thread and external-agent/live microphone acceptance is not implied.
+
+### Terminal screenshot comparison completed
+
+See `TERMINAL_VISUAL_COMPARISON.md` for direct desktop/mobile unavailable-state
+review against existing deployed classic captures. Comparison completed, not
+visual equivalence: mobile deliberately stacks rather than splitting columns;
+workspace bottom strip, surrounding typography/composer and host nesting remain
+different. The broad maximum-markup-parity item remains open.
