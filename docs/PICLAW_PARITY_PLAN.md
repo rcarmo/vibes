@@ -823,3 +823,11 @@ GET /sessions/{id}/models returns bounded sanitized Pi model and thinking choice
 only for matching idle context under the stream lock. Otherwise available=false;
 no active-context switch occurs during inspection. 465 backend tests pass.
 Frontend per-session mutation/catalog wiring and ACP capability handling remain.
+
+### Non-default model picker mutation wiring
+
+Non-default model popup loads scoped catalog and submits selection to
+/sessions/{id}/model, not default slash commands. Unavailable catalogs show no
+choices; errors retain current label. Six model browser tests and build/lint pass.
+Default legacy model controls remain separate; thinking-cycle and full deployed
+picker markup still pending.

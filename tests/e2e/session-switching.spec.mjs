@@ -138,8 +138,27 @@ test('selected chat displays only its scoped confirmed model', async ({ page }) 
     await page.locator('#session-option-' + id).click();
     const model = page.getByRole('button', { name: 'Open model picker', exact: true });
     await expect(model).toContainText('test/scoped-model');
-    await expect(model).toBeDisabled();
+    await expect(model).toBeEnabled();
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-default').click();
     await expect(page.getByText('test/scoped-model', { exact: true })).toHaveCount(0);
+});
+
+test('nondefault model selection uses scoped mutation endpoint', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"old"}}' }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"new"}],"thinking_levels":["off"]}' }));
+    let path;
+    await page.route('**/sessions/*/model', async route => {
+        path = new URL(route.request().url()).pathname;
+        expect(route.request().postDataJSON()).toEqual({ provider: 'test', model_id: 'new' });
+        await route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"new"},"thinking_level":"off"}' });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Change model' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'test/new', exact: true }).click();
+    await expect.poll(() => path).toBe(`/sessions/${id}/model`);
 });

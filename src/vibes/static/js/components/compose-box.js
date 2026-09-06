@@ -3,7 +3,7 @@ import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { getAgentModels, getSessionModels, changeSessionModel, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -182,6 +182,7 @@ export function ComposeBox({
     const [switchingModel, setSwitchingModel] = useState(false);
     const [showModelPopup, setShowModelPopup] = useState(false);
     const [modelOptions, setModelOptions] = useState([]);
+    const [sessionCatalog, setSessionCatalog] = useState(null);
     const [loadingModels, setLoadingModels] = useState(false);
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
@@ -384,6 +385,18 @@ export function ComposeBox({
 
     const handleSelectModel = async (modelLabel) => {
         if (!modelLabel || switchingModel) return;
+        if (sessionId !== 'default') {
+            const model = sessionCatalog?.models?.find(item => `${item.provider}/${item.id}` === modelLabel);
+            if (!model) return;
+            setSwitchingModel(true);
+            try {
+                const result = await changeSessionModel(sessionId, { provider: model.provider, model_id: model.id });
+                emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel, thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
+                setShowModelPopup(false);
+            } catch (error) { setSubmitError(error.message || 'Model change failed'); }
+            finally { setSwitchingModel(false); }
+            return;
+        }
         const ok = await runModelCommand(`/model ${modelLabel}`);
         if (ok) setShowModelPopup(false);
     };
@@ -667,8 +680,13 @@ export function ComposeBox({
     useEffect(() => {
         if (!showModelPopup) return;
         setLoadingModels(true);
-        getAgentModels()
+        (sessionId === 'default' ? getAgentModels() : getSessionModels(sessionId))
             .then((payload) => {
+                if (sessionId !== 'default') {
+                    setSessionCatalog(payload);
+                    setModelOptions(payload.available ? payload.models.map(item => `${item.provider}/${item.id}`) : []);
+                    return;
+                }
                 const models = Array.isArray(payload?.models)
                     ? payload.models.filter((m) => typeof m === 'string' && m.trim().length > 0)
                     : [];
@@ -800,10 +818,10 @@ export function ComposeBox({
                                     ref=${modelHintRef}
                                     type="button"
                                     class="compose-model-hint compose-model-hint-btn"
-                                    title=${sessionId !== 'default' ? 'Session model changes are not available yet' : switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
+                                    title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
                                     aria-label="Open model picker"
                                     onClick=${toggleModelPopup}
-                                    disabled=${sessionId !== 'default' || loading || switchingModel}
+                                    disabled=${loading || switchingModel}
                                 >
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>

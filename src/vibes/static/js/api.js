@@ -103,6 +103,14 @@ export async function sendAgentMessage(agentId, content, threadId = null, mediaI
 /**
  * Get available agents
  */
+export async function getSessionModels(sessionId) {
+    return request(`/sessions/${encodeURIComponent(sessionId)}/models`);
+}
+
+export async function changeSessionModel(sessionId, changes) {
+    return request(`/sessions/${encodeURIComponent(sessionId)}/model`, { method: 'POST', body: JSON.stringify(changes) });
+}
+
 export async function getSessionModelState(sessionId) {
     return request(`/sessions/${encodeURIComponent(sessionId)}/model-state`);
 }
