@@ -3593,3 +3593,8 @@ body {
     .compose-session-popup .compose-session-row-main { flex-basis: 100%; }
     .compose-session-popup .compose-session-row-pills { flex-wrap: wrap; max-width: 100%; }
 }
+
+.compose-agent-capabilities { font-size: 11px; color: var(--text-secondary); margin: 4px 0; }
+.compose-agent-capabilities summary { cursor: pointer; }
+.compose-agent-capabilities p { margin: 4px 0; }
+.compose-agent-capabilities ul { margin: 4px 0; padding-left: 20px; }

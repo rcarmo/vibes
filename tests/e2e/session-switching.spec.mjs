@@ -499,3 +499,13 @@ test('model pins update across browser tabs through storage events', async ({ pa
     await expect(page.getByRole('button', { name: 'Pin model test/current', exact: true })).toBeVisible();
     await other.close();
 });
+
+test('ACP declarations display as reported capability, not live model availability', async ({ page }) => {
+    await page.route('**/agents', route => route.fulfill({ contentType: 'application/json', body: '{"agents":[{"id":"default","name":"ACP","status":"running","reported_capabilities":{"loadSession":true,"promptCapabilities":{"image":false}}}]}' }));
+    await page.goto('/');
+    await page.getByText('Agent-reported capabilities', { exact: true }).click();
+    await expect(page.getByText('Session resume: reported supported', { exact: true })).toBeVisible();
+    await expect(page.getByText('Image prompts: reported unsupported', { exact: true })).toBeVisible();
+    await expect(page.getByText('Connection declarations only; not verified execution or session availability.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
+});

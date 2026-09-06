@@ -1719,3 +1719,13 @@ Composer listens for model-pin storage changes/removal and refreshes local pin
 state, removing listener on unmount. Two headed Chromium/WebKit tests use a second
 real browser tab to update/remove pins and verify first-tab controls; build/lint
 pass. This is same-browser storage synchronization, not server-synced settings.
+
+### ACP declaration presentation
+
+Default composer has collapsible Agent-reported capabilities for running ACP
+registry entries with explicit boolean declarations. Supported/unsupported are
+labelled as reported; explanatory text disclaims execution/session availability.
+Hidden for other sessions, stopped agents and absent declarations; no controls
+are enabled by claims. Two headed browser tests and build/lint pass. This local
+read-only details UI is an explicit deviation pending visual review; registry
+refresh cadence and real-agent consumption acceptance remain open.

@@ -2563,6 +2563,7 @@ function App() {
                     onClearMessageRefs=${clearMessageRefs}
                     activeModel=${activeModel}
                     thinkingLevel=${activeThinkingLevel}
+                    defaultAgent=${selectedSession === 'default' ? agents.default : null}
                     supportsThinking=${supportsThinking}
                     isCompacting=${isCompacting}
                     contextUsage=${contextUsage}
