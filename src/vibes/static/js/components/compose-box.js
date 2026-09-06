@@ -436,7 +436,7 @@ export function ComposeBox({
                 : '';
             const message = [baseContent, fileBlock, folderBlock, messageBlock, mediaBlock].filter(Boolean).join('\n\n');
 
-            const response = await sendAgentMessage('default', message, null, mediaIds, mode);
+            const response = await sendAgentMessage('default', message, null, mediaIds, mode, sessionId);
             if (response?.command) {
                 emitModelState({
                     model: response.command.model_label ?? activeModel ?? null,

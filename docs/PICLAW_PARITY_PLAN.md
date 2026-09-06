@@ -601,3 +601,10 @@ Rename-button Enter without accidental session switching in Chromium/WebKit.
 Fixed deferred index reset racing rapid input/ArrowDown, and added stable row
 keys. Build/lint pass. Fixture is not app integration or full markup parity;
 main-shell state changes/grouping and registry actions still need wiring.
+
+### Frontend session API contract
+
+Added registry CRUD/timeline client helpers with escaped session IDs. Composer
+submission explicitly forwards its sessionId prop (default remains default).
+Five frontend unit tests and six browser mode tests pass; build/lint pass. Main
+app still needs picker, timeline/event scoping and atomic draft/status switching.

@@ -92,16 +92,38 @@ export async function deletePost(postId, cascade = false) {
 /**
  * Send message to agent
  */
-export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null) {
+export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, sessionId = 'default') {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
-        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode }),
+        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, session_id: sessionId }),
     });
 }
 
 /**
  * Get available agents
  */
+export async function getSessions(includeArchived = false) {
+    return request(`/sessions?include_archived=${includeArchived}`);
+}
+
+export async function getSessionTimeline(sessionId, limit = 10, beforeId = null) {
+    const params = new URLSearchParams({ limit: String(limit) });
+    if (beforeId) params.set('before', String(beforeId));
+    return request(`/sessions/${encodeURIComponent(sessionId)}/timeline?${params}`);
+}
+
+export async function createSession(name, parentId = null) {
+    return request('/sessions', { method: 'POST', body: JSON.stringify({ name, parent_id: parentId }) });
+}
+
+export async function updateSession(sessionId, changes) {
+    return request(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'PATCH', body: JSON.stringify(changes) });
+}
+
+export async function deleteSession(sessionId) {
+    return request(`/sessions/${encodeURIComponent(sessionId)}`, { method: 'DELETE' });
+}
+
 export async function getAgents() {
     return request('/agents');
 }
