@@ -7,7 +7,7 @@ class PiSessionSelector:
         self.paths = {}
         self.uncertain = False
 
-    async def select(self, chat_id, rpc):
+    async def select(self, chat_id, rpc, *, persisted_path=None):
         if self.uncertain:
             raise RuntimeError('Pi session state is uncertain; restart/recovery required')
         if not isinstance(chat_id, str) or not chat_id:
@@ -19,9 +19,13 @@ class PiSessionSelector:
         if data.get('isStreaming') or data.get('isCompacting'):
             raise RuntimeError('Pi session is busy')
         current_path = data.get('sessionFile')
+        if persisted_path is not None and (not isinstance(persisted_path, str) or not persisted_path):
+            raise ValueError('Invalid persisted Pi session path')
         if current_path:
             self.paths[self.active] = current_path
-        if chat_id == self.active:
+        if persisted_path:
+            self.paths[chat_id] = persisted_path
+        if chat_id == self.active and (not persisted_path or persisted_path == current_path):
             return current_path
         if not current_path:
             raise RuntimeError('Pi session persistence is required for switching')

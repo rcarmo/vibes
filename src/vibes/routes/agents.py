@@ -571,7 +571,8 @@ async def _dispatch_pi_thread(content, thread_id, status_callback):
     session = await SessionStore(database).get(chat_id)
     if not session or session['archived']:
         raise ValueError('Chat session unavailable')
-    return await send_pi_message_multimodal(content, thread_id, status_callback, chat_id=chat_id)
+    return await send_pi_message_multimodal(content, thread_id, status_callback, chat_id=chat_id,
+        session_store=SessionStore(database))
 
 
 _agent_dispatch_lock = asyncio.Lock()

@@ -776,7 +776,7 @@ async def _respond_extension_request(request_id: str, method: str, outcome: str 
     await _send_command(response)
 
 
-async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None) -> dict:
+async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None, session_store=None) -> dict:
     """Send a message to the pi agent and return multimodal response."""
     # Try to acquire the lock with a short timeout — if another request
     # is in flight, wait briefly in case it's about to finish (e.g. after
@@ -803,7 +803,15 @@ async def send_message_multimodal(content: str, thread_id: Optional[int] = None,
                 }
 
             if chat_id is not None or _state.session_selector.active != 'default' or _state.session_selector.uncertain:
-                await _state.session_selector.select(chat_id or 'default', send_rpc_command)
+                target_chat = chat_id or 'default'
+                if session_store is not None:
+                    binding = await session_store.backend_binding(target_chat, 'pi')
+                    path = await _state.session_selector.select(target_chat, send_rpc_command,
+                        persisted_path=binding['conversation_id'] if binding else None)
+                    if path:
+                        await session_store.bind_backend(target_chat, 'pi', path)
+                else:
+                    await _state.session_selector.select(target_chat, send_rpc_command)
             await _send_command({"type": "prompt", "message": content})
 
             draft_text = ""

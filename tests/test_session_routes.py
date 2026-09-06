@@ -1,5 +1,5 @@
 import importlib
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, ANY
 import pytest
 from aiohttp import web
 
@@ -62,7 +62,7 @@ async def test_pi_worker_dispatch_uses_persisted_session(db, monkeypatch):
     sender = AsyncMock(return_value={'text': 'ok'})
     monkeypatch.setattr(agents, 'send_pi_message_multimodal', sender)
     await agents._dispatch_pi_thread('hello', root, None)
-    sender.assert_awaited_once_with('hello', root, None, chat_id=session['id'])
+    sender.assert_awaited_once_with('hello', root, None, chat_id=session['id'], session_store=ANY)
     await store.update(session['id'], archived=True)
     with pytest.raises(ValueError):
         await agents._dispatch_pi_thread('blocked', root, None)

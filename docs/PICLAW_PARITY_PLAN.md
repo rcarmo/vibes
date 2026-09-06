@@ -559,3 +559,12 @@ is retained. Non-default slash commands remain blocked until command/model state
 is session-aware. Tests cover accepted idle submissions and cross-session rejection;
 447 backend tests pass. Picker, persistent backend resume and full integration
 acceptance are still pending; this does not enable parallel agent execution.
+
+### Durable non-default Pi resume
+
+Non-default Pi workers pass SessionStore into lock-held dispatch. Selector uses
+stored conversation paths with switch_session rather than new_session after a
+process restart, and records the confirmed path before prompting. Failed switches
+remain fail-closed. Default legacy startup behavior is unchanged; durable default
+binding and ACP provider-supported restart loading remain pending. 448 backend
+tests pass, including persisted-path command selection and worker store wiring.

@@ -51,3 +51,11 @@ async def test_cancelled_switch_keeps_selector_usable():
         await selector.select('other', rpc)
     assert not selector.uncertain
     assert await selector.select('default', AsyncMock(return_value=state('/default.jsonl'))) == '/default.jsonl'
+
+
+@pytest.mark.asyncio
+async def test_restart_loads_persisted_path_instead_of_new_conversation():
+    selector = PiSessionSelector()
+    rpc = AsyncMock(side_effect=[state('/startup.jsonl'), {'success': True, 'data': {'cancelled': False}}, state('/saved.jsonl')])
+    assert await selector.select('other', rpc, persisted_path='/saved.jsonl') == '/saved.jsonl'
+    assert rpc.call_args_list[1].args[0] == {'type': 'switch_session', 'sessionPath': '/saved.jsonl'}
