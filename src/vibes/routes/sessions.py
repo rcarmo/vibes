@@ -45,9 +45,23 @@ async def session_model_catalog(request):
         catalog = await inspect_model_catalog(session_id)
         if not catalog:
             return web.json_response(unavailable)
-        models = [{key: item[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in item}
-                  for item in catalog['models'][:500] if isinstance(item, dict)]
-        levels = [level for level in catalog['thinking_levels'][:16] if isinstance(level, str)]
+        def valid_text(value):
+            return isinstance(value, str) and bool(value.strip()) and len(value) <= 512 and not any(ord(char) < 32 or ord(char) == 127 for char in value)
+        models = []
+        raw_models = catalog.get('models', [])
+        for item in (raw_models[:500] if isinstance(raw_models, list) else []):
+            if not isinstance(item, dict) or not all(valid_text(item.get(key)) for key in ('id', 'provider')):
+                continue
+            model = {key: item[key] for key in ('id', 'provider')}
+            if valid_text(item.get('name')):
+                model['name'] = item['name']
+            if type(item.get('reasoning')) is bool:
+                model['reasoning'] = item['reasoning']
+            if type(item.get('contextWindow')) is int and 0 < item['contextWindow'] <= 1_000_000_000:
+                model['contextWindow'] = item['contextWindow']
+            models.append(model)
+        raw_levels = catalog.get('thinking_levels', [])
+        levels = list(dict.fromkeys(level for level in (raw_levels[:16] if isinstance(raw_levels, list) else []) if valid_text(level)))
         return web.json_response({'available': True, 'models': models, 'thinking_levels': levels})
     except Exception:
         return web.json_response(unavailable)

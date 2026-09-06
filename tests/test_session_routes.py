@@ -222,3 +222,25 @@ async def test_model_catalog_route_sanitizes_and_bounds(db, aiohttp_client, monk
     assert result['thinking_levels'] == ['off', 'low']
     inspect.return_value = None
     assert (await (await client.get('/sessions/default/models')).json())['available'] is False
+
+
+@pytest.mark.asyncio
+async def test_model_catalog_rejects_unusable_identities_and_metadata(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    inspect = AsyncMock(return_value={'models': [
+        {'id': 'valid', 'provider': 'p', 'name': {'secret': 'no'}, 'reasoning': 'yes', 'contextWindow': True},
+        {'id': '', 'provider': 'p'}, {'id': 'missing-provider'},
+        {'id': 'bad\nidentity', 'provider': 'p'}, {'id': 123, 'provider': 'p'},
+        {'id': 'full', 'provider': 'p', 'reasoning': False, 'contextWindow': 32000, 'name': 'Full'},
+    ], 'thinking_levels': ['off', '', 'off', None, 'bad\nlevel', 'low']})
+    monkeypatch.setattr(pi, 'inspect_model_catalog', inspect)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/models')).json()
+    assert result['models'] == [{'id': 'valid', 'provider': 'p'}, {'id': 'full', 'provider': 'p', 'reasoning': False, 'contextWindow': 32000, 'name': 'Full'}]
+    assert result['thinking_levels'] == ['off', 'low']
+    inspect.return_value = {'models': None, 'thinking_levels': None}
+    result = await (await client.get('/sessions/default/models')).json()
+    assert result == {'available': True, 'models': [], 'thinking_levels': []}

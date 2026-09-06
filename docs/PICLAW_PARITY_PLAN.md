@@ -1182,3 +1182,12 @@ unsupported, returns failure, or times out; thinking choices stay empty rather
 than fabricated. Failed model inspection still fails closed and skips thinking
 RPC. Existing request-lock/context guards remain intact. 476 backend tests pass,
 including five capability fallback cases. Live provider acceptance remains open.
+
+### Catalog response validation
+
+Scoped catalog now excludes missing, non-string, empty, oversized or control-
+character provider/model identities; optional names, reasoning flags and context
+windows are type/bounds checked. Thinking choices are bounded valid strings and
+deduplicated. Null list fields safely yield empty choices. 477 backend tests pass,
+including malformed provider metadata. This validates response shape, not provider
+availability or authorization to run any listed model.
