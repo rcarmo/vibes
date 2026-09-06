@@ -71,6 +71,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
         <div class="compose-model-popup-actions">
             ${onCreateBranch && html`<button type="button" class="compose-model-popup-btn" title="Create an empty child session; history is not copied" onClick=${() => act(onCreateBranch)}>New branch</button>`}
             <button type="button" class="compose-model-popup-btn" onClick=${() => act(onCreate)}>New session</button>
+            ${onRename && sessions.some(item => item.id === currentId) && html`<button type="button" class="compose-model-popup-btn" onClick=${() => act(() => onRename(currentId))}>Rename current…</button>`}
         </div>
     </div>`;
 }

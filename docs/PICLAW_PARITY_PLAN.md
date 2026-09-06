@@ -1561,3 +1561,11 @@ Branch creation dialog names its parent and visibly states that conversation
 history is not copied, including touch users without tooltips. Root creation
 omits that disclosure. Four headed create/branch tests and build/lint pass.
 This is explicit metadata-child behavior, not provider conversation fork parity.
+
+### Rename-current footer parity
+
+Added deployed Rename current footer action, gated by callback/current registry
+presence and targeting currentId independently of search highlight/filter.
+38 headed picker tests and build/lint pass, including filtered-current dialog
+identity. Existing per-row lifecycle actions remain deliberate local additions;
+full visual comparison still open.

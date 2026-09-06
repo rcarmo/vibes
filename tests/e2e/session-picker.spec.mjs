@@ -339,3 +339,17 @@ test('New branch creates empty child of selected session', async ({ page }) => {
     expect(child.parent_id).toBe('default');
     expect(child.message_count).toBe(0);
 });
+
+test('Rename current footer targets selected chat despite search filter', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Footer target' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('combobox', { name: 'Search sessions' }).fill('no matches');
+    await page.getByRole('button', { name: 'Rename current…', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'Rename session' });
+    await expect(dialog.getByRole('textbox', { name: 'Session name' })).toHaveValue('Footer target');
+    await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
+});
