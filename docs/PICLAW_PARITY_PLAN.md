@@ -736,3 +736,11 @@ after unmount/switch, and refetch scoped state after mutations instead of using
 unscoped reorder results. Ten switching tests pass including scoped queue display
 and clearing on return to default; build/lint pass. Default global status queue
 snapshot still needs full scope normalization; this slice is not final acceptance.
+
+### All-chat queue scope normalization
+
+Default and non-default views now load queues exclusively through session-filtered
+endpoint; global queue broadcasts trigger scoped reload instead of applying raw
+rows. Mutation responses likewise reload selected scope. Fourteen Chromium/WebKit
+queue/switch tests and build/lint pass. Pending steer badge/status ownership still
+needs dedicated scoped status normalization; no cross-chat queue rows are intended.

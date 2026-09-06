@@ -802,7 +802,6 @@ function App() {
         if (session === selectedSessionRef.current) setQueuedFollowups(result.items || []);
     };
     useEffect(() => {
-        if (selectedSession === 'default') return;
         let disposed = false;
         const refresh = async () => {
             try {
@@ -816,8 +815,7 @@ function App() {
     }, [selectedSession]);
     const syncQueueState = useCallback((statusData) => {
         if (!statusData) return;
-        const queued = Array.isArray(statusData.queued_followups) ? statusData.queued_followups : [];
-        setQueuedFollowups(queued);
+        refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
         const pendingSteers = Array.isArray(statusData.pending_steers) ? statusData.pending_steers : [];
         const turns = Array.isArray(statusData.active_turns) ? statusData.active_turns : [];
         if (pendingSteers.length > 0 && turns.length > 0) {
@@ -1717,7 +1715,7 @@ function App() {
         if (rowId == null) return;
         try {
             await removeAgentQueueItem(rowId);
-            if (selectedSessionRef.current !== 'default') await refreshSelectedQueue();
+            await refreshSelectedQueue();
         } catch (error) {
             console.error('Failed to remove queued item:', error);
             alert('Failed to remove queued item: ' + error.message);
@@ -1727,8 +1725,7 @@ function App() {
     const handleQueueReorder = useCallback(async (rowId, direction) => {
         try {
             const result = await reorderAgentQueueItem(rowId, direction);
-            if (selectedSessionRef.current === 'default') setQueuedFollowups(result.items);
-            else await refreshSelectedQueue();
+            await refreshSelectedQueue();
         } catch (err) { alert(err.message || 'Failed to reorder queue.'); }
     }, []);
 
@@ -1736,7 +1733,7 @@ function App() {
         if (rowId == null) return;
         try {
             await steerAgentQueueItem(rowId);
-            if (selectedSessionRef.current !== 'default') await refreshSelectedQueue();
+            await refreshSelectedQueue();
         } catch (error) {
             console.error('Failed to steer queued item:', error);
             alert('Failed to steer queued item: ' + error.message);
@@ -1801,6 +1798,10 @@ function App() {
     }, [finalizeStalledResponse]);
 
     const handleSseEvent = useCallback((eventType, data) => {
+        if (['agent_followup_queued', 'agent_followup_consumed', 'agent_followup_removed', 'agent_queue_reordered', 'agent_steer_queued'].includes(eventType)) {
+            refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
+            return;
+        }
         if (!eventMatchesSession(eventType, data, selectedSessionRef.current)) return;
         const turnId = data?.turn_id;
 
