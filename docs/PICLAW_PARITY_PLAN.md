@@ -1410,3 +1410,11 @@ Added deployed workspace-drawer-backdrop structure on narrow/portrait screens;
 outside pointer dismisses drawer without activating the covered chat. Desktop
 layout and popouts omit visible backdrop. Four headed Chromium/WebKit drawer
 tests and build/lint pass. Final screenshot equivalence remains open.
+
+### Drawer/editor integration and Escape timing fix
+
+Combined run exposed visible drawer preceding its state-dependent Escape listener.
+Listener is now stable for app lifetime and checks current rendered expanded
+state before dismissal. After fix, 60 headed Chromium/WebKit editor/terminal tests
+pass with one worker; build/lint pass. Initial run had 59 passes/one Escape failure;
+no retries or assertion weakening added. Screenshot equivalence remains open.

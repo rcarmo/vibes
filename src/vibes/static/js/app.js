@@ -799,9 +799,9 @@ function App() {
         return stored === null ? window.matchMedia('(min-width: 1024px) and (orientation: landscape)').matches : stored === 'true';
     });
     useEffect(() => {
-        if (!workspaceOpen) return;
         const dismissDrawer = event => {
             if (event.key !== 'Escape' || event.defaultPrevented) return;
+            if (document.querySelector('.workspace-toggle-tab')?.getAttribute('aria-expanded') !== 'true') return;
             if (window.matchMedia('(min-width: 1024px) and (orientation: landscape)').matches) return;
             if (document.querySelector('[aria-modal="true"], .compose-model-popup')) return;
             event.preventDefault();
@@ -810,7 +810,7 @@ function App() {
         };
         window.addEventListener('keydown', dismissDrawer);
         return () => window.removeEventListener('keydown', dismissDrawer);
-    }, [workspaceOpen]);
+    }, []);
     const [popoutMode] = useState(() => {
         if (typeof window === 'undefined') return false;
         return new URLSearchParams(window.location.search).has('popout');
