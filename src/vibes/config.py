@@ -159,6 +159,7 @@ class Config:
         self.disconnect_timeout: int = _resolve(s, "disconnect_timeout", "VIBES_DISCONNECT_TIMEOUT", 300, "int")
         self.acp_debug: bool = _resolve(s, "acp_debug", "VIBES_ACP_DEBUG", False, "bool")
         self.acp_messages_enabled: bool = _resolve(s, "acp_messages_enabled", "VIBES_ACP_MESSAGES_ENABLED", False, "bool")
+        self.acp_workspace_read_enabled: bool = _resolve(s, "acp_workspace_read_enabled", "VIBES_ACP_WORKSPACE_READ_ENABLED", False, "bool")
         self.acp_throttle_rps: int = _resolve(s, "acp_throttle_rps", "VIBES_ACP_THROTTLE_RPS", 0, "int")
 
         # Pi agent configuration (RPC mode)

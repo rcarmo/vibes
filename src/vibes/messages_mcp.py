@@ -8,6 +8,7 @@ from pathlib import Path
 
 import aiosqlite
 from vibes.message_tools import MessageTools
+from vibes.workspace_tools import WorkspaceTools
 from vibes._vendor.umcp.aioumcp import AsyncMCPServer
 
 TOOL = {
@@ -33,12 +34,25 @@ class MessagesMCP(AsyncMCPServer):
         # Never create vendor-directory log files or put diagnostics on stdout.
         self.logger = logging.getLogger('vibes.messages_mcp')
 
-    def __init__(self, tools):
+    def __init__(self, tools, workspace_root=None):
         super().__init__()
         self.tools = tools
+        self.workspace = WorkspaceTools(workspace_root) if workspace_root else None
+        if self.workspace:
+            self.register_tool('workspace_read', self.workspace_read,
+                description='Read a bounded text preview of a relative workspace file. Byte offsets paginate. Symlinks and traversal are rejected.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['path'], 'properties': {
+                    'path': {'type': 'string'}, 'offset': {'type': 'integer', 'minimum': 0},
+                    'limit': {'type': 'integer', 'minimum': 1, 'maximum': 24000}}},
+                annotations={'readOnlyHint': True, 'destructiveHint': False})
         self.register_tool('messages', self.messages,
             description=TOOL['description'], input_schema=TOOL['inputSchema'],
             annotations=TOOL['annotations'])
+
+    async def workspace_read(self, path: str, offset: int = 0, limit: int = 24000):
+        if not self.workspace:
+            raise ValueError('Workspace access not configured')
+        return await asyncio.to_thread(self.workspace.read, path, offset, limit)
 
     async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None, media_id=None):
         return await self.tools.query(action, row_ids=row_ids, query=query,
@@ -48,12 +62,12 @@ class MessagesMCP(AsyncMCPServer):
         return await self.process_request_async(json.dumps(request))
 
 
-async def serve(database, thread_id=None, workspace_access=False):
+async def serve(database, thread_id=None, workspace_access=False, workspace_root=None):
     uri = Path(database).resolve().as_uri() + '?mode=ro'
     async with aiosqlite.connect(uri, uri=True) as connection:
         connection.row_factory = aiosqlite.Row
         await connection.execute('PRAGMA query_only=ON')
-        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, workspace_access=workspace_access))
+        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, workspace_access=workspace_access), workspace_root)
         while True:
             line = await asyncio.to_thread(sys.stdin.buffer.readline, 65537)
             if not line:
@@ -72,13 +86,14 @@ async def serve(database, thread_id=None, workspace_access=False):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--database', required=True)
+    parser.add_argument('--workspace-root', help='Explicitly enable bounded workspace reads')
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument('--thread-id', type=int)
     scope.add_argument('--workspace-access', action='store_true')
     args = parser.parse_args()
     if args.thread_id is not None and args.thread_id < 1:
         parser.error('--thread-id must be positive')
-    asyncio.run(serve(args.database, args.thread_id, args.workspace_access))
+    asyncio.run(serve(args.database, args.thread_id, args.workspace_access, args.workspace_root))
 
 
 if __name__ == '__main__':

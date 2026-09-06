@@ -317,3 +317,19 @@ formats and renders shared FilePill components. Original queued agent payload is
 unchanged; malformed list entries remain in visible text. Reference count capped
 at 50. Four Chromium/WebKit reorder/preview tests pass; frontend build/lint pass.
 Whole composer visual parity remains tracked separately.
+
+### Workspace reference read contract
+
+Optional uMCP workspace_read(path, offset, limit) resolves relative file references
+against an explicit --workspace-root. Descriptor-relative O_NOFOLLOW traversal
+rejects every symlink component, absolute paths, dot/traversal segments and special
+files. Nonblocking open prevents FIFO hangs. Reads use byte offsets and max 24,000
+bytes; NUL-bearing previews rejected. This is Unix-only, no writes or execution,
+and not an OS sandbox against a malicious local process rearranging directories.
+
+For ACP enable both VIBES_ACP_MESSAGES_ENABLED and
+VIBES_ACP_WORKSPACE_READ_ENABLED; root is the server working directory. Otherwise
+workspace_read is not registered. Standalone MCP accepts --workspace-root.
+420 backend tests pass including confinement, FIFO, bounded reads and actual
+uMCP dispatcher calls. Agent's independent filesystem tools remain outside this
+service's restrictions; do not interpret the flag as sandboxing the agent itself.

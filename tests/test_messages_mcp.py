@@ -102,3 +102,14 @@ async def test_acp_session_creation_includes_descriptor(db, monkeypatch, already
         assert descriptor['command'] == sys.executable
     finally:
         acp_client.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_workspace_read_registration_is_explicit(db, tmp_path):
+    (tmp_path / 'note.txt').write_text('workspace reference')
+    server = MessagesMCP(MessageTools(db._connection, workspace_access=True), workspace_root=tmp_path)
+    result = await server.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'workspace_read', 'arguments': {'path': 'note.txt'}}})
+    assert json.loads(result['result']['content'][0]['text'])['text'] == 'workspace reference'
+    disabled = MessagesMCP(MessageTools(db._connection, workspace_access=True))
+    listing = await disabled.handle({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'})
+    assert 'workspace_read' not in [tool['name'] for tool in listing['result']['tools']]

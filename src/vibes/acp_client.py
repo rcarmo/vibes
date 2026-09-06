@@ -928,7 +928,8 @@ def _messages_mcp_servers():
         raise ValueError('ACP messages database does not exist')
     return [{
         'name': 'vibes-messages', 'command': sys.executable,
-        'args': ['-m', 'vibes.messages_mcp', '--database', str(database), '--workspace-access'],
+        'args': ['-m', 'vibes.messages_mcp', '--database', str(database), '--workspace-access']
+                + (['--workspace-root', str(Path.cwd().resolve())] if getattr(config, 'acp_workspace_read_enabled', False) else []),
         'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])}],
     }]
 
