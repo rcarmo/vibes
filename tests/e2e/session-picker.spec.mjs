@@ -491,3 +491,31 @@ test('picker arrows wrap and page navigation clamps by eight entries', async ({ 
     await search.press('ArrowUp');
     await expect(search).not.toHaveAttribute('aria-activedescendant', /.+/);
 });
+
+test('picker search Tab selects while composition and reverse Tab do not', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); document.body.append(root);
+        window.tabSelections = [];
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Main' }, { id: 'second', name: 'Second' }]} onSelect=${id => window.tabSelections.push(id)} />`, root);
+    });
+    const search = page.getByRole('combobox', { name: 'Search sessions' });
+    await search.evaluate(node => {
+        node.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, isComposing: true }));
+        node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, isComposing: true }));
+    });
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
+    expect(await page.evaluate(() => window.tabSelections)).toEqual([]);
+    await search.press('Shift+Tab');
+    expect(await page.evaluate(() => window.tabSelections)).toEqual([]);
+    await search.focus();
+    await search.press('ArrowDown');
+    await search.press('Tab');
+    await expect.poll(() => page.evaluate(() => window.tabSelections)).toEqual(['second']);
+    await search.fill('no matches');
+    await search.press('Tab');
+    await expect(page.getByRole('button', { name: 'Close session picker' })).toBeFocused();
+    expect(await page.evaluate(() => window.tabSelections)).toEqual(['second']);
+});

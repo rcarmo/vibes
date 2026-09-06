@@ -2125,3 +2125,13 @@ by eight and clamp, Home/End retain boundary behavior. New 12-entry browser test
 checks both directions, wrapping and empty-filter safety. All 52 headed picker
 tests and build/lint pass. Tab activation and non-search typeahead remain open;
 page navigation is no longer a known deviation.
+
+### Session-picker Tab selection and composition safety
+
+Unmodified Tab in the search field now activates its highlighted match. IME
+composition key events bypass picker commands. Intentional accessibility deviation:
+Shift+Tab, modified Tab, action-button Tab, and empty-result Tab retain native focus
+navigation rather than selecting a session. New browser coverage checks composition,
+reverse Tab, selected-match Tab and empty-result focus escape. Build/lint and all
+54 headed Chromium/WebKit picker tests pass. Non-search typeahead and final visual
+acceptance remain open.

@@ -32,6 +32,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
         finally { actionPending.current = false; setBusy(false); }
     };
     const keys = event => {
+        if (event.isComposing || event.keyCode === 229) return;
         if (event.key === 'Escape') { event.preventDefault(); onClose?.(); }
         if (event.target?.closest('button')) return;
         if (event.key === 'Home' || event.key === 'End') {
@@ -46,7 +47,8 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             event.preventDefault();
             setIndex(Math.max(0, Math.min(matches.length - 1, selectedIndex + (event.key === 'PageDown' ? 8 : -8))));
         }
-        if (event.key === 'Enter' && matches[selectedIndex]) {
+        const tabSelect = event.key === 'Tab' && !event.shiftKey && !event.altKey && !event.ctrlKey && !event.metaKey && event.target === search.current;
+        if ((event.key === 'Enter' || tabSelect) && matches[selectedIndex]) {
             event.preventDefault();
             const item = matches[selectedIndex];
             if (event.altKey) { if (!event.repeat && !item.archived) act(() => onPin?.(item.id, !item.pinned)); return; }
