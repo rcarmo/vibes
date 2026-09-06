@@ -823,3 +823,29 @@ test('model display names remain searchable without replacing canonical identity
     await expect(choice).toBeVisible();
     await expect(page.getByRole('option', { name: 'test/beta', exact: true })).toHaveCount(0);
 });
+
+test('search virtual focus pins without mutation then Enter selects canonical model', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ json: { available: true, model: { provider: 'test', id: 'current' } } }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ json: { available: true, models: [{ provider: 'test', id: 'current' }, { provider: 'test', id: 'next' }] } }));
+    const mutations = [];
+    await page.route('**/sessions/default/model', route => {
+        mutations.push(route.request().postDataJSON());
+        return route.fulfill({ json: { model: { provider: 'test', id: 'next' } } });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const search = page.getByRole('combobox', { name: 'Search models' });
+    await expect(page.getByRole('option', { name: 'test/next', exact: true })).toBeVisible();
+    await search.press('ArrowDown');
+    await search.press('ArrowDown');
+    const next = page.getByRole('option', { name: 'test/next', exact: true });
+    await expect(next).toHaveClass(/focused/);
+    await expect(next).toHaveCSS('outline-style', 'solid');
+    await search.press('Alt+Enter');
+    await expect(page.getByRole('button', { name: 'Unpin model test/next', exact: true })).toHaveAttribute('aria-pressed', 'true');
+    await expect(search).toBeFocused();
+    expect(mutations).toEqual([]);
+    await search.press('Enter');
+    await expect.poll(() => mutations).toEqual([{ provider: 'test', model_id: 'next' }]);
+    await expect(search).toHaveCount(0);
+});

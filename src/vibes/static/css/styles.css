@@ -3677,3 +3677,5 @@ body {
 .compose-model-catalogue-option-badges { display:flex; flex-wrap:wrap; gap:4px; color:var(--text-secondary); font-size:9px; }
 .compose-model-catalogue-option-badges:empty { display:none; }
 .compose-model-catalogue-badge + .compose-model-catalogue-badge::before { content:' · '; margin-right:4px; }
+/* Virtual model focus stays visible while DOM focus remains in search. */
+.compose-model-popup-item.focused { outline:2px solid var(--accent-color); outline-offset:-2px; }

@@ -2293,3 +2293,12 @@ late-mutation test uses explicit close because disabling focused option can drop
 focus, preventing Escape bubbling. No retries configured or assertions skipped.
 Search focus/linkage asserted; dedicated Enter/Alt+Enter-from-search checks and
 highlight visual styling remain follow-up work.
+
+### Virtual model focus completion
+
+Highlighted model now has visible inset focus outline while search retains DOM
+focus. Dedicated Chromium/WebKit test verifies second-option highlight, Alt+Enter
+pin/reorder without model mutation or focus loss, then Enter submits exactly the
+canonical provider/model_id and closes picker. Both tests and build/lint pass.
+This closes the prior search-action/highlight follow-up; full deployed catalogue
+styling and Models-settings presentation remain open.

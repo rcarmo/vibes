@@ -1101,7 +1101,7 @@ export function ComposeBox({
                                         aria-selected=${activeModel === modelLabel}
                                         data-model-label=${modelLabel}
                                         aria-label=${modelLabel}
-                                        class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}
+                                        class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}${highlightedModel === modelLabel ? ' focused' : ''}`}
                                         onClick=${() => { void handleSelectModel(modelLabel); }}
                                         disabled=${switchingModel}
                                     >
