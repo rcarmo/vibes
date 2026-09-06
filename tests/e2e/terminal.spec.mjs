@@ -176,3 +176,18 @@ test('terminal shortcut does not bypass modal session dialog', async ({ page }) 
     await page.keyboard.press('Control+Backquote');
     await expect(page.locator('.terminal-panel')).toBeVisible();
 });
+
+test('mobile workspace drawer Escape restores toggle and composer access', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const toggle = page.locator('.workspace-toggle-tab');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await toggle.click();
+    await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(toggle).toBeFocused();
+    await page.locator('.compose-input-main textarea').click();
+    await page.locator('.compose-input-main textarea').pressSequentially('Drawer dismissed');
+    await expect(page.locator('.compose-input-main textarea')).toHaveValue('Drawer dismissed');
+});

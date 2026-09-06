@@ -798,6 +798,19 @@ function App() {
         const stored = localStorage.getItem('workspaceOpen');
         return stored === null ? window.matchMedia('(min-width: 1024px) and (orientation: landscape)').matches : stored === 'true';
     });
+    useEffect(() => {
+        if (!workspaceOpen) return;
+        const dismissDrawer = event => {
+            if (event.key !== 'Escape' || event.defaultPrevented) return;
+            if (window.matchMedia('(min-width: 1024px) and (orientation: landscape)').matches) return;
+            if (document.querySelector('[aria-modal="true"], .compose-model-popup')) return;
+            event.preventDefault();
+            setWorkspaceOpen(false);
+            requestAnimationFrame(() => document.querySelector('.workspace-toggle-tab')?.focus());
+        };
+        window.addEventListener('keydown', dismissDrawer);
+        return () => window.removeEventListener('keydown', dismissDrawer);
+    }, [workspaceOpen]);
     const [popoutMode] = useState(() => {
         if (typeof window === 'undefined') return false;
         return new URLSearchParams(window.location.search).has('popout');
@@ -2422,6 +2435,7 @@ function App() {
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
                 onClick=${toggleWorkspace}
                 title=${workspaceOpen ? 'Hide workspace' : 'Show workspace'}
+                aria-expanded=${workspaceOpen}
                 aria-label=${workspaceOpen ? 'Hide workspace' : 'Show workspace'}
             >
                 <svg class="workspace-toggle-tab-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

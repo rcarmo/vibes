@@ -1346,3 +1346,12 @@ server was stopped before rerun. After fix: full headed Chromium/WebKit suite
 174/174 passes with one worker; backend 484 and frontend unit 16 passed in this
 checkpoint, build/lint pass. No retries/skips. Final visual comparison and external
 acceptance remain open.
+
+### Mobile drawer keyboard dismissal
+
+Escape closes the narrow/portrait workspace drawer and restores toggle focus;
+modal dialogs, composer popups and handled events retain priority. Toggle exposes
+expanded state. Two headed Chromium/WebKit tests verify dismissal and real typed
+composer input afterward; build/lint pass. Initial WebKit fill assertion lost
+synthetic fill during focus transition; test now clicks and types through normal
+keyboard events. Final visual acceptance remains open.
