@@ -309,3 +309,11 @@ boundaries per agent/thread, reorder API handling and SSE synchronization. New
 queued entries append rather than timestamp-sorting away explicit order.
 Chromium/WebKit verify request payload and returned visual order; build/lint pass.
 Structured attachment/reference queue previews remain pending.
+
+### Structured queue previews
+
+Display-only parser recognizes Vibes/Piclaw file/folder/message/attachment block
+formats and renders shared FilePill components. Original queued agent payload is
+unchanged; malformed list entries remain in visible text. Reference count capped
+at 50. Four Chromium/WebKit reorder/preview tests pass; frontend build/lint pass.
+Whole composer visual parity remains tracked separately.

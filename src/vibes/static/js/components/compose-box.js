@@ -1,4 +1,5 @@
 import { FilePill } from './file-pill.js';
+import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
 import { getAgentModels, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
@@ -85,14 +86,16 @@ function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
             ${items.map((item) => {
                 const peers = items.filter(other => other.agent_id === item.agent_id && other.thread_id === item.thread_id);
                 const position = peers.findIndex(other => other.row_id === item.row_id);
-                const content = String(item.content || '').trim();
+                const parsed = parseQueuedContent(item.content);
+                const content = parsed.text;
                 const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
                 const itemLabel = preview || 'Untitled follow-up';
                 return html`
                     <div key=${item.row_id} class="compose-queue-item" role="listitem">
                         <div class="compose-queue-item-main">
                             <span class="compose-queue-badge">${item.mode === 'steer' ? 'Steer' : 'Queued'}</span>
-                            <div class="compose-queue-text" title=${content}>${itemLabel}</div>
+                            <div class="compose-queue-text" title=${content}>${content ? itemLabel : parsed.refs.length ? '' : itemLabel}</div>
+                            ${parsed.refs.length > 0 && html`<div class="compose-file-refs">${parsed.refs.map((ref, index) => html`<${FilePill} key=${index} prefix="compose" icon=${ref.kind === 'attachment' ? 'file' : ref.kind} label=${ref.label} title=${ref.title} />`)}</div>`}
                         </div>
                         <div class="compose-queue-actions">
                             <button type="button" data-action="move-up" class="followup-queue-move" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
