@@ -277,7 +277,8 @@ export function ComposeBox({
     const [modelQuery, setModelQuery] = useState('');
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
-    const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
+    const modelNames = new Map((sessionCatalog?.models || []).map(model => [`${model.provider}/${model.id}`, model.name || `${model.provider}/${model.id}`]));
+    const filteredModels = modelOptions.filter(label => `${label} ${modelNames.get(label) || ''}`.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [modelPins, setModelPins] = useState(() => loadModelPins(modelPinStorage()));
     const [modelPinError, setModelPinError] = useState('');
     const [pinSyncStatus, setPinSyncStatus] = useState('');
@@ -1078,11 +1079,15 @@ export function ComposeBox({
                                         type="button"
                                         role="menuitem"
                                         data-model-label=${modelLabel}
+                                        aria-label=${modelLabel}
                                         class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}`}
                                         onClick=${() => { void handleSelectModel(modelLabel); }}
                                         disabled=${switchingModel}
                                     >
-                                        ${modelLabel}
+                                        <span class="compose-model-catalogue-option-content">
+                                            <span class="compose-model-catalogue-option-name">${modelNames.get(modelLabel) || modelLabel}</span>
+                                            ${modelNames.get(modelLabel) !== modelLabel && html`<span class="compose-model-catalogue-option-key">${modelLabel}</span>`}
+                                        </span>
                                     </button></div>
                                 `)}
                                 </div>`)}

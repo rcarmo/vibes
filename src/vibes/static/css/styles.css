@@ -3670,3 +3670,7 @@ body {
     padding: 6px 10px 4px 30px;
     background: color-mix(in srgb, var(--bg-secondary) 64%, transparent);
 }
+.compose-model-catalogue-option-content { display:flex; min-width:0; flex:1; flex-direction:column; gap:2px; }
+.compose-model-catalogue-option-name, .compose-model-catalogue-option-key { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.compose-model-catalogue-option-name { min-width:0; font:12px var(--font-family-mono); font-weight:650; }
+.compose-model-catalogue-option-key { color:var(--text-secondary); font:10px var(--font-family-mono); }

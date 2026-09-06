@@ -2252,3 +2252,13 @@ closed a missing brace in previously copied detached-card focus CSS, restoring
 intended top-level title/disabled rules. Build/lint, 132 combined model/terminal
 browser tests, then four subgroup capture checks passed. Full catalogue roles,
 option metadata and Models-settings footer remain unfinished.
+
+### Model display names and canonical keys
+
+Picker now renders validated backend model names plus secondary canonical key,
+using deployed catalogue content/name/key classes. Search includes both name and
+provider/id. Accessible choice identity and mutation identity remain canonical;
+missing names fall back to the key. No fabricated pricing/capability metadata.
+New browser fixture verifies friendly-name search and visible canonical key.
+Build/lint and all 94 headed model/session-switching tests pass. Catalogue role
+migration and settings footer remain unfinished.
