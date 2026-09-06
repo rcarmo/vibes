@@ -742,7 +742,7 @@ function App() {
         setFileRefs(draft.fileRefs); setFolderRefs(draft.folderRefs); setMessageRefs(draft.messageRefs);
         setCurrentHashtag(null); setSearchQuery(null); setSearchOpen(false);
         setAgentStatus(null); setAgentDraft(null); setAgentPlan(null); setAgentThought(null);
-        setContextUsage(null); setActiveModel(null); setActiveThinkingLevel(null);
+        setContextUsage(null); setActiveModel(null); setActiveThinkingLevel(null); setIsCompacting(false);
         setQueuedFollowups([]); setPendingRequest(null);
         clearAgentRunState();
         setSessionPickerOpen(false);
@@ -767,6 +767,7 @@ function App() {
     const [activeModel, setActiveModel] = useState(null);
     const [activeThinkingLevel, setActiveThinkingLevel] = useState(null);
     const [supportsThinking, setSupportsThinking] = useState(false);
+    const [isCompacting, setIsCompacting] = useState(false);
     const [contextUsage, setContextUsage] = useState(null);
     const [notificationsEnabled, setNotificationsEnabled] = useState(false);
     const [notificationPermission, setNotificationPermission] = useState('default');
@@ -838,10 +839,11 @@ function App() {
                 const model = state.available ? state.model : null;
                 setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
                 setActiveThinkingLevel(state.available ? state.thinking_level : null);
+                setIsCompacting(state.available === true && state.compacting === true);
                 setSupportsThinking(model?.reasoning === true);
             } catch {
                 if (!disposed && selectedSession === selectedSessionRef.current && generation === modelGeneration.current) {
-                    setActiveModel(null); setActiveThinkingLevel(null); setSupportsThinking(false);
+                    setActiveModel(null); setActiveThinkingLevel(null); setSupportsThinking(false); setIsCompacting(false);
                 }
             }
         };
@@ -2520,6 +2522,7 @@ function App() {
                     activeModel=${activeModel}
                     thinkingLevel=${activeThinkingLevel}
                     supportsThinking=${supportsThinking}
+                    isCompacting=${isCompacting}
                     contextUsage=${contextUsage}
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}

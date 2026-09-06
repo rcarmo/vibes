@@ -1268,3 +1268,12 @@ NaN or fabricated zero usage. Token totals are shown only with valid nonnegative
 tokens and positive context window; valid gauges expose an accessible image label.
 Four headed Chromium/WebKit context tests and build/lint pass. Compaction/runtime
 status integration and complete visual parity remain open.
+
+### Confirmed compaction indicator
+
+Composer displays Compacting context only for explicit available=true,
+compacting=true selected-session inspection. Selection changes and unavailable/
+failed inspection clear it; no history-based activity inference. Six headed
+Chromium/WebKit context/compaction tests and build/lint pass. Indicator follows
+existing 15-second idle inspection polling; prompt-lock periods may make live
+state unavailable, so this is not continuous compaction telemetry.

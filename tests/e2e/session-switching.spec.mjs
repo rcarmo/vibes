@@ -335,3 +335,17 @@ test('context gauge hides invalid percent and exposes accessible valid usage', a
     await page.reload();
     await expect(page.getByRole('img', { name: /Context:.*25%/ })).toBeVisible();
 });
+
+test('compaction indicator requires explicit selected-session confirmation', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => {
+        const active = new URL(route.request().url()).pathname === '/sessions/default/model-state';
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: active, compacting: active ? true : null, model: null }) });
+    });
+    await page.goto('/');
+    await expect(page.getByText('Compacting context…', { exact: true })).toBeVisible();
+    const created = await page.request.post('/sessions', { data: { name: 'No compaction state' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(page.getByText('Compacting context…', { exact: true })).toHaveCount(0);
+});
