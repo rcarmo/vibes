@@ -402,3 +402,12 @@ mixing previous-session entries. Storage denial is nonfatal. Two Bun unit tests
 and six Chromium/WebKit submission-mode tests pass; build/lint pass. The app still
 uses default until session runtime/picker wiring is ready; this does not yet
 preserve per-session draft attachments or claim complete composer-state isolation.
+
+### Session-bound MCP authorization
+
+Added mutually exclusive --session-id scope alongside thread/workspace modes.
+Session scope applies to get/search and attachment authorization; legacy message
+records belong to default. Call arguments cannot change scope. 427 backend tests
+pass, including cross-session message and attachment rejection. Existing ACP
+injection is still explicit workspace-wide until runtime session selection is
+implemented; no claim that this addition alone isolates current ACP processes.

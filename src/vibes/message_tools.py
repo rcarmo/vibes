@@ -7,13 +7,18 @@ import json
 
 
 class MessageTools:
-    def __init__(self, connection, *, thread_id=None, workspace_access=False):
-        if thread_id is None and not workspace_access:
-            raise ValueError('Explicit message scope required')
+    def __init__(self, connection, *, thread_id=None, session_id=None, workspace_access=False):
+        if sum([thread_id is not None, session_id is not None, bool(workspace_access)]) != 1:
+            raise ValueError('Exactly one explicit message scope required')
+        if session_id is not None and (not isinstance(session_id, str) or not session_id):
+            raise ValueError('Invalid session scope')
         self.connection = connection
         self.thread_id = thread_id
+        self.session_id = session_id
 
     def scope(self):
+        if self.session_id is not None:
+            return "COALESCE(json_extract(i.data, '$.session_id'), 'default') = ?", [self.session_id]
         if self.thread_id is None:
             return '1=1', []
         return '(i.id = ? OR i.thread_id = ?)', [self.thread_id, self.thread_id]

@@ -73,12 +73,12 @@ class MessagesMCP(AsyncMCPServer):
         return await self.process_request_async(json.dumps(request))
 
 
-async def serve(database, thread_id=None, workspace_access=False, workspace_root=None):
+async def serve(database, thread_id=None, workspace_access=False, workspace_root=None, session_id=None):
     uri = Path(database).resolve().as_uri() + '?mode=ro'
     async with aiosqlite.connect(uri, uri=True) as connection:
         connection.row_factory = aiosqlite.Row
         await connection.execute('PRAGMA query_only=ON')
-        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, workspace_access=workspace_access), workspace_root)
+        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, session_id=session_id, workspace_access=workspace_access), workspace_root)
         while True:
             line = await asyncio.to_thread(sys.stdin.buffer.readline, 65537)
             if not line:
@@ -100,11 +100,12 @@ def main():
     parser.add_argument('--workspace-root', help='Explicitly enable bounded workspace reads')
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument('--thread-id', type=int)
+    scope.add_argument('--session-id', help='Restrict reads to one durable chat session')
     scope.add_argument('--workspace-access', action='store_true')
     args = parser.parse_args()
     if args.thread_id is not None and args.thread_id < 1:
         parser.error('--thread-id must be positive')
-    asyncio.run(serve(args.database, args.thread_id, args.workspace_access, args.workspace_root))
+    asyncio.run(serve(args.database, args.thread_id, args.workspace_access, args.workspace_root, args.session_id))
 
 
 if __name__ == '__main__':

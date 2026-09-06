@@ -68,3 +68,21 @@ async def test_attachment_text_and_scope(db):
         await tools.query('attachment', media_id=secret_id)
     with pytest.raises(ValueError):
         await tools.query('attachment', media_id=True)
+
+
+@pytest.mark.asyncio
+async def test_session_scope_covers_messages_and_attachment_authorization(db):
+    SessionStore = importlib.import_module('vibes.sessions').SessionStore
+    other = await SessionStore(db).create('Other')
+    secret = await db.create_media('private.txt', 'text/plain', b'secret')
+    public = await db.create_interaction({'type': 'user', 'content': 'needle default'})
+    hidden = await db.create_interaction({'type': 'user', 'content': 'needle private', 'session_id': other['id'], 'media_ids': [secret]})
+    tools = MessageTools(db._connection, session_id='default')
+    assert [m['row_id'] for m in (await tools.query('get', row_ids=[public, hidden]))['messages']] == [public]
+    assert [m['row_id'] for m in (await tools.query('search', query='needle'))['messages']] == [public]
+    with pytest.raises(ValueError):
+        await tools.query('attachment', media_id=secret)
+    scoped = MessageTools(db._connection, session_id=other['id'])
+    assert (await scoped.query('attachment', media_id=secret))['text'] == 'secret'
+    with pytest.raises(ValueError):
+        MessageTools(db._connection, session_id='default', workspace_access=True)
