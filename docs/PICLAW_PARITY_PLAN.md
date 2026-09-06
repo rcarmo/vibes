@@ -47,3 +47,18 @@ Baseline: Python audit merged at ad06c10, capture tooling at 1a9f0cf. Prior audi
 reports 390 Python tests and 38 headed browser tests. Re-run before relying on
 these counts for the changed tree. Implementation evidence belongs below as each
 slice lands. This document is a plan, not a completion claim.
+
+### Terminal transport slice
+
+Python now registers the session/handoff/WebSocket endpoints, disabled unless
+`VIBES_ENABLE_TERMINAL=1`. It uses an HttpOnly SameSite=Strict owner cookie (a
+Python-specific adapter detail), mandatory same-origin WebSocket/POST requests,
+single-use expiring handoff tokens, 15-second reconnect grace, bounded output,
+and cleanup on application shutdown. No terminal UI is wired yet. Do not enable
+on an unauthenticated network listener. This is a local terminal, not a sandbox.
+
+Verification: 397 Python tests pass, including real PTY I/O/resize, handoff reuse
+rejection, expired handoff rejection, reconnect preserving the same shell,
+disconnect expiry, disabled routes, invalid frames and origin rejection.
+Outstanding: markup/UI port, controlling-terminal/job-control verification,
+browser handoff flows, and comparison with Piclaw presentation.
