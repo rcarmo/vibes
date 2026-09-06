@@ -50,11 +50,17 @@ class MessageTools:
         remaining = 24000
         for row in rows[:limit]:
             data = json.loads(row['data'])
+            raw_media_ids = data.get('media_ids', [])
+            if not isinstance(raw_media_ids, list):
+                raw_media_ids = []
+            media_ids = list(dict.fromkeys(i for i in raw_media_ids if type(i) is int and i > 0))[:50]
             content = str(data.get('content', ''))
             bounded = content[:min(4000, remaining)]
             messages.append({'row_id': row['id'], 'timestamp': row['timestamp'],
                 'type': data.get('type'), 'thread_id': data.get('thread_id'),
-                'content': bounded, 'content_truncated': len(bounded) < len(content)})
+                'content': bounded, 'content_truncated': len(bounded) < len(content),
+                'media_ids': media_ids,
+                'attachment_references': [f'attachment:{i}' for i in media_ids]})
             remaining -= len(bounded)
             if remaining <= 0:
                 break

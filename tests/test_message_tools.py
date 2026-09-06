@@ -32,3 +32,19 @@ async def test_explicit_scope_bounds_and_pagination(db):
     for args in [{'action': 'delete'}, {'action': 'search', 'query': ''}, {'action': 'get', 'row_ids': [True]}, {'action': 'search', 'query': 'needle', 'limit': 51}]:
         with pytest.raises(ValueError):
             await tools.query(**args)
+
+
+@pytest.mark.asyncio
+async def test_attachment_references_are_scoped_bounded_and_sanitized(db):
+    root = await db.create_interaction({'type': 'user', 'content': 'files', 'media_ids': [1, 1, True, -2, '3'] + list(range(2, 100))})
+    hidden = await db.create_interaction({'type': 'user', 'content': 'private', 'media_ids': [999]})
+    tools = MessageTools(db._connection, thread_id=root)
+    result = await tools.query('get', row_ids=[root, hidden])
+    assert len(result['messages']) == 1
+    message = result['messages'][0]
+    assert message['media_ids'] == list(range(1, 51))
+    assert message['attachment_references'][0] == 'attachment:1'
+    assert 'attachment:999' not in str(result)
+    malformed = await db.create_interaction({'type': 'user', 'content': 'bad metadata', 'media_ids': 'not a list'})
+    result = await MessageTools(db._connection, workspace_access=True).query('get', row_ids=[malformed])
+    assert result['messages'][0]['attachment_references'] == []

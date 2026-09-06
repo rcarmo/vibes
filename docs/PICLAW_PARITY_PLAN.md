@@ -239,3 +239,12 @@ clears progress, reports cancellation and prevents submission. Unmount aborts
 current upload. Six Chromium/WebKit attachment tests pass; build/lint pass.
 Cancellation cannot guarantee the server did not finish storing bytes before the
 abort arrived; abandoned-upload garbage collection remains separate pending work.
+
+### Message attachment references
+
+Bounded messages get/search results now include sanitized media_ids and explicit
+attachment:N references from each authorized message. IDs are deduplicated,
+positive integers only, capped at 50; unrelated threads remain excluded. Malformed
+metadata does not break retrieval. Backend suite: 412 passed. These references
+are not binary attachment contents and do not grant out-of-scope attachment reads;
+content resolution remains an outstanding integration requirement.
