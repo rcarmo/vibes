@@ -1,3 +1,4 @@
+import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
@@ -129,6 +130,7 @@ function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
 }
 
 export function ComposeBox({
+    sessionId = 'default',
     onPost,
     onFocus,
     searchMode,
@@ -198,28 +200,19 @@ export function ComposeBox({
         return cleaned;
     };
     const loadHistory = () => {
-        if (typeof window === 'undefined') return [];
-        try {
-            const raw = localStorage.getItem('vibes_compose_history');
-            if (!raw) return [];
-            const parsed = JSON.parse(raw);
-            if (!Array.isArray(parsed)) return [];
-            return normaliseHistory(parsed);
-        } catch {
-            return [];
-        }
+        try { return loadComposeHistory(window.localStorage, sessionId); } catch { return []; }
     };
-    const saveHistory = (history) => {
-        if (typeof window === 'undefined') return;
-        try {
-            localStorage.setItem('vibes_compose_history', JSON.stringify(history));
-        } catch {
-            // ignore
-        }
+    const saveHistory = entries => {
+        try { saveComposeHistory(window.localStorage, sessionId, entries); } catch { /* Storage unavailable. */ }
     };
     const historyRef = useRef(loadHistory());
     const historyIndexRef = useRef(-1);
     const historyDraftRef = useRef('');
+    useEffect(() => {
+        historyRef.current = loadHistory();
+        historyIndexRef.current = -1;
+        historyDraftRef.current = '';
+    }, [sessionId]);
 
     // Fetch dynamic slash commands on mount
     useEffect(() => {

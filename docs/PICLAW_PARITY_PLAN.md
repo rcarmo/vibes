@@ -393,3 +393,12 @@ SessionStore timeline and GET /sessions/{id}/timeline filter by session, treatin
 legacy records without IDs as default and providing bounded cursor pagination.
 426 backend tests pass. Existing global routes/runtime still behave as before;
 UI switching and session-specific model contexts are not yet implemented.
+
+### Session-scoped composer history foundation
+
+History storage keys now include encoded session IDs; only default inherits the
+legacy unscoped history. Switching the prop resets history navigation without
+mixing previous-session entries. Storage denial is nonfatal. Two Bun unit tests
+and six Chromium/WebKit submission-mode tests pass; build/lint pass. The app still
+uses default until session runtime/picker wiring is ready; this does not yet
+preserve per-session draft attachments or claim complete composer-state isolation.
