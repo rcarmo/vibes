@@ -1106,3 +1106,11 @@ Catalog failures render an explicit alert rather than silently looking empty.
 Ten headed Chromium/WebKit model/thinking tests and build/lint pass, including
 close/reopen with delayed stale response and visible newer failure. Default
 command-path consolidation and complete picker markup remain open.
+
+### Model catalog search and retry
+
+Picker filters reported model labels case-insensitively, distinguishes no matches
+from unavailable catalog, and retries failed catalog loads explicitly. Twelve
+headed Chromium/WebKit model/thinking tests and build/lint pass, including retry
+recovery and filtered choices. Default backend command consolidation and complete
+deployed model-picker interaction/markup remain open.

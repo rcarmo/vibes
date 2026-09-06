@@ -209,3 +209,28 @@ test('model catalog errors are visible and closing discards late responses', asy
     release();
     await expect(page.getByRole('menuitem', { name: 'test/stale', exact: true })).toHaveCount(0);
 });
+
+test('model catalog retry recovers and search filters selectable choices', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"old"}}' }));
+    let calls = 0;
+    await page.route('**/sessions/*/models', route => {
+        calls++;
+        return route.fulfill(calls === 1
+            ? { status: 503, contentType: 'application/json', body: '{"error":"Temporary failure"}' }
+            : { contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"alpha"},{"provider":"test","id":"beta"}]}' });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Search models' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('button', { name: 'Retry model catalog', exact: true }).click();
+    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
+    const search = page.getByRole('searchbox', { name: 'Search models' });
+    await search.fill('BETA');
+    await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toHaveCount(0);
+    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true })).toBeVisible();
+    await search.fill('missing');
+    await expect(page.getByText('No matching models', { exact: true })).toBeVisible();
+});

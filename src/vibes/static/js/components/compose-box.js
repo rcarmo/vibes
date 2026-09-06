@@ -267,6 +267,9 @@ export function ComposeBox({
     const [sessionCatalog, setSessionCatalog] = useState(null);
     const [loadingModels, setLoadingModels] = useState(false);
     const [modelCatalogError, setModelCatalogError] = useState('');
+    const [modelQuery, setModelQuery] = useState('');
+    const [modelRefresh, setModelRefresh] = useState(0);
+    const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
@@ -821,7 +824,7 @@ export function ComposeBox({
             })
             .finally(() => { if (!disposed) setLoadingModels(false); });
         return () => { disposed = true; };
-    }, [showModelPopup, activeModel, sessionId]);
+    }, [showModelPopup, activeModel, sessionId, modelRefresh]);
 
     useEffect(() => {
         if (searchMode) setShowModelPopup(false);
@@ -973,15 +976,17 @@ export function ComposeBox({
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup" ref=${modelPopupRef}>
                             <div class="compose-model-popup-title">Select model</div>
+                            <input class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             <div class="compose-model-popup-menu" role="menu" aria-label="Model picker">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>
                                 `}
-                                ${modelCatalogError && html`<div role="alert" class="compose-model-popup-empty">${modelCatalogError}</div>`}
+                                ${modelCatalogError && html`<div role="alert" class="compose-model-popup-empty">${modelCatalogError}<button type="button" onClick=${() => setModelRefresh(value => value + 1)}>Retry model catalog</button></div>`}
                             ${!loadingModels && !modelCatalogError && modelOptions.length === 0 && html`
                                     <div class="compose-model-popup-empty">No models available.</div>
                                 `}
-                                ${!loadingModels && modelOptions.map((modelLabel) => html`
+                                ${!loadingModels && modelOptions.length > 0 && filteredModels.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching models</div>`}
+                            ${!loadingModels && filteredModels.map((modelLabel) => html`
                                     <button
                                         key=${modelLabel}
                                         type="button"
