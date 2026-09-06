@@ -2241,3 +2241,14 @@ clear-search action restoring focus and unfiltered choices, matching deployed
 behavior while retaining truthful local menu roles. Styling remains local until
 catalogue migration. Build/lint and 10 headed retry/capture tests pass across both
 browsers; empty-query control removal and focus restoration are asserted.
+
+### Provider subgroup migration
+
+Current/Pinned/Other model sections now contain provider-labelled groups using
+deployed catalogue group classes and heading styles. Model identities remain
+unchanged; ordering preserves first-seen provider/catalog order. Desktop/mobile
+capture assertions verify Current/test and Other/test subgroup contents. Found and
+closed a missing brace in previously copied detached-card focus CSS, restoring
+intended top-level title/disabled rules. Build/lint, 132 combined model/terminal
+browser tests, then four subgroup capture checks passed. Full catalogue roles,
+option metadata and Models-settings footer remain unfinished.

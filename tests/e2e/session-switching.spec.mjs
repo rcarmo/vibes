@@ -786,6 +786,8 @@ for (const width of [1280, 390]) {
         await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
         await expect(page.getByRole('menuitem', { name: 'test/alpha', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
+        await expect(page.getByRole('group', { name: 'Current', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/alpha');
+        await expect(page.getByRole('group', { name: 'Other models', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/beta');
         const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('searchbox', { name: 'Search models' }) });
         const bounds = await popup.boundingBox();
         expect(bounds.x).toBeGreaterThanOrEqual(0);

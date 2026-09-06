@@ -334,7 +334,15 @@ export function ComposeBox({
         { label: 'Current', models: filteredModels.filter(label => label === activeModel) },
         { label: 'Pinned', models: filteredModels.filter(label => label !== activeModel && modelPins.includes(label)) },
         { label: 'Other models', models: filteredModels.filter(label => label !== activeModel && !modelPins.includes(label)) },
-    ].filter(group => group.models.length);
+    ].filter(group => group.models.length).map(group => {
+        const providers = new Map();
+        for (const label of group.models) {
+            const provider = label.includes('/') ? label.slice(0, label.indexOf('/')) : 'Unknown provider';
+            if (!providers.has(provider)) providers.set(provider, []);
+            providers.get(provider).push(label);
+        }
+        return { ...group, providers: Array.from(providers, ([label, models]) => ({ label, models })) };
+    });
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
@@ -1061,7 +1069,9 @@ export function ComposeBox({
                                 ${!loadingModels && modelOptions.length > 0 && filteredModels.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching models</div>`}
                             ${!loadingModels && modelGroups.map(group => html`<div role="group" aria-label=${group.label}>
                                 <div class="compose-session-section-heading">${group.label}</div>
-                                ${group.models.map((modelLabel) => html`<div class="compose-model-popup-item-row" key=${modelLabel}>
+                                ${group.providers.map(provider => html`<div class="compose-model-catalogue-group" role="group" aria-label=${provider.label}>
+                                <div class="compose-model-catalogue-group-heading">${provider.label}</div>
+                                ${provider.models.map((modelLabel) => html`<div class="compose-model-popup-item-row" key=${modelLabel}>
                                     <button type="button" class="compose-session-row-pin" aria-label=${`${modelPins.includes(modelLabel) ? 'Unpin' : 'Pin'} model ${modelLabel}`} aria-pressed=${modelPins.includes(modelLabel)} aria-keyshortcuts="Alt+Enter" onClick=${() => toggleModelPin(modelLabel)}>${modelPins.includes(modelLabel) ? '★' : '☆'}</button>
                                     <button
                                         key=${modelLabel}
@@ -1075,6 +1085,7 @@ export function ComposeBox({
                                         ${modelLabel}
                                     </button></div>
                                 `)}
+                                </div>`)}
                             </div>`)}
                             </div>
                             ${!loadingModels && sessionCatalog?.available && sessionCatalog.thinking_levels?.length > 0 && html`<label class="compose-session-row-meta">Thinking level
