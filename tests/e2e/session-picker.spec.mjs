@@ -49,6 +49,10 @@ test('session search exposes keyboard active option and clears it for no matches
     await expect(search).toHaveAttribute('aria-controls', 'session-picker-results');
     await search.press('ArrowDown');
     await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-second');
+    await search.press('Home');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
+    await search.press('End');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-second');
     await search.fill('unmatched');
     await expect(search).not.toHaveAttribute('aria-activedescendant');
     await expect(page.locator('#session-picker-results [role="option"]')).toHaveCount(0);

@@ -33,11 +33,15 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
     };
     const keys = event => {
         if (event.key === 'Escape') { event.preventDefault(); onClose?.(); }
+        if (event.target?.closest('button')) return;
+        if (event.key === 'Home' || event.key === 'End') {
+            event.preventDefault();
+            setIndex(event.key === 'Home' ? 0 : Math.max(0, matches.length - 1));
+        }
         if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault();
             setIndex(value => Math.max(0, Math.min(matches.length - 1, Math.min(value, matches.length - 1) + (event.key === 'ArrowDown' ? 1 : -1))));
         }
-        if (event.target?.closest('button')) return;
         if (event.key === 'Enter' && matches[selectedIndex]) {
             event.preventDefault();
             const item = matches[selectedIndex];

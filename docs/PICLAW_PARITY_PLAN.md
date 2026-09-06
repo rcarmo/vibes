@@ -2108,3 +2108,12 @@ accessibility/concurrency deviations. Added DOM hierarchy assertion to live-shel
 handoff test; concurrent-control test now targets the deployed button class.
 Build/lint and 38 headed Chromium/WebKit terminal tests pass. Standalone splitter
 placement and whole-host visual acceptance remain open.
+
+### Session-picker boundary navigation
+
+Deployed compose-box.ts supports Home/End in session popup navigation. Added those
+keys to local active-option navigation and browser assertions. Button targets no
+longer change list selection on arrow keys; native button focus remains intact.
+Build/lint and 50 headed Chromium/WebKit session-picker tests pass. PageUp/Down,
+Tab activation and non-search typeahead still differ from deployed behavior;
+these interaction differences and visual acceptance remain open.
