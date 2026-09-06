@@ -374,3 +374,18 @@ test('switching chats during thinking catalog lookup prevents late mutation', as
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     expect(mutations).toBe(0);
 });
+
+test('context inspection refreshes periodically and clears unavailable usage', async ({ page }) => {
+    let unavailable = false;
+    let count = 0;
+    await page.route('**/agent/context?*', route => {
+        count++;
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify(!unavailable ? { percent: 25, tokens: 1000, contextWindow: 4000 } : { percent: null }) });
+    });
+    await page.goto('/');
+    await expect(page.locator('.compose-context-pie')).toBeVisible();
+    unavailable = true;
+    const before = count;
+    await expect.poll(() => count, { timeout: 20000 }).toBeGreaterThan(before);
+    await expect(page.locator('.compose-context-pie')).toHaveCount(0);
+});

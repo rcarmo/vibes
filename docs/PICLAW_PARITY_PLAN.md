@@ -1379,3 +1379,12 @@ session restoration. Actual runtime returned 33 model entries with provider/id
 strings and supported thinking-level RPC with list-shaped levels. Smoke and
 script lint pass. No model prompts, credentials or model labels emitted; catalog
 presence is not authentication/execution acceptance. Third-party ACP remains open.
+
+### Unified context refresh ownership
+
+Context refresh now shares model polling cadence and uses latest-request plus
+session-generation guards. Removed legacy default-only context callbacks from
+reconnect/turn recovery paths; all refreshes use selected-session helper and clear
+unavailable usage. Eight headed context/compaction tests and build/lint pass.
+Initial test revealed legacy concurrent refresh paths, now consolidated rather
+than relaxing assertions. Context remains inspection-based, not live token streaming.

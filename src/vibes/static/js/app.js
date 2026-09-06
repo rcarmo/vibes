@@ -849,16 +849,18 @@ function App() {
     // Refresh timestamps every 30 seconds
     useTimestampRefresh(30000);
 
+    const contextRequest = useRef(0);
     const refreshSelectedContext = async () => {
+        const request = ++contextRequest.current;
         const session = selectedSessionRef.current;
         const generation = switchGeneration.current;
         try {
             const context = await getAgentContext(session);
-            if (session === selectedSessionRef.current && generation === switchGeneration.current) {
+            if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current) {
                 setContextUsage(context?.percent != null ? context : null);
             }
         } catch {
-            if (session === selectedSessionRef.current && generation === switchGeneration.current) setContextUsage(null);
+            if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current) setContextUsage(null);
         }
     };
     useEffect(() => {
@@ -881,7 +883,7 @@ function App() {
             }
         };
         refreshModel();
-        const timer = setInterval(refreshModel, 15000);
+        const timer = setInterval(() => { refreshModel(); refreshSelectedContext(); }, 15000);
         return () => { disposed = true; clearInterval(timer); };
     }, [selectedSession]);
     const refreshSelectedQueue = async () => {
@@ -1600,9 +1602,7 @@ function App() {
             }
         }).catch(() => {});
         // Always refresh context usage on reconnect
-        getAgentContext().then(ctx => {
-            if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
-        }).catch(() => {});
+        void refreshSelectedContext();
         const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
         if (!activeHashtag && !activeSearch) {
             loadPosts();
@@ -1948,7 +1948,7 @@ function App() {
                 setAgentThought({ text: '', totalLines: 0 });
                 setPendingRequest(null);
                 // Refresh context usage after turn completes
-                getAgentContext().then(ctx => { if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null); }).catch(() => {});
+                void refreshSelectedContext();
             } else {
                 wasAgentActiveRef.current = true;
                 if (turnId) setActiveTurn(turnId);
@@ -2261,9 +2261,7 @@ function App() {
                             }
                         }
                         // Refresh context usage while agent is working
-                        getAgentContext().then(ctx => {
-                            if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
-                        }).catch(() => {});
+                        void refreshSelectedContext();
                     } else if (!statusData.busy) {
                         // Server says no active turns but UI thinks agent is active —
                         // the done/error SSE event was likely lost.
@@ -2276,9 +2274,7 @@ function App() {
                             setAgentPlan('');
                             setAgentThought({ text: '', totalLines: 0 });
                             // Refresh context usage since the turn completed
-                            getAgentContext().then(ctx => {
-                                if (ctx && ctx.percent != null) setContextUsage(selectedSessionRef.current === 'default' ? ctx : null);
-                            }).catch(() => {});
+                            void refreshSelectedContext();
                         }
                     }
                 } catch {
