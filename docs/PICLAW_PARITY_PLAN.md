@@ -1639,3 +1639,12 @@ Parent existence/archive checks now run inside child-creation transaction.
 Archived parents must be restored before adding children; rejected creation leaves
 registry unchanged. 490 backend tests pass, including archive/reject/restore/create
 sequence. Child creation remains metadata-only, not a provider history fork.
+
+### Integrated pins/picker-footer/parent-guard checkpoint
+
+At 2314dd4: 490 Python tests, 18 frontend unit tests, build/lint and 210/210 headed
+Chromium/WebKit tests pass with one worker. Build leaves clean working tree.
+Includes model pins/storage failures, picker lifecycle badges and mobile layout,
+root/child/rename footer controls, dialog submit guards and parent lifecycle checks.
+No retries/skips. Full visual acceptance, remaining settings/capability presentation,
+provider fork semantics and external-agent/live-service acceptance remain open.
