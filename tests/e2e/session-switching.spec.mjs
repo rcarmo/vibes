@@ -259,9 +259,11 @@ test('model picker keyboard navigation focuses choices and Escape restores trigg
     });
     await expect(search).toBeFocused();
     await search.press('ArrowDown');
-    await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeFocused();
+    await expect(search).toBeFocused();
+    await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Falpha');
     await page.keyboard.press('ArrowDown');
-    await expect(page.getByRole('option', { name: 'test/beta', exact: true })).toBeFocused();
+    await expect(search).toBeFocused();
+    await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fbeta');
     await page.keyboard.press('Escape');
     await expect(search).toHaveCount(0);
     await expect(trigger).toBeFocused();
@@ -306,7 +308,8 @@ test('late model mutation cannot relabel a newly selected chat', async ({ page }
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('option', { name: 'test/late', exact: true }).click();
     await expect.poll(() => !!release).toBe(true);
-    await page.keyboard.press('Escape');
+    // WebKit drops focus when the selected option becomes disabled mid-mutation.
+    await page.getByRole('button', { name: 'Close model picker', exact: true }).click();
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + second).click();
     const label = page.getByRole('button', { name: 'Open model picker', exact: true });
@@ -463,6 +466,7 @@ test('model pins persist without mutation and never expose unavailable choices',
     await expect(page.getByRole('button', { name: 'Unpin model test/favorite', exact: true })).toHaveAttribute('aria-pressed', 'true');
     includePinned = false;
     await page.reload();
+    await expect(trigger).toContainText('test/current');
     await trigger.click();
     await expect(page.getByRole('option', { name: 'test/current', exact: true })).toBeVisible();
     await expect(page.getByRole('option', { name: 'test/favorite', exact: true })).toHaveCount(0);

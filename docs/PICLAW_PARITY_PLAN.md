@@ -2281,3 +2281,15 @@ Updated browser queries to assert new roles, and added explicit linkage/selected
 assertions. Build/lint and 94 headed session-switching tests pass; two targeted
 semantic assertions also pass. Pin controls remain sibling buttons within groups;
 full deployed row/focus structure and Models-settings footer remain open.
+
+### Search-retained model navigation
+
+Arrow navigation from model search now retains input focus and links highlighted
+option by aria-activedescendant; Enter selects and Alt+Enter pins that identity.
+Filtered-out highlights are omitted. Direct option focus remains supported.
+Build/lint and 94 headed model/session tests pass. Two initial full runs exposed
+WebKit test synchronization assumptions: reload now waits for current model label;
+late-mutation test uses explicit close because disabling focused option can drop
+focus, preventing Escape bubbling. No retries configured or assertions skipped.
+Search focus/linkage asserted; dedicated Enter/Alt+Enter-from-search checks and
+highlight visual styling remain follow-up work.

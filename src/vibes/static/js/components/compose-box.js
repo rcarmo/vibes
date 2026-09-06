@@ -275,6 +275,7 @@ export function ComposeBox({
     const [loadingModels, setLoadingModels] = useState(false);
     const [modelCatalogError, setModelCatalogError] = useState('');
     const [modelQuery, setModelQuery] = useState('');
+    const [highlightedModel, setHighlightedModel] = useState(null);
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
     const modelMetadata = new Map((sessionCatalog?.models || []).map(model => [`${model.provider}/${model.id}`, model]));
@@ -554,6 +555,23 @@ export function ComposeBox({
 
     const modelPickerKeys = event => {
         if (event.isComposing || event.keyCode === 229) return;
+        if (event.target === modelSearchRef.current) {
+            const choices = Array.from(modelPopupRef.current?.querySelectorAll('[role="option"]:not(:disabled)') || []);
+            const index = choices.findIndex(node => node.dataset.modelLabel === highlightedModel);
+            if (['ArrowDown', 'ArrowUp'].includes(event.key) && choices.length) {
+                event.preventDefault();
+                const next = index < 0 ? (event.key === 'ArrowDown' ? 0 : choices.length - 1) : (index + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
+                setHighlightedModel(choices[next].dataset.modelLabel);
+                choices[next].scrollIntoView({ block: 'nearest' });
+                return;
+            }
+            if (event.key === 'Enter' && index >= 0) {
+                event.preventDefault();
+                if (event.altKey) { if (!event.repeat && !event.ctrlKey && !event.metaKey) toggleModelPin(highlightedModel); }
+                else void handleSelectModel(highlightedModel);
+                return;
+            }
+        }
         if (event.key === 'Enter' && event.altKey && !event.ctrlKey && !event.metaKey) {
             const choice = event.target?.closest?.('[data-model-label]');
             if (choice) {
@@ -1058,7 +1076,7 @@ export function ComposeBox({
                             <div class="compose-session-popup-header"><div class="compose-model-popup-title">Search models</div><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
                             ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
                             ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
-                            <input ref=${modelSearchRef} class="compose-session-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                            <input ref=${modelSearchRef} class="compose-session-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-activedescendant=${filteredModels.includes(highlightedModel) ? `model-option-${encodeURIComponent(highlightedModel)}` : undefined} aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
                             ${modelQuery && html`<button type="button" class="compose-model-popup-btn" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>Clear search</button>`}
                             <div id="compose-model-results" class="compose-model-popup-menu compose-model-catalogue-results" role="listbox" aria-label="Models">
                                 ${loadingModels && html`
@@ -1079,6 +1097,7 @@ export function ComposeBox({
                                         key=${modelLabel}
                                         type="button"
                                         role="option"
+                                        id=${`model-option-${encodeURIComponent(modelLabel)}`}
                                         aria-selected=${activeModel === modelLabel}
                                         data-model-label=${modelLabel}
                                         aria-label=${modelLabel}
