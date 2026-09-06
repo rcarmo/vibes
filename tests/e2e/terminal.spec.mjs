@@ -167,7 +167,7 @@ test('terminal shortcut does not bypass modal session dialog', async ({ page }) 
     await page.locator('.workspace-toggle-tab').click();
     await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('button', { name: 'New root…', exact: true }).click();
+    await page.getByRole('button', { name: 'New root session…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'New session' });
     await expect(dialog).toBeVisible();
     await page.keyboard.press('Control+Backquote');

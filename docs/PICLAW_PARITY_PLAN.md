@@ -2480,3 +2480,11 @@ names, explicit tooltips and mutation guards. Local extension, not exact deploye
 icon parity: 28px desktop controls, 44px mobile targets. Metadata/footer differences
 remain. Build/lint and all 58 headed picker tests pass without retries, including
 rename/restore workflows and mobile readable-name coverage.
+
+### Session footer source reconciliation
+
+Source-map review corrects screenshot-only inference: deployed supports conditional
+New branch, New root session… and Rename current session entries. Kept supported
+actions and aligned labels. Local actions intentionally remain available during
+search (deployed requires empty query); existing filtered-rename regression retained.
+Updated visual comparison. Build/lint and 98 headed picker/terminal tests pass.

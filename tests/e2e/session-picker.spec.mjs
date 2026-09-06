@@ -119,7 +119,7 @@ test('create dialog preserves input on server error then creates selected sessio
         return route.continue();
     });
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('button', { name: 'New root…', exact: true }).click();
+    await page.getByRole('button', { name: 'New root session…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'New session' });
     const input = dialog.getByRole('textbox', { name: 'Session name' });
     await expect(input).toBeFocused();
@@ -364,7 +364,7 @@ test('Rename current footer targets selected chat despite search filter', async 
     await page.locator('#session-option-' + id).click();
     await page.getByTestId('session-switcher').click();
     await page.getByRole('combobox', { name: 'Search sessions' }).fill('no matches');
-    await page.getByRole('button', { name: 'Rename current…', exact: true }).click();
+    await page.getByRole('button', { name: 'Rename current session', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Rename session' });
     await expect(dialog.getByRole('textbox', { name: 'Session name' })).toHaveValue('Footer target');
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -417,7 +417,7 @@ test('mobile picker footer actions remain within popup bounds', async ({ page })
     await page.getByTestId('session-switcher').click();
     const popup = page.getByTestId('session-popup');
     const bounds = await popup.boundingBox();
-    for (const name of ['New branch', 'New root…', 'Rename current…']) {
+    for (const name of ['New branch', 'New root session…', 'Rename current session']) {
         const action = popup.getByRole('button', { name, exact: true });
         await expect(action).toBeVisible();
         const box = await action.boundingBox();
@@ -569,7 +569,7 @@ test('picker disables mutation controls when callbacks are unavailable', async (
         render(html`<${SessionPicker} sessions=${[{ id: 'empty', name: 'Read only', message_count: 0 }]} />`, root);
     });
     const picker = page.locator('#readonly-picker');
-    for (const name of ['Rename Read only', 'Delete Read only', 'New root…', 'Pin session']) {
+    for (const name of ['Rename Read only', 'Delete Read only', 'New root session…', 'Pin session']) {
         await expect(picker.getByRole('button', { name, exact: true })).toBeDisabled();
     }
     await expect(picker.getByRole('button', { name: 'Archive Read only', exact: true })).toHaveCount(0);

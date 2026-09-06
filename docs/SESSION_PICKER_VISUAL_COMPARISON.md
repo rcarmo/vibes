@@ -26,9 +26,10 @@ Different session contents prevent a meaningful whole-image pixel equality score
   visible text; reducing this width is a remaining markup/layout task.
 - Local lifecycle pills say Running/Idle/Archived, while the reference also shows
   its own runtime labels. Local labels must stay tied to supported backend facts.
-- Local New branch, New root and Rename current footer controls exceed the
-  reference's simpler New root footer. They reflect local lifecycle capabilities,
-  not proof of deployed markup equivalence.
+- The reference capture shows only New root, but source-map inspection confirms
+  conditional New branch, New root session… and Rename current session actions.
+  Local labels now match those entries. Unlike deployed, local actions remain
+  available during search to preserve filtered rename-current behavior.
 - Desktop popup height/content density differ. No claim of identical geometry is
   made; the two captures contain different session populations.
 
