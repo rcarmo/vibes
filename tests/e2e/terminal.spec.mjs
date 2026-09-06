@@ -93,6 +93,7 @@ test('expired popout session clearly starts a new shell', async ({ page }) => {
 
 for (const [name, viewport] of [
     ['desktop', { width: 1440, height: 1000 }],
+    ['reference-desktop', { width: 1280, height: 844 }],
     ['mobile', { width: 390, height: 844 }],
 ]) {
     test(`terminal ${name} layout and screenshot`, async ({ page }, testInfo) => {

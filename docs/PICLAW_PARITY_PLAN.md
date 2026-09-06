@@ -2065,3 +2065,16 @@ This supersedes the earlier 232-browser-test checkpoint. No test failure was
 retried in this run. Automated fixture coverage does not establish deployed
 visual equivalence, live speech service, external ACP-agent discovery, or real
 attachment consumption. Those acceptance gates remain open.
+
+### Reference-sized terminal capture
+
+Added 1280x844 terminal screenshot case alongside existing 1440x1000 desktop and
+390x844 mobile cases. Two headed Chromium/WebKit tests pass. This removes viewport
+mismatch against the deployed 1280x844 reference, but not fixture/state mismatch:
+local terminal is Connected with shell output, deployed isolated terminal reports
+Unavailable. Deployed dock starts at y=4 (height 840); local standalone host has no
+top splitter and fills the column. Shared local editor/terminal does render its
+4px resize splitter. Do not add a nonfunctional standalone separator merely to
+hide this difference: standalone top gutter/host markup remains a visual review
+item. Chat content and header controls also differ between these fixtures, so
+whole-page pixel equality is not an acceptance metric yet.
