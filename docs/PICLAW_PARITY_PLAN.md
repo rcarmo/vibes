@@ -652,3 +652,10 @@ Chromium/WebKit verify default -> other -> default draft isolation and explicit
 submission identity; build/lint pass. Native prompt/confirm action dialogs,
 full deployed grouping/styles, queue ownership, selected status and stale loads
 remain incomplete; this is not final UX acceptance.
+
+### Search/session response race
+
+Search captures session identity plus request generation; stale query success or
+failure cannot overwrite a newer query or switched chat. Session switch and exit
+search invalidate outstanding results. Four Chromium/WebKit switching tests pass,
+including held search response released after switching; build/lint pass.

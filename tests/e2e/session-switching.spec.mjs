@@ -23,3 +23,28 @@ test('app switches sessions with separate drafts and explicit send identity', as
     await input.press('Enter');
     await expect.poll(() => sent?.session_id).toBe(id);
 });
+
+test('late search response cannot overwrite another session timeline', async ({ page }) => {
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    let searchStarted = false;
+    await page.route('**/search?*', async route => {
+        searchStarted = true;
+        await gate;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ results: [{ id: 987654, timestamp: new Date().toISOString(), data: { type: 'user_message', content: 'STALE SEARCH RESULT', session_id: 'default' } }] }) });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Search isolation' } });
+    const id = (await created.json()).session.id;
+    await page.getByTitle('Search', { exact: true }).click();
+    await page.getByPlaceholder('Search (Enter to run)...').fill('old query');
+    await page.getByPlaceholder('Search (Enter to run)...').press('Enter');
+    await expect.poll(() => searchStarted).toBe(true);
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(page.getByTestId('session-switcher')).toContainText('Search isolation');
+    const response = page.waitForResponse(r => r.url().includes('/search?'));
+    release();
+    await response;
+    await expect(page.getByText('STALE SEARCH RESULT', { exact: true })).toHaveCount(0);
+});

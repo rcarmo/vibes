@@ -687,6 +687,7 @@ function App() {
     const [selectedSession, setSelectedSession] = useState('default');
     const selectedSessionRef = useRef('default');
     const switchGeneration = useRef(0);
+    const searchGeneration = useRef(0);
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const refreshSessions = async () => {
@@ -698,6 +699,7 @@ function App() {
         const result = await getSessionTimeline(id);
         if (generation !== switchGeneration.current) return;
         const draft = composeDrafts.load(id);
+        searchGeneration.current++;
         selectedSessionRef.current = id;
         setSelectedSession(id);
         setPosts(result.posts);
@@ -1533,14 +1535,18 @@ function App() {
     // Handle search
     const handleSearch = useCallback(async (query, filters = {}) => {
         if (!query || !query.trim()) return;
+        const generation = ++searchGeneration.current;
+        const session = selectedSessionRef.current;
         setSearchQuery(query.trim());
         setCurrentHashtag(null);
         setPosts(null);
         try {
-            const result = await searchPosts(query.trim(), 50, 0, { ...filters, sessionId: selectedSessionRef.current });
+            const result = await searchPosts(query.trim(), 50, 0, { ...filters, sessionId: session });
+            if (generation !== searchGeneration.current || session !== selectedSessionRef.current) return;
             setPosts(result.results);
             setHasMore(false);
         } catch (error) {
+            if (generation !== searchGeneration.current || session !== selectedSessionRef.current) return;
             console.error('Failed to search:', error);
             setPosts([]);
         }
@@ -1554,6 +1560,7 @@ function App() {
     }, []);
     
     const exitSearchMode = useCallback(() => {
+        searchGeneration.current++;
         setSearchOpen(false);
         setSearchQuery(null);
         loadPosts();
