@@ -1939,3 +1939,9 @@ Chromium/WebKit verify 409 thinking mutation leaves selector at confirmed off
 level, shows Context busy error and re-enables control. Two targeted tests pass;
 existing controlled-select behavior already meets this requirement, so no code
 change needed. Actual provider execution acceptance remains separate.
+
+### Native thinking selector keyboard ownership
+
+Model popup arrow navigation no longer intercepts events from native select.
+Twelve headed thinking tests and build/lint pass, including unprevented ArrowDown
+and retained select focus. Model-choice arrows and Escape behavior remain intact.

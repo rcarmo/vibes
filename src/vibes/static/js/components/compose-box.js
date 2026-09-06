@@ -564,7 +564,7 @@ export function ComposeBox({
             requestAnimationFrame(() => modelHintRef.current?.focus());
             return;
         }
-        if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+        if (!['ArrowDown', 'ArrowUp'].includes(event.key) || event.target?.closest?.('select')) return;
         const choices = [...(modelPopupRef.current?.querySelectorAll('[role="menuitem"]:not(:disabled)') || [])];
         if (!choices.length) return;
         event.preventDefault(); event.stopPropagation();

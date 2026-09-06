@@ -741,3 +741,19 @@ test('failed thinking mutation keeps last confirmed selector value', async ({ pa
     await expect(select).toHaveValue('off');
     await expect(select).toBeEnabled();
 });
+
+test('thinking selector retains native arrow key ownership', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current","reasoning":true},"thinking_level":"off"}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}],"thinking_levels":["off","high"]}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const select = page.getByRole('combobox', { name: 'Select thinking level' });
+    await select.focus();
+    const prevented = await select.evaluate(el => {
+        const event = new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true, cancelable: true });
+        el.dispatchEvent(event);
+        return event.defaultPrevented;
+    });
+    expect(prevented).toBe(false);
+    await expect(select).toBeFocused();
+});
