@@ -3549,3 +3549,11 @@ body {
     .app-shell:has(> .editor-pane-container > .terminal-panel) > .container { height: auto; flex: 1; }
     .app-shell:has(> .editor-pane-container > .terminal-panel) > .editor-splitter { display: none; }
 }
+
+.rename-branch-overlay { position: fixed; inset: 0; z-index: 300; background: #0008; display: flex; align-items: center; justify-content: center; padding: 16px; }
+.rename-branch-panel { width: 360px; max-width: 100%; padding: 20px; border: 1px solid var(--border-color); border-radius: 12px; background: var(--bg-primary); color: var(--text-primary); }
+.rename-branch-panel h2 { margin: 0 0 16px; font-size: 18px; }
+.rename-branch-input { box-sizing: border-box; width: 100%; padding: 8px; background: var(--bg-secondary); color: inherit; border: 1px solid var(--border-color); border-radius: 6px; }
+.rename-branch-help { margin: 8px 0; font-size: 12px; color: var(--text-secondary); }
+.rename-branch-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.rename-branch-actions button { padding: 6px 12px; }

@@ -1004,3 +1004,13 @@ not filtered search results, with explanatory titles. Backend rejection still
 surfaces as an alert for stale state. Six headed Chromium/WebKit picker tests and
 build/lint pass, including filtered parent, archived restore, and error feedback.
 This is UI guidance, not replacement authorization; backend remains authoritative.
+
+### Mounted session rename dialog
+
+Replaced rename prompt with rename-branch overlay/panel/input/actions classes from
+deployed reference. Accessible dialog includes initial selection, focus trapping/
+restoration, Escape/backdrop cancel, busy/error feedback and backend-compatible
+1–80 character validation. Eight headed Chromium/WebKit picker tests and build/
+lint pass, including mounted API save and focus return. Names intentionally remain
+display names rather than deployed restricted handles; CSS is a local adaptation
+pending screenshot comparison. Create/delete prompts remain to migrate.

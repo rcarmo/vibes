@@ -79,3 +79,22 @@ test('picker gates archive and delete using unfiltered session state', async ({ 
     await fixture.getByRole('button', { name: 'Restore Closed', exact: true }).click();
     await expect(fixture.getByRole('alert')).toHaveText('State changed; try again');
 });
+
+test('mounted rename dialog validates, saves and restores focus', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    // Default display name can vary; target the row by stable option ID.
+    const row = page.locator('#session-option-default').locator('..');
+    const action = row.getByRole('button', { name: /^Rename / });
+    await action.click();
+    const dialog = page.getByRole('dialog', { name: 'Rename session' });
+    const input = dialog.getByRole('textbox', { name: 'Session name' });
+    await expect(input).toBeFocused();
+    await input.fill('   ');
+    await expect(dialog.getByRole('button', { name: 'Save', exact: true })).toBeDisabled();
+    await input.fill('Renamed default');
+    await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId('session-switcher')).toContainText('Renamed default');
+    await expect(row.getByRole('button', { name: 'Rename Renamed default', exact: true })).toBeFocused();
+});
