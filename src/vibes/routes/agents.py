@@ -428,6 +428,12 @@ async def steer_queue_item(request: web.Request) -> web.Response:
     agent_mode = _resolve_agent_mode(queued["agent_id"])
     active_turn = await _get_active_turn_for_agent(queued["agent_id"])
     target_turn_id = active_turn.get("turn_id") if active_turn else None
+    if active_turn:
+        database = await get_db()
+        queued_root = await database.get_interaction(queued['thread_id'])
+        active_root = await database.get_interaction(active_turn['thread_id'])
+        if not queued_root or not active_root or queued_root['data'].get('session_id', 'default') != active_root['data'].get('session_id', 'default'):
+            return web.json_response({'error': 'Cannot steer a different active session'}, status=409)
     actual_steer = False
     emulated = agent_mode != "pi"
 

@@ -721,3 +721,10 @@ queue/steer thread ownership from stored history. Unknown thread ownership is
 excluded instead of defaulting into another chat. 457 backend tests pass, including
 cross-session queue/steer exclusion. Frontend selected-session polling/events and
 mutation scoping still need integration.
+
+### Queued steering active-session guard
+
+Promotion compares persisted queue-thread and active-turn session ownership before
+claiming or writing Pi steering. Cross-session or unknown ownership returns 409
+and retains the queued item. 458 backend tests pass, including no-write/no-removal
+assertions. Selected-session queue UI refresh/mutation response scoping remains.

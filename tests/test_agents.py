@@ -411,6 +411,7 @@ async def test_queue_remove_route(mock_deps):
 async def test_queue_steer_route_emulates_for_acp(mock_deps):
     """Queued ACP items can be promoted into deferred steering."""
     item = followups_mod.queue_followup(thread_id=3, agent_id="default", message_id=8, content="nudge")
+    mock_deps["db"]._interactions[3] = {"id": 3, "data": {"session_id": "default"}}
     fake_turn = {"turn_id": "turn-3", "thread_id": 3, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
     req = make_mocked_request("POST", "/agent/queue-steer")
     req.json = AsyncMock(return_value={"row_id": item["row_id"]})

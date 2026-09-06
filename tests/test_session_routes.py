@@ -127,3 +127,29 @@ async def test_queue_listing_filters_by_persisted_session(db, monkeypatch):
         assert result['pending_steers'] == []
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_queue_cannot_steer_other_active_session(db, monkeypatch):
+    from aiohttp.test_utils import make_mocked_request
+    agents = importlib.import_module('vibes.routes.agents')
+    followups = importlib.import_module('vibes.followups')
+    store = importlib.import_module('vibes.sessions').SessionStore(db)
+    other = await store.create('Other')
+    a = await db.create_interaction({'type': 'user', 'content': 'default'})
+    b = await db.create_interaction({'type': 'user', 'content': 'other', 'session_id': other['id']})
+    followups.reset_state()
+    try:
+        item = followups.queue_followup(thread_id=b, agent_id='default', message_id=b, content='private')
+        monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+        monkeypatch.setattr(agents, '_get_active_turn_for_agent', AsyncMock(return_value={'thread_id': a, 'turn_id': 'active'}))
+        sender = AsyncMock()
+        monkeypatch.setattr(agents, 'send_pi_rpc_fire_and_forget', sender)
+        request = make_mocked_request('POST', '/agent/queue-steer')
+        request.json = AsyncMock(return_value={'row_id': item['row_id']})
+        response = await agents.steer_queue_item(request)
+        assert response.status == 409
+        assert followups.list_followups()[0]['row_id'] == item['row_id']
+        sender.assert_not_awaited()
+    finally:
+        followups.reset_state()
