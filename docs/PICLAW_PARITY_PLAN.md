@@ -1459,3 +1459,20 @@ aria-busy and Updating session status, and releases the gate on failure/success.
 32 headed Chromium/WebKit picker tests and build/lint pass, including duplicate
 Enter suppression and retry after rejection. This prevents duplicate concurrent
 UI actions, not exactly-once server execution across network failures/reopens.
+
+### Visual reference inventory and acceptance gap
+
+Inspected saved /workspace/tmp/piclaw-classic-reference and piclaw-full-reference
+artifacts. They contain Chromium/WebKit desktop/phone/tablet light/dark main-shell,
+workspace and (full set) search captures, plus DOM rectangles. They do not contain
+session-picker/model-picker open-state captures. Current picker screenshots cannot
+therefore be called matched baselines. Deployed compose-box.ts remains the popup
+DOM reference, but a rendered popup comparison is still required.
+
+Concrete phone reference: webkit-phone-dark.json has 390x844 shell/container,
+390x102 composer at y≈742, 370x50 textarea and 370x26 footer. These dimensions
+are reference observations, not universal acceptance assertions: seeded content,
+model/status controls and viewport state must be matched before comparing.
+Next visual acceptance must capture matching deployed/current popup fixtures,
+record deliberate session-ID/display-name and local lifecycle-action deviations,
+and review screenshots rather than just comparing class names or viewport bounds.
