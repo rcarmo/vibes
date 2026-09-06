@@ -1355,3 +1355,12 @@ expanded state. Two headed Chromium/WebKit tests verify dismissal and real typed
 composer input afterward; build/lint pass. Initial WebKit fill assertion lost
 synthetic fill during focus transition; test now clicks and types through normal
 keyboard events. Final visual acceptance remains open.
+
+### Thinking lookup continuation ownership
+
+After asynchronous thinking catalog lookup, unmounted composers no longer start
+a mutation. Four headed Chromium/WebKit thinking tests and build/lint pass;
+new test waits for confirmed chat switch before releasing held catalog and asserts
+zero mutations. Requests already issued before switching remain server-owned and
+are not rolled back. Initial test released before async chat switch completed;
+corrected test synchronization rather than adding retries.

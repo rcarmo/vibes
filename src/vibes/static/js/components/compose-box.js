@@ -449,6 +449,7 @@ export function ComposeBox({
         setSwitchingModel(true);
         try {
             const catalog = await getSessionModels(sessionId);
+            if (!modelCallbacksActive.current) return;
             const levels = catalog.available ? catalog.thinking_levels : [];
             if (!levels?.length) throw new Error('Thinking controls unavailable for this session');
             const next = levels[(levels.indexOf(thinkingLevel) + 1) % levels.length];

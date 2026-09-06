@@ -349,3 +349,28 @@ test('compaction indicator requires explicit selected-session confirmation', asy
     await page.locator('#session-option-' + id).click();
     await expect(page.getByText('Compacting context…', { exact: true })).toHaveCount(0);
 });
+
+test('switching chats during thinking catalog lookup prevents late mutation', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"reasoner","reasoning":true},"thinking_level":"off"}' }));
+    let release;
+    let finish;
+    const finished = new Promise(resolve => { finish = resolve; });
+    await page.route('**/sessions/*/models', async route => {
+        await new Promise(resolve => { release = resolve; });
+        await route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[],"thinking_levels":["off","low"]}' });
+        finish();
+    });
+    let mutations = 0;
+    await page.route('**/sessions/*/model', route => { mutations++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Thinking lookup switch' } });
+    const id = (await created.json()).session.id;
+    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await expect.poll(() => !!release).toBe(true);
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(page.getByTestId('session-switcher')).toContainText('Thinking lookup switch');
+    release(); await finished;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    expect(mutations).toBe(0);
+});
