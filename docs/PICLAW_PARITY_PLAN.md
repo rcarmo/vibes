@@ -1832,3 +1832,12 @@ pins inside transaction and rejects stale snapshot with 412 without writing.
 507 backend tests pass, including competing stale update. Unconditional PUT is
 retained for explicit last-write replacement compatibility; current UI does not
 yet supply If-Match, so automatic conflict protection there is not claimed.
+
+### Conditional pin saves in composer
+
+Preference helpers retain response ETags; composer requires successful instance
+load before save and supplies If-Match. Concurrent server changes produce visible
+412 conflict without overwrite. Eight headed instance-pin tests and build/lint
+pass, including real API concurrent change. Unconditional API writes remain for
+explicit trusted clients; composer no longer uses them. Full Models settings
+parity remains open.

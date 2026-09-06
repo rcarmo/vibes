@@ -594,7 +594,7 @@ test('failed instance pin transfer preserves pins and successful retry clears er
     let fail = true;
     await page.route('**/model-preferences', route => route.fulfill(fail
         ? { status: 503, contentType: 'application/json', body: '{"error":"Preference service unavailable"}' }
-        : { contentType: 'application/json', body: '{"pins":["test/current"],"scope":"instance"}' }));
+        : { contentType: 'application/json', headers: { ETag: '"v1"' }, body: '{"pins":["test/current"],"scope":"instance"}' }));
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
@@ -603,7 +603,23 @@ test('failed instance pin transfer preserves pins and successful retry clears er
     await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('Preference service unavailable');
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
     fail = false;
+    await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect(page.getByText('Instance pins loaded into this browser.', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Save instance pins', exact: true }).click();
     await expect(page.getByText('Pins saved for this instance.', { exact: true })).toBeVisible();
     await expect(page.locator('.compose-model-popup [role="alert"]')).toHaveCount(0);
+});
+
+test('instance pin save rejects concurrent server preference change', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.goto('/');
+    await page.request.put('/model-preferences', { data: { pins: [] } });
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect(page.getByText('Instance pins loaded into this browser.', { exact: true })).toBeVisible();
+    await page.request.put('/model-preferences', { data: { pins: ['other/new'] } });
+    await page.getByRole('button', { name: 'Save instance pins', exact: true }).click();
+    await expect(page.locator('.compose-model-popup [role="alert"]').filter({ hasText: 'Model preferences changed' })).toBeVisible();
+    expect((await (await page.request.get('/model-preferences')).json()).pins).toEqual(['other/new']);
 });

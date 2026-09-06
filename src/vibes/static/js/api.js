@@ -7,7 +7,7 @@ const API_BASE = '';
 /**
  * Fetch wrapper with error handling
  */
-async function request(url, options = {}) {
+async function request(url, options = {}, includeEtag = false) {
     const response = await fetch(API_BASE + url, {
         ...options,
         headers: {
@@ -21,7 +21,8 @@ async function request(url, options = {}) {
         throw new Error(error.error || `HTTP ${response.status}`);
     }
     
-    return response.json();
+    const data = await response.json();
+    return includeEtag ? { ...data, etag: response.headers.get('ETag') } : data;
 }
 
 /**
@@ -618,9 +619,10 @@ export class SSEClient {
 }
 
 export async function getModelPreferences() {
-    return request('/model-preferences');
+    return request('/model-preferences', {}, true);
 }
 
-export async function saveModelPreferences(pins) {
-    return request('/model-preferences', { method: 'PUT', body: JSON.stringify({ pins }) });
+export async function saveModelPreferences(pins, etag) {
+    if (!etag) throw new Error('Load instance preferences before saving');
+    return request('/model-preferences', { method: 'PUT', headers: { 'If-Match': etag }, body: JSON.stringify({ pins }) }, true);
 }
