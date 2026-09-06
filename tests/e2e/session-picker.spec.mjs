@@ -521,6 +521,7 @@ test('picker search Tab selects while composition and reverse Tab do not', async
 });
 
 test('non-search typeahead selects labels without changing search text', async ({ page }) => {
+    await page.clock.setFixedTime(new Date('2026-09-06T12:00:00Z'));
     await page.goto('/');
     await page.evaluate(async () => {
         const { html, render } = await import('/static/js/vendor/preact-htm.js');
@@ -536,6 +537,14 @@ test('non-search typeahead selects labels without changing search text', async (
     await popup.press('r');
     await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-bravo');
     await expect(search).toHaveValue('');
+    // At exactly 700ms the prefix remains live: "brm" has no match.
+    await page.clock.setFixedTime(new Date('2026-09-06T12:00:00.700Z'));
+    await popup.press('m');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-bravo');
+    // More than 700ms after the last key starts a fresh "m" query.
+    await page.clock.setFixedTime(new Date('2026-09-06T12:00:01.401Z'));
+    await popup.press('m');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');
     await popup.press('Home');
     await popup.press('m');
     await expect(search).toHaveAttribute('aria-activedescendant', 'session-option-default');

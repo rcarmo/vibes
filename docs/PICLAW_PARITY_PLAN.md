@@ -2144,3 +2144,10 @@ and 700ms buffer expiry. Navigation clears the buffer; modifiers/IME bypass it.
 Browser tests cover multi-character matching, navigation reset and unchanged search
 text; expiry-specific timing acceptance is not separately exercised. Build/lint
 and all 56 headed Chromium/WebKit picker tests pass. Visual acceptance remains open.
+
+### Typeahead expiry boundary acceptance
+
+Extended non-search browser test with Playwright fixed Date clock: exactly 700ms
+retains the prefix; 701ms since the latest key starts a new query. Both headed
+Chromium/WebKit tests pass without sleeps or retries. This closes the previously
+noted expiry-specific test gap; no implementation change.
