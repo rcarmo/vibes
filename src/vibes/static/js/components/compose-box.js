@@ -300,6 +300,7 @@ export function ComposeBox({
                 setModelPins(result.pins);
                 setModelPinError(saveModelPins(modelPinStorage(), result.pins) ? '' : 'Loaded pins are temporary in this browser.');
             }
+            if (save) setModelPinError('');
             setPinSyncStatus(save ? 'Pins saved for this instance.' : 'Instance pins loaded into this browser.');
         } catch (error) { if (modelCallbacksActive.current) setModelPinError(error.message || 'Pin synchronization failed'); }
         finally { pinSyncPending.current = false; setPinSyncBusy(false); }

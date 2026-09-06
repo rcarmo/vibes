@@ -1817,3 +1817,10 @@ Reconstructed v6 schema test upgrades through normal connect, preserving session
 message and confirmed Pi binding/model/thinking metadata. New preferences start
 empty, persist after write and survive another reconnect. 506 backend tests pass.
 No production database modified for this verification.
+
+### Instance pin failure/retry acceptance
+
+Failed load preserves browser pins and releases busy gate; successful save now
+clears previous synchronization error instead of showing contradictory success
+and failure. Six headed instance-pin tests and build/lint pass, including explicit
+503 then successful retry. Full settings parity remains open.

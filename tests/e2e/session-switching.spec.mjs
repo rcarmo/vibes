@@ -587,3 +587,23 @@ test('delayed instance pin load cannot overwrite newer browser edit', async ({ p
     await expect(page.getByText('Browser pins changed during loading; instance pins were not applied.', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
 });
+
+test('failed instance pin transfer preserves pins and successful retry clears error', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}]}' }));
+    let fail = true;
+    await page.route('**/model-preferences', route => route.fulfill(fail
+        ? { status: 503, contentType: 'application/json', body: '{"error":"Preference service unavailable"}' }
+        : { contentType: 'application/json', body: '{"pins":["test/current"],"scope":"instance"}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
+    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('Preference service unavailable');
+    await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
+    fail = false;
+    await page.getByRole('button', { name: 'Save instance pins', exact: true }).click();
+    await expect(page.getByText('Pins saved for this instance.', { exact: true })).toBeVisible();
+    await expect(page.locator('.compose-model-popup [role="alert"]')).toHaveCount(0);
+});
