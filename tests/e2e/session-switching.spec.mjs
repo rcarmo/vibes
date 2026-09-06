@@ -645,3 +645,14 @@ test('expanded instance preferences remain reachable on mobile', async ({ page }
         expect(box.y + box.height).toBeLessThanOrEqual(845);
     }
 });
+
+test('capture model picker with deployed single-model fixture', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 1280, height: 844 });
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"review-model"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"review-model"}]}' }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await expect(page.getByRole('group', { name: 'Current', exact: true })).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'test/review-model', exact: true })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('model-picker-desktop.png'), fullPage: true });
+});

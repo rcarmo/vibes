@@ -1870,3 +1870,12 @@ At 390x844 with 20 catalog entries, expanded instance preferences and Load/Save/
 Close controls remain inside viewport in Chromium/WebKit (two tests pass). No
 layout change needed. This is bounded mobile acceptance, not a full Models
 settings/reference screenshot comparison.
+
+### Current model-popup comparison capture
+
+Added 1280x844 capture with same test/review-model catalog as deployed reference;
+Current group and model choice verified in Chromium/WebKit (two tests pass).
+Current Chromium image attached to working chat. Surrounding timeline fixture and
+popup footer differ: explicit instance preference transfer/Next model are not the
+deployed Models settings surface. Capture is review evidence, not pixel baseline
+approval or full settings parity.
