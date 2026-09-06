@@ -10,6 +10,9 @@ import pty
 import signal
 import struct
 import termios
+import sys
+import secrets
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
 
@@ -21,6 +24,8 @@ class TerminalSession:
     history: bytearray = field(default_factory=bytearray)
     clients: set = field(default_factory=set)
     closed: bool = False
+    session_id: str = field(default_factory=lambda: secrets.token_urlsafe(16))
+    created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
 class TerminalService:
@@ -36,12 +41,20 @@ class TerminalService:
             raise ValueError("Terminal owner required")
         async with self.lock:
             existing = self.sessions.get(owner)
-            if existing and not existing.closed:
+            if existing and not existing.closed and existing.process.returncode is None:
                 return existing
+            if existing:
+                await self.close(existing)
             master, slave = pty.openpty()
             try:
                 process = await asyncio.create_subprocess_exec(
-                    self.shell, "-i", stdin=slave, stdout=slave, stderr=slave,
+                    # Establish the controlling terminal after setsid, without
+                    # preexec_fn (unsafe in a threaded server process).
+                    sys.executable, "-c",
+                    "import fcntl,os,sys,termios; "
+                    "fcntl.ioctl(0,termios.TIOCSCTTY,0); "
+                    "os.execv(sys.argv[1],[sys.argv[1],'-i'])",
+                    self.shell, stdin=slave, stdout=slave, stderr=slave,
                     cwd=self.cwd, env={**os.environ, "TERM": "xterm-256color"},
                     start_new_session=True,
                 )

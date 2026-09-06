@@ -46,3 +46,24 @@ async def test_owner_isolation_and_input_limit(tmp_path):
             await service.open("")
     finally:
         await service.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_controlling_terminal_and_foreground_interrupt(tmp_path):
+    service = TerminalService(str(tmp_path))
+    session = await service.open('job-control')
+    try:
+        await service.write(session, b"test -r /dev/tty && printf 'tty-%s\\n' ready\n")
+        async with asyncio.timeout(3):
+            while b'tty-ready' not in session.history:
+                await asyncio.sleep(0.02)
+        assert b'no job control' not in session.history
+        await service.write(session, b"sleep 30\n")
+        await asyncio.sleep(0.1)
+        await service.write(session, b'\x03')
+        await service.write(session, b"printf 'interrupt-%s\\n' survived\n")
+        async with asyncio.timeout(3):
+            while b'interrupt-survived' not in session.history:
+                await asyncio.sleep(0.02)
+    finally:
+        await service.shutdown()

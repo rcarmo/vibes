@@ -62,3 +62,23 @@ rejection, expired handoff rejection, reconnect preserving the same shell,
 disconnect expiry, disabled routes, invalid frames and origin rejection.
 Outstanding: markup/UI port, controlling-terminal/job-control verification,
 browser handoff flows, and comparison with Piclaw presentation.
+
+### Reference correction — deployed 2.15.3 classic
+
+The initial workspace Piclaw checkout was stale (4,479 commits behind upstream
+at inspection). It is NOT the UI reference. Use classic app.bundle.js.map from
+the installed Piclaw 2.15.3 release; extracted reference files are temporarily
+under /workspace/tmp/piclaw-2.15.3-reference. Upstream main also confirms xterm.
+Ghostty is an optional add-on, not the terminal renderer to port.
+
+Reassessment adds folder references, upload progress, search attachment/image
+filters, speech/push-to-talk, and grouped searchable session-picker lifecycle
+metrics to acceptance scope. These are pending, not delivered capabilities.
+
+The deployed terminal expects nested handoff.token, session_id/created_at/
+process_pid metadata, ping frames, and explicit exit events. Corrected Python
+transport accordingly. Cookie ownership remains a documented adapter difference;
+the deployed client anonymous-token field is not trusted as authority here.
+PTY launch now establishes a controlling terminal with TIOCSCTTY in an exec
+helper (no threaded-server preexec_fn). Real tests cover foreground interruption
+and shell survival. Backend suite: 399 passed. UI parity is not yet verified.

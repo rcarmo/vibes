@@ -68,7 +68,7 @@ class TerminalAdapter:
         self.handoffs = {k: v for k, v in self.handoffs.items() if v[1] > time.monotonic() and v[0] != owner}
         token = secrets.token_urlsafe(32)
         self.handoffs[token] = (owner, time.monotonic() + self.handoff_ttl)
-        return web.json_response({"token": token, "expires_at": datetime.fromtimestamp(time.time() + self.handoff_ttl, timezone.utc).isoformat()}, headers={"Cache-Control": "no-store"})
+        return web.json_response({"handoff": {"token": token, "expires_at": datetime.fromtimestamp(time.time() + self.handoff_ttl, timezone.utc).isoformat()}}, headers={"Cache-Control": "no-store"})
 
     async def expire(self, owner):
         try:
@@ -106,7 +106,9 @@ class TerminalAdapter:
                 await old.close(code=1000, message=b"terminal handoff")
             session = await self.service.open(owner)
             session.clients.add(queue)
-            await socket.send_json({"type": "session", "cwd": str(self.service.cwd), "shell": self.service.shell})
+            await socket.send_json({"type": "session", "cwd": str(self.service.cwd), "shell": self.service.shell,
+                "session_id": session.session_id, "created_at": session.created_at,
+                "process_pid": session.process.pid})
             decoder = codecs.getincrementaldecoder("utf-8")("replace")
             if session.history:
                 await socket.send_json({"type": "output", "data": decoder.decode(bytes(session.history))})
@@ -117,8 +119,12 @@ class TerminalAdapter:
                         data = await asyncio.wait_for(queue.get(), 0.2)
                         await socket.send_json({"type": "output", "data": decoder.decode(data)})
                     except asyncio.TimeoutError:
-                        if session.process.returncode is not None or queue not in session.clients:
+                        if session.process.returncode is not None:
+                            await socket.send_json({"type": "exit", "exit_code": session.process.returncode})
                             await socket.close()
+                            return
+                        if queue not in session.clients:
+                            await socket.close(code=1013, message=b"Terminal output consumer too slow")
                             return
 
             sender = asyncio.create_task(send_output())
@@ -129,6 +135,8 @@ class TerminalAdapter:
                     frame = json.loads(message.data)
                     if frame.get("type") == "input" and isinstance(frame.get("data"), str):
                         await self.service.write(session, frame["data"].encode())
+                    elif frame.get("type") == "ping":
+                        await socket.send_json({"type": "pong", "ts": frame.get("ts")})
                     elif frame.get("type") == "resize":
                         self.service.resize(session, frame["cols"], frame["rows"])
                     else:
