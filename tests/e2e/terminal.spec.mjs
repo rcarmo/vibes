@@ -265,7 +265,12 @@ test('closing host during reattach does not mount late response', async ({ page 
     await expect.poll(() => !!release).toBe(true);
     await page.getByRole('button', { name: 'Hide terminal', exact: true }).click();
     await expect(page.locator('.terminal-panel')).toHaveCount(0);
+    const responsePromise = page.waitForResponse(response => response.url().endsWith('/terminal/handoff') && !response.request().headers()['x-piclaw-terminal-client']);
     release();
+    const response = await responsePromise;
+    await response.finished();
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(page.locator('.terminal-panel, .terminal-pane-xterm')).toHaveCount(0);
     await expect(popup.locator('.terminal-status')).toHaveText('Connected');
     expect(popup.isClosed()).toBe(false);
     await popup.close();

@@ -2032,3 +2032,10 @@ Unmounted hosts discard reattach continuation before mount and close a pending
 blank detach window instead of navigating it after disposal. Two headed Chromium/
 WebKit tests and build/lint pass, closing host during held reattach while existing
 popup stays connected. Server-issued unused handoff remains bounded by expiry.
+
+### Settled handoff-response unmount assertion
+
+Strengthened close-during-reattach test to await actual HTTP response completion
+and browser frames before asserting no host/xterm remount and live popup retained.
+Two headed Chromium/WebKit tests pass. Prior immediate assertion could precede
+response processing; new synchronization exercises the intended continuation.
