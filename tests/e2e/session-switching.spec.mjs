@@ -530,3 +530,14 @@ test('capability panel hides stopped absent and malformed declarations', async (
         await expect(fixture.locator('details')).toHaveCount(0);
     }
 });
+
+test('agent registry polling removes capability claims after refresh failure', async ({ page }) => {
+    let fail = false;
+    await page.route('**/agents', route => route.fulfill(fail
+        ? { status: 503, contentType: 'application/json', body: '{"error":"offline"}' }
+        : { contentType: 'application/json', body: '{"agents":[{"id":"default","name":"ACP","status":"running","reported_capabilities":{"loadSession":true}}]}' }));
+    await page.goto('/');
+    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toBeVisible();
+    fail = true;
+    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0, { timeout: 20000 });
+});

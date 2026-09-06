@@ -1768,9 +1768,12 @@ function App() {
         }
     }, []);
 
+    const agentRegistryRequest = useRef(0);
     const loadAgents = useCallback(async () => {
+        const request = ++agentRegistryRequest.current;
         try {
             const data = await getAgents();
+            if (request !== agentRegistryRequest.current) return;
             setAgents(buildAgentsMap(data));
             const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
             // Registry metadata is not the selected conversation's live model.
@@ -1787,8 +1790,14 @@ function App() {
             });
         } catch (e) {
             console.warn('Failed to load agents:', e);
+            if (request === agentRegistryRequest.current) setAgents(previous => Object.fromEntries(
+                Object.entries(previous).map(([id, agent]) => [id, { ...agent, reported_capabilities: null }])));
         }
     }, [applyBranding]);
+    useEffect(() => {
+        const timer = setInterval(() => { void loadAgents(); }, 15000);
+        return () => { clearInterval(timer); agentRegistryRequest.current++; };
+    }, [loadAgents]);
 
     const expandAgentPanel = useCallback(async (panelKey, turnId) => {
         if (!turnId || (panelKey !== 'draft' && panelKey !== 'thought')) return;

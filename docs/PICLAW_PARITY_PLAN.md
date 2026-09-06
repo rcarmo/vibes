@@ -1736,3 +1736,11 @@ Four headed Chromium/WebKit capability tests pass, including rerender from
 reported capability to stopped, absent and malformed declarations. Panel removes
 claims in each unavailable case rather than retaining stale details. This verifies
 component input handling, not agent-list refresh cadence or real capability use.
+
+### Agent declaration refresh lifecycle
+
+Registry refreshes every 15 seconds; latest-request guard rejects older responses.
+Failed refresh clears reported capability claims while preserving branding/history
+metadata. Cleanup invalidates pending refreshes. Six headed capability tests and
+build/lint pass, including visible declaration removal after polling failure.
+This remains sampled registry state, not real-agent capability execution evidence.
