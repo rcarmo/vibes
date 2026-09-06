@@ -1051,3 +1051,12 @@ readable datetime; SQLite unzoned timestamps are interpreted as UTC, invalid or
 missing values hidden. No running/idle inference is made from this history value.
 15 frontend unit tests, 12 headed Chromium/WebKit picker tests and build/lint pass.
 Runtime metrics, queued lifecycle and final visual equivalence remain open.
+
+### Picker in-process queued-work counts
+
+Registry now counts queued follow-ups plus pending steers by persisted thread
+ownership (chunked SQLite lookup). Missing threads are ignored; legacy threads
+belong to default. Picker shows a separate queued badge without inferring running
+state or persistence. 469 backend tests, 12 headed picker tests and build/lint
+pass. Counts are snapshots of current process memory, not durable delivery or
+exactly-once guarantees; final grouped metrics/visual acceptance remains open.

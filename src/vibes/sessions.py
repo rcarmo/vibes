@@ -23,7 +23,26 @@ class SessionStore:
                ORDER BY s.pinned DESC, COALESCE(activity.last_message_at, s.updated_at) DESC, s.id''',
             (int(include_archived),),
         ) as cursor:
-            return [{**dict(row), 'is_running': bool(row['is_running'])} for row in await cursor.fetchall()]
+            sessions = [{**dict(row), 'is_running': bool(row['is_running']), 'queued_count': 0} for row in await cursor.fetchall()]
+        from .followups import list_followups, list_pending_steers
+        pending = list_followups() + list_pending_steers()
+        counts = {}
+        for item in pending:
+            thread_id = item['thread_id']
+            counts[thread_id] = counts.get(thread_id, 0) + 1
+        by_id = {session['id']: session for session in sessions}
+        # Chunk lookups to stay below SQLite parameter limits. Ownership never
+        # comes from queued content or caller-supplied session metadata.
+        threads = list(counts)
+        for start in range(0, len(threads), 500):
+            batch = threads[start:start + 500]
+            async with self.db._connection.execute(
+                "SELECT id, COALESCE(json_extract(data, '$.session_id'), 'default') FROM interactions WHERE id IN (" + ','.join('?' for _ in batch) + ')', batch,
+            ) as cursor:
+                for row in await cursor.fetchall():
+                    if row[1] in by_id:
+                        by_id[row[1]]['queued_count'] += counts[row[0]]
+        return sessions
 
     async def family_ids(self, session_id):
         session = await self.get(session_id)

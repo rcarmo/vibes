@@ -142,3 +142,26 @@ async def test_rebinding_preserves_confirmed_model_metadata(db):
     binding = await store.backend_binding('default', 'pi')
     assert binding['model'] == 'provider/model'
     assert binding['thinking_level'] == 'high'
+
+
+@pytest.mark.asyncio
+async def test_registry_queue_counts_follow_persisted_thread_ownership(db):
+    from vibes.followups import queue_followup, defer_steer, reset_state
+    reset_state()
+    try:
+        store = SessionStore(db)
+        other = await store.create('Queue owner')
+        root = await db.create_interaction({'type': 'user', 'content': 'root', 'session_id': other['id']})
+        legacy = await db.create_interaction({'type': 'user', 'content': 'legacy'})
+        queue_followup(thread_id=root, agent_id='default', message_id=None, content='one')
+        defer_steer(thread_id=root, agent_id='default', message_id=None, content='two')
+        queue_followup(thread_id=legacy, agent_id='default', message_id=None, content='legacy')
+        queue_followup(thread_id=999999, agent_id='default', message_id=None, content='orphan')
+        rows = {row['id']: row for row in await store.list()}
+        assert rows[other['id']]['queued_count'] == 2
+        assert rows['default']['queued_count'] == 1
+        assert not rows[other['id']]['is_running']
+        reset_state()
+        assert all(row['queued_count'] == 0 for row in await store.list())
+    finally:
+        reset_state()
