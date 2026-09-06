@@ -36,6 +36,7 @@ from ..followups import (
     queue_followup,
     remove_followup,
     restore_followup,
+    reorder_followup,
 )
 from .sse import broadcast_event
 
@@ -352,6 +353,22 @@ async def get_agent_queue(request: web.Request) -> web.Response:
         "items": list_followups(agent_id=agent_id, thread_id=thread_id),
         "pending_steers": list_pending_steers(agent_id=agent_id, thread_id=thread_id),
     })
+
+
+async def reorder_queue_item(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+        row_id = data.get('row_id')
+        if type(row_id) is not int:
+            raise ValueError('Invalid row_id')
+        found = reorder_followup(row_id, data.get('direction'))
+    except (ValueError, TypeError, AttributeError):
+        return web.json_response({'error': 'Invalid reorder request'}, status=400)
+    if not found:
+        return web.json_response({'error': 'Queue item not found'}, status=404)
+    items = list_followups()
+    await broadcast_event('agent_queue_reordered', {'items': items})
+    return web.json_response({'items': items})
 
 
 async def remove_queue_item(request: web.Request) -> web.Response:
@@ -1267,6 +1284,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/agent/{agent_id}/message", send_message)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/queue-remove", remove_queue_item)
+    app.router.add_post("/agent/queue-reorder", reorder_queue_item)
     app.router.add_post("/agent/queue-steer", steer_queue_item)
     app.router.add_post("/agent/respond", respond_to_agent_request)
     app.router.add_get("/agent/whitelist", get_whitelist)

@@ -693,3 +693,29 @@ async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps):
     data = json.loads(response.text)
     assert data['item']['emulated'] is True
     assert data['item']['row_id'] == item['row_id']
+
+
+@pytest.mark.asyncio
+async def test_concurrent_queue_promotion_sends_once(mock_deps):
+    import asyncio
+    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='once')
+    entered, release = asyncio.Event(), asyncio.Event()
+    async def send(_):
+        entered.set()
+        await release.wait()
+        return True
+    def request():
+        req = MagicMock()
+        req.json = AsyncMock(return_value={'row_id': item['row_id']})
+        return req
+    with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=True), \
+         patch.object(agents_mod, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=send)) as sender:
+        first = asyncio.create_task(agents_mod.steer_queue_item(request()))
+        await asyncio.wait_for(entered.wait(), 2)
+        second = await agents_mod.steer_queue_item(request())
+        release.set()
+        response = await first
+        assert second.status == 404
+        assert response.status == 200
+        assert sender.await_count == 1

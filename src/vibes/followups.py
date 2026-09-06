@@ -112,6 +112,24 @@ def promote_to_pending_steer(row_id: int, *, emulated: bool = True) -> Optional[
     return None
 
 
+def reorder_followup(row_id: int, direction: str) -> bool:
+    """Move one place within its agent/thread queue, without crossing scopes."""
+    if direction not in {'up', 'down'}:
+        raise ValueError('direction must be up or down')
+    index = next((i for i, item in enumerate(_state.queued) if item.row_id == row_id), None)
+    if index is None:
+        return False
+    item = _state.queued[index]
+    candidates = [i for i, other in enumerate(_state.queued)
+                  if other.agent_id == item.agent_id and other.thread_id == item.thread_id]
+    position = candidates.index(index)
+    target = position + (-1 if direction == 'up' else 1)
+    if 0 <= target < len(candidates):
+        other = candidates[target]
+        _state.queued[index], _state.queued[other] = _state.queued[other], item
+    return True
+
+
 def restore_followup(item: dict, *, steer: bool = False) -> dict:
     """Restore a claimed item without allocating a new public row ID."""
     restored = FollowupItem(**item)

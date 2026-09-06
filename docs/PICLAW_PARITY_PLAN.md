@@ -293,3 +293,11 @@ steer. Idle Pi fallback is honestly marked emulated. 416 backend tests pass.
 This is in-process claim/rollback, not a durable exactly-once delivery guarantee:
 a transport cancellation after bytes were sent remains an ambiguous delivery case.
 Queue reordering and concurrency coverage still pending.
+
+### Concurrent promotion and reorder service
+
+Concurrent promotion test verifies only one Pi write claims the row; a second
+request gets 404 while the first is in flight. Added synchronous same-agent/thread
+up/down reordering and /agent/queue-reorder with broadcast. Other scopes retain
+their positions; pending steers still dispatch first. 418 backend tests pass.
+Reorder buttons and structured queue previews remain to wire into the composer.
