@@ -103,3 +103,27 @@ async def test_timeline_route_scope_excludes_other_sessions(db, aiohttp_client, 
     assert [item['id'] for item in result['posts']] == [visible]
     assert result['has_more'] is False
     assert (await client.get('/timeline?session_id=missing')).status == 400
+
+
+@pytest.mark.asyncio
+async def test_queue_listing_filters_by_persisted_session(db, monkeypatch):
+    from aiohttp.test_utils import make_mocked_request
+    agents = importlib.import_module('vibes.routes.agents')
+    followups = importlib.import_module('vibes.followups')
+    store = importlib.import_module('vibes.sessions').SessionStore(db)
+    other = await store.create('Queue scope')
+    a = await db.create_interaction({'type': 'user', 'content': 'default'})
+    b = await db.create_interaction({'type': 'user', 'content': 'other', 'session_id': other['id']})
+    followups.reset_state()
+    try:
+        followups.queue_followup(thread_id=a, agent_id='default', message_id=a, content='visible')
+        followups.queue_followup(thread_id=b, agent_id='default', message_id=b, content='hidden')
+        followups.defer_steer(thread_id=b, agent_id='default', message_id=b, content='hidden steer')
+        monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+        response = await agents.get_agent_queue(make_mocked_request('GET', '/agent/queue?session_id=default'))
+        import json
+        result = json.loads(response.text)
+        assert [item['content'] for item in result['items']] == ['visible']
+        assert result['pending_steers'] == []
+    finally:
+        followups.reset_state()

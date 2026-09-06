@@ -349,10 +349,23 @@ async def get_agent_queue(request: web.Request) -> web.Response:
     except (TypeError, ValueError):
         return web.json_response({"error": "Invalid thread_id"}, status=400)
 
-    return web.json_response({
-        "items": list_followups(agent_id=agent_id, thread_id=thread_id),
-        "pending_steers": list_pending_steers(agent_id=agent_id, thread_id=thread_id),
-    })
+    items = list_followups(agent_id=agent_id, thread_id=thread_id)
+    steers = list_pending_steers(agent_id=agent_id, thread_id=thread_id)
+    session_id = request.query.get('session_id')
+    if session_id is not None:
+        from ..sessions import SessionStore
+        database = await get_db()
+        if not await SessionStore(database).get(session_id):
+            return web.json_response({'error': 'Session not found'}, status=404)
+        owners = {}
+        for item in items + steers:
+            root_id = item.get('thread_id')
+            if root_id not in owners:
+                root = await database.get_interaction(root_id)
+                owners[root_id] = root['data'].get('session_id', 'default') if root else None
+        items = [item for item in items if owners[item.get('thread_id')] == session_id]
+        steers = [item for item in steers if owners[item.get('thread_id')] == session_id]
+    return web.json_response({"items": items, "pending_steers": steers})
 
 
 async def reorder_queue_item(request: web.Request) -> web.Response:

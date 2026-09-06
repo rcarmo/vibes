@@ -713,3 +713,11 @@ While open, picker refreshes registry/activity every three seconds, prevents
 overlapping refreshes and ignores results after closure. Keyboard target clamps
 to refreshed list length. Ten picker/switching browser tests pass, including
 external create/rename while picker stays open; frontend build/lint pass.
+
+### Session queue retrieval
+
+GET /agent/queue accepts session_id, validates registry existence and resolves
+queue/steer thread ownership from stored history. Unknown thread ownership is
+excluded instead of defaulting into another chat. 457 backend tests pass, including
+cross-session queue/steer exclusion. Frontend selected-session polling/events and
+mutation scoping still need integration.
