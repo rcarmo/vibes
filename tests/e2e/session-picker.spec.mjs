@@ -196,3 +196,23 @@ test('long session row and lifecycle actions fit narrow picker', async ({ page }
     }
     await expect(popup.locator('.compose-session-row-main').first()).toBeVisible();
 });
+
+test('Alt Enter pins highlighted session without selecting and ignores archived rows', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div'); root.id = 'pin-fixture'; document.body.append(root);
+        window.pinActions = [];
+        render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Main', pinned: true }, { id: 'closed', name: 'Closed', archived: true }]} onPin=${(id, value) => window.pinActions.push(['pin', id, value])} onSelect=${id => window.pinActions.push(['select', id])} />`, root);
+    });
+    const fixture = page.locator('#pin-fixture');
+    const search = fixture.getByRole('combobox');
+    await expect(fixture.getByRole('button', { name: 'Unpin session' })).toHaveText('★');
+    await search.press('Alt+Enter');
+    expect(await page.evaluate(() => window.pinActions)).toEqual([['pin', 'default', false]]);
+    await search.fill('Closed');
+    await search.press('Alt+Enter');
+    expect(await page.evaluate(() => window.pinActions)).toHaveLength(1);
+    await expect(fixture.getByRole('button', { name: 'Pin session' })).toBeDisabled();
+});

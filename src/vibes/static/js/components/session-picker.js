@@ -31,7 +31,9 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
         if (event.target?.closest('button')) return;
         if (event.key === 'Enter' && matches[selectedIndex]) {
             event.preventDefault();
-            act(() => onSelect?.(matches[selectedIndex].id));
+            const item = matches[selectedIndex];
+            if (event.altKey) { if (!event.repeat && !item.archived) act(() => onPin?.(item.id, !item.pinned)); return; }
+            act(() => onSelect?.(item.id));
         }
     };
     return html`<div class="compose-model-popup compose-session-popup" data-testid="session-popup" onKeyDown=${keys}>
@@ -41,7 +43,7 @@ export function SessionPicker({ sessions = [], currentId = 'default', onSelect, 
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
                 <div class="compose-session-section-heading">${group.label}</div>
                 ${group.items.map(item => { const lastMessage = sessionLastMessage(item.last_message_at); return html`<div key=${item.id} class=${`compose-model-popup-item-row session-picker-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
-                <button type="button" class=${`compose-session-row-pin${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>☆</button>
+                <button type="button" class=${`compose-session-row-pin${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!item.archived || !onPin} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>${item.pinned ? '★' : '☆'}</button>
                 <button type="button" id=${`session-option-${item.id}`} class="compose-model-popup-item session-item" role="option" aria-selected=${item.id === currentId} onClick=${() => act(() => onSelect?.(item.id))}>
                     <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${item.id}</span><span class="compose-session-row-meta">${item.message_count ?? 0} messages</span>${lastMessage && html`<time class="compose-session-row-meta" datetime=${lastMessage.datetime} title="Last persisted message (not runtime activity)">Last message: ${lastMessage.label}</time>`}</span></span>
                     <span class=${`compose-session-status-pill ${item.archived ? 'closed' : item.is_running ? 'active' : 'idle'}`}>${item.archived ? 'Archived' : item.is_running ? 'Running' : 'Idle'}</span>

@@ -1080,3 +1080,11 @@ headed Chromium/WebKit picker tests and build/lint pass, including all action
 button horizontal bounds for long names at 390px. Initial exact row-count test
 assumption was corrected for the shared test server registry. Screenshot parity
 and remaining lifecycle styling are still not claimed complete.
+
+### Picker pin shortcut and state indicator
+
+Alt+Enter from picker search toggles highlighted active session pin without
+selecting it; repeats and archived targets are ignored. Pin control advertises
+shortcut, disables unavailable/archived actions, and shows filled/outline star
+for pinned/unpinned state. Twenty headed Chromium/WebKit picker tests and build/
+lint pass. Full screenshot equivalence remains unverified.
