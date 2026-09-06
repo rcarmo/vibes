@@ -966,3 +966,13 @@ shared-height behavior. 18 headed Chromium/WebKit terminal tests and build/lint
 pass. Initial test run exposed an incorrect new workspace test selector (fixed);
 its timed-out isolated server was explicitly stopped before rerunning. Launcher
 placement and final screenshot parity remain open.
+
+### Integrated speech/mentions/shared-dock regression checkpoint
+
+At 470ca57: 467 Python tests, 14 frontend unit tests, frontend build/lint and
+120/120 headed Chromium/WebKit tests pass with one browser worker. No retries or
+skips added. Generated build leaves the working tree clean. Includes mounted
+speech isolation, mention insertion/resolution tests, editor/popout and terminal
+shared-column workflows. This does not establish deployed screenshot equivalence,
+live speech service, authenticated model prompts or third-party ACP consumption;
+those acceptance limitations and remaining UI gaps stay open.
