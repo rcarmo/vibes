@@ -40,3 +40,38 @@ test('terminal splitter supports keyboard resizing', async ({ page }) => {
     await page.getByRole('button', { name: 'Hide terminal', exact: true }).click();
     await expect(page.locator('.terminal-panel')).toHaveCount(0);
 });
+
+test('closed popout reconnects within grace without losing shell state', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTitle('Open terminal', { exact: true }).click();
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await page.locator('.xterm-helper-textarea').pressSequentially('export RECOVERY_TOKEN=retained');
+    await page.locator('.xterm-helper-textarea').press('Enter');
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByTitle('Open terminal in window').click();
+    const popup = await popupPromise;
+    await expect(popup.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await popup.close();
+    await expect.poll(() => page.evaluate(async () => (await (await fetch('/terminal/session')).json()).connected_clients)).toBe(0);
+    await page.getByRole('button', { name: 'Reattach here' }).click();
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await page.locator('.xterm-helper-textarea').pressSequentially("printf 'recover-%s\\n' \"$RECOVERY_TOKEN\"");
+    await page.locator('.xterm-helper-textarea').press('Enter');
+    await expect(page.getByTestId('terminal-output')).toContainText('recover-retained');
+});
+
+test('expired popout session clearly starts a new shell', async ({ page }) => {
+    test.setTimeout(45000);
+    await page.goto('/');
+    await page.getByTitle('Open terminal', { exact: true }).click();
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    const popupPromise = page.waitForEvent('popup');
+    await page.getByTitle('Open terminal in window').click();
+    const popup = await popupPromise;
+    await expect(popup.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+    await popup.close();
+    await expect.poll(() => page.evaluate(async () => (await (await fetch('/terminal/session')).json()).active), { timeout: 20000 }).toBe(false);
+    await page.getByRole('button', { name: 'Reattach here' }).click();
+    await expect(page.getByRole('alert')).toContainText('started a new shell');
+    await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
+});

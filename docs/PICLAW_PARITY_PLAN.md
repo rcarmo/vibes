@@ -135,3 +135,12 @@ an error. Chromium/WebKit verify a shell variable survives dock -> popup -> dock
 and that the popup closes. Four terminal tests and frontend build/lint pass.
 Still pending: whole-layout parity and recovery when an external popup dies or
 its session expires, plus screenshot comparisons and final regression sweep.
+
+### Popup-loss recovery
+
+Reattach now detects a closed popup and reconnects without a handoff only when
+session metadata reports no active client. Server ownership/concurrency checks
+remain authoritative. Expired sessions display an explicit new-shell notice.
+Eight headed terminal tests pass across Chromium/WebKit, including closed-popup
+state preservation within grace and restart after actual 15-second expiry.
+Frontend build/lint pass. Layout/screenshot and whole-backlog acceptance remain.

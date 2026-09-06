@@ -69,14 +69,26 @@ export function TerminalPanel({ onClose, popout = false }) {
     };
     const reattach = async () => {
         try {
-            const response = await fetch('/terminal/handoff', { method: 'POST', credentials: 'same-origin' });
-            const result = await response.json();
-            if (!response.ok || !result.handoff?.token) throw new Error('No handoff');
+            let token = null;
+            let restarted = false;
+            if (popupRef.current?.closed) {
+                // Detached sessions can reconnect without handoff. Never bypass
+                // ownership checks: the server rejects an active second client.
+                const response = await fetch('/terminal/session', { credentials: 'same-origin' });
+                const session = await response.json();
+                if (!response.ok || !session.enabled || session.connected_clients) throw new Error('Still connected');
+                restarted = !session.active;
+            } else {
+                const response = await fetch('/terminal/handoff', { method: 'POST', credentials: 'same-origin' });
+                const result = await response.json();
+                if (!response.ok || !result.handoff?.token) throw new Error('No handoff');
+                token = result.handoff.token;
+            }
             pane.current = terminalPaneExtension.mount(host.current, {
-                transferState: { handoffToken: result.handoff.token },
+                transferState: token ? { handoffToken: token } : undefined,
             });
             setDetached(false);
-            setTransferError('');
+            setTransferError(restarted ? 'Previous terminal session expired; started a new shell.' : '');
             popupRef.current?.close();
             popupRef.current = null;
             requestAnimationFrame(() => window.dispatchEvent(new Event('dock-resize')));
