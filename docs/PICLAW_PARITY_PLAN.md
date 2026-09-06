@@ -2597,3 +2597,13 @@ artifacts were removed. Passing this run does not identify or fix the previously
 intermittent picker-opening failures, approve visual equivalence, or satisfy
 third-party ACP, persistent runtime isolation, attachment consumption or speech
 service acceptance.
+
+### Immediate model-change context refresh
+
+Local model-state application and scoped model SSE updates now clear displayed
+context immediately and request fresh usage instead of retaining previous-model
+metrics until the 15-second poll. Existing request/session/generation guards reject
+older context responses. A delayed-response mounted regression confirms the gauge
+is absent while fresh usage is pending and then exposes the new 50% reading.
+Ten targeted Chromium/WebKit tests, 19 frontend tests and build/lint pass. Synthetic
+model event coverage does not establish real-provider usage reporting.

@@ -1877,6 +1877,8 @@ function App() {
         if (nextModel !== undefined) setActiveModel(nextModel);
         if (payload.thinking_level !== undefined) setActiveThinkingLevel(payload.thinking_level ?? null);
         if (payload.supports_thinking !== undefined) setSupportsThinking(Boolean(payload.supports_thinking));
+        setContextUsage(null);
+        void refreshSelectedContext();
     }, []);
 
     useEffect(() => {
@@ -1945,6 +1947,8 @@ function App() {
             setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
             setActiveThinkingLevel(data.thinking_level ?? null);
             setSupportsThinking(model?.reasoning === true);
+            setContextUsage(null);
+            void refreshSelectedContext();
             return;
         }
 

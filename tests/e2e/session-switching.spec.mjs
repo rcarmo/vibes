@@ -1050,3 +1050,34 @@ test('older session-list response cannot overwrite a newer SSE refresh', async (
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     await expect(trigger).toContainText('Newest snapshot');
 });
+
+test('model SSE clears stale context while fresh usage is pending', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    await page.route('**/agent/context?*', route => route.fulfill({
+        contentType: 'application/json', body: JSON.stringify({ percent: 25, tokens: 1000, contextWindow: 4000 }),
+    }));
+    await page.goto('/');
+    const gauge = page.locator('.compose-context-pie');
+    await expect(gauge).toHaveCount(1);
+    let release;
+    const pending = new Promise(resolve => { release = resolve; });
+    let requested = false;
+    await page.route('**/agent/context?*', async route => {
+        requested = true;
+        await pending;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ percent: 50, tokens: 2000, contextWindow: 4000 }) });
+    });
+    await page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('session_model_changed', {
+        data: JSON.stringify({ session_id: 'default', model: { provider: 'test', id: 'changed' } }),
+    })));
+    await expect.poll(() => requested).toBe(true);
+    await expect(gauge).toHaveCount(0);
+    release();
+    await expect(gauge).toHaveCount(1);
+    await expect(gauge).toHaveAttribute('aria-label', /50%/);
+});
