@@ -1863,3 +1863,10 @@ Fetch wrapper preserves HTTP status on errors. Instance-pin 412 invalidates load
 ETag and disables Save until reload, preventing repeated known-stale submissions.
 18 frontend unit tests, eight headed instance-pin tests and build/lint pass;
 conflict test verifies disabled Save followed by re-enabled control after Load.
+
+### Expanded preference mobile reachability
+
+At 390x844 with 20 catalog entries, expanded instance preferences and Load/Save/
+Close controls remain inside viewport in Chromium/WebKit (two tests pass). No
+layout change needed. This is bounded mobile acceptance, not a full Models
+settings/reference screenshot comparison.

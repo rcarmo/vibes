@@ -627,3 +627,21 @@ test('instance pin save rejects concurrent server preference change', async ({ p
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save instance pins', exact: true })).toBeEnabled();
 });
+
+test('expanded instance preferences remain reachable on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: Array.from({ length: 20 }, (_, i) => ({ provider: 'test', id: 'model-' + i })) }) }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByText('Instance pin preferences', { exact: true }).click();
+    const popup = page.locator('.compose-model-popup');
+    const bounds = await popup.boundingBox();
+    expect(bounds.y).toBeGreaterThanOrEqual(0);
+    expect(bounds.x + bounds.width).toBeLessThanOrEqual(391);
+    for (const name of ['Load instance pins', 'Save instance pins', 'Close model picker']) {
+        const box = await page.getByRole('button', { name, exact: true }).boundingBox();
+        expect(box.y).toBeGreaterThanOrEqual(0);
+        expect(box.y + box.height).toBeLessThanOrEqual(845);
+    }
+});
