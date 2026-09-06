@@ -1752,3 +1752,12 @@ than raw get_state RPC. Busy/mismatched contexts retain configured registry mode
 metadata (never assigned to composer live label). 495 backend tests pass,
 including no raw RPC and explicit default inspection when unavailable. This
 protects prompt stream ownership during periodic registry refresh.
+
+### Local row-action visual consistency
+
+Reviewed fresh current/deployed mobile picker captures. Local per-row rename/
+archive/delete additions used unthemed native buttons; they now reuse deployed
+compose-model-popup-btn styling, with danger treatment on delete. Fifty headed
+picker tests and build/lint pass, including mobile button bounds. Extra row actions,
+metadata density and fixture differences remain documented deviations; this is
+not an approval of full screenshot equivalence.

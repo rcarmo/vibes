@@ -63,9 +63,9 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
                     ${item.queued_count > 0 && html`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${item.queued_count} queued</span>`}
                     </span></span>
                 </button>
-                <button type="button" class="session-row-action" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
-                ${item.id !== 'default' && onArchive && html`<button type="button" class="session-row-action" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} disabled=${!item.archived && item.is_running === true} title=${!item.archived && item.is_running ? 'Stop the running turn before archiving' : undefined} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
-                ${item.id !== 'default' && html`<button type="button" class="session-row-action" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count || parents.has(item.id)} title=${parents.has(item.id) ? 'Sessions with children cannot be deleted' : item.message_count ? 'Only empty sessions can be deleted' : undefined} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
+                <button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`Rename ${item.name}`} onClick=${() => act(() => onRename?.(item.id))}>Rename</button>
+                ${item.id !== 'default' && onArchive && html`<button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} disabled=${!item.archived && item.is_running === true} title=${!item.archived && item.is_running ? 'Stop the running turn before archiving' : undefined} onClick=${() => act(() => onArchive(item.id, !item.archived))}>${item.archived ? 'Restore' : 'Archive'}</button>`}
+                ${item.id !== 'default' && html`<button type="button" class="session-row-action compose-model-popup-btn danger" aria-label=${`Delete ${item.name}`} disabled=${!!item.message_count || parents.has(item.id)} title=${parents.has(item.id) ? 'Sessions with children cannot be deleted' : item.message_count ? 'Only empty sessions can be deleted' : undefined} onClick=${() => act(() => onDelete?.(item.id))}>Delete</button>`}
             </div>`; })}
             </div>`)}
         </div>

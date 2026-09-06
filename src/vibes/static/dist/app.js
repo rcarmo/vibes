@@ -55,9 +55,9 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                     ${kt.queued_count>0&&Ze`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${kt.queued_count} queued</span>`}
                     </span></span>
                 </button>
-                <button type="button" class="session-row-action" aria-label=${`Rename ${kt.name}`} onClick=${()=>Xt(()=>m?.(kt.id))}>Rename</button>
-                ${kt.id!=="default"&&Q&&Ze`<button type="button" class="session-row-action" aria-label=${`${kt.archived?"Restore":"Archive"} ${kt.name}`} disabled=${!kt.archived&&kt.is_running===!0} title=${!kt.archived&&kt.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>Xt(()=>Q(kt.id,!kt.archived))}>${kt.archived?"Restore":"Archive"}</button>`}
-                ${kt.id!=="default"&&Ze`<button type="button" class="session-row-action" aria-label=${`Delete ${kt.name}`} disabled=${!!kt.message_count||bt.has(kt.id)} title=${bt.has(kt.id)?"Sessions with children cannot be deleted":kt.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>Xt(()=>y?.(kt.id))}>Delete</button>`}
+                <button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`Rename ${kt.name}`} onClick=${()=>Xt(()=>m?.(kt.id))}>Rename</button>
+                ${kt.id!=="default"&&Q&&Ze`<button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`${kt.archived?"Restore":"Archive"} ${kt.name}`} disabled=${!kt.archived&&kt.is_running===!0} title=${!kt.archived&&kt.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>Xt(()=>Q(kt.id,!kt.archived))}>${kt.archived?"Restore":"Archive"}</button>`}
+                ${kt.id!=="default"&&Ze`<button type="button" class="session-row-action compose-model-popup-btn danger" aria-label=${`Delete ${kt.name}`} disabled=${!!kt.message_count||bt.has(kt.id)} title=${bt.has(kt.id)?"Sessions with children cannot be deleted":kt.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>Xt(()=>y?.(kt.id))}>Delete</button>`}
             </div>`})}
             </div>`)}
         </div>
@@ -2078,4 +2078,4 @@ ${a}
         </div>
     `}d4t(Ze`<${V7n} />`,document.getElementById("app"));
 
-//# debugId=E0045827A647737264756E2164756E21
+//# debugId=5C7C08526C0B586E64756E2164756E21
