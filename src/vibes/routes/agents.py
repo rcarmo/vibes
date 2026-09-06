@@ -5,6 +5,7 @@ import json
 import logging
 import re
 from aiohttp import web
+import asyncio
 from ..db import get_db
 from ..config import get_config
 from ..opengraph import queue_link_preview_fetch
@@ -34,6 +35,7 @@ from ..followups import (
     list_pending_steers,
     queue_followup,
     remove_followup,
+    restore_followup,
 )
 from .sse import broadcast_event
 
@@ -404,17 +406,18 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     if agent_mode == "pi" and _is_agent_busy(agent_mode):
-        actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}))
+        try:
+            actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}))
+        except asyncio.CancelledError:
+            restore_followup(removed)
+            raise
+        except Exception:
+            actual_steer = False
         emulated = not actual_steer
 
     if not actual_steer:
-        steered = defer_steer(
-            thread_id=removed["thread_id"],
-            agent_id=removed["agent_id"],
-            message_id=removed["message_id"],
-            content=removed["content"],
-            emulated=True,
-        )
+        emulated = True
+        steered = restore_followup(removed, steer=True)
     else:
         steered = {
             **removed,

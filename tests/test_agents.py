@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp.test_utils import make_mocked_request
@@ -666,3 +666,30 @@ async def test_get_agent_models_rpc_failure():
         resp = await agents_mod.get_agent_models(req)
     body = json.loads(resp.body)
     assert body == {"current": None, "models": []}
+
+
+@pytest.mark.asyncio
+async def test_queue_promotion_cancel_restores_identity(mock_deps):
+    import asyncio
+    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='keep')
+    req = MagicMock()
+    req.json = AsyncMock(return_value={'row_id': item['row_id']})
+    with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=True), \
+         patch.object(agents_mod, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)):
+        with pytest.raises(asyncio.CancelledError):
+            await agents_mod.steer_queue_item(req)
+    assert followups_mod.list_followups()[0]['row_id'] == item['row_id']
+
+
+@pytest.mark.asyncio
+async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps):
+    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='keep')
+    req = MagicMock()
+    req.json = AsyncMock(return_value={'row_id': item['row_id']})
+    with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=False):
+        response = await agents_mod.steer_queue_item(req)
+    data = json.loads(response.text)
+    assert data['item']['emulated'] is True
+    assert data['item']['row_id'] == item['row_id']

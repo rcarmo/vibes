@@ -112,6 +112,18 @@ def promote_to_pending_steer(row_id: int, *, emulated: bool = True) -> Optional[
     return None
 
 
+def restore_followup(item: dict, *, steer: bool = False) -> dict:
+    """Restore a claimed item without allocating a new public row ID."""
+    restored = FollowupItem(**item)
+    if steer:
+        restored.mode = 'steer'
+        restored.emulated = True
+        _state.pending_steers.append(restored)
+    else:
+        _state.queued.insert(0, restored)
+    return restored.as_dict()
+
+
 def remove_followup(row_id: int) -> Optional[dict]:
     """Remove a queued or pending steering item."""
     for idx, item in enumerate(_state.queued):

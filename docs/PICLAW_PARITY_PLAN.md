@@ -284,3 +284,12 @@ Ctrl/Cmd+Enter submits mode=steer. Search and slash completion retain their own
 handling. Updated misleading Send/Attach image titles. Twelve combined mode and
 attachment browser tests pass across Chromium/WebKit; build/lint pass. Backend
 atomic queue promotion/reordering remains separate pending work.
+
+### Queue promotion safety
+
+Claimed queue entries now retain their public row ID when deferred as steering.
+Cancellation during Pi write restores the item; failed writes fall back to pending
+steer. Idle Pi fallback is honestly marked emulated. 416 backend tests pass.
+This is in-process claim/rollback, not a durable exactly-once delivery guarantee:
+a transport cancellation after bytes were sent remains an ambiguous delivery case.
+Queue reordering and concurrency coverage still pending.
