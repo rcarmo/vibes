@@ -1495,3 +1495,12 @@ choice from other reported choices, retaining existing keyboard navigation and
 scoped selection. Twenty-six headed model/thinking/catalog tests and build/lint
 pass. Pin persistence and settings surface remain unimplemented; no unavailable
 settings button exposed. Exact deployed grouping/style comparison remains open.
+
+### Browser-local model pins
+
+Model picker supports pin/unpin controls and Current/Pinned/Other grouping.
+Only current catalog entries are rendered; stored pins never establish availability
+or mutate active model. Pins are bounded to 100 browser-local identities, malformed
+storage is ignored and failed writes disclosed. 17 frontend unit tests, 26 headed
+model tests and build/lint pass. Server-synced preferences/settings and full visual
+comparison remain open; pin persistence is explicitly browser-local.

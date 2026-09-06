@@ -1,3 +1,4 @@
+import { loadModelPins, saveModelPins } from './model-pins.js';
 import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
@@ -275,9 +276,16 @@ export function ComposeBox({
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
     const filteredModels = modelOptions.filter(label => label.toLowerCase().includes(modelQuery.trim().toLowerCase()));
+    const [modelPins, setModelPins] = useState(() => loadModelPins(localStorage));
+    const toggleModelPin = label => {
+        const next = modelPins.includes(label) ? modelPins.filter(item => item !== label) : [...modelPins, label].slice(-100);
+        setModelPins(next);
+        if (!saveModelPins(localStorage, next)) setModelCatalogError('Model pins could not be saved in this browser');
+    };
     const modelGroups = [
         { label: 'Current', models: filteredModels.filter(label => label === activeModel) },
-        { label: 'Other models', models: filteredModels.filter(label => label !== activeModel) },
+        { label: 'Pinned', models: filteredModels.filter(label => label !== activeModel && modelPins.includes(label)) },
+        { label: 'Other models', models: filteredModels.filter(label => label !== activeModel && !modelPins.includes(label)) },
     ].filter(group => group.models.length);
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
@@ -979,7 +987,8 @@ export function ComposeBox({
                                 ${!loadingModels && modelOptions.length > 0 && filteredModels.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching models</div>`}
                             ${!loadingModels && modelGroups.map(group => html`<div role="group" aria-label=${group.label}>
                                 <div class="compose-session-section-heading">${group.label}</div>
-                                ${group.models.map((modelLabel) => html`
+                                ${group.models.map((modelLabel) => html`<div class="compose-model-popup-item-row" key=${modelLabel}>
+                                    <button type="button" class="compose-session-row-pin" aria-label=${`${modelPins.includes(modelLabel) ? 'Unpin' : 'Pin'} model ${modelLabel}`} aria-pressed=${modelPins.includes(modelLabel)} onClick=${() => toggleModelPin(modelLabel)}>${modelPins.includes(modelLabel) ? '★' : '☆'}</button>
                                     <button
                                         key=${modelLabel}
                                         type="button"
@@ -989,7 +998,7 @@ export function ComposeBox({
                                         disabled=${switchingModel}
                                     >
                                         ${modelLabel}
-                                    </button>
+                                    </button></div>
                                 `)}
                             </div>`)}
                             </div>
