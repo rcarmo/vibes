@@ -1901,3 +1901,13 @@ Thinking preflight now updates displayed catalog/model options before validating
 requested level, removing stale choices even when selection is rejected. Eight
 headed thinking tests and build/lint pass; removed-high case now verifies option
 removal and restoration of confirmed off selection, with no mutation.
+
+### Reference reassessment acceptance
+
+Reference reassessment is complete: the stale workspace checkout was rejected,
+deployed 2.15.3 classic source-map extracts selected, upstream xterm direction
+confirmed, and isolated rendered model/session popup references captured. Ghostty
+is optional; terminal handoff/PTY assumptions were corrected and tested. This
+closes reference selection/reassessment only, not remaining UI implementation or
+visual-equivalence acceptance. Removed an embedded credential from the local Git
+remote URL during repository inspection; remote now uses the public HTTPS URL.
