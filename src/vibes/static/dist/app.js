@@ -190,7 +190,7 @@ ${Sn.map((ih,sh)=>{let aw=zu[sh]?.name||`image-${sh+1}`;return`- attachment:${ih
             >
                 <div class="compose-input-main">
                     ${!l&&De&&bt`<div class="compose-inline-status" role="status" aria-live="polite"><span class="compose-session-status-pill compacting">Compacting context…</span></div>`}
-                    ${te.kind!=="idle"&&bt`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${te.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-title">${te.kind==="listening"?"Listening…":te.kind==="requesting_permission"?"Requesting microphone permission…":"Speech input error"}</span></div>${te.detail&&bt`<div class="compose-inline-status-detail">${te.detail}</div>`}</div>`}
+                    ${te.kind!=="idle"&&bt`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${te.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-dot" aria-hidden="true"></span><span class="compose-inline-status-title">${te.kind==="listening"?"Listening…":te.kind==="requesting_permission"?"Requesting microphone permission…":"Speech input error"}</span></div>${te.detail&&bt`<div class="compose-inline-status-detail">${te.detail}</div>`}</div>`}
                     ${!l&&bt`
                         <${tfn}
                             items=${Ae}
@@ -349,7 +349,7 @@ ${Sn.map((ih,sh)=>{let aw=zu[sh]?.name||`image-${sh+1}`;return`- attachment:${ih
                             </svg>
                         </button>
                     `}
-                    ${Zr&&!l&&bt`<button type="button" class=${`compose-icon-btn compose-mic-btn${En?" active":""}`} title="Speech input (hold Space in an empty composer to talk)" aria-label=${En?"Stop speech input":"Start speech input"} aria-pressed=${En} disabled=${Za} onPointerDown=${Ni} onPointerUp=${hs} onPointerCancel=${hs} onLostPointerCapture=${hs} onClick=${(pt)=>{if(vn.current&&pt.detail!==0){vn.current=!1;return}if(vn.current=!1,En)rr.current?.stop();else fi()}}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
+                    ${Zr&&!l&&bt`<button type="button" class=${`compose-icon-btn compose-mic-btn${En?" active":""}`} title="Speech input (hold Space in an empty composer to talk; browser recognition may use a remote service)" aria-label=${En?"Stop speech input":"Start speech input"} aria-pressed=${En} disabled=${Za} onPointerDown=${Ni} onPointerUp=${hs} onPointerCancel=${hs} onLostPointerCapture=${hs} onClick=${(pt)=>{if(vn.current&&pt.detail!==0){vn.current=!1;return}if(vn.current=!1,En)rr.current?.stop();else fi()}}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
                     ${Ci&&!l&&bt`
                         <button
                             class=${`icon-btn notification-btn${ys?" active":""}`}
@@ -2056,4 +2056,4 @@ ${a}
         </div>
     `}h4t(bt`<${U7n} />`,document.getElementById("app"));
 
-//# debugId=0AAF23343769B0CA64756E2164756E21
+//# debugId=3975801EF0AB805C64756E2164756E21

@@ -133,3 +133,19 @@ test('hidden page aborts speech and invalidates delayed transcript', async ({ pa
     await expect(input).toHaveValue('Keep draft');
     await expect(page.locator('.compose-speech-status')).toHaveCount(0);
 });
+
+test('speech active control and permission status fit mobile width', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const button = page.getByRole('button', { name: 'Start speech input' });
+    await expect(button).toHaveAttribute('title', /remote service/);
+    await button.click();
+    const active = page.getByRole('button', { name: 'Stop speech input' });
+    await expect(active).toHaveAttribute('aria-pressed', 'true');
+    await expect(active).toHaveClass(/active/);
+    const status = page.locator('.compose-speech-status');
+    await expect(status.locator('.compose-inline-status-dot')).toBeVisible();
+    const box = await status.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(391);
+});

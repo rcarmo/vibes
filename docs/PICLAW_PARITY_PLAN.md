@@ -1287,3 +1287,11 @@ inspection gating, ACP declaration API/lifecycle, pending/background speech
 cleanup, context gauge/compaction and terminal shortcut. No retries/skips added.
 External-agent/live-service acceptance and final deployed visual comparisons
 remain open; this checkpoint is not overall completion.
+
+### Visible speech activity and service disclosure
+
+Active mic has explicit accent/background/outline; speech status includes deployed
+status-dot structure and error styling. Narrow status titles wrap. Mic tooltip
+notes browser recognition may use a remote service. Eighteen headed Chromium/
+WebKit speech tests and build/lint pass, including mobile status bounds and
+active accessibility state. Screenshot equivalence/live service remain open.

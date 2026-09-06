@@ -3567,3 +3567,10 @@ body {
     .compose-session-popup .session-picker-row > .session-item { flex-basis: calc(100% - 58px); }
     .compose-session-popup .session-row-action { min-height: 44px; }
 }
+
+.compose-mic-btn.active { color: var(--accent-color); background: color-mix(in srgb, var(--accent-color) 18%, transparent); outline: 1px solid var(--accent-color); }
+.compose-speech-status-error { border-color: var(--error-color, #ef4444); }
+.compose-speech-status-error .compose-inline-status-dot { background: var(--error-color, #ef4444); }
+@media (max-width: 600px) {
+    .compose-speech-status .compose-inline-status-title { white-space: normal; overflow-wrap: anywhere; }
+}

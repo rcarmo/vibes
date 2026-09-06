@@ -870,7 +870,7 @@ export function ComposeBox({
             >
                 <div class="compose-input-main">
                     ${!searchMode && isCompacting && html`<div class="compose-inline-status" role="status" aria-live="polite"><span class="compose-session-status-pill compacting">Compacting context…</span></div>`}
-                    ${speechState.kind !== 'idle' && html`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${speechState.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-title">${speechState.kind === 'listening' ? 'Listening…' : speechState.kind === 'requesting_permission' ? 'Requesting microphone permission…' : 'Speech input error'}</span></div>${speechState.detail && html`<div class="compose-inline-status-detail">${speechState.detail}</div>`}</div>`}
+                    ${speechState.kind !== 'idle' && html`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${speechState.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-dot" aria-hidden="true"></span><span class="compose-inline-status-title">${speechState.kind === 'listening' ? 'Listening…' : speechState.kind === 'requesting_permission' ? 'Requesting microphone permission…' : 'Speech input error'}</span></div>${speechState.detail && html`<div class="compose-inline-status-detail">${speechState.detail}</div>`}</div>`}
                     ${!searchMode && html`
                         <${FollowupQueue}
                             items=${queuedFollowups}
@@ -1029,7 +1029,7 @@ export function ComposeBox({
                             </svg>
                         </button>
                     `}
-                    ${speechAvailable && !searchMode && html`<button type="button" class=${`compose-icon-btn compose-mic-btn${speechActive ? ' active' : ''}`} title="Speech input (hold Space in an empty composer to talk)" aria-label=${speechActive ? 'Stop speech input' : 'Start speech input'} aria-pressed=${speechActive} disabled=${loading} onPointerDown=${handleSpeechPointerDown} onPointerUp=${releaseSpeechPointer} onPointerCancel=${releaseSpeechPointer} onLostPointerCapture=${releaseSpeechPointer} onClick=${event => {
+                    ${speechAvailable && !searchMode && html`<button type="button" class=${`compose-icon-btn compose-mic-btn${speechActive ? ' active' : ''}`} title="Speech input (hold Space in an empty composer to talk; browser recognition may use a remote service)" aria-label=${speechActive ? 'Stop speech input' : 'Start speech input'} aria-pressed=${speechActive} disabled=${loading} onPointerDown=${handleSpeechPointerDown} onPointerUp=${releaseSpeechPointer} onPointerCancel=${releaseSpeechPointer} onLostPointerCapture=${releaseSpeechPointer} onClick=${event => {
                         if (suppressSpeechClick.current && event.detail !== 0) { suppressSpeechClick.current = false; return; }
                         suppressSpeechClick.current = false;
                         if (speechActive) speechRef.current?.stop(); else startSpeech();
