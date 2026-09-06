@@ -2089,3 +2089,12 @@ Deployed source-map inspection confirms app-main-shell-render.ts renders a sibli
 `dock-splitter` whenever dock panes are visible, even without editorOpen. Local
 splitter is nested and only present with an editor. This identifies the source of
 the 4px standalone offset; structural equivalence remains open, not approved.
+
+### Deployed terminal icon geometry
+
+Matched pop-out rounded rectangle/arrow, reattach rounded rectangle/plus, and
+close line geometry to deployed app-main-shell-render.ts source-map content.
+Matched detached explanatory text. Kept decorative aria-hidden attributes,
+explicit reattach button type, transfer disabling, and accessible heading as
+intentional local safeguards; detached wrapper class alignment remains open.
+Build/lint and all 38 headed terminal tests pass across Chromium/WebKit.

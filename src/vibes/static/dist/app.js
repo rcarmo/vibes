@@ -1372,11 +1372,11 @@ mark	line	col
             <span class="dock-panel-title">Terminal</span>
             <div class="dock-panel-actions">
                 ${!s&&!m&&et`<button class="dock-panel-action" disabled=${j} onClick=${Ae} title="Open terminal in window" aria-label="Open terminal in window">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3H3v10h10v-3" /><path d="M9 3h4v4" /><path d="M8 8l5-5" /></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="2.25" width="8.5" height="8.5" rx="1.5" /><path d="M8.5 2.25h5.25v5.25" /><path d="M13.75 2.25 7.75 8.25" /></svg>
                 </button>`}
-                ${m&&et`<button type="button" class="dock-panel-action" title="Reattach terminal" aria-label="Reattach terminal" disabled=${j} onClick=${ze}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V3h10v10h-3" /><path d="M3 9v4h4" /><path d="M3 13l5-5" /></svg></button>`}
+                ${m&&et`<button type="button" class="dock-panel-action" title="Reattach terminal" aria-label="Reattach terminal" disabled=${j} onClick=${ze}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.25" y="2.25" width="11.5" height="11.5" rx="1.5" /><path d="M5.25 8h5.5" /><path d="M8 5.25v5.5" /></svg></button>`}
                 <button class="dock-panel-close" onClick=${r} title="Hide terminal" aria-label="Hide terminal">
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="4" x2="12" y2="12" /><line x1="12" y1="4" x2="4" y2="12" /></svg>
                 </button>
             </div>
         </div>
@@ -1384,7 +1384,7 @@ mark	line	col
         ${m&&et`<div class="dock-panel-body dock-panel-body-detached">
             <div class="editor-empty-state pane-detached-state">
                 <h3>Terminal detached</h3>
-                <p>This terminal is open in another window.</p>
+                <p>The terminal is open in another window.</p>
                 <button type="button" class="editor-empty-action" disabled=${j} onClick=${ze}>Reattach here</button>
             </div>
         </div>`}
@@ -2090,4 +2090,4 @@ ${a}
         </div>
     `}p4t(et`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=48B1349F30A4D71864756E2164756E21
+//# debugId=9F30EE68F83A953E64756E2164756E21
