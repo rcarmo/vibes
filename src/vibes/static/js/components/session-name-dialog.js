@@ -1,6 +1,6 @@
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 
-export function SessionNameDialog({ name, onSave, onClose }) {
+export function SessionNameDialog({ name, onSave, onClose, creating = false }) {
     const [value, setValue] = useState(name || '');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -17,7 +17,7 @@ export function SessionNameDialog({ name, onSave, onClose }) {
         if (!valid || busy) return;
         setBusy(true); setError('');
         try { await onSave(value.trim()); onClose(); }
-        catch (err) { setError(err.message || 'Unable to rename session'); setBusy(false); }
+        catch (err) { setError(err.message || 'Unable to save session'); setBusy(false); }
     };
     const keys = event => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onClose(); }
@@ -29,11 +29,11 @@ export function SessionNameDialog({ name, onSave, onClose }) {
     };
     return html`<div class="rename-branch-overlay" onPointerDown=${event => { if (event.target === event.currentTarget && !busy) onClose(); }}>
         <form ref=${panel} class="rename-branch-panel" role="dialog" aria-modal="true" aria-labelledby="session-name-title" aria-busy=${busy} onSubmit=${submit} onKeyDown=${keys}>
-            <h2 id="session-name-title">Rename session</h2>
+            <h2 id="session-name-title">${creating ? 'New session' : 'Rename session'}</h2>
             <input ref=${input} class="rename-branch-input" aria-label="Session name" aria-describedby="session-name-help" value=${value} disabled=${busy} onInput=${event => setValue(event.target.value)} />
             <div id="session-name-help" class="rename-branch-help">Use 1–80 characters without control characters.</div>
             ${error && html`<div role="alert">${error}</div>`}
-            <div class="rename-branch-actions"><button class="rename-branch-save" type="submit" disabled=${!valid || busy}>${busy ? 'Renaming…' : 'Save'}</button><button class="rename-branch-cancel" type="button" disabled=${busy} onClick=${onClose}>Cancel</button></div>
+            <div class="rename-branch-actions"><button class="rename-branch-save" type="submit" disabled=${!valid || busy}>${busy ? (creating ? 'Creating…' : 'Renaming…') : (creating ? 'Create' : 'Save')}</button><button class="rename-branch-cancel" type="button" disabled=${busy} onClick=${onClose}>Cancel</button></div>
         </form>
     </div>`;
 }

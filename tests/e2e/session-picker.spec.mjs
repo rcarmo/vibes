@@ -98,3 +98,28 @@ test('mounted rename dialog validates, saves and restores focus', async ({ page 
     await expect(page.getByTestId('session-switcher')).toContainText('Renamed default');
     await expect(row.getByRole('button', { name: 'Rename Renamed default', exact: true })).toBeFocused();
 });
+
+test('create dialog preserves input on server error then creates selected session', async ({ page }) => {
+    await page.goto('/');
+    let fail = true;
+    await page.route('**/sessions', route => {
+        if (route.request().method() === 'POST' && fail) {
+            fail = false;
+            return route.fulfill({ status: 400, contentType: 'application/json', body: '{"error":"Creation rejected"}' });
+        }
+        return route.continue();
+    });
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('button', { name: 'New session', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'New session' });
+    const input = dialog.getByRole('textbox', { name: 'Session name' });
+    await expect(input).toBeFocused();
+    await expect(dialog.getByRole('button', { name: 'Create', exact: true })).toBeDisabled();
+    await input.fill('Created in dialog');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Creation rejected');
+    await expect(input).toHaveValue('Created in dialog');
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId('session-switcher')).toContainText('Created in dialog');
+});

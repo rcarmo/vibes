@@ -1014,3 +1014,13 @@ restoration, Escape/backdrop cancel, busy/error feedback and backend-compatible
 lint pass, including mounted API save and focus return. Names intentionally remain
 display names rather than deployed restricted handles; CSS is a local adaptation
 pending screenshot comparison. Create/delete prompts remain to migrate.
+
+### In-page session creation
+
+New session now reuses the accessible name dialog rather than a browser prompt.
+Creation errors retain the entered name; successful creation refreshes/selects
+the new session. A confirmed created ID is retained while retrying refresh/select
+so a later UI failure does not intentionally issue another create. Ten headed
+Chromium/WebKit picker tests and build/lint pass, including rejected POST/retry.
+Delete confirmation and final visual comparison remain open; network-uncertain
+POST outcomes are not claimed exactly-once.

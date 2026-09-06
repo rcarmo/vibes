@@ -693,6 +693,8 @@ function App() {
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const [renamingSession, setRenamingSession] = useState(null);
+    const [creatingSession, setCreatingSession] = useState(false);
+    const createdSessionRef = useRef(null);
     const refreshSessions = async () => {
         const result = await getSessions(true);
         setSessionOptions(result.sessions);
@@ -2480,7 +2482,7 @@ function App() {
                 />
                 <button class="session-trigger" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
                 ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${() => setSessionPickerOpen(false)}
-                    onCreate=${async () => { const name = prompt('Session name'); if (!name) return; const result = await createSession(name); await refreshSessions(); await selectSession(result.session.id); }}
+                    onCreate=${() => { createdSessionRef.current = null; setCreatingSession(true); }}
                     onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
                     onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
                     onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
@@ -2516,6 +2518,7 @@ function App() {
                     onToggleNotifications=${handleToggleNotifications}
                 />
                 ${renamingSession && html`<${SessionNameDialog} key=${renamingSession.id} name=${renamingSession.name} onClose=${() => setRenamingSession(null)} onSave=${async name => { await updateSession(renamingSession.id, { name }); await refreshSessions(); }} />`}
+            ${creatingSession && html`<${SessionNameDialog} creating=${true} onClose=${() => setCreatingSession(false)} onSave=${async name => { if (!createdSessionRef.current) { const result = await createSession(name); createdSessionRef.current = result.session.id; } await refreshSessions(); await selectSession(createdSessionRef.current); }} />`}
             <${ConnectionStatus} status=${connectionStatus} />
                 <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
             </div>`}
