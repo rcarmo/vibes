@@ -360,3 +360,12 @@ test('Rename current footer targets selected chat despite search filter', async 
     await expect(dialog.getByRole('textbox', { name: 'Session name' })).toHaveValue('Footer target');
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
 });
+
+test('current selection badge does not imply a running turn', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    const selected = page.locator('#session-option-default');
+    await expect(selected.locator('.compose-session-status-pill.current')).toHaveText('Current');
+    await expect(selected.locator('.compose-session-status-pill.idle')).toHaveText('Idle');
+    await expect(selected.locator('.compose-session-status-pill.active')).toHaveCount(0);
+});

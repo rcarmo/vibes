@@ -1585,3 +1585,10 @@ Current Chromium/WebKit capture tests now assert those same popup bounds (four
 capture tests pass). This verifies outer popup geometry only; differing seeded
 sessions, row actions and metadata prevent pixel-equivalence claims. Internal
 layout/state comparison remains open.
+
+### Separate selected-session badge
+
+Selected row now displays deployed Current pill separately from runtime Idle/
+Running and queued counts. Forty headed picker tests and build/lint pass,
+including explicit Current+Idle without active-turn badge. Selection remains UI
+state, not evidence of a running backend. Final visual acceptance stays open.
