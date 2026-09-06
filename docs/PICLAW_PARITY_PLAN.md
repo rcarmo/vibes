@@ -2519,3 +2519,12 @@ with retain-on-failure tracing: 288 passed, one worker, 5.9m. This successful ru
 does NOT establish a fix for the earlier two closed-picker failures. Original
 failure artifacts remain in /workspace/tmp/picker-failure-evidence; root cause is
 still unconfirmed. Diagnostics remain to make the next occurrence actionable.
+
+### Bounded WebKit reproduction experiment
+
+Ran both intermittent cases 20 times each with headed WebKit, one worker,
+retain-on-failure tracing and zero retries: all 40 executions pass (8.2m).
+Complete experiment log: /workspace/tmp/picker-stress.log. No application changes
+or fix established. Stop unchanged repetition: original closed-picker failures
+remain unresolved; bounded failure diagnostics stay enabled for future recurrence.
+The successful stress result does not supersede original failure evidence.
