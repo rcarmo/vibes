@@ -3415,3 +3415,6 @@ body {
 .upload-progress-bar{overflow:hidden;background:color-mix(in srgb,var(--accent-color)16%,var(--bg-secondary));border-radius:999px;height:4px;margin-top:6px}
 .upload-progress-fill{border-radius:inherit;background:var(--accent-color);height:100%;transition:width .15s}
 .upload-progress-fill{transition:none}
+.compose-search-filter-wrap{display:inline-flex;cursor:pointer;align-items: center;gap:4px;margin-right:4px}
+.compose-search-filter-wrap input[type=checkbox]{accent-color:var(--accent-color);margin:0}
+.compose-search-filter-label{color:var(--text-secondary);white-space:nowrap;font-size:11px}

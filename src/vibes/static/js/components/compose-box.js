@@ -160,6 +160,8 @@ export function ComposeBox({
 }) {
     const [content, setContent] = useState('');
     const [searchText, setSearchText] = useState('');
+    const [searchFilterImages, setSearchFilterImages] = useState(false);
+    const [searchFilterAttachments, setSearchFilterAttachments] = useState(false);
     const [loading, setLoading] = useState(false);
     const [submitError, setSubmitError] = useState('');
     const [uploadProgress, setUploadProgress] = useState(null);
@@ -553,7 +555,7 @@ export function ComposeBox({
             e.preventDefault();
             if (searchMode) {
                 if (searchText.trim()) {
-                    onSearch?.(searchText.trim());
+                    onSearch?.(searchText.trim(), { images: searchFilterImages, attachments: searchFilterAttachments });
                 }
             } else {
                 handleSubmit(e.ctrlKey || e.metaKey ? 'steer' : 'auto');
@@ -701,6 +703,16 @@ export function ComposeBox({
 
     return html`
         <div class="compose-box">
+            ${searchMode && html`<div class="compose-search-filters">
+                <label class="compose-search-filter-wrap" title="Only messages with images">
+                    <input type="checkbox" checked=${searchFilterImages} onChange=${() => setSearchFilterImages(v => !v)} />
+                    <span class="compose-search-filter-label">Images</span>
+                </label>
+                <label class="compose-search-filter-wrap" title="Only messages with attachments">
+                    <input type="checkbox" checked=${searchFilterAttachments} onChange=${() => setSearchFilterAttachments(v => !v)} />
+                    <span class="compose-search-filter-label">Attachments</span>
+                </label>
+            </div>`}
             ${uploadProgress && html`<div class="compose-inline-status compose-upload-status" role="status" aria-live="polite" data-testid="compose-upload-status">
                 <div class="compose-inline-status-row">
                     <div class="compose-inline-status-spinner" aria-hidden="true"></div>

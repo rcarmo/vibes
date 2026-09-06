@@ -358,3 +358,10 @@ has_attachments=true. Filters combine with FTS and select stored media reference
 not filename guesses; root and direct replies define current thread scope.
 422 backend tests pass, including combined scope/media cases. Composer controls
 and session-bound scope are pending; no false current-session UI is exposed.
+
+### Composer media search filters
+
+Ported deployed checkbox label classes and CSS for Images/Attachments search
+filters. API forwards both flags; Chromium/WebKit test exact URL parameters.
+Frontend build/lint pass. Current-session versus all-session selection remains
+pending the session registry; backend thread_id support alone is not that UI.

@@ -1495,13 +1495,13 @@ function App() {
     }, []);
 
     // Handle search
-    const handleSearch = useCallback(async (query) => {
+    const handleSearch = useCallback(async (query, filters = {}) => {
         if (!query || !query.trim()) return;
         setSearchQuery(query.trim());
         setCurrentHashtag(null);
         setPosts(null);
         try {
-            const result = await searchPosts(query.trim());
+            const result = await searchPosts(query.trim(), 50, 0, filters);
             setPosts(result.results);
             setHasMore(false);
         } catch (error) {
