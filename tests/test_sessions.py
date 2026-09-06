@@ -35,7 +35,7 @@ async def test_registry_survives_reopen_without_duplicate_migration(db):
     async with db._connection.execute('SELECT version FROM schema_version') as cursor:
         rows = await cursor.fetchall()
     assert len(rows) == 1
-    assert rows[0]['version'] == 5
+    assert rows[0]['version'] == 6
 
 
 @pytest.mark.asyncio
@@ -52,3 +52,21 @@ async def test_messages_inherit_session_and_timeline_isolates(db):
         await db.create_interaction({'type': 'agent', 'content': 'wrong', 'thread_id': root, 'session_id': 'default'})
     with pytest.raises(ValueError):
         await db.create_interaction({'type': 'user', 'content': 'wrong', 'session_id': 'missing'})
+
+
+@pytest.mark.asyncio
+async def test_backend_bindings_isolate_conversations_and_persist(db):
+    store = SessionStore(db)
+    other = await store.create('Other')
+    await store.bind_backend('default', 'acp:agent', 'conversation-a', model='model-a')
+    await store.bind_backend(other['id'], 'acp:agent', 'conversation-b', model='model-b')
+    await store.bind_backend('default', 'pi', 'pi-conversation')
+    assert (await store.backend_binding('default', 'acp:agent'))['conversation_id'] == 'conversation-a'
+    assert (await store.backend_binding(other['id'], 'acp:agent'))['model'] == 'model-b'
+    await db.close()
+    await db.connect()
+    assert (await store.backend_binding('default', 'pi'))['conversation_id'] == 'pi-conversation'
+    with pytest.raises(ValueError):
+        await store.bind_backend('missing', 'pi', 'anything')
+    with pytest.raises(ValueError):
+        await store.bind_backend('default', '', 'anything')

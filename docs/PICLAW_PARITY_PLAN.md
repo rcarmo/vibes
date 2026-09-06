@@ -419,3 +419,11 @@ and media filters. Legacy messages remain default. Frontend API helper forwards
 session IDs for forthcoming picker scope controls. 428 backend tests pass,
 including cross-session/thread intersection; frontend build/lint pass. Scope
 selector remains pending runtime/session UI integration.
+
+### Backend conversation binding foundation
+
+Schema v6 stores conversation IDs/model/thinking metadata by chat session and
+backend identity. Binding APIs validate owning session and keep ACP/Pi mappings
+separate; persistence/isolation tests pass (429 backend tests). Mappings are
+internal only: runtime dispatch/resume has not yet been wired. Merely storing a
+conversation ID does not imply a provider can load it or preserve live context.

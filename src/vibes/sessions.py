@@ -14,6 +14,29 @@ class SessionStore:
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
+    async def backend_binding(self, session_id, backend):
+        async with self.db._connection.execute('SELECT * FROM chat_session_backends WHERE session_id=? AND backend=?', (session_id, backend)) as cursor:
+            row = await cursor.fetchone()
+        return dict(row) if row else None
+
+    async def bind_backend(self, session_id, backend, conversation_id, *, model=None, thinking_level=None):
+        if not await self.get(session_id):
+            raise ValueError('Session not found')
+        for value in (backend, conversation_id):
+            if not isinstance(value, str) or not value or len(value) > 512 or re.search(r'[\x00-\x1f\x7f]', value):
+                raise ValueError('Invalid backend identity')
+        for value in (model, thinking_level):
+            if value is not None and (not isinstance(value, str) or len(value) > 512):
+                raise ValueError('Invalid backend metadata')
+        async with self.db.transaction():
+            await self.db._connection.execute('''
+                INSERT INTO chat_session_backends(session_id,backend,conversation_id,model,thinking_level)
+                VALUES (?,?,?,?,?) ON CONFLICT(session_id,backend) DO UPDATE SET
+                conversation_id=excluded.conversation_id, model=excluded.model,
+                thinking_level=excluded.thinking_level, updated_at=CURRENT_TIMESTAMP
+            ''', (session_id, backend, conversation_id, model, thinking_level))
+        return await self.backend_binding(session_id, backend)
+
     async def timeline(self, session_id, *, limit=50, before_id=None):
         if not await self.get(session_id):
             raise ValueError('Session not found')
