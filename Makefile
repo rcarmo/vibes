@@ -4,7 +4,7 @@ PYTHON ?= python3
 PIP ?= pip3
 
 # Server configuration
-export VIBES_HOST ?= 0.0.0.0
+export VIBES_HOST ?= 127.0.0.1
 export VIBES_PORT ?= 8080
 export VIBES_ACP_AGENT ?= copilot --acp
 
@@ -90,3 +90,8 @@ push: ## Push commits and current tag to origin
 	else \
 		echo "No tag on current commit"; \
 	fi
+
+.PHONY: test-browser
+# WebKit popup automation requires a display on Linux; use Xvfb in CI.
+test-browser: build-frontend
+	xvfb-run -a bun x playwright test --headed

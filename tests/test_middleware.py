@@ -143,3 +143,22 @@ class TestCorsMiddleware:
         resp = await middleware(request, handler)
         assert resp.status == 200
         assert resp.headers["Access-Control-Allow-Origin"] == "*"
+
+@pytest.mark.asyncio
+async def test_cross_origin_workspace_access_denied():
+    middleware = mw.create_cors_middleware()
+    called = False
+
+    async def handler(_req):
+        nonlocal called
+        called = True
+        return web.Response(text="private")
+
+    request = make_mocked_request("GET", "/workspace/file", headers={"Host": "localhost:8765", "Origin": "https://evil.example"})
+    response = await middleware(request, handler)
+    assert response.status == 403
+    assert not called
+
+
+def test_health_prefix_does_not_bypass_auth():
+    assert not mw.is_public_route("/health-private")

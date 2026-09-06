@@ -986,3 +986,11 @@ async def test_tint_invalid_hex():
         result = await execute_command(cmd, "pi")
         assert result.status == "error"
         assert "Invalid" in result.message
+
+@pytest.fixture(autouse=True)
+def isolate_persisted_command_settings(tmp_path, monkeypatch):
+    """Model/theme command tests must never write developer settings."""
+    import importlib
+    config_module = importlib.import_module("vibes.config")
+    monkeypatch.setattr(config_module, "_find_settings_file", lambda: None)
+    monkeypatch.setattr(config_module, "_settings_write_path", lambda: tmp_path / "settings.json")

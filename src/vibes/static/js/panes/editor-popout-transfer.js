@@ -91,6 +91,7 @@ export function stashEditorPopoutState(state, runtime = globalThis, nowMs = Date
     const payload = {
         path,
         content: normalizeContent(state?.content),
+        savedContent: normalizeContent(state?.savedContent),
         mtime: normalizeMtime(state?.mtime),
         paneOverrideId: normalizeOverrideId(state?.paneOverrideId),
         viewState: normalizeViewState(state?.viewState),
@@ -157,6 +158,7 @@ export function consumeEditorPopoutState(token, runtime = globalThis, nowMs = Da
         return {
             path,
             content: normalizeContent(parsed?.content),
+            savedContent: normalizeContent(parsed?.savedContent),
             mtime: normalizeMtime(parsed?.mtime),
             paneOverrideId: normalizeOverrideId(parsed?.paneOverrideId),
             viewState: normalizeViewState(parsed?.viewState),

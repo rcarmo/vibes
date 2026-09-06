@@ -88,3 +88,12 @@ make serve                     # run dev server
 ## License
 
 MIT
+
+### Security and network access
+
+The Python server binds to `127.0.0.1` by default. It does not provide built-in
+login authentication: use an authenticated reverse proxy for remote access and
+set `VIBES_HOST` explicitly only after configuring that protection. The API can
+read/write workspace files and launch agent operations; do not expose it publicly.
+Cross-origin browser API requests are rejected. This is not authentication and
+does not protect against non-browser clients. See `docs/PYTHON_REVIVAL_AUDIT.md`.

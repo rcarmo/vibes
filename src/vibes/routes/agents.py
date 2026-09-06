@@ -1024,10 +1024,8 @@ async def send_message(request: web.Request) -> web.Response:
 
         if effective_mode == "steer":
             actual_steer = False
-            emulated = agent_mode != "pi"
             if agent_mode == "pi":
                 actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]}))
-                emulated = not actual_steer
 
             if actual_steer:
                 steer_payload = {

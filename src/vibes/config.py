@@ -141,7 +141,7 @@ class Config:
     def __init__(self):
         s = _load_settings_file()
 
-        self.host: str = _resolve(s, "host", "VIBES_HOST", "0.0.0.0", "str")
+        self.host: str = _resolve(s, "host", "VIBES_HOST", "127.0.0.1", "str")
         self.port: int = _resolve(s, "port", "VIBES_PORT", 8080, "int")
         self.db_path: str = _resolve(s, "db_path", "VIBES_DB_PATH", "database/vibes.db", "str")
         self.debug: bool = _resolve(s, "debug", "VIBES_DEBUG", False, "bool")
