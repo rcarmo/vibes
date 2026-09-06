@@ -66,9 +66,9 @@ class MessagesMCP(AsyncMCPServer):
             raise ValueError('Workspace access not configured')
         return await asyncio.to_thread(self.workspace.read, path, offset, limit)
 
-    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None, media_id=None):
+    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None, media_id=None, reference=None):
         return await self.tools.query(action, row_ids=row_ids, query=query,
-            limit=limit, before_row=before_row, media_id=media_id)
+            limit=limit, before_row=before_row, media_id=media_id, reference=reference)
 
     async def handle(self, request):
         return await self.process_request_async(json.dumps(request))

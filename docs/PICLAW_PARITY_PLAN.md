@@ -976,3 +976,13 @@ speech isolation, mention insertion/resolution tests, editor/popout and terminal
 shared-column workflows. This does not establish deployed screenshot equivalence,
 live speech service, authenticated model prompts or third-party ACP consumption;
 those acceptance limitations and remaining UI gaps stay open.
+
+### Mention MCP dispatch acceptance and fix
+
+Protocol-level tools/list + tools/call test caught missing `reference` forwarding
+in MessagesMCP.messages despite its advertised schema. Fixed handler forwarding;
+protocol now verifies default identity, identical null for missing/unauthorized
+references and rejection of per-call workspace scope escalation. 468 backend
+tests pass. Prior query-class coverage alone did not establish working MCP
+resolution. Combined with four browser mention tests, local reference addressing
+is implemented; third-party agent consumption remains a separate open criterion.

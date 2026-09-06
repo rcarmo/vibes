@@ -113,3 +113,33 @@ async def test_workspace_read_registration_is_explicit(db, tmp_path):
     disabled = MessagesMCP(MessageTools(db._connection, workspace_access=True))
     listing = await disabled.handle({'jsonrpc': '2.0', 'id': 2, 'method': 'tools/list'})
     assert 'workspace_read' not in [tool['name'] for tool in listing['result']['tools']]
+
+
+@pytest.mark.asyncio
+async def test_session_reference_discovery_and_resolution_over_mcp(db):
+    from vibes.sessions import SessionStore
+    from vibes.messages_mcp import MessagesMCP
+    other = await SessionStore(db).create('Private reference')
+    server = MessagesMCP(MessageTools(db._connection, session_id='default'))
+    listed = await server.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'})
+    schema = listed['result']['tools'][0]['inputSchema']
+    assert 'resolve_session' in schema['properties']['action']['enum']
+    assert 'reference' in schema['properties']
+
+    async def resolve(reference, **extra):
+        response = await server.handle({
+            'jsonrpc': '2.0', 'id': 2, 'method': 'tools/call',
+            'params': {'name': 'messages', 'arguments': {
+                'action': 'resolve_session', 'reference': reference, **extra,
+            }},
+        })
+        return response
+
+    result = await resolve('@session:default')
+    resolved = json.loads(result['result']['content'][0]['text'])
+    assert resolved['session']['id'] == 'default'
+    assert set(resolved['session']) == {'id', 'name', 'archived'}
+    for reference in ('@session:' + other['id'], '@session:missing'):
+        result = await resolve(reference)
+        assert json.loads(result['result']['content'][0]['text']) == {'session': None}
+    assert 'error' in await resolve('@session:' + other['id'], workspace_access=True)
