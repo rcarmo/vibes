@@ -161,4 +161,4 @@ async def test_cross_origin_workspace_access_denied():
 
 
 def test_health_prefix_does_not_bypass_auth():
-    assert not mw.is_public_path("/health-private")
+    assert not mw.is_public_route("/health-private")
