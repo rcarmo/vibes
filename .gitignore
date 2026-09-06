@@ -61,3 +61,5 @@ htmlcov/
 # Browser verification artifacts
 /test-results/
 /playwright-report/
+
+/screenshots/
