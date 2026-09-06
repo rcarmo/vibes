@@ -2424,3 +2424,13 @@ review against existing deployed classic captures. Comparison completed, not
 visual equivalence: mobile deliberately stacks rather than splitting columns;
 workspace bottom strip, surrounding typography/composer and host nesting remain
 different. The broad maximum-markup-parity item remains open.
+
+### Session action callback gating
+
+Disabled row Rename/Delete and New root when their mutation callbacks are absent,
+matching existing pin capability gating rather than leaving enabled no-op actions.
+Added a read-only picker fixture asserting these controls are disabled and Archive
+is absent. Build/lint and all 58 headed Chromium/WebKit session-picker tests pass
+with one worker and no retries. This is callback availability gating, not a new
+backend authorization policy. Running-session deletion was inspected but not
+changed in this slice; DELETE currently delegates to store.delete_empty.

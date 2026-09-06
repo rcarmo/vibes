@@ -554,3 +554,20 @@ test('non-search typeahead selects labels without changing search text', async (
     await expect(search).toHaveValue('Beta');
     await expect(page.locator('#session-picker-results [role="option"]')).toHaveCount(1);
 });
+
+test('picker disables mutation controls when callbacks are unavailable', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionPicker } = await import('/static/js/components/session-picker.js');
+        const root = document.createElement('div');
+        root.id = 'readonly-picker';
+        document.body.appendChild(root);
+        render(html`<${SessionPicker} sessions=${[{ id: 'empty', name: 'Read only', message_count: 0 }]} />`, root);
+    });
+    const picker = page.locator('#readonly-picker');
+    for (const name of ['Rename Read only', 'Delete Read only', 'New root…', 'Pin session']) {
+        await expect(picker.getByRole('button', { name, exact: true })).toBeDisabled();
+    }
+    await expect(picker.getByRole('button', { name: 'Archive Read only', exact: true })).toHaveCount(0);
+});
