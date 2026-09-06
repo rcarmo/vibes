@@ -2575,3 +2575,13 @@ without its three-second poll). No synthetic dispatch in this list test. Scoped
 model routing remains a separate synthetic event test. All four targeted browser
 cases pass; 19 frontend tests/85 assertions and build/lint pass. This does not
 resolve the previously preserved intermittent picker failure or external ACP gates.
+
+### Session-list response ordering
+
+Shared request generations now guard direct/SSE refreshes and picker polling:
+an older response cannot replace a newer snapshot or publish a stale error.
+Added held-response browser regression delivering the newer SSE refresh first,
+then releasing the older response. Six targeted headed Chromium/WebKit cases,
+19 frontend tests/85 assertions and build/lint pass. Fixture dismissal was corrected
+to use the explicit Close button (trigger is covered by popup; immediate Escape
+was focus-dependent in WebKit). This does not establish an intermittent-picker fix.

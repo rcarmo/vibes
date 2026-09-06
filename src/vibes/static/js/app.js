@@ -726,10 +726,18 @@ function App() {
         document.addEventListener('pointerdown', outside);
         return () => document.removeEventListener('pointerdown', outside);
     }, [sessionPickerOpen, renamingSession, deletingSession, creatingSession]);
+    const sessionRefreshGeneration = useRef(0);
     const refreshSessions = async () => {
-        const result = await getSessions(true);
-        setSessionOptions(result.sessions);
-        setSessionRefreshError('');
+        const generation = ++sessionRefreshGeneration.current;
+        try {
+            const result = await getSessions(true);
+            if (generation === sessionRefreshGeneration.current) {
+                setSessionOptions(result.sessions);
+                setSessionRefreshError('');
+            }
+        } catch (error) {
+            if (generation === sessionRefreshGeneration.current) throw error;
+        }
     };
     useEffect(() => {
         if (!sessionPickerOpen) return;
@@ -738,12 +746,13 @@ function App() {
         const refresh = async () => {
             if (loading) return;
             loading = true;
+            const generation = ++sessionRefreshGeneration.current;
             try {
                 const result = await getSessions(true);
-                if (!disposed) { setSessionOptions(result.sessions); setSessionRefreshError(''); }
+                if (!disposed && generation === sessionRefreshGeneration.current) { setSessionOptions(result.sessions); setSessionRefreshError(''); }
             } catch (error) {
                 console.warn('Session picker refresh failed:', error);
-                if (!disposed) setSessionRefreshError('Session refresh failed. Showing the last snapshot; activity may be stale.');
+                if (!disposed && generation === sessionRefreshGeneration.current) setSessionRefreshError('Session refresh failed. Showing the last snapshot; activity may be stale.');
             }
             finally { loading = false; }
         };

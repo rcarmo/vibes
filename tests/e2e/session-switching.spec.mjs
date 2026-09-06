@@ -1015,3 +1015,38 @@ test('session-list SSE refreshes an externally renamed current session with pick
     await expect(trigger).toContainText('After external rename');
     await expect(trigger).toHaveAttribute('aria-expanded', 'false');
 });
+
+test('older session-list response cannot overwrite a newer SSE refresh', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    await page.goto('/');
+    const trigger = page.getByTestId('session-switcher');
+    await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('button', { name: 'Close session picker', exact: true }).click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let requests = 0;
+    await page.route('**/sessions?*', async route => {
+        const index = ++requests;
+        if (index === 1) await held;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            sessions: [{ id: 'default', name: index === 1 ? 'Old snapshot' : 'Newest snapshot', message_count: 0 }],
+        }) });
+    });
+    const emit = () => page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('sessions_changed', { data: '{}' })));
+    await emit();
+    await expect.poll(() => requests).toBe(1);
+    await emit();
+    await expect(trigger).toContainText('Newest snapshot');
+    const oldResponse = page.waitForResponse(response => response.url().includes('/sessions?'));
+    release();
+    await oldResponse;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(trigger).toContainText('Newest snapshot');
+});
