@@ -256,3 +256,23 @@ test('model picker keyboard navigation focuses choices and Escape restores trigg
     await expect(search).toHaveCount(0);
     await expect(trigger).toBeFocused();
 });
+
+test('Next model cycles scoped catalog without default commands', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"alpha"}}' }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"alpha"},{"provider":"test","id":"beta"}]}' }));
+    let mutation, commandCount = 0;
+    await page.route('**/agent/default/message', route => { commandCount++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.route('**/sessions/*/model', route => {
+        mutation = { path: new URL(route.request().url()).pathname, data: route.request().postDataJSON() };
+        return route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"beta"}}' });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Cycle models' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('button', { name: 'Next model', exact: true }).click();
+    await expect.poll(() => mutation).toEqual({ path: `/sessions/${id}/model`, data: { provider: 'test', model_id: 'beta' } });
+    expect(commandCount).toBe(0);
+});

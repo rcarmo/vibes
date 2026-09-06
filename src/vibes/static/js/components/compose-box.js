@@ -463,7 +463,10 @@ export function ComposeBox({
     };
 
     const handleCycleModel = async () => {
-        await runModelCommand('/cycle-model');
+        if (sessionId === 'default') { await runModelCommand('/cycle-model'); return; }
+        if (loadingModels || switchingModel || !sessionCatalog?.available || !modelOptions.length) return;
+        const next = modelOptions[(modelOptions.indexOf(activeModel) + 1) % modelOptions.length];
+        await handleSelectModel(next);
     };
 
     const handleCycleThinking = async () => {
@@ -1021,7 +1024,7 @@ export function ComposeBox({
                                     type="button"
                                     class="compose-model-popup-btn"
                                     onClick=${() => { void handleCycleModel(); }}
-                                    disabled=${switchingModel}
+                                    disabled=${switchingModel || loadingModels || (sessionId !== 'default' && (!sessionCatalog?.available || !modelOptions.length))}
                                 >
                                     Next model
                                 </button>

@@ -1122,3 +1122,12 @@ choices with wrapping and scroll visibility. Native button Enter selects; Escape
 closes and restores the trigger. Fourteen headed Chromium/WebKit model/thinking
 tests and build/lint pass, including arrow focus and Escape restoration. Full
 model control/default-backend and visual parity remain open.
+
+### Scoped Next model control
+
+Non-default Next model now cycles the confirmed available catalog through the
+session mutation endpoint instead of the guarded legacy command no-op. It is
+disabled while loading/switching or without available choices. Sixteen headed
+Chromium/WebKit model/thinking tests and build/lint pass; new test verifies next
+catalog selection and zero default message commands. Default command-path
+consolidation and full deployed model picker remain open.
