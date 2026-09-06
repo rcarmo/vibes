@@ -2405,3 +2405,14 @@ suite: 104 headed Chromium/WebKit passes, one worker, no retries; build/lint pas
 Added DOM/computed-style and viewport assertions to model/thinking captures;
 six capture cases pass after assertions. These checks establish footer structure
 and control reachability, not full screenshot equivalence or live acceptance.
+
+### Post-footer integrated checkpoint (06d28df)
+
+Full integrated verification after modal dismissal, explicit refresh and footer
+changes: 508 backend tests, 18 frontend tests (73 assertions), frontend build/lint,
+and 284 headed Chromium/WebKit tests pass with one worker and no retries (5.3m).
+ContextPie inspection confirms invalid/nonfinite/negative percentages are hidden;
+missing or invalid token counts use percentage-only accessible labels rather than
+invented counts. Existing context tests are included in this full run. No new
+status implementation was needed for that validation rule. Remaining visual,
+persistent-thread and external-agent/live microphone acceptance is not implied.
