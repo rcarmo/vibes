@@ -211,14 +211,14 @@ async def test_model_mutation_route_scopes_validates_and_sanitizes(db, aiohttp_c
 async def test_model_catalog_route_sanitizes_and_bounds(db, aiohttp_client, monkeypatch):
     pi = importlib.import_module('vibes.pi_client')
     monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
-    inspect = AsyncMock(return_value={'models': [{'id': 'm', 'provider': 'p', 'baseUrl': 'private'}] * 501, 'thinking_levels': ['off', 'low']})
+    inspect = AsyncMock(return_value={'models': [{'id': f'm{i}', 'provider': 'p', 'baseUrl': 'private'} for i in range(501)], 'thinking_levels': ['off', 'low']})
     monkeypatch.setattr(pi, 'inspect_model_catalog', inspect)
     app = web.Application()
     routes.setup_routes(app)
     client = await aiohttp_client(app)
     result = await (await client.get('/sessions/default/models')).json()
     assert len(result['models']) == 500
-    assert result['models'][0] == {'id': 'm', 'provider': 'p'}
+    assert result['models'][0] == {'id': 'm0', 'provider': 'p'}
     assert result['thinking_levels'] == ['off', 'low']
     inspect.return_value = None
     assert (await (await client.get('/sessions/default/models')).json())['available'] is False
@@ -349,3 +349,19 @@ async def test_model_preferences_conditional_update_rejects_stale_snapshot(db, a
     stale = await client.put('/model-preferences', json={'pins': ['p/stale']}, headers={'If-Match': etag})
     assert stale.status == 412
     assert (await (await client.get('/model-preferences')).json())['pins'] == ['p/first']
+
+
+@pytest.mark.asyncio
+async def test_model_catalog_deduplicates_provider_identity_preserving_first(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(pi, 'inspect_model_catalog', AsyncMock(return_value={'models': [
+        {'provider': 'p', 'id': 'm', 'name': 'First'},
+        {'provider': 'p', 'id': 'm', 'name': 'Duplicate'},
+        {'provider': 'other', 'id': 'm'},
+    ], 'thinking_levels': []}))
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/models')).json()
+    assert result['models'] == [{'provider': 'p', 'id': 'm', 'name': 'First'}, {'provider': 'other', 'id': 'm'}]

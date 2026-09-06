@@ -73,11 +73,15 @@ async def session_model_catalog(request):
         if not catalog:
             return web.json_response(unavailable)
         models = []
+        identities = set()
         raw_models = catalog.get('models', [])
         for item in (raw_models[:500] if isinstance(raw_models, list) else []):
             model = sanitize_model(item)
             if model is not None:
-                models.append(model)
+                identity = (model['provider'], model['id'])
+                if identity not in identities:
+                    identities.add(identity)
+                    models.append(model)
         raw_levels = catalog.get('thinking_levels', [])
         levels = list(dict.fromkeys(level for level in (raw_levels[:16] if isinstance(raw_levels, list) else []) if valid_text(level)))
         return web.json_response({'available': True, 'models': models, 'thinking_levels': levels})

@@ -1945,3 +1945,11 @@ change needed. Actual provider execution acceptance remains separate.
 Model popup arrow navigation no longer intercepts events from native select.
 Twelve headed thinking tests and build/lint pass, including unprevented ArrowDown
 and retained select focus. Model-choice arrows and Escape behavior remain intact.
+
+### Unique selectable catalog identities
+
+Scoped model catalog deduplicates provider/id tuples preserving first validated
+entry; same model ID from different providers remains distinct. Existing 500-input
+bound retained and tested with unique entries. 508 backend tests pass, including
+duplicate identity handling. Prevents duplicate UI keys/count inflation without
+asserting provider availability.
