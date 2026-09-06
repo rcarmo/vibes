@@ -4,7 +4,7 @@ PYTHON ?= python3
 PIP ?= pip3
 
 # Server configuration
-export VIBES_HOST ?= 0.0.0.0
+export VIBES_HOST ?= 127.0.0.1
 export VIBES_PORT ?= 8080
 export VIBES_ACP_AGENT ?= copilot --acp
 

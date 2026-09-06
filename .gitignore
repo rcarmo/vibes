@@ -57,3 +57,7 @@ htmlcov/
 
 # User settings
 .vibes/
+
+# Browser verification artifacts
+/test-results/
+/playwright-report/
