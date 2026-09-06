@@ -1887,3 +1887,10 @@ choices. Selection re-fetches supported levels before mutation, rejects removed
 choices and shares scoped mutation/unmount guard with cycling. Six headed thinking
 tests and build/lint pass, including direct off-to-high selection. Native select
 is a documented local interaction adaptation pending full reference styling review.
+
+### Removed thinking choice acceptance
+
+Eight headed Chromium/WebKit thinking tests pass, including catalog changing from
+off/high to off between popup load and selection. Removed high choice produces
+visible error with zero model mutation requests. This validates stale-choice
+rejection, not provider execution acceptance.

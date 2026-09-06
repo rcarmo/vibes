@@ -671,3 +671,19 @@ test('explicit thinking selection uses fresh supported levels', async ({ page })
     await expect.poll(() => changed).toEqual({ thinking_level: 'high' });
     await expect(page.getByRole('combobox', { name: 'Select thinking level' })).toHaveValue('high');
 });
+
+test('removed thinking choice is rejected before mutation', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current","reasoning":true},"thinking_level":"off"}' }));
+    let calls = 0;
+    await page.route('**/sessions/default/models', route => {
+        calls++;
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: [{ provider: 'test', id: 'current' }], thinking_levels: calls === 1 ? ['off', 'high'] : ['off'] }) });
+    });
+    let mutations = 0;
+    await page.route('**/sessions/default/model', route => { mutations++; return route.fulfill({ contentType: 'application/json', body: '{}' }); });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Select thinking level' }).selectOption('high');
+    await expect(page.getByRole('alert').filter({ hasText: 'Thinking level is no longer available' })).toBeVisible();
+    expect(mutations).toBe(0);
+});
