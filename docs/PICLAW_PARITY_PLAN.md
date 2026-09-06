@@ -475,3 +475,12 @@ File objects retained only in page memory and never serialized as bytes. Bounds,
 malformed/quota handling, cross-session isolation, reload and clearing tested.
 Four frontend unit tests pass; build/lint pass. Store not wired into mounted
 composer yet; do not claim switching/reload draft preservation until integration.
+
+### Mounted draft persistence
+
+Composer now saves text/reference metadata and page-local File state to the
+shared draft store; default app restores file/folder/message pills on startup.
+Successful sends clear drafts. Chromium/WebKit verify seeded draft load, edits,
+reload, references and successful-send clearing; build/lint pass. Session switching
+must key/remount composer and restore parent reference state before exposing the
+picker; this slice proves default-session reload, not full switching yet.

@@ -36,3 +36,11 @@ export class ComposeDrafts {
         try { this.storage.removeItem(draftKey(sessionId)); } catch { /* Unavailable storage. */ }
     }
 }
+
+// Shared page-local File storage survives component remounts. Access localStorage
+// lazily so privacy-mode access errors are caught by ComposeDrafts methods.
+export const composeDrafts = new ComposeDrafts({
+    getItem: key => window.localStorage.getItem(key),
+    setItem: (key, value) => window.localStorage.setItem(key, value),
+    removeItem: key => window.localStorage.removeItem(key),
+});

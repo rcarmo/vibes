@@ -1,3 +1,4 @@
+import { composeDrafts } from './components/compose-drafts.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
@@ -685,9 +686,9 @@ function App() {
     const [currentHashtag, setCurrentHashtag] = useState(null);
     const [searchQuery, setSearchQuery] = useState(null);
     const [searchOpen, setSearchOpen] = useState(false);
-    const [fileRefs, setFileRefs] = useState([]);
-    const [folderRefs, setFolderRefs] = useState([]);
-    const [messageRefs, setMessageRefs] = useState([]);
+    const [fileRefs, setFileRefs] = useState(() => composeDrafts.load('default').fileRefs);
+    const [folderRefs, setFolderRefs] = useState(() => composeDrafts.load('default').folderRefs);
+    const [messageRefs, setMessageRefs] = useState(() => composeDrafts.load('default').messageRefs);
     const [agentStatus, setAgentStatus] = useState(null);
     const [agentDraft, setAgentDraft] = useState({ text: '', totalLines: 0 });
     const [agentPlan, setAgentPlan] = useState('');

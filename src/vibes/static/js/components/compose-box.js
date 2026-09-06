@@ -1,3 +1,4 @@
+import { composeDrafts } from './compose-drafts.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
@@ -160,7 +161,7 @@ export function ComposeBox({
     notificationPermission = 'default',
     onToggleNotifications,
 }) {
-    const [content, setContent] = useState('');
+    const [content, setContent] = useState(() => composeDrafts.load(sessionId).text);
     const [searchText, setSearchText] = useState('');
     const [searchFilterImages, setSearchFilterImages] = useState(false);
     const [searchFilterAttachments, setSearchFilterAttachments] = useState(false);
@@ -169,7 +170,10 @@ export function ComposeBox({
     const [uploadProgress, setUploadProgress] = useState(null);
     const uploadController = useRef(null);
     useEffect(() => () => uploadController.current?.abort(), []);
-    const [mediaFiles, setMediaFiles] = useState([]);
+    const [mediaFiles, setMediaFiles] = useState(() => composeDrafts.load(sessionId).files);
+    useEffect(() => {
+        composeDrafts.save(sessionId, { text: content, files: mediaFiles, fileRefs, folderRefs, messageRefs });
+    }, [content, mediaFiles, fileRefs, folderRefs, messageRefs, sessionId]);
     const [isDragActive, setIsDragActive] = useState(false);
     const [slashMatches, setSlashMatches] = useState([]);
     const [slashIndex, setSlashIndex] = useState(0);
@@ -454,6 +458,7 @@ export function ComposeBox({
                 historyDraftRef.current = '';
             }
 
+            composeDrafts.clear(sessionId);
             setContent('');
             setMediaFiles([]);
             uploadedFiles.current = new WeakMap();
