@@ -573,11 +573,13 @@ test('instance pins load and save only through explicit controls', async ({ page
     await page.request.put('/model-preferences', { data: { pins: ['test/current'] } });
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Pin model test/current', exact: true })).toBeVisible();
-    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Save instance pins', exact: true })).toBeDisabled();
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Close Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Unpin model test/current', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     expect((await (await page.request.get('/model-preferences')).json()).pins).toEqual(['test/current']);
     await page.getByRole('button', { name: 'Save instance pins', exact: true }).click();
     await expect(page.getByText('Pins saved for this instance.', { exact: true })).toBeVisible();
@@ -594,10 +596,12 @@ test('delayed instance pin load cannot overwrite newer browser edit', async ({ p
     });
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect.poll(() => !!release).toBe(true);
+    await page.getByRole('button', { name: 'Close Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     release();
     await expect(page.getByText('Browser pins changed during loading; instance pins were not applied.', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
@@ -613,7 +617,7 @@ test('failed instance pin transfer preserves pins and successful retry clears er
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('button', { name: 'Pin model test/current', exact: true }).click();
-    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect(page.locator('.compose-model-popup [role="alert"]')).toContainText('Preference service unavailable');
     await expect(page.getByRole('button', { name: 'Unpin model test/current', exact: true })).toBeVisible();
@@ -630,7 +634,7 @@ test('instance pin save rejects concurrent server preference change', async ({ p
     await page.goto('/');
     await page.request.put('/model-preferences', { data: { pins: [] } });
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
     await expect(page.getByText('Instance pins loaded into this browser.', { exact: true })).toBeVisible();
     await page.request.put('/model-preferences', { data: { pins: ['other/new'] } });
@@ -648,12 +652,12 @@ test('expanded instance preferences remain reachable on mobile', async ({ page }
     await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: Array.from({ length: 20 }, (_, i) => ({ provider: 'test', id: 'model-' + i })) }) }));
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
-    await page.getByText('Instance pin preferences', { exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     const popup = page.locator('.compose-model-popup');
     const bounds = await popup.boundingBox();
     expect(bounds.y).toBeGreaterThanOrEqual(0);
     expect(bounds.x + bounds.width).toBeLessThanOrEqual(391);
-    for (const name of ['Load instance pins', 'Save instance pins', 'Close model picker']) {
+    for (const name of ['Load instance pins', 'Save instance pins', 'Close Models settings']) {
         const box = await page.getByRole('button', { name, exact: true }).boundingBox();
         expect(box.y).toBeGreaterThanOrEqual(0);
         expect(box.y + box.height).toBeLessThanOrEqual(845);
@@ -792,9 +796,9 @@ for (const width of [1280, 390]) {
         await expect(page.getByRole('option', { name: 'test/alpha', exact: true })).toBeVisible();
         await expect(page.getByRole('combobox', { name: 'Thinking level' })).toBeVisible();
         await expect(page.getByRole('button', { name: 'Next model', exact: true })).toBeInViewport();
-        await page.getByText('Instance pin preferences', { exact: true }).click();
+        await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Load instance pins', exact: true })).toBeInViewport();
-        await page.getByText('Instance pin preferences', { exact: true }).click();
+        await page.getByRole('button', { name: 'Close Models settings', exact: true }).click();
         await expect(page.getByRole('group', { name: 'Current', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/alpha');
         await expect(page.getByRole('group', { name: 'Other models', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/beta');
         const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('combobox', { name: 'Search models' }) });

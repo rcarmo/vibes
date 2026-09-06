@@ -354,6 +354,9 @@ export function ComposeBox({
     const modelPopupRef = useRef(null);
     const modelSettingsRef = useRef(null);
     const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+    useEffect(() => {
+        if (modelSettingsOpen && modelSettingsRef.current && !modelSettingsRef.current.open) modelSettingsRef.current.showModal();
+    });
     const modelHintRef = useRef(null);
     const dragCounterRef = useRef(0);
     const historyMax = 200;
@@ -1083,7 +1086,7 @@ export function ComposeBox({
                                 </div>
                                 <div class="compose-model-catalogue-summary" role="status">${loadingModels ? 'Refreshing…' : modelCatalogError ? 'Catalog unavailable' : `${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}`}</div>
                             </div>
-                            ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
+                            <div hidden=${!modelPinError} role=${modelPinError ? 'alert' : undefined} class="compose-model-popup-empty">${modelPinError}</div>
                             <div id="compose-model-results" class="compose-model-popup-menu compose-model-catalogue-results" role="listbox" aria-label="Models">
                                 ${loadingModels && html`
                                     <div class="compose-model-popup-empty">Loading models…</div>
@@ -1131,7 +1134,7 @@ export function ComposeBox({
                                 </select>
                             </label>`}
                             <button type="button" class="compose-model-popup-btn" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
-                            <dialog ref=${modelSettingsRef} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
+                            <dialog key="model-settings" ref=${modelSettingsRef} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
                                 <h2>Models settings</h2>
                                 <p>Browser pins: ${modelPins.length ? modelPins.join(', ') : 'None'}</p>
                                 <p>Provider credentials and model defaults are not managed here. Catalogue availability does not verify provider authentication.</p>
@@ -1141,12 +1144,6 @@ export function ComposeBox({
                                 ${modelSettingsOpen && pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
                                 <button type="button" onClick=${() => modelSettingsRef.current?.close()}>Close Models settings</button>
                             </dialog>
-                            <details class="compose-agent-capabilities"><summary>Instance pin preferences</summary>
-                                <p>Load replaces browser pins and is required before Save. Save replaces instance pins only if they have not changed since loading.</p>
-                                <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(false)}>Load instance pins</button>
-                                <button type="button" disabled=${pinSyncBusy || !instancePinsLoaded} title=${instancePinsLoaded ? 'Save against loaded instance version' : 'Load instance pins before saving'} onClick=${() => syncInstancePins(true)}>Save instance pins</button>
-                                ${pinSyncStatus && html`<div role="status">${pinSyncStatus}</div>`}
-                            </details>
                             <div class="compose-model-popup-actions">
                                 <button
                                     type="button"

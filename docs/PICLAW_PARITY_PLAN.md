@@ -2365,3 +2365,14 @@ post-modal full-suite verification item. Modal pin preferences remain a supporte
 subset rather than complete deployed Models settings (no credential/default
 management). Inline duplicate controls, final visual comparison, third-party ACP
 messages/attachment consumption and live browser speech acceptance remain open.
+
+### Single-home Models preferences
+
+Removed duplicate inline preference details; Load/Save now live only in Models
+settings modal. Updated race/conflict/mobile tests to open/close the real modal.
+Testing exposed dialog modality loss when an error inserted a preceding sibling;
+kept error host stable, keyed dialog and reconciled open state after renders.
+Initial run timed out (cleaned only its orphan e2e server), and subsequent retry
+cases failed before modality fix. Final complete run: 102 headed model/session
+tests pass; build/lint passes. No retries configured. Full settings parity and
+external/visual acceptance remain separate.
