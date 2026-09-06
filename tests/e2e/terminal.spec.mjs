@@ -322,3 +322,21 @@ test('terminal unavailable reference-state capture', async ({ page }, testInfo) 
     await expect(page.locator('.dock-panel-header')).toHaveCSS('padding', '4px 16px');
     await page.screenshot({ path: testInfo.outputPath('terminal-unavailable-reference.png'), fullPage: true });
 });
+
+test('mobile unavailable terminal preserves full-width stacked chat', async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    let inspections = 0;
+    await page.route('**/terminal/session', route => route.fulfill({
+        json: { enabled: inspections++ === 0 },
+    }));
+    await page.goto('/');
+    await openTerminal(page);
+    await expect(page.locator('.terminal-status')).toHaveText('Unavailable');
+    const pane = await page.locator('.editor-pane-container').boundingBox();
+    const chat = await page.locator('.container').boundingBox();
+    expect(pane.width).toBeCloseTo(390, 0);
+    expect(chat.width).toBeCloseTo(390, 0);
+    expect(chat.y).toBeGreaterThanOrEqual(pane.y + pane.height - 1);
+    await expect(page.locator('.compose-input-main textarea')).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath('terminal-mobile-unavailable.png'), fullPage: true });
+});

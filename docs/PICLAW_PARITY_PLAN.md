@@ -2203,3 +2203,14 @@ geometry gap: column, dock and header dimensions now match at 1280x844. This doe
 not approve remaining typography/theme or full-page differences, nor mobile/shared
 host visual equivalence. Reference probe is under /workspace/tmp and not runtime
 code; no transport behavior changed.
+
+### Mobile terminal reference comparison (390x844)
+
+Deployed disabled-terminal fixture has no page errors (favicon 404 only): editor
+column 200x844, dock y=4,height=840, chat x=204,width=186. Header padding is 4px 12px.
+Local intentionally stacks the terminal above full-width chat (390px each), with
+45dvh terminal column. Retain this responsive deviation for composer usability;
+not a claim of exact deployed mobile equivalence or user approval. New unavailable-
+state Chromium/WebKit tests verify full widths, vertical separation and visible
+composer. Both pass after correcting a nonexistent textarea selector in the test;
+no production behavior changed. Reference screenshot is in workspace tmp.
