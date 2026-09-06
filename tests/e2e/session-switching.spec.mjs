@@ -60,3 +60,13 @@ test('picker archives and restores a session without deleting history', async ({
     await row.getByRole('button', { name: 'Restore Archive test', exact: true }).click();
     await expect(row.getByRole('button', { name: 'Archive Archive test', exact: true })).toBeVisible();
 });
+
+test('open picker refreshes registry changes from another client', async ({ page }) => {
+    await page.goto('/');
+    await page.getByTestId('session-switcher').click();
+    const result = await page.request.post('/sessions', { data: { name: 'External create' } });
+    const id = (await result.json()).session.id;
+    await expect(page.locator('#session-option-' + id)).toBeVisible({ timeout: 10000 });
+    await page.request.patch('/sessions/' + id, { data: { name: 'External rename' } });
+    await expect(page.locator('#session-option-' + id)).toContainText('External rename', { timeout: 10000 });
+});

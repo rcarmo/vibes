@@ -694,6 +694,22 @@ function App() {
         const result = await getSessions(true);
         setSessionOptions(result.sessions);
     };
+    useEffect(() => {
+        if (!sessionPickerOpen) return;
+        let disposed = false;
+        let loading = false;
+        const refresh = async () => {
+            if (loading) return;
+            loading = true;
+            try {
+                const result = await getSessions(true);
+                if (!disposed) setSessionOptions(result.sessions);
+            } catch (error) { console.warn('Session picker refresh failed:', error); }
+            finally { loading = false; }
+        };
+        const timer = window.setInterval(refresh, 3000);
+        return () => { disposed = true; window.clearInterval(timer); };
+    }, [sessionPickerOpen]);
     const selectSession = async (id) => {
         const generation = ++switchGeneration.current;
         const result = await getSessionTimeline(id);

@@ -706,3 +706,10 @@ compose-session/compose-model class names (earlier temporary reference had older
 unprefixed names). Ported matching deployed CSS. Eight picker/switching browser
 tests and build/lint pass. Action buttons/native dialogs and complete row markup
 still differ; do not claim pixel-identical parity from class alignment alone.
+
+### Live picker refresh
+
+While open, picker refreshes registry/activity every three seconds, prevents
+overlapping refreshes and ignores results after closure. Keyboard target clamps
+to refreshed list length. Ten picker/switching browser tests pass, including
+external create/rename while picker stays open; frontend build/lint pass.
