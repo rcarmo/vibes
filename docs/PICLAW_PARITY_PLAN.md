@@ -533,3 +533,11 @@ restored the original via real RPC, without model prompts. Added reusable
 `tools/smoke-pi-sessions.py` with isolated temp cwd/session storage, extensions
 disabled and bounded shutdown; ran successfully. This verifies switching protocol,
 not authenticated model completions or public multi-session dispatch admission.
+
+### Session-aware Pi worker dispatch
+
+Pi response workers now derive chat identity from persisted thread records and
+forward it to the lock-held selector; archived sessions are rejected before
+prompting. Default calls preserve legacy compatibility. 444 backend tests pass.
+Public non-default route guard remains until queued/active admission is made
+session-safe; picker/runtime integration is still incomplete.

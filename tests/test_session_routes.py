@@ -49,3 +49,21 @@ async def test_worker_dispatch_uses_persisted_chat_identity(db, monkeypatch):
     with pytest.raises(ValueError):
         await agents._dispatch_acp_thread('blocked', root, None)
     assert sender.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_pi_worker_dispatch_uses_persisted_session(db, monkeypatch):
+    agents = importlib.import_module('vibes.routes.agents')
+    SessionStore = importlib.import_module('vibes.sessions').SessionStore
+    store = SessionStore(db)
+    session = await store.create('Pi chat')
+    root = await db.create_interaction({'type': 'user', 'content': 'hello', 'session_id': session['id']})
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    sender = AsyncMock(return_value={'text': 'ok'})
+    monkeypatch.setattr(agents, 'send_pi_message_multimodal', sender)
+    await agents._dispatch_pi_thread('hello', root, None)
+    sender.assert_awaited_once_with('hello', root, None, chat_id=session['id'])
+    await store.update(session['id'], archived=True)
+    with pytest.raises(ValueError):
+        await agents._dispatch_pi_thread('blocked', root, None)
+    assert sender.await_count == 1
