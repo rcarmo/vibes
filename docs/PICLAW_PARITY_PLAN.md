@@ -1476,3 +1476,14 @@ model/status controls and viewport state must be matched before comparing.
 Next visual acceptance must capture matching deployed/current popup fixtures,
 record deliberate session-ID/display-name and local lifecycle-action deviations,
 and review screenshots rather than just comparing class names or viewport bounds.
+
+### Deployed model-popup reference captured
+
+Reused isolated classic.test route fixture against installed 2.15.3 runtime assets
+(no live chat access) and opened .compose-model-hint-btn at 1280x844. Capture:
+/workspace/tmp/piclaw-classic-model-desktop.png, attached to working chat. Browser
+reported no page errors; only unhandled asset was favicon.ico. Fixture has one
+model and no live runtime. Reference popup visibly includes SEARCH MODELS, model
+count, CURRENT grouping, pin control and Open Models settings. Current Python
+popup lacks those grouping/pin/settings semantics, so model visual parity remains
+open rather than treating search/keyboard support as full equivalence.
