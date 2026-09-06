@@ -2618,3 +2618,12 @@ payload preservation/disconnect cleanup. 20 frontend tests/95 assertions, build/
 and four headed queue browser cases pass. An initial title-filter command matched
 no tests; verification used the explicit queue.spec.mjs file instead. These existing
 browser cases cover queue UI behavior; the new subscription itself is unit tested.
+
+### Queue response ordering
+
+Queue polling and explicit refreshes now share a request generation and validate
+the session-switch generation, preventing older snapshots from overwriting newer
+ones (including same-ID A→B→A selection). Mounted synthetic reorder-event test
+holds the older response until a newer snapshot renders, then verifies it stays
+new. Six queue browser tests, 20 frontend tests and build/lint pass. The new browser
+case verifies out-of-order responses, not the A→B→A scenario or live ACP execution.

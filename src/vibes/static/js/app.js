@@ -904,17 +904,22 @@ function App() {
         const timer = setInterval(refreshInspection, 15000);
         return () => { disposed = true; clearInterval(timer); };
     }, [selectedSession]);
+    const queueRefreshGeneration = useRef(0);
     const refreshSelectedQueue = async () => {
         const session = selectedSessionRef.current;
+        const generation = ++queueRefreshGeneration.current;
+        const selection = switchGeneration.current;
         const result = await getAgentQueue(null, null, session);
-        if (session === selectedSessionRef.current) setQueuedFollowups(result.items || []);
+        if (generation === queueRefreshGeneration.current && selection === switchGeneration.current && session === selectedSessionRef.current) setQueuedFollowups(result.items || []);
     };
     useEffect(() => {
         let disposed = false;
         const refresh = async () => {
+            const generation = ++queueRefreshGeneration.current;
+            const selection = switchGeneration.current;
             try {
                 const result = await getAgentQueue(null, null, selectedSession);
-                if (!disposed) setQueuedFollowups(result.items || []);
+                if (!disposed && generation === queueRefreshGeneration.current && selection === switchGeneration.current) setQueuedFollowups(result.items || []);
             } catch (error) { console.warn('Queue refresh failed:', error); }
         };
         refresh();

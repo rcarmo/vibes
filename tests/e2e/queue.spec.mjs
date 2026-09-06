@@ -29,3 +29,35 @@ test('queued reference blocks render as pills without hiding invalid lines', asy
     await expect(row.locator('.compose-file-pill', { hasText: 'notes.txt' })).toBeVisible();
     await expect(row.locator('.compose-queue-text')).toContainText('invalid-ref');
 });
+
+test('older queue refresh cannot overwrite a newer reorder notification', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    const snapshot = content => ({ items: [{ row_id: -1, content, agent_id: 'default', thread_id: 1 }] });
+    await page.route('**/agent/queue?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(snapshot('Initial queue')) }));
+    await page.goto('/');
+    const row = page.locator('.compose-queue-item');
+    await expect(row).toContainText('Initial queue');
+    let release;
+    const held = new Promise(resolve => { release = resolve; });
+    let requests = 0;
+    await page.route('**/agent/queue?*', async route => {
+        const index = ++requests;
+        if (index === 1) await held;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify(snapshot(index === 1 ? 'Old queue' : 'New queue')) });
+    });
+    const emit = () => page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('agent_queue_reordered', { data: '{}' })));
+    await emit();
+    await expect.poll(() => requests).toBe(1);
+    await emit();
+    await expect(row).toContainText('New queue');
+    const response = page.waitForResponse(res => res.url().includes('/agent/queue?'));
+    release();
+    await response;
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await expect(row).toContainText('New queue');
+});
