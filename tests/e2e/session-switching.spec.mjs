@@ -162,3 +162,22 @@ test('nondefault model selection uses scoped mutation endpoint', async ({ page }
     await page.getByRole('menuitem', { name: 'test/new', exact: true }).click();
     await expect.poll(() => path).toBe(`/sessions/${id}/model`);
 });
+
+test('nondefault thinking cycle uses supported scoped levels', async ({ page }) => {
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"reasoner","reasoning":true},"thinking_level":"off"}' }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[],"thinking_levels":["off","low"]}' }));
+    let payload, path;
+    await page.route('**/sessions/*/model', async route => {
+        payload = route.request().postDataJSON();
+        path = new URL(route.request().url()).pathname;
+        await route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"reasoner","reasoning":true},"thinking_level":"low"}' });
+    });
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Thinking change' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await expect.poll(() => payload?.thinking_level).toBe('low');
+    expect(path).toBe(`/sessions/${id}/model`);
+});

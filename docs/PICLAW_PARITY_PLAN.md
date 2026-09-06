@@ -831,3 +831,11 @@ Non-default model popup loads scoped catalog and submits selection to
 choices; errors retain current label. Six model browser tests and build/lint pass.
 Default legacy model controls remain separate; thinking-cycle and full deployed
 picker markup still pending.
+
+### Scoped thinking control wiring
+
+Non-default thinking cycle fetches supported levels and submits only the next
+catalog value through session-specific model endpoint. Unavailable catalogs show
+an error instead of fallback to default. Added accessible control label. Two
+Chromium/WebKit thinking tests and build/lint pass. Default command path and full
+Piclaw model picker/ACP options still need consolidation.

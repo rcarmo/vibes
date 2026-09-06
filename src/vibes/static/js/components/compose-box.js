@@ -380,7 +380,19 @@ export function ComposeBox({
     };
 
     const handleCycleThinking = async () => {
-        await runModelCommand('/cycle-thinking');
+        if (sessionId === 'default') { await runModelCommand('/cycle-thinking'); return; }
+        if (loading || switchingModel) return;
+        setSwitchingModel(true);
+        try {
+            const catalog = await getSessionModels(sessionId);
+            const levels = catalog.available ? catalog.thinking_levels : [];
+            if (!levels?.length) throw new Error('Thinking controls unavailable for this session');
+            const next = levels[(levels.indexOf(thinkingLevel) + 1) % levels.length];
+            const result = await changeSessionModel(sessionId, { thinking_level: next });
+            emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel,
+                thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
+        } catch (error) { setSubmitError(error.message || 'Thinking change failed'); }
+        finally { setSwitchingModel(false); }
     };
 
     const handleSelectModel = async (modelLabel) => {
@@ -830,9 +842,10 @@ export function ComposeBox({
                                 <button
                                     type="button"
                                     class="compose-thinking-pill"
+                                    aria-label="Cycle thinking level"
                                     title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
                                     onClick=${() => { void handleCycleThinking(); }}
-                                    disabled=${sessionId !== 'default' || loading || switchingModel}
+                                    disabled=${loading || switchingModel}
                                 >
                                     ${thinkingLevel || 'thinking'}
                                 </button>
