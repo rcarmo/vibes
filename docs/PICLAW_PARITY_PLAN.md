@@ -1824,3 +1824,11 @@ Failed load preserves browser pins and releases busy gate; successful save now
 clears previous synchronization error instead of showing contradictory success
 and failure. Six headed instance-pin tests and build/lint pass, including explicit
 503 then successful retry. Full settings parity remains open.
+
+### Conditional instance preference updates
+
+Preferences responses include content ETag; PUT with If-Match compares current
+pins inside transaction and rejects stale snapshot with 412 without writing.
+507 backend tests pass, including competing stale update. Unconditional PUT is
+retained for explicit last-write replacement compatibility; current UI does not
+yet supply If-Match, so automatic conflict protection there is not claimed.

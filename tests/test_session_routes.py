@@ -333,3 +333,19 @@ async def test_model_preferences_api_is_bounded_and_does_not_mutate_runtime(db, 
         assert (await client.put('/model-preferences', json=payload)).status == 400
     assert (await (await client.get('/model-preferences')).json())['pins'] == ['p/m']
     change.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_model_preferences_conditional_update_rejects_stale_snapshot(db, aiohttp_client, monkeypatch):
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    initial = await client.get('/model-preferences')
+    etag = initial.headers['ETag']
+    first = await client.put('/model-preferences', json={'pins': ['p/first']}, headers={'If-Match': etag})
+    assert first.status == 200
+    assert first.headers['ETag'] != etag
+    stale = await client.put('/model-preferences', json={'pins': ['p/stale']}, headers={'If-Match': etag})
+    assert stale.status == 412
+    assert (await (await client.get('/model-preferences')).json())['pins'] == ['p/first']

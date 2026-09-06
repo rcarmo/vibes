@@ -156,7 +156,7 @@ async def mutate_session(request):
 
 
 async def model_preferences(request):
-    from ..model_preferences import ModelPreferences
+    from ..model_preferences import ModelPreferences, PreferenceConflict, preferences_etag
     store = ModelPreferences(await get_db())
     if request.method == 'GET':
         result = await store.get()
@@ -165,11 +165,13 @@ async def model_preferences(request):
             data = await request.json()
             if not isinstance(data, dict) or set(data) != {'pins'}:
                 raise ValueError('Expected only pins')
-            result = await store.set_pins(data['pins'])
+            result = await store.set_pins(data['pins'], request.headers.get('If-Match'))
+        except PreferenceConflict as exc:
+            return web.json_response({'error': str(exc)}, status=412)
         except (ValueError, TypeError) as exc:
             return web.json_response({'error': str(exc)}, status=400)
         await broadcast_event('model_preferences_changed', result)
-    return web.json_response({**result, 'scope': 'instance'}, headers={'Cache-Control': 'no-store'})
+    return web.json_response({**result, 'scope': 'instance'}, headers={'Cache-Control': 'no-store', 'ETag': preferences_etag(result['pins'])})
 
 
 def setup_routes(app):
