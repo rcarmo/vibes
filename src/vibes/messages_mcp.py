@@ -39,6 +39,12 @@ class MessagesMCP(AsyncMCPServer):
         self.tools = tools
         self.workspace = WorkspaceTools(workspace_root) if workspace_root else None
         if self.workspace:
+            self.register_tool('workspace_list', self.workspace_list,
+                description='List a bounded relative workspace directory without following symlinks. Root is dot; truncated listings are not exhaustive.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'properties': {
+                    'path': {'type': 'string', 'default': '.'},
+                    'limit': {'type': 'integer', 'minimum': 1, 'maximum': 200, 'default': 100}}},
+                annotations={'readOnlyHint': True, 'destructiveHint': False})
             self.register_tool('workspace_read', self.workspace_read,
                 description='Read a bounded text preview of a relative workspace file. Byte offsets paginate. Symlinks and traversal are rejected.',
                 input_schema={'type': 'object', 'additionalProperties': False, 'required': ['path'], 'properties': {
@@ -48,6 +54,11 @@ class MessagesMCP(AsyncMCPServer):
         self.register_tool('messages', self.messages,
             description=TOOL['description'], input_schema=TOOL['inputSchema'],
             annotations=TOOL['annotations'])
+
+    async def workspace_list(self, path: str = '.', limit: int = 100):
+        if not self.workspace:
+            raise ValueError('Workspace access not configured')
+        return await asyncio.to_thread(self.workspace.list_directory, path, limit)
 
     async def workspace_read(self, path: str, offset: int = 0, limit: int = 24000):
         if not self.workspace:

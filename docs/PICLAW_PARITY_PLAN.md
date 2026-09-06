@@ -333,3 +333,11 @@ workspace_read is not registered. Standalone MCP accepts --workspace-root.
 420 backend tests pass including confinement, FIFO, bounded reads and actual
 uMCP dispatcher calls. Agent's independent filesystem tools remain outside this
 service's restrictions; do not interpret the flag as sandboxing the agent itself.
+
+### Folder reference resolution foundation
+
+Optional workspace_list joins workspace_read under the same explicit root/gate.
+It lists at most 200 entries without following symlinks or traversing upward,
+reports symlink/special types without opening targets, and marks truncated results.
+No recursive scan or unbounded sorting. Backend: 421 passed. Folder composer/tree
+selection and pills remain to wire; bounded listing is not full directory search.
