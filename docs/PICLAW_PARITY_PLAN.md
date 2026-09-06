@@ -1761,3 +1761,9 @@ compose-model-popup-btn styling, with danger treatment on delete. Fifty headed
 picker tests and build/lint pass, including mobile button bounds. Extra row actions,
 metadata density and fixture differences remain documented deviations; this is
 not an approval of full screenshot equivalence.
+
+### Explicit model picker close
+
+Added labelled close control using existing popup-header/close styles and trigger
+focus restoration. Two headed Chromium/WebKit close-control tests and build/lint
+pass. Final rendered model comparison and settings integration remain open.

@@ -541,3 +541,13 @@ test('agent registry polling removes capability claims after refresh failure', a
     fail = true;
     await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0, { timeout: 20000 });
 });
+
+test('model picker close button restores model trigger focus', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await trigger.click();
+    await page.getByRole('button', { name: 'Close model picker', exact: true }).click();
+    await expect(page.getByRole('searchbox', { name: 'Search models' })).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+});

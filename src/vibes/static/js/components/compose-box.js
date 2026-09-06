@@ -986,7 +986,7 @@ export function ComposeBox({
                     `}
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
-                            <div class="compose-model-popup-title">Search models</div>
+                            <div class="compose-session-popup-header"><div class="compose-model-popup-title">Search models</div><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
                             ${modelPinError && html`<div role="alert" class="compose-model-popup-empty">${modelPinError}</div>`}
                             ${!loadingModels && !modelCatalogError && html`<div class="compose-session-row-meta" role="status">${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</div>`}
                             <input ref=${modelSearchRef} class="compose-session-search" type="search" aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
