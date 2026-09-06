@@ -484,3 +484,11 @@ Successful sends clear drafts. Chromium/WebKit verify seeded draft load, edits,
 reload, references and successful-send clearing; build/lint pass. Session switching
 must key/remount composer and restore parent reference state before exposing the
 picker; this slice proves default-session reload, not full switching yet.
+
+### Session history activity metadata
+
+Registry listings include stored message_count, last_message_id and last_message_at
+using one aggregate join (not per-session queries). Empty sessions report no last
+message; activity is not labeled running/idle or model context. Sorting preserves
+pin priority and uses latest history activity. 437 backend tests pass. Picker and
+runtime status remain unimplemented, not inferred from these metadata fields.

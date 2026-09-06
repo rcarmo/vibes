@@ -9,7 +9,16 @@ class SessionStore:
 
     async def list(self, include_archived=False):
         async with self.db._connection.execute(
-            'SELECT * FROM chat_sessions WHERE (? OR archived=0) ORDER BY pinned DESC, updated_at DESC, id',
+            '''SELECT s.*, COALESCE(activity.message_count, 0) AS message_count,
+                      activity.last_message_at, activity.last_message_id
+               FROM chat_sessions s LEFT JOIN (
+                   SELECT COALESCE(json_extract(data, '$.session_id'), 'default') AS session_id,
+                          COUNT(*) AS message_count, MAX(timestamp) AS last_message_at,
+                          MAX(id) AS last_message_id
+                   FROM interactions GROUP BY COALESCE(json_extract(data, '$.session_id'), 'default')
+               ) activity ON activity.session_id=s.id
+               WHERE (? OR s.archived=0)
+               ORDER BY s.pinned DESC, COALESCE(activity.last_message_at, s.updated_at) DESC, s.id''',
             (int(include_archived),),
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]

@@ -86,3 +86,19 @@ async def test_thread_reassignment_cannot_cross_session_boundary(db):
     with pytest.raises(ValueError):
         await db.set_interaction_thread_id(a, 999999)
     assert await db.set_interaction_thread_id(b, b)
+
+
+@pytest.mark.asyncio
+async def test_session_listing_reports_stored_activity_not_runtime(db):
+    store = SessionStore(db)
+    other = await store.create('Other')
+    first = await db.create_interaction({'type': 'user', 'content': 'one'})
+    last = await db.create_interaction({'type': 'user', 'content': 'two'})
+    sessions = {item['id']: item for item in await store.list()}
+    assert sessions['default']['message_count'] == 2
+    assert sessions['default']['last_message_id'] == last
+    assert sessions['default']['last_message_at']
+    assert sessions[other['id']]['message_count'] == 0
+    assert sessions[other['id']]['last_message_id'] is None
+    assert 'is_running' not in sessions['default']
+    assert first < last
