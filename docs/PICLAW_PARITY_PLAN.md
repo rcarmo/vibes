@@ -1810,3 +1810,10 @@ Local toggles and cross-tab updates advance pin revision. Delayed instance Load
 response is not applied over newer browser edits, with explicit status feedback.
 Four headed instance-pin tests and build/lint pass, including held load followed
 by local pin change. Save remains explicit snapshot replacement at invocation.
+
+### Existing v6 database preference migration
+
+Reconstructed v6 schema test upgrades through normal connect, preserving session,
+message and confirmed Pi binding/model/thinking metadata. New preferences start
+empty, persist after write and survive another reconnect. 506 backend tests pass.
+No production database modified for this verification.
