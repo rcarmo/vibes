@@ -439,3 +439,22 @@ test('session dialogs reject duplicate synchronous submit events', async ({ page
     });
     expect(await page.evaluate(() => window.dialogCalls)).toEqual({ save: 1, remove: 1 });
 });
+
+test('branch dialog retains parent and input when parent is archived before submit', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Parent archived elsewhere' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await page.getByTestId('session-switcher').click();
+    await page.getByRole('button', { name: 'New branch', exact: true }).click();
+    const dialog = page.getByRole('dialog', { name: 'New session' });
+    await dialog.getByRole('textbox', { name: 'Session name' }).fill('Must not become root');
+    const archived = await page.request.patch('/sessions/' + id, { data: { archived: true } });
+    expect(archived.ok()).toBe(true);
+    await dialog.getByRole('button', { name: 'Create', exact: true }).click();
+    await expect(dialog.getByRole('alert')).toContainText('Restore parent session');
+    await expect(dialog.getByRole('textbox', { name: 'Session name' })).toHaveValue('Must not become root');
+    const registry = await (await page.request.get('/sessions?include_archived=true')).json();
+    expect(registry.sessions.some(item => item.name === 'Must not become root')).toBe(false);
+});

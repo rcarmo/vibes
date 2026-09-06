@@ -1671,3 +1671,10 @@ Model mutation input reuses validated text contract: whitespace-only and control
 character provider/model/thinking values return 400 before Pi RPC. 494 backend
 tests pass, including four no-RPC malformed-input cases. Full external model
 acceptance remains separate from input validation.
+
+### Mounted stale-parent rejection acceptance
+
+Chromium/WebKit test archives selected parent through API after branch dialog
+opens, then verifies creation rejection, retained typed name, and no fallback root
+or child insertion. Two targeted tests pass. This covers stale UI/backend lifecycle
+boundary; provider history fork semantics remain out of this metadata-only action.
