@@ -1648,3 +1648,11 @@ Includes model pins/storage failures, picker lifecycle badges and mobile layout,
 root/child/rename footer controls, dialog submit guards and parent lifecycle checks.
 No retries/skips. Full visual acceptance, remaining settings/capability presentation,
 provider fork semantics and external-agent/live-service acceptance remain open.
+
+### Registry metadata cannot overwrite scoped model
+
+Removed legacy loadAgents assignment of configured/default model into current
+composer model state. Agent registry still supplies branding, but scoped inspection
+and confirmed mutation own live model labels. Four headed registry/scoped-model
+tests and build/lint pass. ACP capability presentation remains open; this closes
+an identified metadata/live-state boundary rather than displaying unverified data.

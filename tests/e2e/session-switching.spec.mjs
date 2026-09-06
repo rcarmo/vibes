@@ -476,3 +476,11 @@ test('pin storage failure does not invalidate model catalog', async ({ page }) =
     await expect(page.getByRole('menuitem', { name: 'test/current', exact: true })).toBeEnabled();
     await expect(page.getByRole('button', { name: 'Retry model catalog' })).toHaveCount(0);
 });
+
+test('agent registry model cannot substitute for unavailable scoped inspection', async ({ page }) => {
+    await page.route('**/agents', route => route.fulfill({ contentType: 'application/json', body: '{"agents":[{"id":"default","name":"Registry agent","model":"private/stored-label","status":"stopped"}]}' }));
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":false,"model":null}' }));
+    await page.goto('/');
+    await expect(page.locator('.compose-input-main textarea')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
+});

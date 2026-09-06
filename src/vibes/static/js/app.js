@@ -1773,7 +1773,8 @@ function App() {
             const data = await getAgents();
             setAgents(buildAgentsMap(data));
             const defaultAgent = (data?.agents || []).find((agent) => agent.id === 'default');
-            setActiveModel(resolveAgentModel(defaultAgent));
+            // Registry metadata is not the selected conversation's live model.
+            // Only scoped inspection/mutation callbacks may update that label.
             applyBranding(defaultAgent?.name, defaultAgent?.avatar_url);
             const nextUser = data?.user || {};
             setUserProfile((prev) => {
