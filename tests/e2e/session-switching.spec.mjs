@@ -420,3 +420,18 @@ test('over-capacity context retains true percentage with bounded gauge geometry'
     const values = dash.split(' ').map(Number);
     expect(values[0]).toBe(values[1]);
 });
+
+test('long model identities remain within mobile picker bounds', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const model = 'long-model-'.repeat(20);
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ available: true, models: [{ provider: 'test', id: model }] }) }));
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    const choice = page.getByRole('menuitem', { name: 'test/' + model, exact: true });
+    await expect(choice).toBeVisible();
+    const box = await choice.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(391);
+    expect(await choice.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+});

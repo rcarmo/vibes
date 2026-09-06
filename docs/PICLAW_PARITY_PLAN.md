@@ -1418,3 +1418,10 @@ Listener is now stable for app lifetime and checks current rendered expanded
 state before dismissal. After fix, 60 headed Chromium/WebKit editor/terminal tests
 pass with one worker; build/lint pass. Initial run had 59 passes/one Escape failure;
 no retries or assertion weakening added. Screenshot equivalence remains open.
+
+### Long model identity mobile bounds
+
+Added Chromium/WebKit test with a 220-character model ID at 390px. Existing styles
+already keep choice geometry and scroll width within bounds; no CSS change was
+needed. Two tests pass. This is targeted overflow acceptance, not full deployed
+model picker screenshot equivalence.
