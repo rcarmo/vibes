@@ -23,6 +23,29 @@ class SessionStore:
         ) as cursor:
             return [dict(row) for row in await cursor.fetchall()]
 
+    async def family_ids(self, session_id):
+        session = await self.get(session_id)
+        if not session:
+            raise ValueError('Session not found')
+        visited = set()
+        while session['parent_id']:
+            if session['id'] in visited:
+                raise ValueError('Invalid cyclic session tree')
+            visited.add(session['id'])
+            parent = await self.get(session['parent_id'])
+            if not parent:
+                break
+            session = parent
+        async with self.db._connection.execute('''
+            WITH RECURSIVE family(id) AS (
+                SELECT ? UNION SELECT s.id FROM chat_sessions s JOIN family f ON s.parent_id=f.id
+            ) SELECT id FROM family LIMIT 501
+        ''', (session['id'],)) as cursor:
+            ids = [row['id'] for row in await cursor.fetchall()]
+        if len(ids) > 500:
+            raise ValueError('Session family exceeds search limit')
+        return ids
+
     async def backend_binding(self, session_id, backend):
         async with self.db._connection.execute('SELECT * FROM chat_session_backends WHERE session_id=? AND backend=?', (session_id, backend)) as cursor:
             row = await cursor.fetchone()

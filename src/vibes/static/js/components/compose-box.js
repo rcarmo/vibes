@@ -706,6 +706,7 @@ export function ComposeBox({
                 <label class="compose-search-scope-wrap" title="Search scope">
                     <select class="compose-search-scope-select" aria-label="Search scope" value=${searchScope} onChange=${e => setSearchScope(e.currentTarget.value)}>
                         <option value="current">Current session</option>
+                        <option value="root">Branch family</option>
                         <option value="all">All sessions</option>
                     </select>
                 </label>

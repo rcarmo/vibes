@@ -168,7 +168,13 @@ async def search(request: web.Request) -> web.Response:
         from ..sessions import SessionStore
         if not await SessionStore(db).get(session_id):
             return web.json_response({'error': 'Session not found'}, status=404)
-        filters['session_id'] = session_id
+        if request.query.get('scope') == 'root':
+            try:
+                filters['session_ids'] = await SessionStore(db).family_ids(session_id)
+            except ValueError as exc:
+                return web.json_response({'error': str(exc)}, status=400)
+        else:
+            filters['session_id'] = session_id
     if thread_id is not None:
         filters['thread_id'] = thread_id
     for key in ('has_images', 'has_attachments'):

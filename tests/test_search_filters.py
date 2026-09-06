@@ -24,3 +24,19 @@ async def test_session_search_intersects_thread_scope(db):
     assert {x['id'] for x in await db.search('needle', session_id='default')} == {default}
     assert {x['id'] for x in await db.search('needle', session_id=session['id'])} == {root, reply}
     assert await db.search('needle', session_id='default', thread_id=root) == []
+
+
+@pytest.mark.asyncio
+async def test_family_search_includes_siblings_not_unrelated_roots(db):
+    from vibes.sessions import SessionStore
+    store = SessionStore(db)
+    root = await store.create('Root')
+    child = await store.create('Child', root['id'])
+    sibling = await store.create('Sibling', root['id'])
+    unrelated = await store.create('Unrelated')
+    ids = []
+    for session in [root, child, sibling, unrelated]:
+        ids.append(await db.create_interaction({'type': 'user', 'content': 'needle', 'session_id': session['id']}))
+    family = await store.family_ids(child['id'])
+    assert set(family) == {root['id'], child['id'], sibling['id']}
+    assert {row['id'] for row in await db.search('needle', session_ids=family)} == set(ids[:3])

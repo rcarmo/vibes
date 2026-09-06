@@ -402,10 +402,15 @@ class Database:
                 for row in rows
             ]
 
-    async def search(self, query: str, limit: int = 50, offset: int = 0, *, thread_id=None, session_id=None, has_images=False, has_attachments=False) -> list[dict]:
+    async def search(self, query: str, limit: int = 50, offset: int = 0, *, thread_id=None, session_id=None, session_ids=None, has_images=False, has_attachments=False) -> list[dict]:
         """Full-text search with optional thread and stored-media filters."""
         filters = []
         params = [query]
+        if session_ids is not None:
+            if not session_ids:
+                return []
+            filters.append("COALESCE(json_extract(i.data, '$.session_id'), 'default') IN (" + ','.join('?' for _ in session_ids) + ')')
+            params.extend(session_ids)
         if session_id is not None:
             filters.append("COALESCE(json_extract(i.data, '$.session_id'), 'default')=?")
             params.append(session_id)

@@ -666,3 +666,11 @@ Composer exposes current/all sessions with deployed scope-select classes and CSS
 Current passes selected session_id; all omits it. Four Chromium/WebKit filter/scope
 tests pass; build/lint pass. Deployed branch-family scope is not yet exposed:
 requires descendant-aware filtering and remains a parity gap, not an alias.
+
+### Branch-family search
+
+Added actual root/descendant resolution (including siblings) and bounded family
+search, excluding unrelated roots. Composer exposes Piclaw's third scope option.
+Families over 500 sessions fail explicitly rather than silently truncate results.
+454 backend tests and four Chromium/WebKit scope/filter tests pass; build/lint
+pass. Registry parent links define family; agent context is not merged by search.

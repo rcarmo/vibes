@@ -35,4 +35,9 @@ test('search scope switches between current and all sessions', async ({ page }) 
     await input.press('Enter');
     await expect.poll(() => requests.length).toBe(2);
     expect(requests[1].searchParams.has('session_id')).toBe(false);
+    await page.getByRole('combobox', { name: 'Search scope' }).selectOption('root');
+    await input.press('Enter');
+    await expect.poll(() => requests.length).toBe(3);
+    expect(requests[2].searchParams.get('scope')).toBe('root');
+    expect(requests[2].searchParams.get('session_id')).toBe('default');
 });
