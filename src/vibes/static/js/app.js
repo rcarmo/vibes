@@ -705,11 +705,25 @@ function App() {
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionRefreshError, setSessionRefreshError] = useState('');
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+    const sessionTriggerRef = useRef(null);
+    const closeSessionPicker = () => {
+        setSessionPickerOpen(false);
+        requestAnimationFrame(() => sessionTriggerRef.current?.focus());
+    };
     const [renamingSession, setRenamingSession] = useState(null);
     const [deletingSession, setDeletingSession] = useState(null);
     const deletedSessionRef = useRef(false);
     const [creatingSession, setCreatingSession] = useState(false);
     const createdSessionRef = useRef(null);
+    useEffect(() => {
+        if (!sessionPickerOpen || renamingSession || deletingSession || creatingSession) return;
+        const outside = event => {
+            if (event.target?.closest?.('[data-testid="session-popup"], [data-testid="session-switcher"]')) return;
+            setSessionPickerOpen(false);
+        };
+        document.addEventListener('pointerdown', outside);
+        return () => document.removeEventListener('pointerdown', outside);
+    }, [sessionPickerOpen, renamingSession, deletingSession, creatingSession]);
     const refreshSessions = async () => {
         const result = await getSessions(true);
         setSessionOptions(result.sessions);
@@ -2501,8 +2515,8 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
-                <button class="session-trigger" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
-                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${() => setSessionPickerOpen(false)}
+                <button ref=${sessionTriggerRef} class="session-trigger" aria-expanded=${sessionPickerOpen} aria-haspopup="listbox" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
+                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
                     onCreate=${() => { createdSessionRef.current = null; setCreatingSession(true); }}
                     onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
                     onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}

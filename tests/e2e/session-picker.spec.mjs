@@ -267,3 +267,24 @@ test('picker discloses stale registry after polling failure and clears on recove
     fail = false;
     await expect(popup.getByRole('alert')).toHaveCount(0, { timeout: 10000 });
 });
+
+test('mounted picker Escape restores trigger and outside click preserves target focus', async ({ page }) => {
+    await page.goto('/');
+    const trigger = page.getByTestId('session-switcher');
+    await trigger.click();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    await page.getByRole('combobox', { name: 'Search sessions' }).press('Escape');
+    await expect(page.getByTestId('session-popup')).toHaveCount(0);
+    await expect(trigger).toBeFocused();
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    await trigger.click();
+    await page.evaluate(() => {
+        const button = document.createElement('button');
+        button.id = 'outside-target'; button.textContent = 'Outside target';
+        button.style.cssText = 'position:fixed;bottom:0;left:0;z-index:9999';
+        document.body.append(button);
+    });
+    await page.locator('#outside-target').click();
+    await expect(page.getByTestId('session-popup')).toHaveCount(0);
+    await expect(page.locator('#outside-target')).toBeFocused();
+});

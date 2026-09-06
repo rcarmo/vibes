@@ -1310,3 +1310,11 @@ Failed registry polling retains the last snapshot but shows an explicit warning
 that activity may be stale; successful refresh clears it. Two headed Chromium/
 WebKit polling failure/recovery tests and build/lint pass. Backend remains the
 authority for actions; cached activity is not represented as newly confirmed.
+
+### Picker dismissal/focus behavior
+
+Mounted picker Escape restores trigger focus; outside pointer closes without
+stealing focus from the clicked target. Outside dismissal is suspended while a
+session create/rename/delete dialog is active. Trigger advertises popup type and
+expanded state. Thirty headed Chromium/WebKit picker tests and build/lint pass,
+including existing dialog focus tests. Visual reference equivalence remains open.
