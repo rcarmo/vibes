@@ -970,6 +970,7 @@ function App() {
         const transferPayload = stashEditorPopoutState({
             path: tabId,
             content: tab?.content,
+            savedContent: tab?.savedContent,
             mtime: tab?.savedAt ? new Date(tab.savedAt).toISOString() : null,
         });
         const params = new URLSearchParams();
@@ -1025,10 +1026,10 @@ function App() {
                     path: editorPath,
                     label: editorPath.split('/').pop() || editorPath,
                     content: transferred.content,
-                    savedContent: transferred.content,
+                    savedContent: transferred.savedContent ?? transferred.content,
                     loading: false,
                     error: null,
-                    dirty: false,
+                    dirty: transferred.savedContent !== undefined && transferred.savedContent !== transferred.content,
                     pinned: false,
                     saving: false,
                     saveError: null,
