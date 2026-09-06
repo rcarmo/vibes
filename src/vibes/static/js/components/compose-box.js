@@ -49,10 +49,11 @@ function formatK(n) {
  * Green when <75%, amber 75–90%, red >90%. Tooltip shows exact numbers.
  */
 function ContextPie({ usage }) {
-    const pct = Math.min(100, Math.max(0, usage.percent || 0));
+    if (typeof usage.percent !== 'number' || !Number.isFinite(usage.percent) || usage.percent < 0) return null;
+    const pct = Math.min(100, usage.percent);
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
-    const label = tokens != null
+    const label = Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
         ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${pct.toFixed(0)}%)`
         : `Context: ${pct.toFixed(0)}%`;
 
@@ -65,7 +66,7 @@ function ContextPie({ usage }) {
             : 'var(--context-green, #22c55e)';
 
     return html`
-        <span class="compose-context-pie icon-btn" title=${label}>
+        <span class="compose-context-pie icon-btn" role="img" aria-label=${label} title=${label}>
             <svg width="18" height="18" viewBox="0 0 20 20">
                 <circle cx="10" cy="10" r=${r}
                     fill="none"

@@ -324,3 +324,14 @@ test('default composer model controls use scoped mutation, not slash messages', 
     await expect.poll(() => changes).toEqual([{ provider: 'test', model_id: 'beta' }, { thinking_level: 'low' }]);
     expect(commands).toBe(0);
 });
+
+test('context gauge hides invalid percent and exposes accessible valid usage', async ({ page }) => {
+    let context = { percent: 'invalid', tokens: 10, contextWindow: 100 };
+    await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify(context) }));
+    await page.goto('/');
+    await expect(page.locator('.compose-input-main textarea')).toBeVisible();
+    await expect(page.locator('.compose-context-pie')).toHaveCount(0);
+    context = { percent: 25, tokens: 1000, contextWindow: 4000 };
+    await page.reload();
+    await expect(page.getByRole('img', { name: /Context:.*25%/ })).toBeVisible();
+});

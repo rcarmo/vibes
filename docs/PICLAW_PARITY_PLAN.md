@@ -1260,3 +1260,11 @@ addition to existing blur/session/unmount cleanup. Listener is removed on cleanu
 Sixteen headed Chromium/WebKit mocked-speech tests and build/lint pass, including
 synthetic hidden-page event followed by a retained late transcript callback.
 Physical mobile backgrounding/live speech service acceptance remains separate.
+
+### Honest context gauge rendering
+
+Context gauge rejects nonnumeric/nonfinite/negative percentages instead of drawing
+NaN or fabricated zero usage. Token totals are shown only with valid nonnegative
+tokens and positive context window; valid gauges expose an accessible image label.
+Four headed Chromium/WebKit context tests and build/lint pass. Compaction/runtime
+status integration and complete visual parity remain open.
