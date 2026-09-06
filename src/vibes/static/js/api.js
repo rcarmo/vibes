@@ -18,7 +18,9 @@ async function request(url, options = {}, includeEtag = false) {
     
     if (!response.ok) {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
+        const failure = new Error(error.error || `HTTP ${response.status}`);
+        failure.status = response.status;
+        throw failure;
     }
     
     const data = await response.json();

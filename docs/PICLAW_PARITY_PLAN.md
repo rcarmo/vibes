@@ -1856,3 +1856,10 @@ Save instance pins is disabled until a response supplies a usable ETag and its
 tooltip explains loading first. Missing ETag cannot silently enable conditional
 save. Eight headed instance-pin tests and build/lint pass, including disabled
 initial Save followed by successful loaded-version update.
+
+### Preference conflict recovery state
+
+Fetch wrapper preserves HTTP status on errors. Instance-pin 412 invalidates loaded
+ETag and disables Save until reload, preventing repeated known-stale submissions.
+18 frontend unit tests, eight headed instance-pin tests and build/lint pass;
+conflict test verifies disabled Save followed by re-enabled control after Load.

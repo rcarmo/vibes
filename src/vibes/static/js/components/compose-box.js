@@ -306,7 +306,12 @@ export function ComposeBox({
             }
             if (save) setModelPinError('');
             setPinSyncStatus(save ? 'Pins saved for this instance.' : 'Instance pins loaded into this browser.');
-        } catch (error) { if (modelCallbacksActive.current) setModelPinError(error.message || 'Pin synchronization failed'); }
+        } catch (error) {
+            if (modelCallbacksActive.current) {
+                if (error.status === 412) { instancePinEtag.current = null; setInstancePinsLoaded(false); }
+                setModelPinError(error.message || 'Pin synchronization failed');
+            }
+        }
         finally { pinSyncPending.current = false; setPinSyncBusy(false); }
     };
     useEffect(() => {

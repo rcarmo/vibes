@@ -623,4 +623,7 @@ test('instance pin save rejects concurrent server preference change', async ({ p
     await page.getByRole('button', { name: 'Save instance pins', exact: true }).click();
     await expect(page.locator('.compose-model-popup [role="alert"]').filter({ hasText: 'Model preferences changed' })).toBeVisible();
     expect((await (await page.request.get('/model-preferences')).json()).pins).toEqual(['other/new']);
+    await expect(page.getByRole('button', { name: 'Save instance pins', exact: true })).toBeDisabled();
+    await page.getByRole('button', { name: 'Load instance pins', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Save instance pins', exact: true })).toBeEnabled();
 });
