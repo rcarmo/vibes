@@ -1989,3 +1989,10 @@ width now uses 40% viewport, retaining explicit saved widths. Two headed Chromiu
 WebKit geometry tests and build/lint pass against reference values. Dock interior
 still differs (deployed top splitter offset 4px); full visual acceptance remains
 open and editor regression must be rerun after default-width change.
+
+### Default-column editor/terminal regression
+
+After 40%-width default alignment, all 62 headed Chromium/WebKit editor-tab and
+terminal tests pass with one worker. Covers preview/tab activation, popouts,
+terminal transfer/recovery, mobile drawer and reference column geometry. No retry
+or skip added. Interior dock visual comparison remains open.
