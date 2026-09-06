@@ -1,0 +1,38 @@
+# Model/thinking markup audit
+
+Reference: installed Piclaw 2.15.3 classic `dist/app.bundle.js.map`, embedded
+`../../../src/components/compose-box.ts`, lines 3819–3842. Local source:
+`src/vibes/static/js/components/compose-box.js`, model hint/thinking controls.
+Source inspection only; not visual approval or authenticated execution evidence.
+
+## Confirmed matches
+
+The model trigger is an explicit button with classes `compose-model-hint
+compose-model-hint-btn`, accessible Open model picker label, switching-state
+presentation and disabled mutation state. Local session-specific catalog and
+thinking capability gating have existing browser coverage.
+
+## Concrete remaining structure gap
+
+Deployed structure:
+
+- `compose-meta-row`
+  - `compose-model-meta`
+    - model trigger
+    - `compose-model-meta-subline`
+      - `compose-model-usage-hint` span, when information is available
+  - context gauge
+
+Deployed thinking level is part of the usage subline, joined with supported usage
+and routing information. It is not a `compose-thinking-pill` button. Local code
+currently places a cycle-thinking button adjacent to the model trigger instead.
+
+Next implementation: adopt the deployed model-meta/subline structure and its CSS,
+retain the capability-gated local cycle action as an explicitly documented
+interactive extension, and compare desktop/mobile captures. Do not add fabricated
+pricing, routing or provider usage to fill the reference subline. Preserve explicit
+button types, accessible labels, selection callbacks and context-gauge behavior.
+
+The local thinking selector inside the catalog also remains a local extension;
+this audit does not authorize removing working per-session controls merely to
+obtain screenshot similarity. Full picker and status visual acceptance remain open.
