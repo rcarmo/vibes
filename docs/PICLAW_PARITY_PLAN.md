@@ -1996,3 +1996,10 @@ After 40%-width default alignment, all 62 headed Chromium/WebKit editor-tab and
 terminal tests pass with one worker. Covers preview/tab activation, popouts,
 terminal transfer/recovery, mobile drawer and reference column geometry. No retry
 or skip added. Interior dock visual comparison remains open.
+
+### Terminal header control alignment
+
+Terminal header uses deployed 12px/16-viewBox popout and close SVG paths/strokes;
+decorative icons are aria-hidden. Added deployed header reattach action using
+existing transfer handler, retaining body recovery control. 28 headed terminal
+tests and build/lint pass. Full dock screenshot comparison remains open.

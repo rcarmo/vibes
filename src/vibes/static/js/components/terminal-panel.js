@@ -108,12 +108,11 @@ export function TerminalPanel({ onClose, popout = false, shared = false }) {
             <span class="dock-panel-title">Terminal</span>
             <div class="dock-panel-actions">
                 ${!popout && !detached && html`<button class="dock-panel-action" onClick=${detach} title="Open terminal in window" aria-label="Open terminal in window">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-                        <path d="M15 3h6v6" /><path d="M10 14 21 3" /><path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
-                    </svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3H3v10h10v-3" /><path d="M9 3h4v4" /><path d="M8 8l5-5" /></svg>
                 </button>`}
+                ${detached && html`<button type="button" class="dock-panel-action" title="Reattach terminal" aria-label="Reattach terminal" onClick=${reattach}><svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6V3h10v10h-3" /><path d="M3 9v4h4" /><path d="M3 13l5-5" /></svg></button>`}
                 <button class="dock-panel-close" onClick=${onClose} title="Hide terminal" aria-label="Hide terminal">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M6 6l12 12M6 18L18 6" /></svg>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8" /></svg>
                 </button>
             </div>
         </div>
