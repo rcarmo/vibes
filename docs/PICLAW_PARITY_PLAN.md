@@ -2497,3 +2497,15 @@ counts, persisted timestamps and lifecycle pills remain visible as intentional
 supported-metric extensions. New regression verifies ID search/description/title
 without the extra row. Build/lint and all 60 headed picker tests pass. This reduces
 row density; it does not claim screenshot equivalence for differing populations.
+
+### Picker refinement recheck: integrated failures retained
+
+Visually reviewed updated 3423af7 desktop/mobile captures: compact lifecycle icons
+and removal of the ID line reduce density; retained metrics and search-time footer
+remain intentional differences. Full run: 511 backend, 18 frontend/73 assertions
+and build/lint pass; browser run has 286 passes and TWO WebKit failures (no retries):
+nondefault model selection uses scoped mutation endpoint (missing newly created
+session option), and model pins persist without mutation and never expose
+unavailable choices (missing unpin button after reload). Evidence log:
+/workspace/tmp/picker-final-browser.log. This is not a green integrated checkpoint;
+root-cause investigation remains due before declaring picker acceptance complete.
