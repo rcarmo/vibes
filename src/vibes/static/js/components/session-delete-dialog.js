@@ -2,6 +2,7 @@ import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 
 export function SessionDeleteDialog({ name, onDelete, onClose }) {
     const [busy, setBusy] = useState(false);
+    const pending = useRef(false);
     const [error, setError] = useState('');
     const cancel = useRef(null);
     const remove = useRef(null);
@@ -12,10 +13,11 @@ export function SessionDeleteDialog({ name, onDelete, onClose }) {
     }, []);
     const submit = async event => {
         event.preventDefault();
-        if (busy) return;
+        if (pending.current) return;
+        pending.current = true;
         setBusy(true); setError('');
         try { await onDelete(); onClose(); }
-        catch (err) { setError(err.message || 'Unable to delete session'); setBusy(false); }
+        catch (err) { setError(err.message || 'Unable to delete session'); setBusy(false); pending.current = false; }
     };
     const keys = event => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onClose(); }

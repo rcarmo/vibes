@@ -1624,3 +1624,11 @@ Verified New branch, New root and Rename current footer controls remain visible
 and inside mobile popup horizontally and vertically at 390x844 in Chromium and
 WebKit (two tests pass). Existing styles suffice; no CSS workaround added. This
 checks the complete footer after recent additions, not full pixel equivalence.
+
+### Dialog synchronous submission guard
+
+Name/create and deletion dialogs now use immediate pending refs, preventing
+same-tick duplicate submits before busy rerender. Failed requests release the
+guard; successful actions close as before. Eight headed dialog tests and build/
+lint pass, including double synthetic submit with exactly one callback per dialog.
+This guards UI invocation, not network-level exactly-once semantics.

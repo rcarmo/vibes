@@ -3,6 +3,7 @@ import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 export function SessionNameDialog({ name, onSave, onClose, creating = false, parentName = null }) {
     const [value, setValue] = useState(name || '');
     const [busy, setBusy] = useState(false);
+    const pending = useRef(false);
     const [error, setError] = useState('');
     const input = useRef(null);
     const panel = useRef(null);
@@ -14,10 +15,11 @@ export function SessionNameDialog({ name, onSave, onClose, creating = false, par
     }, []);
     const submit = async event => {
         event.preventDefault();
-        if (!valid || busy) return;
+        if (!valid || pending.current) return;
+        pending.current = true;
         setBusy(true); setError('');
         try { await onSave(value.trim()); onClose(); }
-        catch (err) { setError(err.message || 'Unable to save session'); setBusy(false); }
+        catch (err) { setError(err.message || 'Unable to save session'); setBusy(false); pending.current = false; }
     };
     const keys = event => {
         if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); if (!busy) onClose(); }

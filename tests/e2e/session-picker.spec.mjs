@@ -417,3 +417,25 @@ test('mobile picker footer actions remain within popup bounds', async ({ page })
         expect(box.y + box.height).toBeLessThanOrEqual(bounds.y + bounds.height + 1);
     }
 });
+
+test('session dialogs reject duplicate synchronous submit events', async ({ page }) => {
+    await page.goto('/');
+    await page.evaluate(async () => {
+        const { html, render } = await import('/static/js/vendor/preact-htm.js');
+        const { SessionNameDialog } = await import('/static/js/components/session-name-dialog.js');
+        const { SessionDeleteDialog } = await import('/static/js/components/session-delete-dialog.js');
+        window.dialogCalls = { save: 0, remove: 0 };
+        for (const [name, Component] of [['save', SessionNameDialog], ['remove', SessionDeleteDialog]]) {
+            const root = document.createElement('div'); root.id = 'duplicate-' + name; document.body.append(root);
+            const action = () => { window.dialogCalls[name]++; return new Promise(() => {}); };
+            render(html`<${Component} name="Valid name" onSave=${action} onDelete=${action} onClose=${() => {}} />`, root);
+        }
+    });
+    await page.evaluate(() => {
+        for (const form of document.querySelectorAll('[id^="duplicate-"] form')) {
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+            form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+        }
+    });
+    expect(await page.evaluate(() => window.dialogCalls)).toEqual({ save: 1, remove: 1 });
+});
