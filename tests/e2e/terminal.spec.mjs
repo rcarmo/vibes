@@ -114,3 +114,15 @@ test('terminal height stays bounded after viewport shrink and keyboard resize', 
     expect(box.y + box.height).toBeLessThanOrEqual(391);
     await expect(page.getByRole('button', { name: 'Hide terminal', exact: true })).toBeVisible();
 });
+
+for (const width of [1440, 390]) {
+    test(`shared dock does not cover composer at width ${width}`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto('/');
+        await page.getByTitle('Open terminal', { exact: true }).click();
+        await expect(page.locator('.editor-pane-container > .terminal-panel')).toBeVisible();
+        const terminal = await page.locator('.terminal-panel').boundingBox();
+        const compose = await page.locator('.compose-input-main textarea').boundingBox();
+        expect(terminal.x + terminal.width <= compose.x + 1 || terminal.y + terminal.height <= compose.y + 1).toBe(true);
+    });
+}

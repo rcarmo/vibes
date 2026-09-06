@@ -944,3 +944,14 @@ New headed Chromium/WebKit tests verify keyboard splitter increments and shrinki
 from 1200x1000 to 844x390 keeps the panel and hide control in bounds (2 passed).
 This does not close shared-pane host layout parity: the fixed overlay and launcher
 placement remain unchanged and still require structural integration.
+
+### Shared terminal/editor host structure
+
+Moved TerminalPanel into deployed-style editor-pane-container alongside the
+editor stack, with the horizontal editor splitter outside the shared column.
+Desktop terminal now occupies workspace-side space rather than overlaying the
+timeline/composer; popout stays full-window. Narrow screens stack the shared
+column above chat (documented responsive adaptation). 52 headed Chromium/WebKit
+terminal/editor-tab tests pass, including explicit no-composer-overlap at 1440
+and 390px; build/lint pass. Launcher remains fixed, standalone resize semantics
+and final screenshot comparison need refinement; host parity stays open.

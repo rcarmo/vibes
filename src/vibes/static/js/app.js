@@ -2378,7 +2378,6 @@ function App() {
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
             ${terminalEnabled && !terminalVisible && !terminalPopout && html`<button class="terminal-open-button" onClick=${() => setTerminalVisible(true)} title="Open terminal">Terminal</button>`}
-            ${terminalVisible && html`<${TerminalPanel} popout=${terminalPopout} onClose=${() => { setTerminalVisible(false); if (terminalPopout) window.close(); }} />`}
             ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} renderMarkdown=${renderMarkdown} />`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
@@ -2391,8 +2390,9 @@ function App() {
                 </svg>
             </button>`}
             ${!popoutMode && html`<div class="workspace-splitter" onMouseDown=${handleSplitterMouseDown} onTouchStart=${handleSplitterTouchStart}></div>`}
-            ${editorOpen && html`
-                <div class="editor-stack">
+            ${(editorOpen || terminalVisible) && html`
+                <div class="editor-pane-container">
+                ${editorOpen && html`<div class="editor-stack">
                     <${TabStrip}
                         tabs=${editorTabs}
                         activeId=${activeEditorTab?.id}
@@ -2423,8 +2423,10 @@ function App() {
                         renderMarkdown=${renderMarkdown}
                         renderMermaidDiagrams=${renderMermaidDiagrams}
                     />
+                </div>`}
+                ${terminalVisible && html`<${TerminalPanel} popout=${terminalPopout} onClose=${() => { setTerminalVisible(false); if (terminalPopout) window.close(); }} />`}
                 </div>
-                ${!popoutMode && html`<div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>`}
+                ${!popoutMode && !terminalPopout && html`<div class="editor-splitter" onMouseDown=${handleEditorSplitterMouseDown} onTouchStart=${handleEditorSplitterTouchStart}></div>`}
             `}
             ${!popoutMode && html`<div class="container">
                 ${searchQuery && isIOSDevice() && html`<div class="search-results-spacer"></div>`}

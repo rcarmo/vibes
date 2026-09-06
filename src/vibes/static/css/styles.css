@@ -3508,3 +3508,44 @@ body {
 .compose-session-trigger-top+.compose-input-main textarea{padding-right:max(calc(var(--spacing-xs) + 28px),min(44vw,156px))}
 .compose-session-trigger-top{position:absolute;z-index:7;align-self:auto;max-width:min(42vw,148px);margin-bottom:0;top:4px;right:6px}
 .compose-session-trigger-top+.compose-input-main textarea{padding-right:max(calc(var(--spacing-xs) + 28px),min(44vw,156px))}
+
+/* Shared editor/dock column: terminal no longer covers the timeline/composer. */
+.editor-pane-container {
+    display: flex;
+    flex-direction: column;
+    width: var(--editor-width, 40vw);
+    min-width: 200px;
+    max-width: 70vw;
+    height: 100dvh;
+    min-height: 0;
+    flex-shrink: 0;
+    overflow: hidden;
+}
+.editor-pane-container > .editor-stack {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    height: auto;
+    flex: 1 1 0;
+    min-height: 60px;
+}
+.editor-pane-container > .terminal-panel {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-height: calc(100dvh - 60px);
+    z-index: auto;
+}
+.editor-pane-container > .terminal-panel:only-child { flex: 1; max-height: none; }
+.popout-mode .editor-pane-container,
+.terminal-popout .editor-pane-container { width: 100%; max-width: none; }
+.terminal-popout.app-shell > :not(.editor-pane-container) { display: none !important; }
+.terminal-popout.app-shell > .editor-pane-container { display: flex !important; }
+@media (max-width: 600px) {
+    .app-shell:has(> .editor-pane-container > .terminal-panel) { flex-direction: column; }
+    .app-shell:not(.terminal-popout) > .editor-pane-container:has(> .terminal-panel) {
+        width: 100%; max-width: none; height: 45dvh; flex-shrink: 0;
+    }
+    .app-shell:has(> .editor-pane-container > .terminal-panel) > .container { height: auto; flex: 1; }
+    .app-shell:has(> .editor-pane-container > .terminal-panel) > .editor-splitter { display: none; }
+}
