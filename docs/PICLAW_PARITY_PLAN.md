@@ -776,3 +776,11 @@ session plus switch generation before committing and clears unavailable/error
 results instead of retaining stale usage. Refresh runs on switch/reconnect/turn
 completion/polling. Fourteen switching tests and build/lint pass. Inactive/busy
 Pi chats remain honestly unavailable until cached per-session metrics exist.
+
+### Model-command cross-session guard
+
+Composer model commands explicitly carry sessionId and are blocked for non-default
+until backend command isolation is implemented. Buttons disable if shown there;
+unknown model state remains hidden after switching. Two focused Chromium/WebKit
+guard tests and build/lint pass. This prevents default-context mutation but does
+not satisfy planned per-session model-picker functionality.

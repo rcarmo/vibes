@@ -353,10 +353,10 @@ export function ComposeBox({
     };
 
     const runModelCommand = async (commandText) => {
-        if (searchMode || loading || switchingModel) return;
+        if (sessionId !== 'default' || searchMode || loading || switchingModel) return;
         setSwitchingModel(true);
         try {
-            const response = await sendAgentMessage('default', commandText, null, []);
+            const response = await sendAgentMessage('default', commandText, null, [], null, sessionId);
             const nextModel = extractCurrentModel(response);
             emitModelState({
                 model: nextModel ?? activeModel ?? null,
@@ -800,10 +800,10 @@ export function ComposeBox({
                                     ref=${modelHintRef}
                                     type="button"
                                     class="compose-model-hint compose-model-hint-btn"
-                                    title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
+                                    title=${sessionId !== 'default' ? 'Session model changes are not available yet' : switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
                                     aria-label="Open model picker"
                                     onClick=${toggleModelPopup}
-                                    disabled=${loading || switchingModel}
+                                    disabled=${sessionId !== 'default' || loading || switchingModel}
                                 >
                                     ${switchingModel ? 'Switching…' : modelHintLabel}
                                 </button>
@@ -814,7 +814,7 @@ export function ComposeBox({
                                     class="compose-thinking-pill"
                                     title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
                                     onClick=${() => { void handleCycleThinking(); }}
-                                    disabled=${loading || switchingModel}
+                                    disabled=${sessionId !== 'default' || loading || switchingModel}
                                 >
                                     ${thinkingLevel || 'thinking'}
                                 </button>

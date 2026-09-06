@@ -116,3 +116,12 @@ test('context inspection follows selected chat rather than default', async ({ pa
     await expect.poll(() => seen.includes(id)).toBe(true);
     expect(seen).toContain('default');
 });
+
+test('nondefault model control cannot silently mutate default chat', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Model guard' } });
+    const id = (await created.json()).session.id;
+    await page.getByTestId('session-switcher').click();
+    await page.locator('#session-option-' + id).click();
+    await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
+});
