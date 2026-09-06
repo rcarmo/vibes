@@ -13,3 +13,29 @@ test('composer accepts nonimage files from picker and clipboard', async ({ page 
     await page.locator('.compose-file-pill', { hasText: 'notes.txt' }).getByTitle('Remove attachment').click();
     await expect(page.locator('.compose-file-pill', { hasText: 'notes.txt' })).toHaveCount(0);
 });
+
+test('failed send retains attachments and retry reuses completed upload', async ({ page }) => {
+    let uploads = 0;
+    let sends = 0;
+    let payload;
+    await page.route('**/media/upload', async route => {
+        uploads++;
+        await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 123 }) });
+    });
+    await page.route('**/agent/default/message', async route => {
+        sends++;
+        payload = route.request().postDataJSON();
+        await route.fulfill({ status: sends === 1 ? 503 : 200, contentType: 'application/json', body: JSON.stringify(sends === 1 ? { error: 'Temporary send failure' } : { status: 'queued' }) });
+    });
+    await page.goto('/');
+    await page.locator('input[type=file][hidden]').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('reference text') });
+    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await expect(page.locator('.compose-file-pill', { hasText: 'notes.txt' })).toBeVisible();
+    await expect(page.getByText('Temporary send failure', { exact: true })).toBeVisible();
+    await page.getByTitle('Send (Ctrl+Enter)', { exact: true }).click();
+    await expect(page.locator('.compose-file-pill', { hasText: 'notes.txt' })).toHaveCount(0);
+    expect(uploads).toBe(1);
+    expect(sends).toBe(2);
+    expect(payload.media_ids).toEqual([123]);
+    expect(payload.content).toContain('Attachments:\n- attachment:123 (notes.txt)');
+});

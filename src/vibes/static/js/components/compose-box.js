@@ -157,6 +157,8 @@ export function ComposeBox({
     const [loadingModels, setLoadingModels] = useState(false);
     const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
     const textareaRef = useRef(null);
+    // File identity survives failed sends; weak keys release discarded drafts.
+    const uploadedFiles = useRef(new WeakMap());
     const slashRef = useRef(null);
     const modelPopupRef = useRef(null);
     const modelHintRef = useRef(null);
@@ -381,8 +383,13 @@ export function ComposeBox({
         try {
             const mediaIds = [];
             for (const file of mediaFiles) {
-                const result = await uploadMedia(file);
-                mediaIds.push(result.id);
+                let id = uploadedFiles.current.get(file);
+                if (id === undefined) {
+                    const result = await uploadMedia(file);
+                    id = result.id;
+                    uploadedFiles.current.set(file, id);
+                }
+                mediaIds.push(id);
             }
 
             const baseContent = content.trim();
@@ -425,6 +432,7 @@ export function ComposeBox({
 
             setContent('');
             setMediaFiles([]);
+            uploadedFiles.current = new WeakMap();
             onClearFileRefs?.();
             onClearMessageRefs?.();
             onPost?.();

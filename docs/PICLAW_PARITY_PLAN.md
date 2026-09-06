@@ -219,3 +219,13 @@ sandbox headers for non-raster types, preventing uploaded HTML/SVG execution on
 the application origin. Backend: 411 tests pass; build/lint pass. Still pending:
 agent resolution of uploaded IDs, full submission/error/cleanup flows and
 Piclaw FilePill markup alignment. Intake is not end-to-end attachment parity.
+
+### Attachment send retry
+
+Composer remembers completed uploads by File identity while retaining a failed
+send draft; retry no longer uploads the same file again. WeakMap avoids retaining
+discarded File objects. Four Chromium/WebKit attachment tests pass, including
+simulated failed-send -> successful-retry payload and one-upload assertion;
+frontend build/lint pass. This does not yet garbage-collect server-side uploads
+abandoned when a draft is discarded. Real agent attachment consumption, upload
+progress/cancellation and full Piclaw pill markup remain pending.
