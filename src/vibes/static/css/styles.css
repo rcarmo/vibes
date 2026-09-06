@@ -3674,3 +3674,6 @@ body {
 .compose-model-catalogue-option-name, .compose-model-catalogue-option-key { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .compose-model-catalogue-option-name { min-width:0; font:12px var(--font-family-mono); font-weight:650; }
 .compose-model-catalogue-option-key { color:var(--text-secondary); font:10px var(--font-family-mono); }
+.compose-model-catalogue-option-badges { display:flex; flex-wrap:wrap; gap:4px; color:var(--text-secondary); font-size:9px; }
+.compose-model-catalogue-option-badges:empty { display:none; }
+.compose-model-catalogue-badge + .compose-model-catalogue-badge::before { content:' · '; margin-right:4px; }

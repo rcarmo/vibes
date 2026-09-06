@@ -277,6 +277,7 @@ export function ComposeBox({
     const [modelQuery, setModelQuery] = useState('');
     const [modelRefresh, setModelRefresh] = useState(0);
     const modelSearchRef = useRef(null);
+    const modelMetadata = new Map((sessionCatalog?.models || []).map(model => [`${model.provider}/${model.id}`, model]));
     const modelNames = new Map((sessionCatalog?.models || []).map(model => [`${model.provider}/${model.id}`, model.name || `${model.provider}/${model.id}`]));
     const filteredModels = modelOptions.filter(label => `${label} ${modelNames.get(label) || ''}`.toLowerCase().includes(modelQuery.trim().toLowerCase()));
     const [modelPins, setModelPins] = useState(() => loadModelPins(modelPinStorage()));
@@ -1087,6 +1088,10 @@ export function ComposeBox({
                                         <span class="compose-model-catalogue-option-content">
                                             <span class="compose-model-catalogue-option-name">${modelNames.get(modelLabel) || modelLabel}</span>
                                             ${modelNames.get(modelLabel) !== modelLabel && html`<span class="compose-model-catalogue-option-key">${modelLabel}</span>`}
+                                            <span class="compose-model-catalogue-option-badges">
+                                                ${modelMetadata.get(modelLabel)?.reasoning === true && html`<span class="compose-model-catalogue-badge">Reasoning</span>`}
+                                                ${Number.isInteger(modelMetadata.get(modelLabel)?.contextWindow) && modelMetadata.get(modelLabel).contextWindow > 0 && html`<span class="compose-model-catalogue-badge">${modelMetadata.get(modelLabel).contextWindow.toLocaleString('en-US')} context tokens</span>`}
+                                            </span>
                                         </span>
                                     </button></div>
                                 `)}

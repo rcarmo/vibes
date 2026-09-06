@@ -2262,3 +2262,12 @@ missing names fall back to the key. No fabricated pricing/capability metadata.
 New browser fixture verifies friendly-name search and visible canonical key.
 Build/lint and all 94 headed model/session-switching tests pass. Catalogue role
 migration and settings footer remain unfinished.
+
+### Validated catalogue capability metadata
+
+Model rows expose explicit reasoning=true and positive integer contextWindow using
+catalogue badge classes. Missing fields render no badge; context size is catalogue
+capacity, not measured usage or successful execution. Pricing stays absent because
+backend does not supply validated pricing. Badges wrap locally for narrow widths
+rather than deployed nowrap truncation. Browser checks cover populated and missing
+metadata. Build/lint and eight headed name/capture cases pass across both browsers.

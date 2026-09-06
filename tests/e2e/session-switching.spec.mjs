@@ -800,7 +800,7 @@ for (const width of [1280, 390]) {
 
 test('model display names remain searchable without replacing canonical identity', async ({ page }) => {
     await page.route('**/sessions/*/model-state', route => route.fulfill({ json: { available: true, model: { provider: 'test', id: 'alpha' } } }));
-    await page.route('**/sessions/*/models', route => route.fulfill({ json: { available: true, models: [{ provider: 'test', id: 'alpha', name: 'Friendly Model' }, { provider: 'test', id: 'beta' }] } }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ json: { available: true, models: [{ provider: 'test', id: 'alpha', name: 'Friendly Model', reasoning: true, contextWindow: 128000 }, { provider: 'test', id: 'beta' }] } }));
     await page.goto('/');
     const created = await page.request.post('/sessions', { data: { name: 'Display names' } });
     const id = (await created.json()).session.id;
@@ -809,6 +809,8 @@ test('model display names remain searchable without replacing canonical identity
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     const choice = page.getByRole('menuitem', { name: 'test/alpha', exact: true });
     await expect(choice).toContainText('Friendly Model');
+    await expect(choice.locator('.compose-model-catalogue-badge')).toHaveText(['Reasoning', '128,000 context tokens']);
+    await expect(page.getByRole('menuitem', { name: 'test/beta', exact: true }).locator('.compose-model-catalogue-badge')).toHaveCount(0);
     await expect(choice.locator('.compose-model-catalogue-option-key')).toHaveText('test/alpha');
     await page.getByRole('searchbox', { name: 'Search models' }).fill('friendly');
     await expect(choice).toBeVisible();
