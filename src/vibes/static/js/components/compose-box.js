@@ -504,7 +504,7 @@ export function ComposeBox({
         await handleSelectModel(next);
     };
 
-    const handleCycleThinking = async () => {
+    const handleCycleThinking = async (requestedLevel = null) => {
         if (loading || switchingModel) return;
         setSwitchingModel(true);
         try {
@@ -512,7 +512,8 @@ export function ComposeBox({
             if (!modelCallbacksActive.current) return;
             const levels = catalog.available ? catalog.thinking_levels : [];
             if (!levels?.length) throw new Error('Thinking controls unavailable for this session');
-            const next = levels[(levels.indexOf(thinkingLevel) + 1) % levels.length];
+            if (requestedLevel !== null && !levels.includes(requestedLevel)) throw new Error('Thinking level is no longer available');
+            const next = requestedLevel ?? levels[(levels.indexOf(thinkingLevel) + 1) % levels.length];
             const result = await changeSessionModel(sessionId, { thinking_level: next });
             emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel,
                 thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
@@ -1052,6 +1053,12 @@ export function ComposeBox({
                                 `)}
                             </div>`)}
                             </div>
+                            ${!loadingModels && sessionCatalog?.available && sessionCatalog.thinking_levels?.length > 0 && html`<label class="compose-session-row-meta">Thinking level
+                                <select aria-label="Select thinking level" value=${thinkingLevel || ''} disabled=${switchingModel} onChange=${event => handleCycleThinking(event.target.value)}>
+                                    ${!sessionCatalog.thinking_levels.includes(thinkingLevel) && html`<option value="" disabled>Unknown</option>`}
+                                    ${sessionCatalog.thinking_levels.map(level => html`<option value=${level}>${level}</option>`)}
+                                </select>
+                            </label>`}
                             <details class="compose-agent-capabilities"><summary>Instance pin preferences</summary>
                                 <p>Load replaces browser pins and is required before Save. Save replaces instance pins only if they have not changed since loading.</p>
                                 <button type="button" disabled=${pinSyncBusy} onClick=${() => syncInstancePins(false)}>Load instance pins</button>

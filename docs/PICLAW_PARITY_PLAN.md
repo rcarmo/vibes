@@ -1879,3 +1879,11 @@ Current Chromium image attached to working chat. Surrounding timeline fixture an
 popup footer differ: explicit instance preference transfer/Next model are not the
 deployed Models settings surface. Capture is review evidence, not pixel baseline
 approval or full settings parity.
+
+### Direct supported thinking selection
+
+Model popup offers explicit thinking-level select only when catalog reports
+choices. Selection re-fetches supported levels before mutation, rejects removed
+choices and shares scoped mutation/unmount guard with cycling. Six headed thinking
+tests and build/lint pass, including direct off-to-high selection. Native select
+is a documented local interaction adaptation pending full reference styling review.

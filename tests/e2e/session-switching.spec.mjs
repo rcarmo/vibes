@@ -656,3 +656,18 @@ test('capture model picker with deployed single-model fixture', async ({ page },
     await expect(page.getByRole('menuitem', { name: 'test/review-model', exact: true })).toBeVisible();
     await page.screenshot({ path: testInfo.outputPath('model-picker-desktop.png'), fullPage: true });
 });
+
+test('explicit thinking selection uses fresh supported levels', async ({ page }) => {
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current","reasoning":true},"thinking_level":"off"}' }));
+    await page.route('**/sessions/default/models', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"models":[{"provider":"test","id":"current"}],"thinking_levels":["off","low","high"]}' }));
+    let changed;
+    await page.route('**/sessions/default/model', route => {
+        changed = route.request().postDataJSON();
+        return route.fulfill({ contentType: 'application/json', body: '{"model":{"provider":"test","id":"current","reasoning":true},"thinking_level":"high"}' });
+    });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Select thinking level' }).selectOption('high');
+    await expect.poll(() => changed).toEqual({ thinking_level: 'high' });
+    await expect(page.getByRole('combobox', { name: 'Select thinking level' })).toHaveValue('high');
+});
