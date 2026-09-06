@@ -61,7 +61,7 @@ Consider installing the package or pass your own 'workerFactory' to ELK's constr
                 </button>
                 <button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`Rename ${It.name}`} disabled=${!m} onClick=${()=>Kt(()=>m?.(It.id))}>Rename</button>
                 ${It.id!=="default"&&Q&&Je`<button type="button" class="session-row-action compose-model-popup-btn" aria-label=${`${It.archived?"Restore":"Archive"} ${It.name}`} disabled=${!It.archived&&It.is_running===!0} title=${!It.archived&&It.is_running?"Stop the running turn before archiving":void 0} onClick=${()=>Kt(()=>Q(It.id,!It.archived))}>${It.archived?"Restore":"Archive"}</button>`}
-                ${It.id!=="default"&&Je`<button type="button" class="session-row-action compose-model-popup-btn danger" aria-label=${`Delete ${It.name}`} disabled=${!y||It.is_running===!0||!!It.message_count||Ce.has(It.id)} title=${It.is_running===!0?"Stop the running turn before deleting":Ce.has(It.id)?"Sessions with children cannot be deleted":It.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>Kt(()=>y?.(It.id))}>Delete</button>`}
+                ${It.id!=="default"&&Je`<button type="button" class="compose-model-popup-item-delete" aria-label=${`Delete ${It.name}`} disabled=${!y||It.is_running===!0||!!It.message_count||Ce.has(It.id)} title=${It.is_running===!0?"Stop the running turn before deleting":Ce.has(It.id)?"Sessions with children cannot be deleted":It.message_count?"Only empty sessions can be deleted":void 0} onClick=${()=>Kt(()=>y?.(It.id))}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg></button>`}
             </div>`})}
             </div>`)}
         </div>
@@ -2123,4 +2123,4 @@ ${a}
         </div>
     `}p4t(Je`<${K7n} />`,document.getElementById("app"));
 
-//# debugId=F0D17D0381BC346764756E2164756E21
+//# debugId=B9D013B574864E0864756E2164756E21

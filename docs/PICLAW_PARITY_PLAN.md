@@ -2463,3 +2463,12 @@ restore instruction, mixed rename/pin requests preserve persisted state, rejecte
 mutations emit no sessions_changed broadcast, and combined restore-and-pin returns
 200 with exactly one successful broadcast. Full backend check: 511 tests pass.
 This supplements store transaction tests with the actual HTTP request boundary.
+
+### Compact session Delete action
+
+Replaced Delete text button with deployed compose-model-popup-item-delete class
+and exact crossed-line SVG geometry from classic source map. SVG is decorative
+(aria-hidden); canonical Delete accessible name, explicit button type, confirmation
+flow and disable guards remain. Existing local CSS deliberately keeps control
+visible without hover and provides mobile touch sizing. All 58 headed picker
+tests and build/lint pass. Rename/Archive, metadata and footer density remain open.
