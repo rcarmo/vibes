@@ -185,3 +185,23 @@ async def test_scoped_model_state_omits_raw_provider_configuration(db, aiohttp_c
     assert result['thinking_level'] == 'low'
     inspect.assert_awaited_once_with('default')
     assert (await client.get('/sessions/missing/model-state')).status == 404
+
+
+@pytest.mark.asyncio
+async def test_model_mutation_route_scopes_validates_and_sanitizes(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(routes, 'broadcast_event', AsyncMock())
+    change = AsyncMock(return_value={'success': True, 'data': {'model': {'id': 'm', 'provider': 'p', 'baseUrl': 'private'}, 'thinkingLevel': 'low'}})
+    monkeypatch.setattr(pi, 'change_chat_model', change)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await client.post('/sessions/default/model', json={'provider': 'p', 'model_id': 'm'})
+    assert result.status == 200
+    assert (await result.json())['model'] == {'id': 'm', 'provider': 'p'}
+    change.assert_awaited_once_with('default', provider='p', model_id='m')
+    assert (await client.post('/sessions/default/model', json={'unknown': True})).status == 400
+    assert (await client.post('/sessions/missing/model', json={'thinking_level': 'low'})).status == 404
+    change.side_effect = RuntimeError('busy')
+    assert (await client.post('/sessions/default/model', json={'thinking_level': 'low'})).status == 409

@@ -808,3 +808,11 @@ validates model/thinking selection against live catalogs before mutation. Reject
 busy/wrong-context and unsupported choices without sending mutation. 463 backend
 tests pass. No HTTP/UI mutation route yet; inactive chat selection and durable
 model preference behavior remain pending rather than falling back to default.
+
+### Session model mutation endpoint
+
+POST /sessions/{id}/model validates model/thinking input, requires existing
+unarchived session and delegates to guarded matching-idle Pi mutation. Returns
+sanitized confirmed state and session_model_changed event; busy/mismatched context
+returns 409. 464 backend tests pass. ACP mutation and frontend catalog/control
+integration remain pending; endpoint does not implicitly activate inactive chats.

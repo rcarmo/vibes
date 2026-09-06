@@ -35,6 +35,35 @@ async def session_model_state(request):
         return web.json_response(unavailable)
 
 
+async def change_session_model(request):
+    from ..pi_client import change_chat_model
+    session_id = request.match_info['id']
+    store = SessionStore(await get_db())
+    session = await store.get(session_id)
+    if not session or session['archived']:
+        return web.json_response({'error': 'Session unavailable'}, status=404)
+    try:
+        data = await request.json()
+        if not isinstance(data, dict) or not data or set(data) - {'provider', 'model_id', 'thinking_level'}:
+            raise ValueError('Invalid model change fields')
+        if any(not isinstance(value, str) or not value or len(value) > 512 for value in data.values()):
+            raise ValueError('Invalid model change values')
+        response = await change_chat_model(session_id, **data)
+        if not response or not response.get('success'):
+            raise RuntimeError('Unable to confirm model change')
+        state = response.get('data', {})
+        model = state.get('model')
+        model = {key: model[key] for key in ('id', 'name', 'provider', 'reasoning', 'contextWindow') if key in model} if isinstance(model, dict) else None
+    except (ValueError, TypeError) as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+    except RuntimeError as exc:
+        return web.json_response({'error': str(exc)}, status=409)
+    result = {'session_id': session_id, 'available': True, 'model': model,
+              'thinking_level': state.get('thinkingLevel')}
+    await broadcast_event('session_model_changed', result)
+    return web.json_response(result)
+
+
 async def session_timeline(request):
     try:
         store = SessionStore(await get_db())
@@ -74,6 +103,7 @@ def setup_routes(app):
     app.router.add_get('/sessions', list_sessions)
     app.router.add_get('/sessions/{id}/timeline', session_timeline)
     app.router.add_get('/sessions/{id}/model-state', session_model_state)
+    app.router.add_post('/sessions/{id}/model', change_session_model)
     app.router.add_post('/sessions', mutate_session)
     app.router.add_patch('/sessions/{id}', mutate_session)
     app.router.add_delete('/sessions/{id}', mutate_session)
