@@ -178,3 +178,20 @@ async def test_child_creation_requires_unarchived_parent(db):
     await store.update(parent['id'], archived=False)
     child = await store.create('Child', parent['id'])
     assert child['parent_id'] == parent['id']
+
+
+@pytest.mark.asyncio
+async def test_running_session_deletion_preserves_session_and_history(db):
+    store = SessionStore(db)
+    session = await store.create('Running deletion')
+    root = await db.create_interaction({'type': 'user', 'content': 'work', 'session_id': session['id']})
+    await db.begin_turn('delete-test', root, 'default')
+    with pytest.raises(ValueError, match='nonempty'):
+        await store.delete_empty(session['id'])
+    rows = {row['id']: row for row in await store.list()}
+    assert rows[session['id']]['is_running'] is True
+    assert rows[session['id']]['message_count'] == 1
+    await db.end_turn('delete-test')
+    with pytest.raises(ValueError, match='nonempty'):
+        await store.delete_empty(session['id'])
+    assert await store.get(session['id']) is not None

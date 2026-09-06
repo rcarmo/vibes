@@ -2434,3 +2434,14 @@ is absent. Build/lint and all 58 headed Chromium/WebKit session-picker tests pas
 with one worker and no retries. This is callback availability gating, not a new
 backend authorization policy. Running-session deletion was inspected but not
 changed in this slice; DELETE currently delegates to store.delete_empty.
+
+### Running-session deletion audit closed
+
+Store deletion already rejects any session with interactions; active turns refer
+to interactions, so running sessions are protected by the nonempty predicate.
+Added regression proving rejection retains running state/history and that ending
+the turn still does not permit deleting history. Picker now explicitly disables
+Delete for running rows even if supplied message counts are stale/zero, with a
+stop-turn explanation. Browser fixture isolates this from child/history guards.
+509 backend tests, 58 headed session-picker tests and build/lint pass, no retries.
+No backend deletion policy was relaxed or duplicated.
