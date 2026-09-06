@@ -688,6 +688,7 @@ function App() {
     const selectedSessionRef = useRef('default');
     const switchGeneration = useRef(0);
     const searchGeneration = useRef(0);
+    const modelGeneration = useRef(0);
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const refreshSessions = async () => {
@@ -812,15 +813,16 @@ function App() {
         refreshSelectedContext();
         let disposed = false;
         const refreshModel = async () => {
+            const generation = modelGeneration.current;
             try {
                 const state = await getSessionModelState(selectedSession);
-                if (disposed || selectedSession !== selectedSessionRef.current) return;
+                if (disposed || selectedSession !== selectedSessionRef.current || generation !== modelGeneration.current) return;
                 const model = state.available ? state.model : null;
                 setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
                 setActiveThinkingLevel(state.available ? state.thinking_level : null);
                 setSupportsThinking(model?.reasoning === true);
             } catch {
-                if (!disposed && selectedSession === selectedSessionRef.current) {
+                if (!disposed && selectedSession === selectedSessionRef.current && generation === modelGeneration.current) {
                     setActiveModel(null); setActiveThinkingLevel(null); setSupportsThinking(false);
                 }
             }
@@ -1852,6 +1854,14 @@ function App() {
         }
         if (!eventMatchesSession(eventType, data, selectedSessionRef.current)) return;
         const turnId = data?.turn_id;
+        if (eventType === 'session_model_changed') {
+            modelGeneration.current++;
+            const model = data.model;
+            setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
+            setActiveThinkingLevel(data.thinking_level ?? null);
+            setSupportsThinking(model?.reasoning === true);
+            return;
+        }
 
         if (eventType === 'connected') {
             setAgentStatus(null);

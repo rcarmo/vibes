@@ -10,3 +10,8 @@ test('conversation events respect explicit and legacy scope', () => {
     expect(eventMatchesSession('connected', {}, 'other')).toBe(true);
     expect(eventMatchesSession('workspace_update', {}, 'other')).toBe(true);
 });
+
+test('model mutation events are scoped to their owning chat', () => {
+    expect(eventMatchesSession('session_model_changed', { session_id: 'other' }, 'default')).toBe(false);
+    expect(eventMatchesSession('session_model_changed', { session_id: 'other' }, 'other')).toBe(true);
+});

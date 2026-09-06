@@ -839,3 +839,11 @@ catalog value through session-specific model endpoint. Unavailable catalogs show
 an error instead of fallback to default. Added accessible control label. Two
 Chromium/WebKit thinking tests and build/lint pass. Default command path and full
 Piclaw model picker/ACP options still need consolidation.
+
+### Scoped model-change events
+
+session_model_changed events update only owning selected chat. An inspection
+started before a change event cannot overwrite newer confirmed labels; errors
+from such stale polls likewise cannot clear them. Ten frontend unit tests and
+eight model/thinking browser tests pass; build/lint pass. Full polling/event race
+browser acceptance remains part of the final regression work.
