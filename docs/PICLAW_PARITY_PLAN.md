@@ -2564,3 +2564,14 @@ settings button after model-picker click). No retries; NOT a green suite checkpo
 Artifacts preserved at /workspace/tmp/sse-modal-failure and log at
 /workspace/tmp/sse-browser-final.log. Existing intermittent-picker investigation
 remains open; this transport fix is not claimed to resolve that issue.
+
+### Session-list push refresh
+
+Registered sessions_changed in EventSource and refresh the session list on receipt,
+reporting fetch failure through the existing session refresh error state. A mounted
+Chromium/WebKit test uses the real local SSE connection and an external HTTP PATCH:
+current-session rename updates the trigger while the picker stays closed (therefore
+without its three-second poll). No synthetic dispatch in this list test. Scoped
+model routing remains a separate synthetic event test. All four targeted browser
+cases pass; 19 frontend tests/85 assertions and build/lint pass. This does not
+resolve the previously preserved intermittent picker failure or external ACP gates.

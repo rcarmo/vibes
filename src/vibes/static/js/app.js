@@ -1924,6 +1924,10 @@ function App() {
             refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
             return;
         }
+        if (eventType === 'sessions_changed') {
+            void refreshSessions().catch(err => setSessionRefreshError(err.message || 'Unable to refresh sessions'));
+            return;
+        }
         if (!eventMatchesSession(eventType, data, selectedSessionRef.current)) return;
         const turnId = data?.turn_id;
         if (eventType === 'session_model_changed') {

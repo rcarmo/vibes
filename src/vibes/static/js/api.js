@@ -555,6 +555,10 @@ export class SSEClient {
             this.onEvent('agent_followup_removed', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('sessions_changed', (e) => {
+            this.onEvent('sessions_changed', JSON.parse(e.data));
+        });
+
         this.eventSource.addEventListener('session_model_changed', (e) => {
             this.onEvent('session_model_changed', JSON.parse(e.data));
         });

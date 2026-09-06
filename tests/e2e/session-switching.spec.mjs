@@ -1000,3 +1000,18 @@ test('late session model SSE events cannot overwrite the newly selected session'
     await expect(model).toContainText('destination-current');
     await expect(model).not.toContainText('stale-default');
 });
+
+test('session-list SSE refreshes an externally renamed current session with picker closed', async ({ page }) => {
+    await page.goto('/');
+    const created = await page.request.post('/sessions', { data: { name: 'Before external rename' } });
+    const id = (await created.json()).session.id;
+    const trigger = page.getByTestId('session-switcher');
+    await trigger.click();
+    await page.locator(`#session-option-${id}`).click();
+    await expect(trigger).toContainText('Before external rename');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    const renamed = await page.request.patch(`/sessions/${id}`, { data: { name: 'After external rename' } });
+    expect(renamed.ok()).toBe(true);
+    await expect(trigger).toContainText('After external rename');
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+});
