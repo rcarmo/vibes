@@ -1963,3 +1963,12 @@ without waiting for the requested tab. It now waits for that visible tab before
 continuing. Rerun: 60 headed Chromium/WebKit editor/terminal tests pass, no retries.
 Functional host implementation is complete; exact deployed/current terminal host
 screenshots and approval of responsive deviations remain separate open work.
+
+### Isolated deployed terminal host capture
+
+Opened deployed 2.15.3 terminal host via Ctrl+Backquote in isolated classic.test
+fixture at 1280x844. /terminal/session reports disabled so no PTY/live network
+session is created. Screenshot /workspace/tmp/piclaw-classic-terminal-desktop.png
+attached. Workspace-actions click was unavailable in this fixture; keyboard path
+successfully renders TERMINAL host. This supplies disconnected host reference,
+not transport acceptance or matched screenshot approval.
