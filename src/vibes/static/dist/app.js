@@ -351,9 +351,7 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                         <div class="compose-meta-row">
                             ${(Z||We)&&Ke`<div class="compose-model-meta">
                             ${Z&&Ke`
-                                <button
-                                    ref=${ah}
-                                    type="button"
+                                <button type="button" ref=${ah}
                                     class="compose-model-hint compose-model-hint-btn"
                                     title=${Mf?"Switching model…":`Current model: ${r5} (tap to open model picker)`}
                                     aria-label="Open model picker"
@@ -365,9 +363,7 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                             `}
                             <div class="compose-model-meta-subline">
                             ${We&&Ke`
-                                <button
-                                    type="button"
-                                    class="compose-thinking-pill"
+                                <button type="button" class="compose-thinking-pill"
                                     aria-label="Cycle thinking level"
                                     title=${Mf?"Switching thinking level…":`${Ju} (tap to cycle)`}
                                     onClick=${()=>{NO()}}
@@ -384,31 +380,28 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                         </div>
                     `}
                 <div class="compose-actions ${l?"search-mode":""}">
-                    <button
-                        class="icon-btn search-toggle"
+                    <button type="button" class="icon-btn search-toggle"
                         onClick=${l?w:g}
                         title=${l?"Close search":"Search"}
                     >
                         ${l?Ke`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 6L6 18M6 6l12 12"/>
                             </svg>
                         `:Ke`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"/>
                                 <path d="M21 21l-4.35-4.35"/>
                             </svg>
                         `}
                     </button>
                     ${d4&&!l&&Ke`
-                        <button
-                            class="icon-btn location-btn"
+                        <button type="button" class="icon-btn location-btn"
                             onClick=${ve}
                             title="Share location"
-                            type="button"
                             disabled=${ls}
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10" />
                                 <path d="M12 2a14 14 0 0 1 0 20a14 14 0 0 1 0-20" />
                                 <path d="M2 12h20" />
@@ -417,13 +410,11 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                     `}
                     ${Ln&&!l&&Ke`<button type="button" class=${`compose-icon-btn compose-mic-btn${Tr?" active":""}`} title="Speech input (hold Space in an empty composer to talk; browser recognition may use a remote service)" aria-label=${Tr?"Stop speech input":"Start speech input"} aria-pressed=${Tr} disabled=${ls} onPointerDown=${Ds} onPointerUp=${ds} onPointerCancel=${ds} onLostPointerCapture=${ds} onClick=${(K)=>{if(ti.current&&K.detail!==0){ti.current=!1;return}if(ti.current=!1,Tr)Sn.current?.stop();else Gi()}}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
                     ${BO&&!l&&Ke`
-                        <button
-                            class=${`icon-btn notification-btn${n5?" active":""}`}
+                        <button type="button" class=${`icon-btn notification-btn${n5?" active":""}`}
                             onClick=${xt}
                             title=${g4}
-                            type="button"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            >
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
@@ -431,16 +422,15 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                     `}
                     ${!l&&Ke`
                         <label class="icon-btn" title="Attach files">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <input type="file" multiple hidden onChange=${v4} />
                         </label>
-                        <button
-                            class="icon-btn send-btn"
+                        <button type="button" class="icon-btn send-btn"
                             onClick=${()=>pp("auto")}
                             disabled=${!h4}
                             title="Send (Enter); steer with Ctrl/Cmd+Enter"
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>
                     `}
                 </div>
@@ -2129,4 +2119,4 @@ ${a}
         </div>
     `}p4t(Ke`<${J7n} />`,document.getElementById("app"));
 
-//# debugId=CEBEF96102483C2E64756E2164756E21
+//# debugId=6BB628845E5615F664756E2164756E21

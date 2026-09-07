@@ -109,3 +109,13 @@ cases pass, asserting footer children and placement below the textarea. Inspecte
 390px Chromium capture with model/thinking/context and actions present. Full visual
 identity is still not claimed: local controls and surrounding application chrome
 remain different. Historical intermittent picker failures are not declared fixed.
+
+## Footer accessibility attributes
+
+Footer buttons now declare type="button" consistently; decorative action SVGs
+are aria-hidden="true". The meaningful context gauge retains its accessible usage
+label. Existing button labels and callbacks are unchanged. Four desktop/mobile
+Chromium/WebKit footer cases verify explicit types and decorative icon attributes;
+build/lint pass. Evidence: /workspace/tmp/footer-a11y-browser.log and
+/workspace/tmp/footer-a11y-build.log. These checks do not establish live speech
+acceptance or close the broader visual-parity gate.

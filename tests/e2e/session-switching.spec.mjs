@@ -1093,6 +1093,8 @@ for (const width of [1280, 390]) {
         const footer = page.locator('.compose-footer');
         await expect(footer.locator(':scope > .compose-meta-row')).toHaveCount(1);
         await expect(footer.locator(':scope > .compose-actions')).toHaveCount(1);
+        expect(await footer.locator('button').evaluateAll(buttons => buttons.every(button => button.getAttribute('type') === 'button'))).toBe(true);
+        expect(await footer.locator('.compose-actions svg').evaluateAll(icons => icons.length > 0 && icons.every(icon => icon.getAttribute('aria-hidden') === 'true'))).toBe(true);
         const meta = footer.locator('.compose-model-meta');
         const model = meta.getByRole('button', { name: 'Open model picker', exact: true });
         const thinking = meta.locator('.compose-model-meta-subline').getByRole('button', { name: 'Cycle thinking level', exact: true });

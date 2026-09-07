@@ -1133,9 +1133,7 @@ export function ComposeBox({
                         <div class="compose-meta-row">
                             ${(activeModel || supportsThinking) && html`<div class="compose-model-meta">
                             ${activeModel && html`
-                                <button
-                                    ref=${modelHintRef}
-                                    type="button"
+                                <button type="button" ref=${modelHintRef}
                                     class="compose-model-hint compose-model-hint-btn"
                                     title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
                                     aria-label="Open model picker"
@@ -1147,9 +1145,7 @@ export function ComposeBox({
                             `}
                             <div class="compose-model-meta-subline">
                             ${supportsThinking && html`
-                                <button
-                                    type="button"
-                                    class="compose-thinking-pill"
+                                <button type="button" class="compose-thinking-pill"
                                     aria-label="Cycle thinking level"
                                     title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
                                     onClick=${() => { void handleCycleThinking(); }}
@@ -1166,31 +1162,28 @@ export function ComposeBox({
                         </div>
                     `}
                 <div class="compose-actions ${searchMode ? 'search-mode' : ''}">
-                    <button
-                        class="icon-btn search-toggle"
+                    <button type="button" class="icon-btn search-toggle"
                         onClick=${searchMode ? onExitSearch : onEnterSearch}
                         title=${searchMode ? "Close search" : "Search"}
                     >
                         ${searchMode ? html`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 6L6 18M6 6l12 12"/>
                             </svg>
                         ` : html`
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="11" cy="11" r="8"/>
                                 <path d="M21 21l-4.35-4.35"/>
                             </svg>
                         `}
                     </button>
                     ${canShareLocation && !searchMode && html`
-                        <button
-                            class="icon-btn location-btn"
+                        <button type="button" class="icon-btn location-btn"
                             onClick=${handleLocation}
                             title="Share location"
-                            type="button"
                             disabled=${loading}
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <circle cx="12" cy="12" r="10" />
                                 <path d="M12 2a14 14 0 0 1 0 20a14 14 0 0 1 0-20" />
                                 <path d="M2 12h20" />
@@ -1203,13 +1196,11 @@ export function ComposeBox({
                         if (speechActive) speechRef.current?.stop(); else startSpeech();
                     }}><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0014 0v-2M12 19v3M8 22h8"/></svg></button>`}
                     ${notificationsAvailable && !searchMode && html`
-                        <button
-                            class=${`icon-btn notification-btn${notificationActive ? ' active' : ''}`}
+                        <button type="button" class=${`icon-btn notification-btn${notificationActive ? ' active' : ''}`}
                             onClick=${onToggleNotifications}
                             title=${notificationTitle}
-                            type="button"
-                        >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            >
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                                 <path d="M18 8a6 6 0 1 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
                                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
                             </svg>
@@ -1217,16 +1208,15 @@ export function ComposeBox({
                     `}
                     ${!searchMode && html`
                         <label class="icon-btn" title="Attach files">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <input type="file" multiple hidden onChange=${handleFileChange} />
                         </label>
-                        <button
-                            class="icon-btn send-btn"
+                        <button type="button" class="icon-btn send-btn"
                             onClick=${() => handleSubmit('auto')}
                             disabled=${!canSend}
                             title="Send (Enter); steer with Ctrl/Cmd+Enter"
                         >
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>
                     `}
                 </div>
