@@ -1,0 +1,56 @@
+name: Python CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, python]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: python-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e '.[dev]'
+          PATH="$PWD/.venv/bin:$PATH" make check PYTHON=.venv/bin/python
+      - name: Test installed package without source imports
+        run: |
+          .venv/bin/python -m pip install --force-reinstall --no-deps .
+          .venv/bin/python -I tests/packaging_smoke.py
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: oven-sh/setup-bun@v2
+      - run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install -e '.[dev]'
+          bun install --frozen-lockfile
+          make build-frontend lint-frontend
+          bun test tests/frontend
+          bun x playwright install --with-deps chromium webkit
+      - name: Headed Chromium and WebKit, no retries
+        run: xvfb-run -a bun x playwright test --headed --workers=1 --trace retain-on-failure
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-failures
+          path: test-results/
+          retention-days: 7

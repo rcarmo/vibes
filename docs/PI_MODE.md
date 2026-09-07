@@ -8,21 +8,21 @@ When Pi mode is enabled, **only Pi is launched** — the ACP agent subprocess is
 
 ```bash
 # Use Pi as the default agent
-VIBES_DEFAULT_AGENT=pi
-VIBES_PI_ENABLED=true
+VIBES_DEFAULT_AGENT=pi vibes
 ```
 
-The default `VIBES_PI_AGENT` command is auto-generated and includes the bundled extension (`pi-vibes-tools.ts`) and formatting prompt. Override it only if you need custom flags:
+Install and authenticate Pi separately, then ensure `pi` is on the server account's `PATH`. See [installation](INSTALLATION.md) for the Python package and workspace setup.
+
+The effective default command includes the bundled extension (`pi-vibes-tools.ts`) and formatting prompt. Override `VIBES_PI_AGENT` only if you need custom flags; Vibes appends its formatting prompt and configured model/thinking overrides itself:
 
 ```bash
-VIBES_PI_AGENT="pi --mode rpc --no-session --append-system-prompt '<vibes prompt>' -e /path/to/pi-vibes-tools.ts"
+VIBES_DEFAULT_AGENT=pi VIBES_PI_AGENT="pi --mode rpc --no-session -e /path/to/pi-vibes-tools.ts" vibes
 ```
 
 You can also keep ACP as default and expose Pi as a separate agent id:
 
 ```bash
-VIBES_DEFAULT_AGENT=acp
-VIBES_PI_ENABLED=true
+VIBES_DEFAULT_AGENT=acp VIBES_PI_ENABLED=true vibes
 ```
 
 Agent ids:
