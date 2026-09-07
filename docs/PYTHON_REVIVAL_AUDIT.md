@@ -1,10 +1,11 @@
 # Python revival audit — 2026-09-06
 
-## Verdict
+## Historical scope
 
-The original Python UI is viable as a revival base. Keep this work on
-`revival/python-audit`, not on Go main. This is not a certification of production
-security or live provider compatibility.
+This records the initial revival audit. Python has since been promoted to `main`,
+and the previous Go `main` is preserved on `go`. Use [installation](INSTALLATION.md)
+for current setup instructions; the checkpoints below are historical, not a
+certification of production security or live provider compatibility.
 
 ## Verified fixes
 

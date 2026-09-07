@@ -25,6 +25,10 @@ for (const width of [1280, 390]) {
         const bounds = await gauge.boundingBox();
         expect(bounds.x + bounds.width).toBeLessThanOrEqual(width);
         await expect(page.getByText('No messages yet. Start a conversation!', { exact: true })).toBeVisible();
+        // Synchronise the first headful capture with foreground paint after resizing.
+        // Keep capture failures visible: this is a frame barrier, not a retry.
+        await page.bringToFront();
+        await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         await page.screenshot({ path: testInfo.outputPath(`acp-usage-${width}.png`) });
     });
 }

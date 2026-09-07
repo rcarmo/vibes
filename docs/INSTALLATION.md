@@ -128,10 +128,10 @@ For the headed Chromium/WebKit suite on Linux:
 
 ```bash
 bun x playwright install --with-deps chromium webkit
-xvfb-run -a bun x playwright test --headed --workers=1 --trace retain-on-failure
+xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure
 ```
 
-Install `xvfb` if your distribution does not already provide it. On a graphical desktop, omit the `xvfb-run -a` prefix. The browser suite owns port 8765 and deliberately uses an unavailable agent executable; do not run a second server on that port. These tests exercise the browser and local server, not a live model subscription.
+Install `xvfb` if your distribution does not already provide it. The explicit display size leaves room for the 1280px viewport and browser chrome. On a graphical desktop, omit the `xvfb-run` prefix and its display arguments. The browser suite owns port 8765 and deliberately uses an unavailable agent executable; do not run a second server on that port. These tests exercise the browser and local server, not a live model subscription.
 
 `make serve` runs the source tree. `make check` covers Python lint/tests only; frontend lint, unit tests and browser tests are separate commands. Browser source changes require rebuilding and committing `src/vibes/static/dist/` because installed packages serve those bundles.
 

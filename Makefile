@@ -94,4 +94,4 @@ push: ## Push commits and current tag to origin
 .PHONY: test-browser
 # WebKit popup automation requires a display on Linux; use Xvfb in CI.
 test-browser: build-frontend
-	xvfb-run -a bun x playwright test --headed
+	xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure

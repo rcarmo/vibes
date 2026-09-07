@@ -59,10 +59,10 @@ make check PYTHON=.venv/bin/python
 make build-frontend lint-frontend
 bun test tests/frontend
 bun x playwright install --with-deps chromium webkit
-xvfb-run -a bun x playwright test --headed --workers=1 --trace retain-on-failure
+xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure
 ```
 
-The last command is the Linux browser test path; on a desktop with a display, omit `xvfb-run -a`. `make check` runs Python lint and tests, not the browser suite. Commit rebuilt assets under `src/vibes/static/dist/` when changing the frontend.
+The last command is the Linux browser test path; on a desktop with a display, omit the `xvfb-run` prefix and its display arguments. `make check` runs Python lint and tests, not the browser suite. Commit rebuilt assets under `src/vibes/static/dist/` when changing the frontend.
 
 [Configuration][config] and the [API reference][api] cover the server controls. The [parity notes][parity] record UI differences and verification limits, including mocked rather than live speech testing. They are not installation prerequisites.
 
