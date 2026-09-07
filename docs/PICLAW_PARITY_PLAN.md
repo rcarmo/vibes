@@ -2661,3 +2661,28 @@ and paths, so is an environment acceptance experiment, not a portable CI test.
 A preceding CLI smoke reported cost 0; ACP did not report cost in this response.
 Persistent-session isolation, app-managed ACP lifecycle and attachment consumption
 are still separate gates. Codex ACP 0.16.0 is installed but lacks authentication.
+
+### App-managed OpenCode scope/resume and streamed-text fix
+
+Used the application's send_message_multimodal with SessionStore bindings, actual
+OpenCode ACP and session-scoped messages descriptors. Two synthetic chat sessions
+received different random tokens and distinct OpenCode conversation IDs. After
+stop_agent, sending to A restored its saved conversation ID. Exported OpenCode
+sessions confirm two actual messages searches for A (including after restart) and
+one for B; each tool result contains only its owning session's row.
+
+The first run failed exact answer matching for B. OpenCode's exported final text
+and tool result contained the correct token, but Vibes removed repeated digits.
+The collector incorrectly treated equal/prefix-sharing ACP deltas as snapshots.
+Removed that heuristic: agent_message_chunk is additive. Added regressions for
+repeated and prefix-sharing chunks both before and after tools. 51 ACP tests pass;
+full make check: 513 backend tests pass. Fresh live two-session/restart experiment
+passes exact token checks with the same persisted A binding.
+
+Evidence: /workspace/tmp/opencode-app-scope/report-before-fix.json,
+report.json, b-session-export.json, a-verified-export.json, b-verified-export.json;
+probe /workspace/tmp/opencode-app-scope.py. All fixtures are synthetic. This verifies
+app-client lifecycle and scoped retrieval across an agent-process restart, not an
+HTTP/UI server restart, adversarial isolation, or isolation of unrestricted agent
+filesystem/shell tools. Do not reinterpret the API runtime_isolation:false flag as
+a proven global isolation guarantee. Attachment acceptance remains open.

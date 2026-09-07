@@ -542,20 +542,10 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                             if session_update_type in ("tool_call", "tool_call_update", "plan"):
                                 continue
 
-                            # Avoid accumulating repeated snapshot chunks, but still support delta streams.
+                            # ACP message chunks are deltas, not replacement snapshots.
+                            # Equal/prefix-sharing chunks can be legitimate repeated text.
                             target_list = turn.post_tool_blocks if turn.saw_any_tool_call else turn.pre_tool_blocks
-                            if session_update_type == "agent_message_chunk" and block.get("type") == "text":
-                                if target_list and target_list[-1].get("type") == "text":
-                                    prev = target_list[-1].get("text") or ""
-                                    curr = block.get("text") or ""
-                                    if curr and curr.startswith(prev):
-                                        target_list[-1] = block
-                                    else:
-                                        target_list.append(block)
-                                else:
-                                    target_list.append(block)
-                            else:
-                                target_list.append(block)
+                            target_list.append(block)
                 continue
             
             # Handle requests from agent (has id, has method) - agent asking client for something

@@ -805,3 +805,25 @@ async def test_initialize_captures_reported_capabilities_and_stop_clears_them():
             process.terminate.assert_called_once()
     finally:
         acp_client.reset_state()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('after_tool', [False, True])
+async def test_repeated_and_prefix_sharing_deltas_are_not_snapshots(after_tool):
+    state = acp_client.get_state()
+    state.agent_writer = AsyncMock()
+    state.agent_writer.write = MagicMock()
+    state.agent_reader = AsyncMock()
+    state.request_id = 0
+    chunks = ['3c', '9', '9', '6', '6', 'a', 'abc']
+    def update(value):
+        return json.dumps({'jsonrpc': '2.0', 'method': 'session/update',
+                           'params': {'update': value}}).encode() + b'\n'
+    frames = []
+    if after_tool:
+        frames.append(update({'sessionUpdate': 'tool_call', 'title': 'messages search'}))
+    frames.extend(update({'sessionUpdate': 'agent_message_chunk',
+                          'content': {'type': 'text', 'text': chunk}}) for chunk in chunks)
+    frames.append(json.dumps({'jsonrpc': '2.0', 'id': 1, 'result': {}}).encode() + b'\n')
+    state.agent_reader.readline = AsyncMock(side_effect=frames)
+    result = await acp_client._send_request('test', {}, collect_updates=True)
+    assert result['_collected_text'] == ''.join(chunks)
