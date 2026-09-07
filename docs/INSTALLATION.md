@@ -73,7 +73,7 @@ User=vibes
 WorkingDirectory=/srv/vibes/workspace
 Environment=VIBES_HOST=127.0.0.1
 Environment=VIBES_PORT=8080
-Environment=VIBES_ACP_AGENT=opencode acp
+Environment="VIBES_ACP_AGENT=opencode acp"
 Environment=PATH=/srv/vibes/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/srv/vibes/venv/bin/vibes serve
 Restart=on-failure
