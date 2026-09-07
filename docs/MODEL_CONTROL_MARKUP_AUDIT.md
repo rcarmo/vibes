@@ -77,3 +77,20 @@ The flex composer wrapper retained its intrinsic automatic minimum width. Added
 min-width:0 to that wrapper and flex-shrink:0 to the gauge. The label now truncates
 visually while its complete text and title retain canonical identity; gauge remains
 visible within the viewport. Eight targeted browser tests and build/lint pass.
+
+## Picker capture recheck after containment fix
+
+Six headed Chromium/WebKit capture cases pass after 30b710a: a single-model fixture
+at 1280px and model/thinking catalogs at 1280px/390px. Reviewed the current Chromium
+single-model capture alongside /workspace/tmp/piclaw-classic-model-desktop.png,
+and the current 390px model/thinking capture. Local model population is fixture
+data, not authenticated provider discovery. The single-model fixture uses
+`test/review-model`; it is not identical reference content.
+
+The base compose-model-popup rule matches the installed classic rule (absolute
+position, bottom:calc(100% + 6px), column flex, z-index:120). Matching that rule does
+not establish the same surrounding composer geometry. Local catalog loading/count
+status, scoped thinking selector and Models settings for pin transfers remain
+application-specific behavior. Local full-page chrome and composer structure still
+differ from deployed; this comparison does not close full footer visual acceptance.
+No additional production styling changed during this recheck.
