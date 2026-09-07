@@ -2780,3 +2780,33 @@ The agreed parity plan is complete. This is acceptance of the documented result,
 not a claim of pixel identity or additional live verification. Chat pop-out remains
 excluded; live audio remains waived. All recorded provider, attachment and isolation
 boundaries and retained failure diagnostics remain unchanged.
+
+### ACP usage follow-up — 2026-09-07
+
+Implemented optional, validated ACP usage_update context/cost and prompt-response
+turn-token reporting. Values are cached by ACP conversation and exposed only for
+the selected chat binding while the agent is running; process reset clears them.
+Context uses used/size, never billed totalTokens. Missing/invalid values stay unknown;
+explicit zero cost remains visible. The configured ACP route does not fall back to
+another running Pi session's stats. Existing UI request/session generations apply.
+
+Cost uses deployed compose-model-usage-hint styling beneath the model, and tooltips
+include reported turn-token breakdowns. Cost-only/turn-only reports do not require
+context percent. Compaction is integrated into the gauge (not a separate button),
+only when the session advertises a no-argument compact command. A native gauge button
+supports keyboard activation, preserves drafts, and is disabled during active turns.
+The server rechecks the advertised command and busy state before forwarding /compact
+through normal scoped ACP dispatch rather than Pi's built-in command handler.
+Last-activity status is not treated as an active turn. Unknown context can retain a
+neutral, explicitly unavailable gauge when an advertised action exists.
+
+OpenCode's recorded live session advertised no compact action. Its real 2949/262144
+context and USD 0 report were replayed for desktop/mobile screenshots; screenshots
+are fixtures, not a new live browser-agent run. Conditional compaction is tested,
+not live-verified against an agent advertising it. Telemetry remains in-memory and
+is not a persisted billing ledger; reported cost is not inferred or estimated.
+
+Verification: 537 backend tests, 22 frontend tests/107 assertions, build/lint and all
+316 headed Chromium/WebKit tests pass without retries. Logs: /workspace/tmp/acp-usage-*
+with failing development artifacts retained separately. Subsequent user request:
+move the session pill into the composer and implement the deployed height resizer.

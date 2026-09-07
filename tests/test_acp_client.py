@@ -827,3 +827,55 @@ async def test_repeated_and_prefix_sharing_deltas_are_not_snapshots(after_tool):
     state.agent_reader.readline = AsyncMock(side_effect=frames)
     result = await acp_client._send_request('test', {}, collect_updates=True)
     assert result['_collected_text'] == ''.join(chunks)
+
+@pytest.mark.asyncio
+async def test_acp_usage_and_commands_are_conversation_scoped():
+    acp_client.reset_state()
+    from vibes.acp_usage import context_update
+    state = acp_client.get_state()
+    state.chat_conversations = {'default': 'a', 'other': 'b'}
+    state.agent_writer = AsyncMock()
+    state.agent_writer.write = MagicMock()
+    updates = [
+        ('a', {'sessionUpdate': 'usage_update', 'used': 2949, 'size': 262144, 'cost': {'amount': 0, 'currency': 'USD'}}),
+        ('b', {'sessionUpdate': 'usage_update', 'used': 10, 'size': 100}),
+        ('unknown', {'sessionUpdate': 'usage_update', 'used': 90, 'size': 100}),
+        ('a', {'sessionUpdate': 'available_commands_update', 'availableCommands': [{'name': 'compact'}]}),
+    ]
+    frames = [{'jsonrpc': '2.0', 'method': 'session/update', 'params': {'sessionId': sid, 'update': update}} for sid, update in updates]
+    frames.append({'jsonrpc': '2.0', 'id': 1, 'result': {'stopReason': 'end_turn', 'usage': {'inputTokens': 773, 'outputTokens': 35, 'totalTokens': 3014}}})
+    state.agent_reader = AsyncMock()
+    state.agent_reader.readline.side_effect = [json.dumps(frame).encode() + b'\n' for frame in frames]
+    await acp_client._send_request('session/prompt', {'sessionId': 'a'})
+    with patch.object(acp_client, 'is_agent_running', return_value=True):
+        usage = acp_client.get_session_usage('default')
+        assert usage['percent'] == 1.1
+        assert usage['tokens'] == 2949  # Never totalTokens=3014.
+        assert usage['cost'] == {'amount': 0, 'currency': 'USD'}
+        assert usage['turnUsage']['inputTokens'] == 773
+        assert usage['compactCommand'] == '/compact'
+        assert acp_client.get_session_usage('other')['percent'] == 10
+        assert acp_client.get_session_usage('missing')['cost'] is None
+        assert 'unknown' not in state.session_usage
+        state.session_usage['a'].update(context_update({'used': True, 'size': 0, 'cost': {'amount': -1, 'currency': 'USD'}}))
+        assert acp_client.get_session_usage()['percent'] is None
+        assert acp_client.get_session_usage()['cost'] is None
+    await acp_client.stop_agent()
+    assert state.session_usage == {}
+
+@pytest.mark.parametrize('commands,expected', [([], None), ([{'name': 'compact', 'input': {'hint': 'required'}}], None), ([{'name': 'review'}], None), ([{'name': 'compact'}], '/compact')])
+@pytest.mark.asyncio
+async def test_acp_compact_requires_explicit_no_argument_advertisement(commands, expected):
+    acp_client.reset_state()
+    state = acp_client.get_state()
+    state.agent_writer = AsyncMock()
+    state.agent_writer.write = MagicMock()
+    state.agent_reader = AsyncMock()
+    state.session_usage['a'] = {'compactCommand': '/compact'}
+    frames = [
+        {'jsonrpc': '2.0', 'method': 'session/update', 'params': {'sessionId': 'a', 'update': {'sessionUpdate': 'available_commands_update', 'availableCommands': commands}}},
+        {'jsonrpc': '2.0', 'id': 1, 'result': {'sessionId': 'a'}},
+    ]
+    state.agent_reader.readline.side_effect = [json.dumps(frame).encode() + b'\n' for frame in frames]
+    await acp_client._send_request('session/new', {})
+    assert state.session_usage['a']['compactCommand'] == expected

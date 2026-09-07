@@ -578,7 +578,7 @@ async def test_check_whitelist_delegates_to_db():
 async def test_get_agent_context_pi_not_running():
     """Returns null usage when Pi is not running."""
     req = make_mocked_request("GET", "/agent/context")
-    with patch.object(agents_mod, "is_pi_running", return_value=False):
+    with patch.object(agents_mod, "_resolve_agent_mode", return_value="pi"), patch.object(agents_mod, "is_pi_running", return_value=False):
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
     assert body == {"tokens": None, "contextWindow": None, "percent": None}
@@ -594,7 +594,7 @@ async def test_get_agent_context_with_usage():
             "contextUsage": {"tokens": 15000, "contextWindow": 200000},
         },
     }
-    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+    with patch.object(agents_mod, "_resolve_agent_mode", return_value="pi"), patch.object(agents_mod, "is_pi_running", return_value=True), \
          patch.object(agents_mod, "inspect_session_stats", new_callable=AsyncMock, return_value=state_resp):
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
@@ -607,7 +607,7 @@ async def test_get_agent_context_with_usage():
 async def test_get_agent_context_rpc_failure():
     """Returns null usage when RPC fails."""
     req = make_mocked_request("GET", "/agent/context")
-    with patch.object(agents_mod, "is_pi_running", return_value=True), \
+    with patch.object(agents_mod, "_resolve_agent_mode", return_value="pi"), patch.object(agents_mod, "is_pi_running", return_value=True), \
          patch.object(agents_mod, "inspect_session_stats", new_callable=AsyncMock, side_effect=Exception("timeout")):
         resp = await agents_mod.get_agent_context(req)
     body = json.loads(resp.body)
@@ -840,3 +840,43 @@ async def test_registry_model_resolution_uses_guarded_default_inspection():
         assert await agents_mod._resolve_pi_model(config) == 'p/configured'
         inspect.assert_awaited_once_with('default')
         raw.assert_not_awaited()
+
+@pytest.mark.asyncio
+async def test_context_routes_acp_by_chat_without_pi_fallback():
+    req = make_mocked_request('GET', '/agent/context?session_id=other')
+    usage = {'tokens': None, 'contextWindow': None, 'percent': None, 'cost': {'amount': 0, 'currency': 'USD'}}
+    with patch.object(agents_mod, '_resolve_agent_mode', return_value='acp'), \
+         patch.object(agents_mod.acp_client, 'get_session_usage', return_value=usage) as inspect, \
+         patch.object(agents_mod, 'inspect_session_stats', new_callable=AsyncMock) as pi:
+        response = await agents_mod.get_agent_context(req)
+    assert json.loads(response.body) == usage
+    inspect.assert_called_once_with('other')
+    pi.assert_not_awaited()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('advertised,busy,status', [(False, False, 409), (True, True, 409), (True, False, 201)])
+async def test_compact_action_validates_capability_before_dispatch(advertised, busy, status):
+    req = make_mocked_request('POST', '/agent/default/message', match_info={'agent_id': 'default'})
+    req.json = AsyncMock(return_value={'content': '/untrusted', 'intent': 'compact', 'session_id': 'default'})
+    db = AsyncMock()
+    db.create_interaction.return_value = 1
+    db.get_interaction.return_value = {'id': 1, 'data': {'content': '/compact'}}
+    with patch.object(agents_mod, 'get_db', return_value=db), \
+         patch.object(agents_mod, '_resolve_agent_mode', return_value='acp'), \
+         patch.object(agents_mod, '_is_agent_busy', return_value=busy), \
+         patch.object(agents_mod.acp_client, 'get_session_usage', return_value={'compactCommand': '/compact' if advertised else None}), \
+         patch.object(agents_mod, 'parse_command') as parse, \
+         patch.object(agents_mod, 'queue_link_preview_fetch'), \
+         patch.object(agents_mod, 'broadcast_event', new_callable=AsyncMock), \
+         patch.object(agents_mod, 'enqueue') as enqueue:
+        response = await agents_mod.send_message(req)
+    assert response.status == status
+    if status == 201:
+        assert db.create_interaction.call_args.args[0]['content'] == '/compact'
+        parse.assert_not_called()  # Forward the advertised ACP command, not Pi's built-in.
+        enqueue.assert_called_once()
+        assert enqueue.call_args.args[0] is agents_mod.process_agent_response
+        assert '/compact' in enqueue.call_args.args
+    else:
+        db.create_interaction.assert_not_awaited()
+        enqueue.assert_not_called()

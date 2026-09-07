@@ -8,6 +8,7 @@ from aiohttp import web
 import asyncio
 from ..db import get_db
 from ..config import get_config
+from .. import acp_client
 from ..opengraph import queue_link_preview_fetch
 from ..acp_client import (
     send_message_multimodal as send_acp_message_multimodal,
@@ -959,7 +960,9 @@ async def _store_media_block(db, block: dict) -> int | None:
 
 
 async def get_agent_context(request: web.Request) -> web.Response:
-    """GET /agent/context — return context window usage for the compose box indicator."""
+    """GET /agent/context — return only usage reported for the selected agent chat."""
+    if _resolve_agent_mode('default') == 'acp':
+        return web.json_response(acp_client.get_session_usage(request.query.get('session_id', 'default')))
     null_resp = {"tokens": None, "contextWindow": None, "percent": None}
     if not is_pi_running():
         return web.json_response(null_resp)
@@ -1062,12 +1065,20 @@ async def send_message(request: web.Request) -> web.Response:
     session_id = data.get('session_id', 'default')
     if not isinstance(session_id, str) or not session_id:
         return web.json_response({'error': 'Invalid session_id'}, status=400)
+    compact_action = data.get('intent') == 'compact'
+    if compact_action:
+        command = acp_client.get_session_usage(session_id).get('compactCommand')
+        if _resolve_agent_mode(agent_id) != 'acp' or command != '/compact':
+            return web.json_response({'error': 'Compaction is not advertised by this agent session'}, status=409)
+        if _agent_dispatch_lock.locked() or _is_agent_busy('acp'):
+            return web.json_response({'error': 'Wait for the active turn before compacting'}, status=409)
+        data['content'] = command
     if session_id != 'default':
         from ..sessions import SessionStore
         session = await SessionStore(db).get(session_id)
         if not session or session['archived']:
             return web.json_response({'error': 'Session unavailable'}, status=404)
-        if data['content'].lstrip().startswith('/'):
+        if data['content'].lstrip().startswith('/') and not compact_action:
             return web.json_response({'error': 'Session-specific commands are not enabled yet'}, status=409)
     if _agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id)):
         active = await _get_active_turn_for_agent(agent_id)
@@ -1106,7 +1117,7 @@ async def send_message(request: web.Request) -> web.Response:
     await broadcast_event("new_post" if not data.get("thread_id") else "new_reply", user_interaction)
 
     # Intercept slash commands before sending to agent
-    command = parse_command(data["content"])
+    command = None if compact_action else parse_command(data["content"])
     if command:
         agent_mode = _resolve_agent_mode(agent_id)
         result = await execute_command(command, agent_mode)

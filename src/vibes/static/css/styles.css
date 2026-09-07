@@ -3823,3 +3823,16 @@ body {
 @media (max-width: 639px) {
     .session-row-icon { width: 44px; height: 44px; }
 }
+.compose-model-usage-hint {
+    display: block;
+    font-size: 10.5px;
+    color: var(--text-tertiary, var(--text-secondary));
+    opacity: 0.82;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1;
+    font-family: var(--font-mono, monospace);
+    letter-spacing: 0.01em;
+    flex: 0 1 auto;
+}

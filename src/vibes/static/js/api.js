@@ -96,10 +96,10 @@ export async function deletePost(postId, cascade = false) {
 /**
  * Send message to agent
  */
-export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, sessionId = 'default') {
+export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, sessionId = 'default', intent = null) {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
-        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, session_id: sessionId }),
+        body: JSON.stringify({ content, thread_id: threadId, media_ids: mediaIds, mode, session_id: sessionId, ...(intent ? { intent } : {}) }),
     });
 }
 

@@ -12,6 +12,7 @@ from typing import Optional, AsyncIterator
 from pathlib import Path
 
 from .config import get_config
+from .acp_usage import context_update, turn_usage
 from .db import get_db
 from .routes.media import generate_thumbnail
 from .acp_protocol import (
@@ -73,6 +74,7 @@ class _ACPState:
         self.cancel_event: asyncio.Event | None = None
         self.session_id = None
         self.chat_conversations = {}
+        self.session_usage = {}
         self.load_session_supported = False
         self.reported_capabilities = None
         self.chat_id = 'default'
@@ -132,6 +134,7 @@ async def _interrupt_inflight_request() -> bool:
     await stop_agent()
     _state.session_id = None
     _state.chat_conversations = {}
+    _state.session_usage = {}
     _state.load_session_supported = False
     _state.reported_capabilities = None
     _state.chat_id = 'default'
@@ -148,6 +151,7 @@ def reset_state() -> None:
     _state.cancel_event = None
     _state.session_id = None
     _state.chat_conversations = {}
+    _state.session_usage = {}
     _state.load_session_supported = False
     _state.reported_capabilities = None
     _state.chat_id = 'default'
@@ -455,6 +459,21 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
             # Handle notifications (no id) - these are one-way updates
             if frame_kind == "notification":
                 method_name = response.get("method", "")
+                if method_name == "session/update":
+                    notification = response.get("params", {})
+                    update = notification.get("update", {})
+                    sid = notification.get("sessionId")
+                    known = sid == params.get("sessionId") or sid in _state.chat_conversations.values() or method == "session/new"
+                    if isinstance(sid, str) and sid and known and isinstance(update, dict):
+                        telemetry = _state.session_usage.setdefault(sid, {})
+                        if update.get("sessionUpdate") == "usage_update":
+                            telemetry.update(context_update(update))
+                        elif update.get("sessionUpdate") == "available_commands_update":
+                            commands = update.get("availableCommands")
+                            telemetry["compactCommand"] = "/compact" if isinstance(commands, list) and any(
+                                isinstance(item, dict) and item.get("name") == "compact" and not item.get("input")
+                                for item in commands
+                            ) else None
                 if collect_updates and method_name == "session/update":
                     update = response.get("params", {}).get("update", {})
                     session_update_type = update.get("sessionUpdate", "")
@@ -719,6 +738,8 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                 if "error" in response:
                     raise RuntimeError(f"Agent error: {response['error']}")
                 result = response.get("result", {})
+                if method == "session/prompt" and isinstance(params.get("sessionId"), str):
+                    _state.session_usage.setdefault(params["sessionId"], {})["turnUsage"] = turn_usage(result.get("usage"))
                 if permission_cancelled:
                     result["_cancelled"] = True
                 if collect_updates:
@@ -1001,6 +1022,7 @@ async def _ensure_agent():
         _state.agent_writer = None
         _state.session_id = None
         _state.chat_conversations = {}
+        _state.session_usage = {}
         _state.load_session_supported = False
         _state.reported_capabilities = None
         _state.chat_id = 'default'
@@ -1320,6 +1342,7 @@ async def stop_agent():
         _state.agent_writer = None
         _state.session_id = None
         _state.chat_conversations = {}
+        _state.session_usage = {}
         _state.load_session_supported = False
         _state.reported_capabilities = None
         _state.chat_id = 'default'
@@ -1344,3 +1367,15 @@ async def cancel_session():
             logger.warning(f"Failed to send session/cancel: {e}")
             return False
     return False
+
+
+def get_session_usage(chat_id='default'):
+    """Last explicitly reported usage for this running ACP conversation only."""
+    empty = {"tokens": None, "contextWindow": None, "percent": None, "cost": None,
+             "turnUsage": None, "compactCommand": None, "source": "acp"}
+    if not is_agent_running():
+        return empty
+    sid = _state.chat_conversations.get(chat_id)
+    if not sid:
+        return empty
+    return {**empty, **_state.session_usage.get(sid, {})}

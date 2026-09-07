@@ -3,6 +3,7 @@ import { loadModelPins, saveModelPins, modelPinStorage } from './model-pins.js';
 import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
+import { usagePresentation } from './usage.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
@@ -50,12 +51,15 @@ function formatK(n) {
  * Tiny SVG pie chart showing context window usage.
  * Green when <75%, amber 75–90%, red >90%. Tooltip shows exact numbers.
  */
-function ContextPie({ usage }) {
-    if (typeof usage.percent !== 'number' || !Number.isFinite(usage.percent) || usage.percent < 0) return null;
-    const pct = usage.percent;
+function ContextPie({ usage, onCompact, disabled, compacting }) {
+    const canCompact = usage.compactCommand === '/compact';
+    const known = typeof usage.percent === 'number' && Number.isFinite(usage.percent) && usage.percent >= 0;
+    if (!known && !canCompact) return null;
+    const Tag = canCompact ? 'button' : 'span';
+    const pct = known ? usage.percent : 0;
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
-    const label = Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
+    const label = !known ? 'Context usage unavailable' : Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
         ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${pct.toFixed(0)}%)`
         : `Context: ${pct.toFixed(0)}%`;
 
@@ -68,8 +72,12 @@ function ContextPie({ usage }) {
             : 'var(--context-green, #22c55e)';
 
     return html`
-        <span class="compose-context-pie icon-btn" role="img" aria-label=${label} title=${label}>
-            <svg width="18" height="18" viewBox="0 0 20 20">
+        <${Tag} class="compose-context-pie icon-btn" type=${canCompact ? 'button' : undefined}
+            role=${canCompact ? undefined : 'img'} aria-label=${canCompact ? `${label}. Compact context` : label}
+            disabled=${canCompact ? disabled : undefined} aria-busy=${compacting ? 'true' : undefined}
+            onClick=${canCompact ? onCompact : undefined}
+            title=${[label, usagePresentation(usage).title, canCompact && 'Compact context (agent-advertised /compact)'].filter(Boolean).join('\n')}>
+            <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
                 <circle cx="10" cy="10" r=${r}
                     fill="none"
                     stroke="var(--context-track, rgba(128,128,128,0.2))"
@@ -82,7 +90,7 @@ function ContextPie({ usage }) {
                     stroke-linecap="round"
                     transform="rotate(-90 10 10)" />
             </svg>
-        </span>
+        <//>
     `;
 }
 
@@ -158,6 +166,7 @@ export function ComposeBox({
     supportsThinking = false,
     isCompacting = false,
     contextUsage = null,
+    agentBusy = false,
     queuedFollowups = [],
     onQueueRemove,
     onQueueSteer,
@@ -612,6 +621,18 @@ export function ComposeBox({
         event.preventDefault();
         event.stopPropagation();
         setShowModelPopup((prev) => !prev);
+    };
+
+    const usageMeta = usagePresentation(contextUsage);
+    const compact = async () => {
+        if (loading || agentBusy || isCompacting || contextUsage?.compactCommand !== '/compact') return;
+        setLoading(true);
+        setSubmitError('');
+        try {
+            await sendAgentMessage('default', '/compact', null, [], 'auto', sessionId, 'compact');
+            onPost?.();
+        } catch (error) { setSubmitError(error.message || 'Compaction failed'); }
+        finally { setLoading(false); }
     };
 
     const handleSubmit = async (mode = 'auto') => {
@@ -1129,9 +1150,9 @@ export function ComposeBox({
                     `}
                 </div>
                 <div class="compose-footer">
-                    ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
+                    ${!searchMode && (activeModel || supportsThinking || usageMeta.label || contextUsage?.compactCommand || (contextUsage && contextUsage.percent != null)) && html`
                         <div class="compose-meta-row">
-                            ${(activeModel || supportsThinking) && html`<div class="compose-model-meta">
+                            ${(activeModel || supportsThinking || usageMeta.label) && html`<div class="compose-model-meta">
                             ${activeModel && html`
                                 <button type="button" ref=${modelHintRef}
                                     class="compose-model-hint compose-model-hint-btn"
@@ -1144,6 +1165,7 @@ export function ComposeBox({
                                 </button>
                             `}
                             <div class="compose-model-meta-subline">
+                            ${usageMeta.label && html`<span class="compose-model-usage-hint" title=${usageMeta.title} aria-label=${usageMeta.title}>${usageMeta.label}</span>`}
                             ${supportsThinking && html`
                                 <button type="button" class="compose-thinking-pill"
                                     aria-label="Cycle thinking level"
@@ -1156,8 +1178,8 @@ export function ComposeBox({
                             `}
                             </div>
                             </div>`}
-                            ${contextUsage && contextUsage.percent != null && html`
-                                <${ContextPie} usage=${contextUsage} />
+                            ${contextUsage && (contextUsage.percent != null || contextUsage.compactCommand) && html`
+                                <${ContextPie} usage=${contextUsage} onCompact=${compact} disabled=${loading || agentBusy || isCompacting} compacting=${isCompacting} />
                             `}
                         </div>
                     `}

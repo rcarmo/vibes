@@ -867,7 +867,7 @@ function App() {
         try {
             const context = await getAgentContext(session);
             if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current) {
-                setContextUsage(context?.percent != null ? context : null);
+                setContextUsage(context || null);
             }
         } catch {
             if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current) setContextUsage(null);
@@ -2599,6 +2599,7 @@ function App() {
                     supportsThinking=${supportsThinking}
                     isCompacting=${isCompacting}
                     contextUsage=${contextUsage}
+                    agentBusy=${Boolean(agentStatus && !agentStatus.last_activity && !agentStatus.lastActivity && !['done', 'error', 'cancelled', 'idle'].includes(agentStatus.type))}
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}
                     onQueueSteer=${handleQueueSteer}
