@@ -2686,3 +2686,32 @@ app-client lifecycle and scoped retrieval across an agent-process restart, not a
 HTTP/UI server restart, adversarial isolation, or isolation of unrestricted agent
 filesystem/shell tools. Do not reinterpret the API runtime_isolation:false flag as
 a proven global isolation guarantee. Attachment acceptance remains open.
+
+### Live attachment consumption boundary verified (2026-09-07)
+
+Using app-managed OpenCode ACP with nemotron-3.5-lightning-free and the real
+session-scoped messages server, seeded three synthetic media records referenced by
+the owning chat. The prompt supplied only attachment IDs and instructions, never
+the expected payload. Built-in filesystem/shell tools were denied.
+
+| Stored type | Actual agent-visible result | Live outcome |
+| --- | --- | --- |
+| text/plain | Bounded decoded text preview | Agent returned the random token present only in attachment bytes. |
+| image/png | ID, MIME, size, binary-unavailable notice | Agent returned the notice; no pixels were supplied. |
+| application/octet-stream | ID, MIME, size, binary-unavailable notice | Agent returned the notice; no binary payload was supplied. |
+
+OpenCode session export confirms exactly three completed vibes-messages_messages
+calls, action attachment, media IDs 1–3. All three answers match the implemented
+contract. Evidence: /workspace/tmp/opencode-attachment-acceptance/report.json and
+session-export.json; environment probe /workspace/tmp/opencode-attachment-probe.py.
+
+Text previews are capped at 24000 bytes with UTF-8 replacement decoding and a
+truncation flag. JSON/XML/YAML share the preview path in source, but this live probe
+used text/plain only. Images and arbitrary binary files remain storable/downloadable
+attachments, NOT native model input via this messages-tool path. ACP image capability
+advertising alone does not alter that boundary. No OCR, image reasoning, PDF parsing,
+or binary analysis is claimed. Fixtures were seeded through Database.create_media
+and linked interactions, not a new browser upload test; existing upload regression
+evidence remains separate. The acceptance item is closed as verification and
+honest documentation of supported behavior, not implementation of image/binary
+model input.
