@@ -1088,6 +1088,7 @@ for (const width of [1280, 390]) {
         await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
             available: true, model: { provider: 'test', id: 'reasoner', reasoning: true }, thinking_level: 'low',
         }) }));
+        await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ percent: 25, tokens: 1000, contextWindow: 4000 }) }));
         await page.goto('/');
         const meta = page.locator('.compose-model-meta');
         const model = meta.getByRole('button', { name: 'Open model picker', exact: true });
@@ -1099,6 +1100,14 @@ for (const width of [1280, 390]) {
         expect(bottom.y).toBeGreaterThanOrEqual(top.y + top.height);
         expect(top.x + top.width).toBeLessThanOrEqual(width);
         expect(bottom.x + bottom.width).toBeLessThanOrEqual(width);
+        const gauge = page.locator('.compose-context-pie');
+        await expect(gauge).toBeVisible();
+        const groupBounds = await meta.boundingBox();
+        const gaugeBounds = await gauge.boundingBox();
+        const gap = gaugeBounds.x - (groupBounds.x + groupBounds.width);
+        expect(gap).toBeGreaterThanOrEqual(0);
+        expect(gap).toBeLessThanOrEqual(8);
+        expect(gaugeBounds.x + gaugeBounds.width).toBeLessThanOrEqual(width);
         await page.screenshot({ path: testInfo.outputPath(`model-meta-${width}.png`) });
     });
 }

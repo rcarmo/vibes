@@ -1533,10 +1533,12 @@ body {
 .compose-meta-row {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-start;
     gap: var(--spacing-xs);
-    min-height: 18px;
-    padding: 0 2px 2px 2px;
+    min-height: 12px;
+    padding: 0 2px;
+    flex: 1;
+    min-width: 0;
 }
 
 .compose-model-meta {

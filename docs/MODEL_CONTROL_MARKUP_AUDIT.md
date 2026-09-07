@@ -58,3 +58,13 @@ retain-on-failure tracing (6.0m); log /workspace/tmp/model-meta-integrated-brows
 This includes picker, thinking, context, session switching, queue and terminal
 workflows after 55f02bf. Historical intermittent opening failures were not
 reproduced and remain unresolved; passing is not evidence of their root cause.
+
+## Metadata row alignment
+
+Copied deployed compose-meta-row flex-start alignment, 12px minimum height,
+0 2px padding, flex:1 and min-width:0. Model/thinking and context now form one
+left-aligned group rather than being spread across the composer. Expanded
+1280px/390px captures include real-shaped mocked context data; tests assert the
+gauge follows the metadata group with a nonnegative gap no larger than 8px and
+fits the viewport. Eight targeted Chromium/WebKit cases and build/lint pass.
+Mobile Chromium capture inspected with gauge present; no control overlap observed.
