@@ -2769,3 +2769,14 @@ local model/thinking extensions and session-picker density/metrics/actions. The
 comparison reports document these differences; their full-equivalence gates remain
 open until accepted or replaced by specifically requested changes. Live audio was
 explicitly excluded by the user. Retained failure diagnostics remain enabled.
+
+### User acceptance — 2026-09-07
+
+Rui approved the final UI review after receiving the Python model-picker screenshot
+(from the latest passing browser run with test data). This closes the three
+remaining visual acceptance items: overall markup with documented deviations,
+model/thinking controls, and grouped/searchable session-picker presentation.
+The agreed parity plan is complete. This is acceptance of the documented result,
+not a claim of pixel identity or additional live verification. Chat pop-out remains
+excluded; live audio remains waived. All recorded provider, attachment and isolation
+boundaries and retained failure diagnostics remain unchanged.
