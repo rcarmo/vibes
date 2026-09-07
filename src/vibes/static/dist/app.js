@@ -262,42 +262,6 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                             `)}
                         </div>
                     `}
-                    ${!l&&(Z||We||Me&&Me.percent!=null)&&Ke`
-                        <div class="compose-meta-row">
-                            ${(Z||We)&&Ke`<div class="compose-model-meta">
-                            ${Z&&Ke`
-                                <button
-                                    ref=${ah}
-                                    type="button"
-                                    class="compose-model-hint compose-model-hint-btn"
-                                    title=${Mf?"Switching model…":`Current model: ${r5} (tap to open model picker)`}
-                                    aria-label="Open model picker"
-                                    onClick=${w4}
-                                    disabled=${ls||Mf}
-                                >
-                                    ${Mf?"Switching…":r5}
-                                </button>
-                            `}
-                            <div class="compose-model-meta-subline">
-                            ${We&&Ke`
-                                <button
-                                    type="button"
-                                    class="compose-thinking-pill"
-                                    aria-label="Cycle thinking level"
-                                    title=${Mf?"Switching thinking level…":`${Ju} (tap to cycle)`}
-                                    onClick=${()=>{NO()}}
-                                    disabled=${ls||Mf}
-                                >
-                                    ${ke||"thinking"}
-                                </button>
-                            `}
-                            </div>
-                            </div>`}
-                            ${Me&&Me.percent!=null&&Ke`
-                                <${afn} usage=${Me} />
-                            `}
-                        </div>
-                    `}
                     ${f1&&!l&&Ke`
                         <div class="compose-model-popup compose-model-catalogue" ref=${Ku} onKeyDown=${vd}>
                             <div class="compose-model-catalogue-header">
@@ -382,6 +346,43 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                         </div>
                     `}
                 </div>
+                <div class="compose-footer">
+                    ${!l&&(Z||We||Me&&Me.percent!=null)&&Ke`
+                        <div class="compose-meta-row">
+                            ${(Z||We)&&Ke`<div class="compose-model-meta">
+                            ${Z&&Ke`
+                                <button
+                                    ref=${ah}
+                                    type="button"
+                                    class="compose-model-hint compose-model-hint-btn"
+                                    title=${Mf?"Switching model…":`Current model: ${r5} (tap to open model picker)`}
+                                    aria-label="Open model picker"
+                                    onClick=${w4}
+                                    disabled=${ls||Mf}
+                                >
+                                    ${Mf?"Switching…":r5}
+                                </button>
+                            `}
+                            <div class="compose-model-meta-subline">
+                            ${We&&Ke`
+                                <button
+                                    type="button"
+                                    class="compose-thinking-pill"
+                                    aria-label="Cycle thinking level"
+                                    title=${Mf?"Switching thinking level…":`${Ju} (tap to cycle)`}
+                                    onClick=${()=>{NO()}}
+                                    disabled=${ls||Mf}
+                                >
+                                    ${ke||"thinking"}
+                                </button>
+                            `}
+                            </div>
+                            </div>`}
+                            ${Me&&Me.percent!=null&&Ke`
+                                <${afn} usage=${Me} />
+                            `}
+                        </div>
+                    `}
                 <div class="compose-actions ${l?"search-mode":""}">
                     <button
                         class="icon-btn search-toggle"
@@ -442,6 +443,7 @@ ${de.map((In,ii)=>{let Pi=Af[ii]?.name||`image-${ii+1}`;return`- attachment:${In
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>
                     `}
+                </div>
                 </div>
             </div>
         </div>
@@ -2127,4 +2129,4 @@ ${a}
         </div>
     `}p4t(Ke`<${J7n} />`,document.getElementById("app"));
 
-//# debugId=4889D6F1F08D509764756E2164756E21
+//# debugId=CEBEF96102483C2E64756E2164756E21

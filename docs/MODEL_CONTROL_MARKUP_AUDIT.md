@@ -94,3 +94,18 @@ status, scoped thinking selector and Models settings for pin transfers remain
 application-specific behavior. Local full-page chrome and composer structure still
 differ from deployed; this comparison does not close full footer visual acceptance.
 No additional production styling changed during this recheck.
+
+## Shared composer footer implemented
+
+Metadata and actions now share a compose-footer below compose-input-main instead
+of placing actions alongside the input. Composer wrapper is a stretched column;
+footer uses deployed flex alignment/gap/position, with actions aligned to the end.
+Model popup remains anchored to its existing input-main host; all handlers and
+control labels are preserved. The local thinking pill remains an extension.
+
+Full headed Chromium/WebKit suite: 306 pass without retries (5.9m); 20 frontend
+tests/95 assertions and build/lint pass. Then four strengthened desktop/mobile
+cases pass, asserting footer children and placement below the textarea. Inspected
+390px Chromium capture with model/thinking/context and actions present. Full visual
+identity is still not claimed: local controls and surrounding application chrome
+remain different. Historical intermittent picker failures are not declared fixed.

@@ -1044,42 +1044,6 @@ export function ComposeBox({
                             `)}
                         </div>
                     `}
-                    ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
-                        <div class="compose-meta-row">
-                            ${(activeModel || supportsThinking) && html`<div class="compose-model-meta">
-                            ${activeModel && html`
-                                <button
-                                    ref=${modelHintRef}
-                                    type="button"
-                                    class="compose-model-hint compose-model-hint-btn"
-                                    title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
-                                    aria-label="Open model picker"
-                                    onClick=${toggleModelPopup}
-                                    disabled=${loading || switchingModel}
-                                >
-                                    ${switchingModel ? 'Switching…' : modelHintLabel}
-                                </button>
-                            `}
-                            <div class="compose-model-meta-subline">
-                            ${supportsThinking && html`
-                                <button
-                                    type="button"
-                                    class="compose-thinking-pill"
-                                    aria-label="Cycle thinking level"
-                                    title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
-                                    onClick=${() => { void handleCycleThinking(); }}
-                                    disabled=${loading || switchingModel}
-                                >
-                                    ${thinkingLevel || 'thinking'}
-                                </button>
-                            `}
-                            </div>
-                            </div>`}
-                            ${contextUsage && contextUsage.percent != null && html`
-                                <${ContextPie} usage=${contextUsage} />
-                            `}
-                        </div>
-                    `}
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup compose-model-catalogue" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
                             <div class="compose-model-catalogue-header">
@@ -1164,6 +1128,43 @@ export function ComposeBox({
                         </div>
                     `}
                 </div>
+                <div class="compose-footer">
+                    ${!searchMode && (activeModel || supportsThinking || (contextUsage && contextUsage.percent != null)) && html`
+                        <div class="compose-meta-row">
+                            ${(activeModel || supportsThinking) && html`<div class="compose-model-meta">
+                            ${activeModel && html`
+                                <button
+                                    ref=${modelHintRef}
+                                    type="button"
+                                    class="compose-model-hint compose-model-hint-btn"
+                                    title=${switchingModel ? 'Switching model…' : `Current model: ${modelHintLabel} (tap to open model picker)`}
+                                    aria-label="Open model picker"
+                                    onClick=${toggleModelPopup}
+                                    disabled=${loading || switchingModel}
+                                >
+                                    ${switchingModel ? 'Switching…' : modelHintLabel}
+                                </button>
+                            `}
+                            <div class="compose-model-meta-subline">
+                            ${supportsThinking && html`
+                                <button
+                                    type="button"
+                                    class="compose-thinking-pill"
+                                    aria-label="Cycle thinking level"
+                                    title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
+                                    onClick=${() => { void handleCycleThinking(); }}
+                                    disabled=${loading || switchingModel}
+                                >
+                                    ${thinkingLevel || 'thinking'}
+                                </button>
+                            `}
+                            </div>
+                            </div>`}
+                            ${contextUsage && contextUsage.percent != null && html`
+                                <${ContextPie} usage=${contextUsage} />
+                            `}
+                        </div>
+                    `}
                 <div class="compose-actions ${searchMode ? 'search-mode' : ''}">
                     <button
                         class="icon-btn search-toggle"
@@ -1228,6 +1229,7 @@ export function ComposeBox({
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
                         </button>
                     `}
+                </div>
                 </div>
             </div>
         </div>

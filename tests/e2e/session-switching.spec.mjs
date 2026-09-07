@@ -1090,11 +1090,17 @@ for (const width of [1280, 390]) {
         }) }));
         await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ percent: 25, tokens: 1000, contextWindow: 4000 }) }));
         await page.goto('/');
-        const meta = page.locator('.compose-model-meta');
+        const footer = page.locator('.compose-footer');
+        await expect(footer.locator(':scope > .compose-meta-row')).toHaveCount(1);
+        await expect(footer.locator(':scope > .compose-actions')).toHaveCount(1);
+        const meta = footer.locator('.compose-model-meta');
         const model = meta.getByRole('button', { name: 'Open model picker', exact: true });
         const thinking = meta.locator('.compose-model-meta-subline').getByRole('button', { name: 'Cycle thinking level', exact: true });
         await expect(model).toContainText('reasoner');
         await expect(thinking).toHaveText('low');
+        const inputBounds = await page.locator('.compose-input-main textarea').boundingBox();
+        const footerBounds = await footer.boundingBox();
+        expect(footerBounds.y).toBeGreaterThanOrEqual(inputBounds.y + inputBounds.height);
         const top = await model.boundingBox();
         const bottom = await thinking.boundingBox();
         expect(bottom.y).toBeGreaterThanOrEqual(top.y + top.height);
