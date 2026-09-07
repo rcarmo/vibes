@@ -50,3 +50,11 @@ and bounding-box assertions plus thinking/context behavior. 20 frontend tests an
 build/lint pass. Rechecked 1280px/390px Chromium captures: model and thinking stack
 without overlap; controls fit the viewport. This is scoped structure verification,
 not full footer/picker visual equivalence or approval of the local pill treatment.
+
+## Full browser regression after layout change
+
+All 304 headed Chromium/WebKit tests pass with one worker, zero retries and
+retain-on-failure tracing (6.0m); log /workspace/tmp/model-meta-integrated-browser.log.
+This includes picker, thinking, context, session switching, queue and terminal
+workflows after 55f02bf. Historical intermittent opening failures were not
+reproduced and remain unresolved; passing is not evidence of their root cause.
