@@ -68,3 +68,12 @@ left-aligned group rather than being spread across the composer. Expanded
 gauge follows the metadata group with a nonnegative gap no larger than 8px and
 fits the viewport. Eight targeted Chromium/WebKit cases and build/lint pass.
 Mobile Chromium capture inspected with gauge present; no control overlap observed.
+
+## Long canonical identity containment
+
+A new mobile regression reproduced horizontal overflow in both browsers with a
+long canonical model ID: the gauge right edge exceeded 1500px in a 390px viewport.
+The flex composer wrapper retained its intrinsic automatic minimum width. Added
+min-width:0 to that wrapper and flex-shrink:0 to the gauge. The label now truncates
+visually while its complete text and title retain canonical identity; gauge remains
+visible within the viewport. Eight targeted browser tests and build/lint pass.

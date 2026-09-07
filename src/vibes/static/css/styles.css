@@ -1325,6 +1325,7 @@ body {
 
 .compose-input-wrapper {
     flex: 1;
+    min-width: 0;
     display: flex;
     align-items: flex-end;
     gap: var(--spacing-xs);
@@ -1710,6 +1711,7 @@ body {
 }
 
 .compose-context-pie {
+    flex-shrink: 0;
     line-height: 0;
     opacity: 0.7;
     cursor: default;

@@ -1111,3 +1111,24 @@ for (const width of [1280, 390]) {
         await page.screenshot({ path: testInfo.outputPath(`model-meta-${width}.png`) });
     });
 }
+
+test('long canonical model label keeps context gauge inside mobile metadata row', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    const id = 'reasoning-model-with-a-very-long-canonical-identity-'.repeat(4);
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+        available: true, model: { provider: 'test', id, reasoning: true }, thinking_level: 'low',
+    }) }));
+    await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ percent: 25, tokens: 1000, contextWindow: 4000 }) }));
+    await page.goto('/');
+    const model = page.getByRole('button', { name: 'Open model picker', exact: true });
+    const gauge = page.locator('.compose-context-pie');
+    await expect(model).toHaveText(`test/${id}`);
+    await expect(model).toHaveAttribute('title', `Current model: test/${id} (tap to open model picker)`);
+    await expect(gauge).toBeVisible();
+    const labelBounds = await model.boundingBox();
+    const gaugeBounds = await gauge.boundingBox();
+    expect(gaugeBounds.x).toBeGreaterThanOrEqual(labelBounds.x + labelBounds.width);
+    expect(gaugeBounds.width).toBeGreaterThan(0);
+    expect(gaugeBounds.x + gaugeBounds.width).toBeLessThanOrEqual(390);
+    expect(await model.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
+});
