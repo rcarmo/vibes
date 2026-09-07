@@ -2740,3 +2740,32 @@ suite: 308 pass without retries (5.9m). Evidence:
 picker-timeline-full.log. The deterministic application race is fixed. Historical
 screenshots alone cannot prove every past picker failure shared this cause; retain
 those artifacts and existing bounded interaction diagnostics for recurrence.
+
+### Final supported status/context audit (2026-09-07)
+
+Rechecked model-state route, context route, selected-session refresh logic and
+status renderer at d95d41f. Supported status/context behavior is verified:
+
+- Canonical provider/model and capability-gated thinking controls are scoped to
+  the selected session. Unavailable/archived/error inspection returns null fields.
+- Compaction appears only for explicit supported boolean state; malformed values
+  do not imply compaction. Browser coverage exercises confirmed and unavailable
+  states; backend coverage validates malformed inspection data.
+- Context uses supported Pi usage only; unavailable stats return null values, not
+  fabricated zeros. Invalid values hide the gauge. Session/model changes clear
+  stale data and request new usage with generation guards.
+- Running/idle lifecycle uses active-turn records; status.js renders reported error
+  state. Polling recovers after missing completion events and filters by session.
+- OpenCode ACP retrieval/resume is verified separately. Its direct prompt usage
+  response is NOT exposed as Pi context usage by the application; no ACP context
+  gauge or compaction capability is claimed here.
+
+This closes supported status/context implementation and behavior acceptance using
+the existing 308-browser/513-backend checkpoints, not a new execution claim or
+pixel-identical status presentation. No production code changed in this audit.
+
+Remaining decisions are visual acceptance only: overall markup/chrome deviations,
+local model/thinking extensions and session-picker density/metrics/actions. The
+comparison reports document these differences; their full-equivalence gates remain
+open until accepted or replaced by specifically requested changes. Live audio was
+explicitly excluded by the user. Retained failure diagnostics remain enabled.

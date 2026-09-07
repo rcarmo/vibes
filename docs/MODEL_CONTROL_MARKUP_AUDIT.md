@@ -119,3 +119,13 @@ Chromium/WebKit footer cases verify explicit types and decorative icon attribute
 build/lint pass. Evidence: /workspace/tmp/footer-a11y-browser.log and
 /workspace/tmp/footer-a11y-build.log. These checks do not establish live speech
 acceptance or close the broader visual-parity gate.
+
+## Current checkpoint: d95d41f
+
+The preceding sections are chronological evidence, not current blockers by default.
+Shared footer and accessibility refinements are implemented. Deterministic lost
+clicks during timeline loading are now fixed with a red/green cross-browser test;
+308 full headed browser tests pass without retries. Historical failures remain
+retained for comparison, not proof that this fix covers every old failure.
+Supported status/context audit is recorded in PICLAW_PARITY_PLAN.md. Full visual
+acceptance of local thinking controls and application chrome is still pending.

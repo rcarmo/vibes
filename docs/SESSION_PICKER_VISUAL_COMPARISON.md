@@ -48,3 +48,13 @@ recorded in 8399b9d also remain unresolved despite subsequent passing runs.
 Runtime metrics must not be invented to mimic the reference.
 This review neither verifies real third-party ACP execution nor persistent-thread
 message-tool isolation.
+
+## Current checkpoint: d95d41f
+
+The above runtime/closed-picker limitations describe the older comparison checkpoint.
+Live OpenCode messages retrieval, app-managed scope/resume and attachment boundaries
+are now verified separately in PICLAW_PARITY_PLAN.md. A deterministic loading-layout
+race that interrupts clicks is fixed; all 308 browser tests pass. Old screenshots
+alone do not establish the cause of every historical failure. Grouping, keyboard
+navigation and backend action protections remain covered. Full visual acceptance
+of the documented local geometry/metrics/action differences is still pending.
