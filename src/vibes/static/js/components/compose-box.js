@@ -4,6 +4,7 @@ import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk 
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
 import { usagePresentation } from './usage.js';
+import { useComposeSizing } from './compose-sizing.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
@@ -146,6 +147,7 @@ function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
 export function ComposeBox({
     sessionId = 'default',
     onPost,
+    sessionTrigger = null,
     onFocus,
     searchMode,
     onSearch,
@@ -452,12 +454,7 @@ export function ComposeBox({
         }
     };
 
-    const resizeTextarea = () => {
-        const textarea = textareaRef.current;
-        if (!textarea) return;
-        textarea.style.height = 'auto';
-        textarea.style.height = Math.min(textarea.scrollHeight, 160) + 'px';
-    };
+    const { resizeTextarea, handleProps: resizeHandleProps } = useComposeSizing(textareaRef, searchMode ? searchText : content);
 
     /** Update slash autocomplete matches based on current input. */
     const updateSlashAutocomplete = (value) => {
@@ -967,7 +964,8 @@ export function ComposeBox({
     }, [showModelPopup]);
 
     return html`
-        <div class="compose-box">
+        <div class="compose-box" data-testid="compose-box">
+            <div class="compose-resize-handle" ...${resizeHandleProps}></div>
             ${searchMode && html`<div class="compose-search-filters">
                 <label class="compose-search-scope-wrap" title="Search scope">
                     <select class="compose-search-scope-select" aria-label="Search scope" value=${searchScope} onChange=${e => setSearchScope(e.currentTarget.value)}>
@@ -1006,6 +1004,7 @@ export function ComposeBox({
                 onDragLeave=${handleDragLeave}
                 onDrop=${handleComposeDrop}
             >
+                ${sessionTrigger && html`<div class="compose-session-trigger-group compose-session-trigger-top">${sessionTrigger}</div>`}
                 <div class="compose-input-main">
                     ${!searchMode && html`<${AgentCapabilities} agent=${defaultAgent} />`}
                     ${!searchMode && isCompacting && html`<div class="compose-inline-status" role="status" aria-live="polite"><span class="compose-session-status-pill compacting">Compacting context…</span></div>`}

@@ -1315,15 +1315,17 @@ body {
 /* Compose box */
 .compose-box {
     flex-shrink: 0;
-    border-top: 1px solid var(--border-color);
+    border-top: none;
     padding: var(--spacing-sm) var(--spacing-md);
     background-color: var(--bg-primary);
     display: flex;
-    gap: var(--spacing-sm);
-    align-items: flex-end;
+    flex-direction: column;
+    gap: 2px;
+    align-items: stretch;
 }
 
 .compose-input-wrapper {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
@@ -1515,8 +1517,10 @@ body {
 
 .compose-box textarea {
     flex: 1;
-    min-height: 36px;
-    max-height: 160px;
+    width: 100%;
+    max-width: 100%;
+    min-height: 50px;
+    max-height: min(50vh, 520px);
     border: none;
     resize: none;
     font-family: inherit;
@@ -3528,26 +3532,6 @@ body {
 .compose-session-popup-results{min-height:0;max-height:none}
 .compose-session-popup .compose-session-row-pin-spacer{flex-basis:44px;width:44px}
 .compose-session-popup .compose-session-row-pin,.compose-session-popup .compose-model-popup-item-popout,.compose-session-popup .compose-model-popup-item-delete{display:inline-flex;width:44px;height:44px}
-.compose-session-trigger-group{display:inline-flex;flex-shrink:0;align-items: center;gap:4px}
-.compose-session-trigger-top{position:absolute;z-index:5;max-width:min(34vw,140px);top:4px;right:6px}
-.compose-session-trigger-top+.compose-input-main textarea{padding-top:2px}
-.compose-session-trigger{display:inline-flex;border-radius:var(--radius-full);cursor:pointer;touch-action:manipulation;-webkit-tap-highlight-color:transparent;background:0 0;border:none;justify-content:center;align-items: center;gap:4px;min-height:28px;margin:0;padding:0}
-.compose-session-trigger:hover{outline:none}
-.compose-session-trigger:focus-visible{outline:none}
-.compose-session-trigger-pill{justify-content:flex-start}
-.compose-session-trigger-icon-btn{min-width:28px;padding:4px}
-.compose-session-trigger:hover .compose-current-agent-label{opacity:1}
-.compose-session-trigger:focus-visible .compose-current-agent-label{opacity:1}
-.compose-session-trigger.active .compose-current-agent-label.active,.compose-session-trigger:hover .compose-current-agent-label.active{color:var(--accent-contrast-text,#0f1419);background:color-mix(in srgb,var(--accent-color)90%,var(--bg-hover));border-color:color-mix(in srgb,var(--accent-color)92%,black 8%)}
-.compose-session-trigger:focus-visible .compose-current-agent-label.active{color:var(--accent-contrast-text,#0f1419);background:color-mix(in srgb,var(--accent-color)90%,var(--bg-hover));border-color:color-mix(in srgb,var(--accent-color)92%,black 8%)}
-.compose-session-trigger-icon{display:inline-flex;color:var(--accent-color);transition:color var(--ui-transition-fast),opacity var(--ui-transition-fast);pointer-events:none;opacity:.95;background:0 0;border:none;border-radius:0;justify-content:center;align-items: center;min-width:16px;min-height:16px;padding:0}
-.compose-session-trigger:hover .compose-session-trigger-icon,.compose-session-trigger.active .compose-session-trigger-icon{color:var(--accent-color);opacity:1}
-.compose-session-trigger:focus-visible .compose-session-trigger-icon{color:var(--accent-color);opacity:1}
-.compose-session-trigger-top{position:absolute;z-index:7;align-self:auto;max-width:min(42vw,148px);margin-bottom:0;top:4px;right:6px}
-.compose-session-trigger-top+.compose-input-main textarea{padding-right:max(calc(var(--spacing-xs) + 28px),min(44vw,156px))}
-.compose-session-trigger-top{position:absolute;z-index:7;align-self:auto;max-width:min(42vw,148px);margin-bottom:0;top:4px;right:6px}
-.compose-session-trigger-top+.compose-input-main textarea{padding-right:max(calc(var(--spacing-xs) + 28px),min(44vw,156px))}
-
 /* Shared editor/dock column: terminal no longer covers the timeline/composer. */
 .editor-pane-container {
     display: flex;
@@ -3835,4 +3819,142 @@ body {
     font-family: var(--font-mono, monospace);
     letter-spacing: 0.01em;
     flex: 0 1 auto;
+}
+
+/* Deployed classic composer session pill and resize grip. */
+.compose-resize-handle {
+    flex: 0 0 auto;
+    width: 100%;
+    height: 14px;
+    margin-top: calc(var(--spacing-sm) * -1);
+    margin-bottom: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: row-resize;
+    touch-action: none;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+}
+
+.compose-resize-handle::before {
+    content: '';
+    width: 36px;
+    height: 4px;
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--border-color) 75%, var(--text-secondary) 25%);
+    transition: background-color var(--ui-transition-fast), transform var(--ui-transition-fast);
+}
+
+.compose-resize-handle:hover::before,
+.compose-resize-handle.dragging::before,
+.compose-box:focus-within .compose-resize-handle::before {
+    background: var(--accent-color);
+}
+
+.compose-resize-handle.dragging::before {
+    transform: scaleX(1.08);
+}
+
+.compose-session-trigger-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+.compose-session-trigger-top {
+    position: absolute;
+    top: 4px;
+    right: 6px;
+    z-index: 5;
+    max-width: min(34vw, 140px);
+}
+
+.compose-session-trigger-top + .compose-input-main textarea {
+    padding-top: 2px;
+}
+
+
+.compose-session-trigger {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-height: 28px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent;
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.compose-session-trigger:hover,
+.compose-session-trigger:focus-visible {
+    outline: none;
+}
+
+.compose-session-trigger-pill {
+    justify-content: flex-start;
+}
+
+.compose-session-trigger-icon-btn {
+    min-width: 28px;
+    padding: 4px;
+}
+
+.compose-current-agent-label {
+    display: inline-flex;
+    align-items: center;
+    min-height: 24px;
+    border: 1px solid transparent;
+    background: transparent;
+    font-family: var(--font-mono, monospace);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1;
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: min(28vw, 180px);
+    border-radius: var(--radius-full);
+    box-shadow: none;
+    opacity: 0.95;
+    transition: background-color var(--ui-transition-fast), color var(--ui-transition-fast), border-color var(--ui-transition-fast), opacity var(--ui-transition-fast), transform var(--ui-transition-fast);
+    pointer-events: none;
+}
+
+.compose-current-agent-label.active {
+    color: var(--accent-contrast-text, #0f1419);
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+    opacity: 1;
+}
+
+.compose-session-trigger:hover .compose-current-agent-label,
+.compose-session-trigger:focus-visible .compose-current-agent-label {
+    opacity: 1;
+}
+
+.compose-session-trigger.active .compose-current-agent-label.active,
+.compose-session-trigger:hover .compose-current-agent-label.active,
+.compose-session-trigger:focus-visible .compose-current-agent-label.active {
+    color: var(--accent-contrast-text, #0f1419);
+    background: color-mix(in srgb, var(--accent-color) 90%, var(--bg-hover));
+    border-color: color-mix(in srgb, var(--accent-color) 92%, black 8%);
+}
+
+/* Reserve text space for the overlaid pill; keep keyboard focus visible. */
+.compose-session-trigger-top + .compose-input-main textarea {
+    padding-right: max(calc(var(--spacing-xs) + 28px), min(44vw, 156px));
+}
+.compose-resize-handle:focus-visible, .compose-session-trigger:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
 }

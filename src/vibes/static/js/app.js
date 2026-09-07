@@ -2569,7 +2569,6 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
-                <button ref=${sessionTriggerRef} class="session-trigger" aria-expanded=${sessionPickerOpen} aria-haspopup="listbox" data-testid="session-switcher" onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>Session: ${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</button>
                 ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
                     onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
                     onCreateBranch=${() => { createdSessionRef.current = null; createParentRef.current = selectedSession; setCreatingSession(true); }}
@@ -2578,6 +2577,13 @@ function App() {
                     onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
                     onDelete=${id => { deletedSessionRef.current = false; setDeletingSession(sessionOptions.find(item => item.id === id)); }} />`}
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
+                    sessionTrigger=${html`<button type="button" ref=${sessionTriggerRef}
+                        class=${`compose-session-trigger compose-session-trigger-pill${sessionPickerOpen ? ' active' : ''}`}
+                        title=${selectedSession} aria-label=${`Manage sessions for @${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}`}
+                        aria-expanded=${sessionPickerOpen} aria-haspopup="listbox" data-testid="session-switcher"
+                        onClick=${async () => { try { await refreshSessions(); setSessionPickerOpen(v => !v); } catch (err) { alert(err.message); } }}>
+                        <span class="compose-current-agent-label active">@${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}</span>
+                    </button>`}
                     onPost=${() => { loadPosts(); scrollToBottom(); }}
                     onFocus=${scrollToBottom}
                     searchMode=${searchOpen}

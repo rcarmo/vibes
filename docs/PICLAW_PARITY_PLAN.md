@@ -2810,3 +2810,32 @@ Verification: 537 backend tests, 22 frontend tests/107 assertions, build/lint an
 316 headed Chromium/WebKit tests pass without retries. Logs: /workspace/tmp/acp-usage-*
 with failing development artifacts retained separately. Subsequent user request:
 move the session pill into the composer and implement the deployed height resizer.
+
+### In-composer session pill and height resizer — 2026-09-07
+
+Replaced the standalone Session: default trigger with the deployed
+compose-session-trigger-group/compose-session-trigger-top wrapper, native pill
+button and compose-current-agent-label inside compose-input-wrapper. Existing
+session picker, callbacks, grouping and focus restoration remain unchanged.
+The active label is @<session name>, with the canonical session ID in its title.
+
+Added the deployed compose-resize-handle above the input wrapper and matched its
+grip styling. Sizing follows the deployed source: 50px mobile/70px desktop minima,
+automatic growth capped at 40vh/300px, manual growth capped at 50vh/520px, and the
+piclaw_compose_height preference. Pointer capture supports drag gestures; keyboard
+ArrowUp/Down, Home and End expose the same bounds through an accessible separator.
+Viewport resizing clamps the display, input drafts remain intact, and unmount,
+blur, pointer cancellation or capture loss restore body cursor/selection state.
+
+Local adaptations: preserve the surrounding container's horizontal gutters and
+text padding reserved for the overlaid pill; add a visible keyboard focus outline.
+The flex-column textarea needs its requested min-height as well as height, otherwise
+its flex basis shrinks it back to the minimum (reproduced and corrected in tests).
+
+Verification: six new headed desktop/mobile Chromium/WebKit tests cover pill DOM,
+drag growth, persistence/reload, viewport clamp, picker focus, keyboard bounds and
+mid-drag session-unmount cleanup. Full suite: 322 passed without retries (6.2m).
+23 frontend tests/114 assertions and build/lint pass. Backend unchanged since the
+537-test ACP checkpoint. Mobile resized screenshot attached. Captures replay the
+recorded OpenCode usage values, not a new live agent session. Development failures
+are retained in /workspace/tmp/compose-pill-failures and diagnostic logs.
