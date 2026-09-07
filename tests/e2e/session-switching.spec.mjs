@@ -1140,3 +1140,49 @@ test('long canonical model label keeps context gauge inside mobile metadata row'
     expect(gaugeBounds.x + gaugeBounds.width).toBeLessThanOrEqual(390);
     expect(await model.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true);
 });
+
+test('timeline completion between pointer down and up preserves picker activation', async ({ page }, testInfo) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    await page.route('**/sessions/*/model-state', route => route.fulfill({ json: {
+        available: true, model: { provider: 'test', id: 'before' },
+    } }));
+    await page.route('**/sessions/*/models', route => route.fulfill({ json: {
+        available: true, models: [{ provider: 'test', id: 'afterx' }],
+    } }));
+    let releaseTimeline;
+    const timelineGate = new Promise(resolve => { releaseTimeline = resolve; });
+    await page.route('**/timeline?*', async route => {
+        await timelineGate;
+        await route.fulfill({ json: { posts: [], has_more: false } });
+    });
+    await page.goto('/');
+    const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(trigger).toHaveText('test/before');
+    await trigger.evaluate(el => { window.pressedModelTrigger = el; });
+    const bounds = await trigger.boundingBox();
+    const x = bounds.x + bounds.width / 2, y = bounds.y + bounds.height / 2;
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    try {
+        releaseTimeline();
+        await expect(page.getByText('No messages yet. Start a conversation!', { exact: true })).toBeVisible();
+        await page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('session_model_changed', {
+            data: JSON.stringify({ session_id: 'default', model: { provider: 'test', id: 'afterx' } }),
+        })));
+        await expect(trigger).toHaveText('test/afterx');
+        const probe = await trigger.evaluate((el, { x, y }) => ({ sameNode: el === window.pressedModelTrigger,
+            hitsTrigger: el.contains(document.elementFromPoint(x, y)), currentBounds: el.getBoundingClientRect().toJSON(),
+            hit: document.elementFromPoint(x, y)?.outerHTML.slice(0, 500), fontStatus: document.fonts.status }), { x, y });
+        await testInfo.attach('mid-gesture-layout', { body: JSON.stringify({ before: bounds, x, y, ...probe }), contentType: 'application/json' });
+        expect(probe.sameNode).toBe(true);
+        expect(probe.hitsTrigger).toBe(true);
+    } finally {
+        await page.mouse.up();
+    }
+    await expect(page.getByRole('option', { name: 'test/afterx', exact: true })).toBeVisible();
+});

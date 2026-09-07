@@ -899,7 +899,7 @@ export function Timeline({
     }, [hasIntersectionObserver, posts, hasMore, reverse, timelineRef, triggerLoadMore]);
 
     if (!posts) {
-        return html`<div class="loading"><div class="spinner"></div></div>`;
+        return html`<div class="timeline" aria-busy="true"><div class="loading"><div class="spinner"></div></div></div>`;
     }
 
     if (posts.length === 0) {

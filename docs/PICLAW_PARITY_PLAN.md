@@ -2715,3 +2715,28 @@ and linked interactions, not a new browser upload test; existing upload regressi
 evidence remains separate. The acceptance item is closed as verification and
 honest documentation of supported behavior, not implementation of image/binary
 model input.
+
+### Deterministic picker interruption: timeline loading layout
+
+Investigated a model-state update between pointer-down/up instead of repeating the
+old stress test. Instrumentation showed the same DOM button moving from y=238.5 to
+y=693.5 while the pointer remained at y=244.25. The hit target became the timeline;
+fonts were loaded. The spinner-only loading return in Timeline lacked the flex:1
+.timeline wrapper used by both loaded/empty states, leaving the composer temporarily
+high on the page. Initial timeline completion could therefore interrupt a click.
+
+Added a controlled regression that holds the initial /timeline response, presses the
+model trigger, releases the response, waits for the empty timeline, emits a model
+state update and releases the pointer. It verifies DOM identity, hit target and
+successful picker opening. Both Chromium and WebKit fail before the fix and pass
+afterward. Loading now retains a .timeline wrapper with aria-busy=true; no pointer
+capture, forced click, retries or widened click targets were introduced.
+
+Eight targeted browser cases pass (including the three historical failure cases),
+20 frontend tests/95 assertions and build/lint pass. Full headed Chromium/WebKit
+suite: 308 pass without retries (5.9m). Evidence:
+/workspace/tmp/picker-mid-gesture-evidence (original/instrumented/controlled failures),
+/workspace/tmp/picker-timeline-red.log, picker-timeline-green.log and
+picker-timeline-full.log. The deterministic application race is fixed. Historical
+screenshots alone cannot prove every past picker failure shared this cause; retain
+those artifacts and existing bounded interaction diagnostics for recurrence.
