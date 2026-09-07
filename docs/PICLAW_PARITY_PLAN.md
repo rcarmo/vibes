@@ -2636,3 +2636,28 @@ verify the fresh queue, then release the old A response and verify the fresh que
 remains. All eight headed Chromium/WebKit queue cases pass without retries.
 This exercises browser request isolation with mocked queue data and synthetic SSE;
 it does not establish persistent agent-runtime or message-tool isolation.
+
+### Live OpenCode ACP messages acceptance (2026-09-07)
+
+User selected OpenCode free models and excluded audio/speech acceptance. Existing
+speech controls remain implemented; live speech is waived, not verified.
+
+Installed OpenCode 1.18.29 at /workspace/.tools/opencode (outside the repository).
+A live ACP initialize/session-new/session-prompt exchange used
+opencode/nemotron-3.5-lightning-free with the actual vibes.messages_mcp stdio server,
+a synthetic SQLite database, and fixed --thread-id 1 scope. Built-in tool permissions
+were denied; only vibes_messages was allowed. No real conversation data was sent.
+
+The model discovered vibes_messages and called search with query Acceptance lookup
+token. The server returned the seeded message, and the final answer matched a random
+24-character token not included in the prompt. ACP tool updates recorded pending,
+in-progress and completed states with the actual arguments and returned content.
+This verifies live third-party MCP discovery/retrieval through ACP, not just schema
+inspection or a mocked model. Prompt stopReason was end_turn.
+
+Evidence: /workspace/tmp/opencode-acceptance/acp-transcript.json and acp-result.log;
+probe /workspace/tmp/opencode-acp-probe.mjs. The probe uses a fixed local fixture
+and paths, so is an environment acceptance experiment, not a portable CI test.
+A preceding CLI smoke reported cost 0; ACP did not report cost in this response.
+Persistent-session isolation, app-managed ACP lifecycle and attachment consumption
+are still separate gates. Codex ACP 0.16.0 is installed but lacks authentication.
