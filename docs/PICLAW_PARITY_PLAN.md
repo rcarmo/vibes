@@ -2856,3 +2856,17 @@ tests pass with one worker and zero retries. Initial selector-edit and test
 expectation failures are retained under `/workspace/tmp/vibes-status-initial-failure`
 and `/workspace/tmp/vibes-status-second-failure`; final browser log is
 `/workspace/tmp/vibes-status-full-browser.log`. The v0.8.0 tag remains unchanged.
+
+### Full applicable CSS parity (2026-09-08)
+
+The later request supersedes historical acceptance of shared CSS deviations.
+All ten classic stylesheet layers are now vendored from deployed Piclaw 2.15.3
+and loaded in reference order, with a separate Vibes compatibility stylesheet.
+See [CLASSIC_CSS.md](CLASSIC_CSS.md) for applicability and host/behaviour exceptions.
+
+Build/lint, 537 backend, 23 frontend/114 assertions and 326 headed Chromium/WebKit
+tests pass, one worker and zero retries. The first broad run timed out after
+failures; retained traces led to explicit picker-host/action and inactive-tab
+compatibility rules. Final log: `/workspace/tmp/vibes-css-parity/browser-second.log`.
+Behaviour takes priority; exhaustive rendered identity checking is deferred at
+Rui's request. No new live-agent validation or tag change.

@@ -3,7 +3,7 @@
  *
  * Bundles all JS (app, components, api, preact-htm, katex, marked,
  * codemirror, beautiful-mermaid) into a single ESM file and all CSS
- * (katex + styles) into a single minified stylesheet under static/dist/.
+ * (KaTeX + pinned classic layers + Vibes adapters) into one stylesheet under static/dist/.
  *
  * Usage:  bun run build.js
  */
@@ -41,11 +41,14 @@ for (const o of jsResult.outputs) {
 // Concatenate all CSS sources then minify with bun's transpiler.
 const cssSources = [
   resolve(staticDir, "css/katex.min.css"),
+  // Preserve the deployed classic manifest order. Vibes adapters come last.
+  ...["base", "shell", "workspace", "editor", "chat", "content", "agent", "overlays", "responsive", "settings"]
+    .map(name => resolve(staticDir, `css/classic/${name}.css`)),
   resolve(staticDir, "css/styles.css"),
 ];
 
 const combined = cssSources
-  .map((f) => readFileSync(f, "utf-8"))
+  .map((f) => readFileSync(f, "utf-8").replaceAll('../../common/fonts/', '../common/fonts/'))
   .join("\n");
 
 // Bun doesn't have a CSS-only build API, so we do basic minification:
