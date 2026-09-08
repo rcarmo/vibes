@@ -2839,3 +2839,20 @@ mid-drag session-unmount cleanup. Full suite: 322 passed without retries (6.2m).
 537-test ACP checkpoint. Mobile resized screenshot attached. Captures replay the
 recorded OpenCode usage values, not a new live agent session. Development failures
 are retained in /workspace/tmp/compose-pill-failures and diagnostic logs.
+
+### Status surface correction (2026-09-08)
+
+Rui's screenshot review reopened status-pane CSS parity after v0.8.0. The local
+status/thinking panes still had bottom-only borders and older padding. Copied the
+applicable surface rules from deployed Piclaw classic 2.15.3 `css/agent.css`, with
+its desktop/mobile surface tokens: rounded full borders, inset bottom edges,
+request/error colours, dot sizing, and stack spacing. No lifecycle or telemetry
+behaviour changed; this is not a claim of complete markup or pixel identity.
+
+The new mounted-component fixture checks computed styles at 1280px and 390px in
+Chromium/WebKit and captures synthetic status, request, thought, draft and error
+panes. Build/lint, 23 frontend tests (114 assertions), and all 326 headed browser
+tests pass with one worker and zero retries. Initial selector-edit and test
+expectation failures are retained under `/workspace/tmp/vibes-status-initial-failure`
+and `/workspace/tmp/vibes-status-second-failure`; final browser log is
+`/workspace/tmp/vibes-status-full-browser.log`. The v0.8.0 tag remains unchanged.
