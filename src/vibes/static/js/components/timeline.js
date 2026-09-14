@@ -460,6 +460,8 @@ function Post({
     formatCount,
 }) {
     const [zoomedImage, setZoomedImage] = useState(null);
+    const [copyState, setCopyState] = useState('idle');
+    const copyTimer = useRef(null);
     const contentRef = useRef(null);
 
     const data = post.data;
@@ -501,6 +503,31 @@ function Post({
         e.stopPropagation();
         onDelete?.(post);
     };
+
+    const handleCopyClick = async (e) => {
+        e.stopPropagation();
+        const text = String(data.content || displayContent || '');
+        if (!text) return;
+        try {
+            if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(text);
+            else {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.style.cssText = 'position:fixed;opacity:0;pointer-events:none';
+                document.body.appendChild(area);
+                area.select();
+                if (!document.execCommand('copy')) throw new Error('Copy unavailable');
+                area.remove();
+            }
+            setCopyState('success');
+        } catch {
+            setCopyState('error');
+        }
+        clearTimeout(copyTimer.current);
+        copyTimer.current = setTimeout(() => setCopyState('idle'), 1600);
+    };
+
+    useEffect(() => () => clearTimeout(copyTimer.current), []);
 
     const resolveInlineAttachments = (content, attachments) => {
         const usedIds = new Set();
@@ -635,17 +662,27 @@ function Post({
                 ${avatarInfo.image ? html`<img src=${avatarInfo.image} alt=${displayName} />` : avatarInfo.letter}
             </div>
             <div class="post-body">
-                <button
-                    class="post-delete-btn"
-                    type="button"
-                    title="Delete message"
-                    aria-label="Delete message"
-                    onClick=${handleDeleteClick}
-                >
-                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                </button>
+                <div class="post-actions">
+                    <button
+                        class=${`post-action-btn post-copy-btn${copyState === 'success' ? ' is-success' : copyState === 'error' ? ' is-error' : ''}`}
+                        type="button"
+                        title=${copyState === 'success' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy message'}
+                        aria-label=${copyState === 'success' ? 'Copied' : copyState === 'error' ? 'Copy failed' : 'Copy message'}
+                        onClick=${handleCopyClick}
+                        disabled=${!String(data.content || displayContent || '').trim()}
+                    >
+                        ${copyState === 'success' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>` : copyState === 'error' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>` : html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg>`}
+                    </button>
+                    <button
+                        class="post-action-btn post-delete-btn"
+                        type="button"
+                        title="Delete message"
+                        aria-label="Delete message"
+                        onClick=${handleDeleteClick}
+                    >
+                        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M18 6L6 18M6 6l12 12" /></svg>
+                    </button>
+                </div>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
                     <span class="post-time" onClick=${(e) => {
