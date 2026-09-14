@@ -188,6 +188,22 @@ async def test_scoped_model_state_omits_raw_provider_configuration(db, aiohttp_c
 
 
 @pytest.mark.asyncio
+async def test_model_state_marks_active_prompt_as_transient_busy(db, aiohttp_client, monkeypatch):
+    pi = importlib.import_module('vibes.pi_client')
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    inspect = AsyncMock()
+    monkeypatch.setattr(pi, 'inspect_model_state', inspect)
+    monkeypatch.setattr(pi, 'is_busy', lambda: True)
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    result = await (await client.get('/sessions/default/model-state')).json()
+    assert result == {'session_id': 'default', 'available': False, 'model': None,
+                      'thinking_level': None, 'compacting': None, 'busy': True}
+    inspect.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_model_mutation_route_scopes_validates_and_sanitizes(db, aiohttp_client, monkeypatch):
     pi = importlib.import_module('vibes.pi_client')
     monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))

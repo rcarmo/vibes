@@ -417,6 +417,33 @@ test('switching chats during thinking catalog lookup prevents late mutation', as
     expect(mutations).toBe(0);
 });
 
+test('busy post-turn inspection preserves confirmed model and context controls', async ({ page }) => {
+    let busy = false;
+    await page.route('**/sessions/*/model-state', route => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(busy ? { available: false, model: null, busy: true } : {
+            available: true,
+            model: { provider: 'ollama', id: 'qwen38-gsq', reasoning: false, contextWindow: 65536 },
+            thinking_level: 'off',
+            compacting: false,
+        }),
+    }));
+    await page.route('**/agent/context?*', route => route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify(busy ? { tokens: null, contextWindow: null, percent: null, busy: true } : {
+            tokens: 1024, contextWindow: 65536, percent: 1.6,
+        }),
+    }));
+    await page.goto('/');
+    const modelPicker = page.getByRole('button', { name: 'Open model picker', exact: true });
+    await expect(modelPicker).toHaveText('ollama/qwen38-gsq');
+    await expect(page.locator('.compose-context-pie')).toBeVisible();
+    busy = true;
+    await page.waitForTimeout(16000);
+    await expect(modelPicker).toHaveText('ollama/qwen38-gsq');
+    await expect(page.locator('.compose-context-pie')).toBeVisible();
+});
+
 test('context inspection refreshes periodically and clears unavailable usage', async ({ page }) => {
     let unavailable = false;
     let count = 0;

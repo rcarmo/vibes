@@ -866,7 +866,7 @@ function App() {
         const generation = switchGeneration.current;
         try {
             const context = await getAgentContext(session);
-            if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current) {
+            if (request === contextRequest.current && session === selectedSessionRef.current && generation === switchGeneration.current && context?.busy !== true) {
                 setContextUsage(context || null);
             }
         } catch {
@@ -881,6 +881,7 @@ function App() {
             try {
                 const state = await getSessionModelState(selectedSession);
                 if (disposed || selectedSession !== selectedSessionRef.current || generation !== modelGeneration.current) return;
+                if (state.busy === true) return;
                 const model = state.available ? state.model : null;
                 setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
                 setActiveThinkingLevel(state.available ? state.thinking_level : null);

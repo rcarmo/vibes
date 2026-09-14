@@ -31,7 +31,7 @@ async def list_sessions(request):
 
 
 async def session_model_state(request):
-    from ..pi_client import inspect_model_state
+    from ..pi_client import inspect_model_state, is_busy
     store = SessionStore(await get_db())
     session_id = request.match_info['id']
     session = await store.get(session_id)
@@ -40,10 +40,12 @@ async def session_model_state(request):
     unavailable = {'session_id': session_id, 'available': False, 'model': None, 'thinking_level': None, 'compacting': None}
     if session['archived']:
         return web.json_response(unavailable)
+    if is_busy():
+        return web.json_response({**unavailable, 'busy': True})
     try:
         response = await inspect_model_state(session_id)
         if not response or not response.get('success'):
-            return web.json_response(unavailable)
+            return web.json_response({**unavailable, 'busy': is_busy()})
         state = response.get('data', {})
         model = state.get('model')
         # Exclude provider URLs and credentials from raw model configuration.

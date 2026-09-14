@@ -585,6 +585,19 @@ async def test_get_agent_context_pi_not_running():
 
 
 @pytest.mark.asyncio
+async def test_get_agent_context_marks_active_prompt_as_transient_busy():
+    req = make_mocked_request("GET", "/agent/context")
+    inspect = AsyncMock()
+    with patch.object(agents_mod, "_resolve_agent_mode", return_value="pi"), \
+         patch.object(agents_mod, "is_pi_running", return_value=True), \
+         patch.object(agents_mod, "is_pi_busy", return_value=True), \
+         patch.object(agents_mod, "inspect_session_stats", inspect):
+        resp = await agents_mod.get_agent_context(req)
+    assert json.loads(resp.body) == {"tokens": None, "contextWindow": None, "percent": None, "busy": True}
+    inspect.assert_not_awaited()
+
+
+@pytest.mark.asyncio
 async def test_get_agent_context_with_usage():
     """Returns context usage from Pi state."""
     req = make_mocked_request("GET", "/agent/context")

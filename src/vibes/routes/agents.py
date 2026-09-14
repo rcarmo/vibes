@@ -966,10 +966,12 @@ async def get_agent_context(request: web.Request) -> web.Response:
     null_resp = {"tokens": None, "contextWindow": None, "percent": None}
     if not is_pi_running():
         return web.json_response(null_resp)
+    if is_pi_busy():
+        return web.json_response({**null_resp, "busy": True})
     try:
         resp = await inspect_session_stats(request.query.get('session_id', 'default'))
         if not resp or not resp.get("success"):
-            return web.json_response(null_resp)
+            return web.json_response({**null_resp, "busy": is_pi_busy()})
         data = resp.get("data", {})
         # Try extracting context usage from state — Pi may include it.
         context = data.get("contextUsage") or {}
