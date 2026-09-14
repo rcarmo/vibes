@@ -1,6 +1,6 @@
 /* Vibes-only selectors and compatibility rules. Shared surfaces live in classic/. */
-/* SessionPicker is a container sibling, not anchored inside the composer as in
-   classic. Preserve its viewport host on desktop as well as mobile. */
+/* Standalone picker fixtures and embedded clients need a viewport host. In the
+   application it is a direct composer child, where classic anchoring applies. */
 .compose-session-popup {
     position: fixed;
     inset: max(8px, env(safe-area-inset-top)) 8px max(8px, env(safe-area-inset-bottom)) 8px;
@@ -9,6 +9,19 @@
     max-height: none;
 }
 .compose-session-popup-results { min-height: 0; max-height: none; }
+@media (min-width: 640px) {
+    .compose-input-wrapper > .compose-session-popup {
+        position: absolute;
+        inset: auto 0 calc(100% + 6px);
+        width: auto;
+        min-height: 300px;
+        max-height: min(72vh, 620px);
+    }
+    .compose-input-wrapper > .compose-session-popup .compose-session-popup-results {
+        min-height: 180px;
+        max-height: 430px;
+    }
+}
 /* Vibes exposes backend-gated actions even before hover so disabled reasons
    remain discoverable by keyboard and accessibility clients. */
 .compose-session-popup .compose-model-popup-item-delete,

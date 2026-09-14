@@ -2569,14 +2569,14 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
-                ${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
-                    onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
-                    onCreateBranch=${() => { createdSessionRef.current = null; createParentRef.current = selectedSession; setCreatingSession(true); }}
-                    onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
-                    onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
-                    onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
-                    onDelete=${id => { deletedSessionRef.current = false; setDeletingSession(sessionOptions.find(item => item.id === id)); }} />`}
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
+                    sessionPicker=${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
+                        onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
+                        onCreateBranch=${() => { createdSessionRef.current = null; createParentRef.current = selectedSession; setCreatingSession(true); }}
+                        onRename=${id => setRenamingSession(sessionOptions.find(item => item.id === id))}
+                        onArchive=${async (id, archived) => { await updateSession(id, { archived }); if (archived && id === selectedSession) await selectSession('default'); await refreshSessions(); }}
+                        onPin=${async (id, pinned) => { await updateSession(id, { pinned }); await refreshSessions(); }}
+                        onDelete=${id => { deletedSessionRef.current = false; setDeletingSession(sessionOptions.find(item => item.id === id)); }} />`}
                     sessionTrigger=${html`<button type="button" ref=${sessionTriggerRef}
                         class=${`compose-session-trigger compose-session-trigger-pill${sessionPickerOpen ? ' active' : ''}`}
                         title=${selectedSession} aria-label=${`Manage sessions for @${sessionOptions.find(s => s.id === selectedSession)?.name || selectedSession}`}

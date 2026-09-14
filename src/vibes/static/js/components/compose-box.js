@@ -148,6 +148,7 @@ export function ComposeBox({
     sessionId = 'default',
     onPost,
     sessionTrigger = null,
+    sessionPicker = null,
     onFocus,
     searchMode,
     onSearch,
@@ -1004,6 +1005,7 @@ export function ComposeBox({
                 onDragLeave=${handleDragLeave}
                 onDrop=${handleComposeDrop}
             >
+                ${sessionPicker}
                 ${sessionTrigger && html`<div class="compose-session-trigger-group compose-session-trigger-top">${sessionTrigger}</div>`}
                 <div class="compose-input-main">
                     ${!searchMode && html`<${AgentCapabilities} agent=${defaultAgent} />`}

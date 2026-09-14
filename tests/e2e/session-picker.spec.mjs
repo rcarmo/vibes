@@ -270,6 +270,12 @@ for (const width of [1280, 390]) {
             expect(popup.y).toBeCloseTo(8, 0);
             expect(popup.width).toBeCloseTo(374, 0);
             expect(popup.height).toBeCloseTo(828, 0);
+        } else {
+            const composer = await page.locator('.compose-input-wrapper').boundingBox();
+            expect(Math.abs(popup.x - composer.x)).toBeLessThanOrEqual(1);
+            expect(Math.abs(popup.width - composer.width)).toBeLessThanOrEqual(2);
+            expect(popup.y + popup.height).toBeLessThanOrEqual(composer.y - 5);
+            expect(popup.height).toBeLessThan(630);
         }
         await page.screenshot({ path: testInfo.outputPath(`session-picker-${width}.png`), fullPage: true });
     });
