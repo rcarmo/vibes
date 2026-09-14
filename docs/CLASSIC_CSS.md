@@ -77,3 +77,9 @@ headed Chromium/WebKit cases passed with one worker and no retries. The full
 browser run timed out after a terminal-load failure and an over-specific default
 session label assertion; those artifacts were retained. The corrected session
 assertion and terminal suite passed separately, not as a full-suite checkpoint.
+
+Live check: the default Pi session started a real turn, retained its stop control
+and draft after a page reload, accepted cancellation with HTTP 202, and returned
+to an idle backend with no active turns. The named-session attempt failed before
+generation because Pi reported no persisted session file; live non-default
+cancellation remains unverified. Automated tests cover its ownership checks.
