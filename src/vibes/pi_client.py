@@ -411,6 +411,9 @@ async def start_pi_agent() -> bool:
         logger.info(f"Starting Pi agent: {cmd}")
         env = os.environ.copy()
         env.setdefault("PYTHONUNBUFFERED", "1")
+        # The Vibes-owned Pi extension uses this loopback-only API for bounded,
+        # currently-selected-session message references.
+        env.setdefault("VIBES_PI_TOOLS_URL", f"http://127.0.0.1:{config.port}")
         _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
             stdin=asyncio.subprocess.PIPE,

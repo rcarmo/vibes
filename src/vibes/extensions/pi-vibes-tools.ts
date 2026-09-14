@@ -25,6 +25,33 @@ function guessMime(path: string, override?: string): string {
 
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
+    name: "vibes_messages",
+    label: "Vibes Messages",
+    description: "Retrieve referenced Vibes messages by row ID or search message text in the current Vibes session. Use this whenever the prompt contains a Messages section or msg:<id> reference.",
+    parameters: Type.Object({
+      action: Type.Union([Type.Literal("get"), Type.Literal("search")]),
+      row_ids: Type.Optional(Type.Array(Type.Integer({ minimum: 1 }), { minItems: 1, maxItems: 50 })),
+      query: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
+      limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
+      before_row: Type.Optional(Type.Integer({ minimum: 1 })),
+    }),
+    async execute(_toolCallId, params) {
+      const base = process.env.VIBES_PI_TOOLS_URL;
+      if (!base) return { content: [{ type: "text", text: "Vibes message access is not configured." }] };
+      const response = await fetch(new URL("/internal/pi-tools/messages", base), {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(params),
+      });
+      if (!response.ok) {
+        return { content: [{ type: "text", text: `Vibes message access failed (${response.status}).` }] };
+      }
+      const result = await response.json();
+      return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+    },
+  });
+
+  pi.registerTool({
     name: "vibes_attach_file",
     label: "Vibes Attach File",
     description:
