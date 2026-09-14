@@ -24,6 +24,7 @@ for (const width of [1280, 390]) {
         });
         const fixture = page.locator('#status-fixture');
         await expect(fixture.locator('.agent-thinking')).toHaveCount(2);
+        expect(await fixture.locator('.agent-thinking').evaluateAll(nodes => nodes.map(node => node.dataset.panelKey))).toEqual(['draft', 'thought']);
         const styles = await fixture.evaluate(host => {
             const pick = (selector, keys) => {
                 const style = getComputedStyle(host.querySelector(selector));

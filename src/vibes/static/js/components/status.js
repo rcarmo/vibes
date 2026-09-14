@@ -140,6 +140,7 @@ export function AgentStatus({
                 class="agent-thinking"
                 data-expanded=${isExpanded ? 'true' : 'false'}
                 data-collapsible=${isCollapsible ? 'true' : 'false'}
+                data-panel-key=${panelKey}
                 style=${turnColor ? `--turn-color: ${turnColor};` : ''}
             >
                 <div class="agent-thinking-title ${titleClass || ''}">
@@ -183,14 +184,6 @@ export function AgentStatus({
                 totalLines: planInfo.totalLines,
                 panelKey: 'plan',
             })}
-            ${hasThought && renderThinkingPanel({
-                panelTitle: 'Thoughts',
-                text: thoughtInfo.text,
-                totalLines: thoughtInfo.totalLines,
-                maxLines: THOUGHT_MAX_LINES,
-                titleClass: 'thought',
-                panelKey: 'thought',
-            })}
             ${hasDraft && renderThinkingPanel({
                 panelTitle: 'Draft',
                 text: draftInfo.text,
@@ -198,6 +191,14 @@ export function AgentStatus({
                 maxLines: DRAFT_MAX_LINES,
                 titleClass: 'thought',
                 panelKey: 'draft',
+            })}
+            ${hasThought && renderThinkingPanel({
+                panelTitle: 'Thoughts',
+                text: thoughtInfo.text,
+                totalLines: thoughtInfo.totalLines,
+                maxLines: THOUGHT_MAX_LINES,
+                titleClass: 'thought',
+                panelKey: 'thought',
             })}
             ${status && html`
                 <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}${status?.type === 'error' ? ' agent-status-error' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
