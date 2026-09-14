@@ -110,7 +110,7 @@ test('selected chat loads only its scoped queue endpoint', async ({ page }) => {
     });
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
-    await expect(page.locator('.compose-queue-item')).toContainText('Selected queue only');
+    await expect(page.locator('.compose-queue-stack-item')).toContainText('Selected queue only');
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-default').click();
     await expect(page.getByText('Selected queue only', { exact: true })).toHaveCount(0);

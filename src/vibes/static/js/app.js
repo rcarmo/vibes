@@ -6,7 +6,7 @@ import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
-import { ComposeBox } from './components/compose-box.js';
+import { ComposeBox, FollowupQueue } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
@@ -2570,6 +2570,12 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
+                <${FollowupQueue}
+                    items=${queuedFollowups}
+                    onRemove=${handleQueueRemove}
+                    onSteer=${handleQueueSteer}
+                    onReorder=${handleQueueReorder}
+                />
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
                     sessionPicker=${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
                         onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
@@ -2607,10 +2613,6 @@ function App() {
                     isCompacting=${isCompacting}
                     contextUsage=${contextUsage}
                     agentBusy=${Boolean(agentStatus && !agentStatus.last_activity && !agentStatus.lastActivity && !['done', 'error', 'cancelled', 'idle'].includes(agentStatus.type))}
-                    queuedFollowups=${queuedFollowups}
-                    onQueueRemove=${handleQueueRemove}
-                    onQueueSteer=${handleQueueSteer}
-                    onQueueReorder=${handleQueueReorder}
                     onModelChange=${setActiveModel}
                     onModelStateChange=${applyModelState}
                     notificationsEnabled=${notificationsEnabled}

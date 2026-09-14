@@ -95,7 +95,7 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
     `;
 }
 
-function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
+export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
     if (!items || items.length === 0) return null;
     return html`
         <div class="compose-queue-stack" aria-label="Queued follow-ups" role="list">
@@ -107,22 +107,22 @@ function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                 const preview = content.length > 140 ? `${content.slice(0, 140)}…` : content;
                 const itemLabel = preview || 'Untitled follow-up';
                 return html`
-                    <div key=${item.row_id} class="compose-queue-item" role="listitem">
-                        <div class="compose-queue-item-main">
-                            <span class="compose-queue-badge">${item.mode === 'steer' ? 'Steer' : 'Queued'}</span>
-                            <div class="compose-queue-text" title=${content}>${content ? itemLabel : parsed.refs.length ? '' : itemLabel}</div>
-                            ${parsed.refs.length > 0 && html`<div class="compose-file-refs">${parsed.refs.map((ref, index) => html`<${FilePill} key=${index} prefix="compose" icon=${ref.kind === 'attachment' ? 'file' : ref.kind} label=${ref.label} title=${ref.title} />`)}</div>`}
+                    <div key=${item.row_id} class="compose-queue-stack-item" data-testid="queue-item" role="listitem">
+                        <div class="compose-queue-stack-content" title=${content}>
+                            <span class="compose-queue-dot" aria-hidden="true"></span>
+                            <div class="compose-queue-stack-text">${content ? itemLabel : parsed.refs.length ? '' : itemLabel}</div>
+                            ${parsed.refs.length > 0 && html`<div class="compose-queue-stack-refs">${parsed.refs.map((ref, index) => html`<${FilePill} key=${index} prefix="compose" icon=${ref.kind === 'attachment' ? 'file' : ref.kind} label=${ref.label} title=${ref.title} />`)}</div>`}
                         </div>
-                        <div class="compose-queue-actions">
-                            <button type="button" data-action="move-up" class="followup-queue-move" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
+                        <div class="compose-queue-stack-actions" role="group" aria-label="Queue controls">
+                            <button type="button" data-action="move-up" class="compose-queue-stack-move-btn" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l5-5 5 5" /></svg>
                             </button>
-                            <button type="button" data-action="move-down" class="followup-queue-move" disabled=${position === peers.length - 1} title="Move down" aria-label="Move down in queue" onClick=${() => onReorder?.(item.row_id, 'down')}>
+                            <button type="button" data-action="move-down" class="compose-queue-stack-move-btn" disabled=${position === peers.length - 1} title="Move down" aria-label="Move down in queue" onClick=${() => onReorder?.(item.row_id, 'down')}>
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5" /></svg>
                             </button>
                             <button
                                 type="button"
-                                class="compose-queue-btn"
+                                class="compose-queue-stack-steer-btn"
                                 aria-label=${`Promote queued item to steering: ${itemLabel}`}
                                 onClick=${() => onSteer?.(item.row_id)}
                             >
@@ -130,11 +130,12 @@ function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                             </button>
                             <button
                                 type="button"
-                                class="compose-queue-btn danger"
+                                class="compose-queue-stack-close-btn queue-remove"
+                                title="Cancel queued item"
                                 aria-label=${`Cancel queued item: ${itemLabel}`}
                                 onClick=${() => onRemove?.(item.row_id)}
                             >
-                                Cancel
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                             </button>
                         </div>
                     </div>
@@ -170,10 +171,6 @@ export function ComposeBox({
     isCompacting = false,
     contextUsage = null,
     agentBusy = false,
-    queuedFollowups = [],
-    onQueueRemove,
-    onQueueSteer,
-    onQueueReorder,
     onModelChange,
     onModelStateChange,
     notificationsEnabled = false,
@@ -1011,14 +1008,6 @@ export function ComposeBox({
                     ${!searchMode && html`<${AgentCapabilities} agent=${defaultAgent} />`}
                     ${!searchMode && isCompacting && html`<div class="compose-inline-status" role="status" aria-live="polite"><span class="compose-session-status-pill compacting">Compacting context…</span></div>`}
                     ${speechState.kind !== 'idle' && html`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${speechState.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-dot" aria-hidden="true"></span><span class="compose-inline-status-title">${speechState.kind === 'listening' ? 'Listening…' : speechState.kind === 'requesting_permission' ? 'Requesting microphone permission…' : 'Speech input error'}</span></div>${speechState.detail && html`<div class="compose-inline-status-detail">${speechState.detail}</div>`}</div>`}
-                    ${!searchMode && html`
-                        <${FollowupQueue}
-                            items=${queuedFollowups}
-                            onRemove=${onQueueRemove}
-                            onSteer=${onQueueSteer}
-                            onReorder=${onQueueReorder}
-                        />
-                    `}
                     ${(folderRefs.length > 0 || fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`
                         <div class="compose-file-refs">
                             ${messageRefs.map(id => html`<${FilePill} key=${'message-' + id} prefix="compose" icon="message" label=${'msg:' + id} title=${'Message ' + id} removeTitle="Remove message reference" onRemove=${() => onRemoveMessageRef?.(id)} />`)}
