@@ -83,3 +83,26 @@ and draft after a page reload, accepted cancellation with HTTP 202, and returned
 to an idle backend with no active turns. The named-session attempt failed before
 generation because Pi reported no persisted session file; live non-default
 cancellation remains unverified. Automated tests cover its ownership checks.
+
+## Server resource meters
+
+The collapsible top-right panel shows CPU/RAM history, Vibes process RSS,
+buffer/cache memory, swap when configured, and VRAM when Linux DRM exposes usable
+counters. It uses the vendored classic meter styles, with a compact mobile summary
+and a quick action to collapse or restore it. The host label identifies the source:
+the Vibes server's OS view, not browser usage, container limits or a separate model
+server. RSS excludes child agent processes.
+
+`GET /system/metrics` uses the normal API middleware and a shared sampler, limited
+to one collection every two seconds and thirty history points. Reads run outside
+the event loop; no subprocesses or Pi RPC calls are involved. The first CPU sample
+(and the first after a long pause) is unavailable until a delta can be calculated.
+Missing metrics are not presented as zero, unsupported platforms report unavailable,
+and failed/stale responses clear displayed readings. Browser polling pauses when
+the page is hidden. Optional VRAM currently covers Linux DRM counters, not NVIDIA
+management tools or Apple unified memory.
+
+Validation: build/lint, 564 backend tests, 28 frontend tests (161 assertions), and
+46 focused headed Chromium/WebKit tests passed, one worker and no retries. The
+browser checks include meter refresh/failure recovery, mobile layout, keyboard
+collapse/restore, quick actions, cancellation and composer sizing.

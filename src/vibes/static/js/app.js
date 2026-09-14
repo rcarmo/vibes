@@ -8,6 +8,7 @@ import { html, render, useState, useEffect, useCallback, useRef, useMemo } from 
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { QuickActions } from './components/quick-actions.js';
+import { SystemMeters } from './components/system-meters.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
@@ -708,6 +709,7 @@ function App() {
     const [sessionRefreshError, setSessionRefreshError] = useState('');
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const [quickActionsRequest, setQuickActionsRequest] = useState(0);
+    const [metersToggleRequest, setMetersToggleRequest] = useState(0);
     const [composePrefill, setComposePrefill] = useState(null);
     const sessionTriggerRef = useRef(null);
     const closeSessionPicker = () => {
@@ -2400,6 +2402,8 @@ function App() {
     const activeEditorTab = editorTabs.find((tab) => tab.id === activeEditorTabId) || editorTabs[editorTabs.length - 1] || null;
     const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
     const quickWorkspaceActions = useMemo(() => [
+        { id: 'toggle-system-meters', title: 'Toggle server resource meters',
+            subtitle: 'CPU, RAM and server memory history', run: () => setMetersToggleRequest(value => value + 1) },
         { id: 'toggle-workspace', title: workspaceOpen ? 'Hide workspace' : 'Show workspace',
             subtitle: 'Toggle the workspace explorer', run: toggleWorkspace },
         ...(terminalEnabled ? [{ id: 'open-terminal', title: 'Open terminal',
@@ -2408,6 +2412,7 @@ function App() {
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
+            ${!popoutMode && !terminalPopout && html`<${SystemMeters} toggleRequest=${metersToggleRequest} />`}
             ${!popoutMode && !terminalPopout && html`<${QuickActions}
                 sessions=${sessionOptions} sessionId=${selectedSession} workspace=${quickWorkspaceActions}
                 openRequest=${quickActionsRequest} onRefreshSessions=${refreshSessions}

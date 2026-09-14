@@ -30,6 +30,10 @@ async function request(url, options = {}, includeEtag = false) {
 /**
  * Get timeline posts (chat style - returns oldest first)
  */
+export async function getSystemMetrics(signal) {
+    return request('/system/metrics', { signal, cache: 'no-store' });
+}
+
 export async function getTimeline(limit = 10, beforeId = null, sessionId = 'default') {
     let url = `/timeline?limit=${limit}&session_id=${encodeURIComponent(sessionId)}`;
     if (beforeId) {

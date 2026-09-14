@@ -426,3 +426,20 @@ html[data-tint]::after {
 /* Connection notices are informational: do not intercept the adjacent cancel
    control while SSE reconnects (the cancellation endpoint remains available). */
 .connection-status { pointer-events: none; }
+
+/* The host label distinguishes server telemetry from browser/model usage. */
+.system-meters-source {
+    display: block;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 10px;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+}
+.system-meters-hud[data-state="unavailable"] .system-meters-source { color: var(--danger-color); }
+@media (max-width: 600px) {
+    .system-meters-source { max-width: 100%; }
+    .system-meters-compact-summary { white-space: normal; overflow-wrap: anywhere; }
+}
