@@ -123,10 +123,15 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                             <button
                                 type="button"
                                 class="compose-queue-stack-steer-btn"
+                                title="Inject as steer"
                                 aria-label=${`Promote queued item to steering: ${itemLabel}`}
                                 onClick=${() => onSteer?.(item.row_id)}
                             >
-                                Steer
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                    <path d="M4 20h12a2 2 0 0 0 2-2V8" />
+                                    <polyline points="14 12 18 8 22 12" />
+                                </svg>
+                                <span>Steer</span>
                             </button>
                             <button
                                 type="button"
@@ -150,6 +155,10 @@ export function ComposeBox({
     onPost,
     sessionTrigger = null,
     sessionPicker = null,
+    queuedFollowups = [],
+    onQueueRemove,
+    onQueueSteer,
+    onQueueReorder,
     onFocus,
     searchMode,
     onSearch,
@@ -995,6 +1004,7 @@ export function ComposeBox({
             ${submitError && html`
                 <div class="compose-inline-status compose-submit-error" role="alert" aria-live="assertive"><div class="compose-inline-status-detail">${submitError}</div></div>
             `}
+            ${!searchMode && html`<${FollowupQueue} items=${queuedFollowups} onRemove=${onQueueRemove} onSteer=${onQueueSteer} onReorder=${onQueueReorder} />`}
             <div
                 class=${`compose-input-wrapper${isDragActive ? ' drag-active' : ''}`}
                 onDragEnter=${handleDragEnter}

@@ -13,12 +13,29 @@ test('queue move buttons submit direction and reflect server order', async ({ pa
     const stack = page.locator('.compose-queue-stack');
     const rows = page.locator('.compose-queue-stack-item');
     await expect(rows).toHaveCount(2);
-    await expect(stack.locator('xpath=following-sibling::*[1]')).toHaveClass(/compose-box/);
-    await expect(page.locator('.compose-box > .compose-queue-stack, .compose-input-wrapper .compose-queue-stack')).toHaveCount(0);
+    await expect(stack.locator('xpath=following-sibling::*[1]')).toHaveClass(/compose-input-wrapper/);
+    await expect(page.locator('.compose-box > .compose-queue-stack')).toHaveCount(1);
+    await expect(page.locator('.compose-input-wrapper .compose-queue-stack')).toHaveCount(0);
     await expect(rows.first().getByRole('button', { name: 'Move up in queue' })).toBeDisabled();
     await rows.nth(1).getByRole('button', { name: 'Move up in queue' }).click();
     await expect(rows.first()).toContainText('second queued');
     expect(payload).toEqual({ row_id: -2, direction: 'up' });
+});
+
+test('queued steering renders the classic queued turn dot', async ({ page }) => {
+    await page.addInitScript(() => {
+        window.EventSource = class extends EventTarget {
+            constructor() { super(); window.testEventSource = this; }
+            close() {}
+        };
+    });
+    await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [], pending_steers: [] } }));
+    await page.goto('/');
+    await page.evaluate(() => {
+        window.testEventSource.dispatchEvent(new MessageEvent('agent_status', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', type: 'thinking', title: 'Thinking' }) }));
+        window.testEventSource.dispatchEvent(new MessageEvent('agent_steer_queued', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', row_id: -7 }) }));
+    });
+    await expect(page.locator('.agent-status-panel .turn-dot-queued')).toBeVisible();
 });
 
 test('queued reference blocks render as pills without hiding invalid lines', async ({ page }) => {

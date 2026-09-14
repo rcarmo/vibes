@@ -6,7 +6,7 @@ import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
-import { ComposeBox, FollowupQueue } from './components/compose-box.js';
+import { ComposeBox } from './components/compose-box.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
@@ -1937,8 +1937,18 @@ function App() {
     }, [finalizeStalledResponse]);
 
     const handleSseEvent = useCallback((eventType, data) => {
-        if (['agent_followup_queued', 'agent_followup_consumed', 'agent_followup_removed', 'agent_queue_reordered', 'agent_steer_queued'].includes(eventType)) {
+        if (['agent_followup_queued', 'agent_followup_consumed', 'agent_followup_removed', 'agent_queue_reordered'].includes(eventType)) {
             refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
+            return;
+        }
+        if (eventType === 'agent_steer_queued') {
+            refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
+            if (!eventMatchesSession(eventType, data, selectedSessionRef.current)) return;
+            const targetTurn = data?.turn_id || currentTurnIdRef.current;
+            if (targetTurn) {
+                steerQueuedTurnIdRef.current = targetTurn;
+                setSteerQueuedTurnId(targetTurn);
+            }
             return;
         }
         if (eventType === 'sessions_changed') {
@@ -2117,20 +2127,6 @@ function App() {
             pendingRequestRef.current = null;
             clearAgentRunState();
             setAgentStatus({ type: 'error', title: 'Permission request timed out' });
-            return;
-        }
-
-        if (eventType === 'agent_steer_queued') {
-            if (typeof data?.row_id === 'number') {
-                setQueuedFollowups((prev) => prev.filter((item) => item.row_id !== data.row_id));
-            }
-            if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
-                return;
-            }
-            const targetTurn = turnId || currentTurnIdRef.current;
-            if (!targetTurn) return;
-            steerQueuedTurnIdRef.current = targetTurn;
-            setSteerQueuedTurnId(targetTurn);
             return;
         }
 
@@ -2570,13 +2566,11 @@ function App() {
                     onExpandPanel=${expandAgentPanel}
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
-                <${FollowupQueue}
-                    items=${queuedFollowups}
-                    onRemove=${handleQueueRemove}
-                    onSteer=${handleQueueSteer}
-                    onReorder=${handleQueueReorder}
-                />
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
+                    queuedFollowups=${queuedFollowups}
+                    onQueueRemove=${handleQueueRemove}
+                    onQueueSteer=${handleQueueSteer}
+                    onQueueReorder=${handleQueueReorder}
                     sessionPicker=${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
                         onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
                         onCreateBranch=${() => { createdSessionRef.current = null; createParentRef.current = selectedSession; setCreatingSession(true); }}
