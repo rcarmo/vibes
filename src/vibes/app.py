@@ -61,9 +61,19 @@ async def manifest_handler(request: web.Request) -> web.Response:
     return web.json_response(manifest)
 
 
+async def prepare_asset_response(request: web.Request, response: web.StreamResponse) -> None:
+    # Assets retain stable paths, including direct module imports. Revalidate
+    # even versioned requests: query strings do not address immutable files.
+    if request.path.startswith("/static/"):
+        response.headers["Cache-Control"] = (
+            "no-store" if request.path == "/static/index.html"
+            else "no-cache, must-revalidate"
+        )
+
+
 async def index_handler(request: web.Request) -> web.FileResponse:
-    """Serve the SPA index.html."""
-    return web.FileResponse(STATIC_PATH / "index.html")
+    """Serve the SPA index.html without caching its asset URLs."""
+    return web.FileResponse(STATIC_PATH / "index.html", headers={"Cache-Control": "no-store"})
 
 
 async def on_startup(app: web.Application) -> None:
@@ -157,6 +167,7 @@ def create_app() -> web.Application:
     
     # Static files and SPA fallback
     app.router.add_static("/static", STATIC_PATH, name="static")
+    app.on_response_prepare.append(prepare_asset_response)
     app.router.add_get("/", index_handler)
     
     return app

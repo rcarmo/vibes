@@ -11,6 +11,7 @@
 import { resolve, dirname } from "path";
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 import { fileURLToPath } from "url";
+import { createHash } from "node:crypto";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const staticDir = resolve(__dirname, "src/vibes/static");
@@ -70,5 +71,19 @@ const cssOut = resolve(distDir, "app.css");
 writeFileSync(cssOut, minified, "utf-8");
 const cssKb = (Buffer.byteLength(minified) / 1024).toFixed(1);
 console.log(`  dist/app.css  ${cssKb} KB`);
+
+// Version both entrypoints together: mixing old DOM markup with newer CSS can
+// silently restore obsolete layout (notably the full-screen session picker).
+const assetVersion = createHash("sha256")
+  .update(readFileSync(resolve(distDir, "app.js")))
+  .update(readFileSync(cssOut))
+  .digest("hex").slice(0, 16);
+const indexPath = resolve(staticDir, "index.html");
+const index = readFileSync(indexPath, "utf-8").replace(
+  /(\/static\/dist\/app\.(?:js|css)\?v=)[^"'\s]+/g,
+  (_match, prefix) => `${prefix}${assetVersion}`,
+);
+writeFileSync(indexPath, index, "utf-8");
+console.log(`  index.html assets ${assetVersion}`);
 
 console.log(`\nBuild complete.`);
