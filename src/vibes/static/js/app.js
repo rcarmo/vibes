@@ -185,7 +185,7 @@ function normalizeHtmlCodeTags(text) {
 
 function restoreAllowedHtmlTags(text) {
     if (!text) return text;
-    return text.replace(/&lt;([\s\S]*?)&gt;/g, (match, content) => {
+    return text.replace(/&lt;([\s\S]*?)(?:&gt;|>)/g, (match, content) => {
         const trimmed = content.trim();
         const isClosing = trimmed.startsWith('/');
         const rawTag = isClosing ? trimmed.slice(1).trim() : trimmed;
@@ -329,9 +329,9 @@ function renderMarkdown(text, onHashtagClick) {
     // Decode HTML entities first (in case content has encoded entities)
     const decoded = decodeEntitiesDeep(stripped, 2);
     const normalized = normalizeHtmlCodeTags(decoded);
-    const escaped = normalized
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+    // Escaping `<` is sufficient to prevent raw HTML from opening a tag.
+    // Preserve `>` because it is Markdown's blockquote marker.
+    const escaped = normalized.replace(/</g, '&lt;');
     const safeHtml = restoreAllowedHtmlTags(escaped);
 
     // Render markdown to HTML (preserve escaped HTML)
