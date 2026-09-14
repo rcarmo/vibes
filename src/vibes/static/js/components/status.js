@@ -1,4 +1,4 @@
-import { html, useEffect, useState } from '../vendor/preact-htm.js';
+import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 
 const RATE_LIMIT_RE = /429|rate.?limit|too many requests|requests per minute|tokens per minute|rpm|tpm/i;
@@ -23,8 +23,8 @@ export function AgentStatus({
     onExpandPanel,
     onPanelExpandedChange,
 }) {
-    const THOUGHT_MAX_LINES = 8;
-    const DRAFT_MAX_LINES = 8;
+    const THOUGHT_MAX_LINES = 9;
+    const DRAFT_MAX_LINES = 9;
     const PREVIEW_MAX_CHARS_PER_LINE = 160;
 
     const normalizePreview = (value) => {
@@ -46,14 +46,16 @@ export function AgentStatus({
         return Math.max(1, Math.ceil(line.length / PREVIEW_MAX_CHARS_PER_LINE));
     };
 
-    const truncateLines = (text, maxLines, totalLinesOverride) => {
+    const truncateLines = (text, maxLines, totalLinesOverride, direction = 'head') => {
         const value = (text || '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
         if (!value) {
             const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : 0;
             return { text: '', omitted: 0, totalLines, visibleLines: 0 };
         }
         const lines = value.split('\n');
-        const clipped = lines.length > maxLines ? lines.slice(0, maxLines).join('\n') : value;
+        const clipped = lines.length > maxLines
+            ? (direction === 'tail' ? lines.slice(-maxLines) : lines.slice(0, maxLines)).join('\n')
+            : value;
         const totalLines = Number.isFinite(totalLinesOverride) ? totalLinesOverride : lines.reduce((acc, line) => acc + countSoftLines(line), 0);
         const visibleLines = clipped
             ? clipped.split('\n').reduce((acc, line) => acc + countSoftLines(line), 0)
@@ -70,6 +72,7 @@ export function AgentStatus({
     const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
 
     const [expandedPanels, setExpandedPanels] = useState(new Set());
+    const panelBodies = useRef(new Map());
     const toggleExpand = (key) => {
         setExpandedPanels((prev) => {
             const next = new Set(prev);
@@ -85,6 +88,14 @@ export function AgentStatus({
             onPanelExpandedChange('thought', false, turnId);
         }
     }, [turnId, onPanelExpandedChange]);
+
+    useEffect(() => {
+        for (const [key, body] of panelBodies.current.entries()) {
+            if ((key === 'draft' || key === 'thought') && !expandedPanels.has(key)) {
+                body.scrollTop = Math.max(0, body.scrollHeight - body.clientHeight);
+            }
+        }
+    }, [draftInfo.text, draftInfo.fullText, thoughtInfo.text, thoughtInfo.fullText, expandedPanels]);
 
     if (!status && !hasDraft && !hasPlan && !hasThought && !pendingRequest) return null;
 
@@ -129,9 +140,12 @@ export function AgentStatus({
         // Use fullText for the corresponding info when available
         const info = panelKey === 'plan' ? planInfo : panelKey === 'thought' ? thoughtInfo : draftInfo;
         const sourceText = isExpanded ? (info.fullText || text) : text;
+        const cleanedText = (panelKey === 'draft' || panelKey === 'thought')
+            ? String(sourceText || '').replace(/<\/?internal>/gi, '').replace(/[\s\u00a0]+$/u, '')
+            : sourceText;
         const truncated = typeof effectiveMax === 'number'
-            ? truncateLines(sourceText, effectiveMax, totalLines)
-            : { text: sourceText || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
+            ? truncateLines(cleanedText, effectiveMax, totalLines, (panelKey === 'draft' || panelKey === 'thought') ? 'tail' : 'head')
+            : { text: cleanedText || '', omitted: 0, totalLines: Number.isFinite(totalLines) ? totalLines : 0 };
         if (!truncated.text && !(Number.isFinite(truncated.totalLines) && truncated.totalLines > 0)) return null;
         const bodyClass = `agent-thinking-body${isCollapsible ? ' agent-thinking-body-collapsible' : ''}`;
         const bodyStyle = isCollapsible ? `--agent-thinking-collapsed-lines: ${maxLines};` : '';
@@ -146,22 +160,19 @@ export function AgentStatus({
                 <div class="agent-thinking-title ${titleClass || ''}">
                     ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
                     ${panelTitle}
+                    ${isCollapsible && html`
+                        <button class="agent-thinking-truncation" onClick=${handleExpand} title=${isExpanded ? `Show fewer ${panelTitle} lines` : `Show more ${panelTitle}`}>
+                            <span class="agent-thinking-truncation-arrow" aria-hidden="true">${isExpanded ? '▴' : '▾'}</span>
+                            <span>${isExpanded ? 'less' : 'more…'}</span>
+                        </button>
+                    `}
                 </div>
                 <div
                     class=${bodyClass}
                     style=${bodyStyle}
+                    ref=${body => { if (body) panelBodies.current.set(panelKey, body); else panelBodies.current.delete(panelKey); }}
                     dangerouslySetInnerHTML=${{ __html: renderThinking(truncated.text) }}
                 />
-                ${!isExpanded && truncated.omitted > 0 && html`
-                    <button class="agent-thinking-truncation" onClick=${handleExpand}>
-                        ▸ ${truncated.omitted} more lines
-                    </button>
-                `}
-                ${isExpanded && truncated.omitted === 0 && html`
-                    <button class="agent-thinking-truncation" onClick=${handleExpand}>
-                        ▴ show less
-                    </button>
-                `}
             </div>
         `;
     };
