@@ -422,3 +422,7 @@ html[data-tint]::after {
     outline: 2px solid var(--accent-color);
     outline-offset: 2px;
 }
+
+/* Connection notices are informational: do not intercept the adjacent cancel
+   control while SSE reconnects (the cancellation endpoint remains available). */
+.connection-status { pointer-events: none; }

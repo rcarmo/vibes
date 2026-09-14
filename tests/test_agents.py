@@ -90,7 +90,7 @@ async def test_list_agents_includes_default_model_for_pi():
     )
     with patch.object(agents_mod, "get_config", return_value=cfg), \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=None):
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value=None):
         resp = await agents_mod.list_agents(req)
     body = json.loads(resp.body)
     default_agent = body["agents"][0]
@@ -472,7 +472,7 @@ async def test_list_agents_pi_default():
     with patch.object(agents_mod, "get_config") as mc, \
          patch.object(agents_mod, "is_pi_running", return_value=True), \
          patch.object(agents_mod, "is_acp_running", return_value=False), \
-         patch.object(agents_mod, "send_rpc_command", new_callable=AsyncMock, return_value=None):
+         patch("vibes.pi_client.send_rpc_command", new_callable=AsyncMock, return_value=None):
         mc.return_value.default_agent = "pi"
         mc.return_value.pi_agent = "pi-binary"
         mc.return_value.pi_model = "anthropic/claude-sonnet"
@@ -817,7 +817,7 @@ async def test_legacy_model_catalog_hides_uninspectable_default_context():
     req = make_mocked_request('GET', '/agent/models')
     with patch.object(agents_mod, 'is_pi_running', return_value=True), \
          patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, return_value=None), \
-         patch.object(agents_mod, 'send_rpc_command', new_callable=AsyncMock) as raw:
+         patch('vibes.pi_client.send_rpc_command', new_callable=AsyncMock) as raw:
         response = await agents_mod.get_agent_models(req)
         assert json.loads(response.body) == {'current': None, 'models': []}
         raw.assert_not_awaited()
@@ -849,7 +849,7 @@ async def test_registry_model_resolution_uses_guarded_default_inspection():
     config = SimpleNamespace(pi_model='p/configured')
     with patch.object(agents_mod, 'is_pi_running', return_value=True), \
          patch('vibes.pi_client.inspect_model_state', new_callable=AsyncMock, return_value=None) as inspect, \
-         patch.object(agents_mod, 'send_rpc_command', new_callable=AsyncMock) as raw:
+         patch('vibes.pi_client.send_rpc_command', new_callable=AsyncMock) as raw:
         assert await agents_mod._resolve_pi_model(config) == 'p/configured'
         inspect.assert_awaited_once_with('default')
         raw.assert_not_awaited()

@@ -23,7 +23,6 @@ from ..pi_client import (
     is_pi_running,
     inspect_session_stats,
     is_busy as is_pi_busy,
-    send_rpc_command,
     send_rpc_fire_and_forget as send_pi_rpc_fire_and_forget,
     set_request_callback as set_pi_request_callback,
     respond_to_request as respond_to_pi_request,
@@ -1045,6 +1044,42 @@ async def get_agent_models(request: web.Request) -> web.Response:
         return web.json_response(empty)
 
 
+async def abort_turn(request: web.Request) -> web.Response:
+    """Cancel a known turn, not a command routed to whichever session is active."""
+    from .. import pi_client
+    from ..sessions import SessionStore
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({'error': 'Invalid JSON'}, status=400)
+    if not isinstance(data, dict) or any(not isinstance(data.get(key), str) or not data[key]
+                                         for key in ('session_id', 'turn_id')):
+        return web.json_response({'error': 'session_id and turn_id are required'}, status=400)
+    mode = _resolve_agent_mode(request.match_info['agent_id'])
+    owner = (pi_client._state.current_request_task if mode == 'pi' else acp_client._state.cancel_event)
+    database = await get_db()
+    session_id = data['session_id']
+    session = await SessionStore(database).get(session_id)
+    if not session or session['archived']:
+        return web.json_response({'error': 'Session unavailable'}, status=404)
+    turn = await _get_active_turn_for_agent(request.match_info['agent_id'])
+    if not turn or turn['turn_id'] != data['turn_id']:
+        return web.json_response({'error': 'Turn is no longer active'}, status=409)
+    root = await database.get_interaction(turn['thread_id'])
+    if not root or root['data'].get('session_id', 'default') != session_id:
+        return web.json_response({'error': 'Turn belongs to another session'}, status=409)
+    # Re-check after DB awaits; runtime helpers additionally validate ownership
+    # and signal without yielding, so a stale click cannot abort a promoted turn.
+    current = await _get_active_turn_for_agent(request.match_info['agent_id'])
+    if not current or current['turn_id'] != data['turn_id']:
+        return web.json_response({'error': 'Turn is no longer active'}, status=409)
+    accepted = await (pi_client.abort_chat_turn(session_id, owner) if mode == 'pi'
+                      else acp_client.abort_chat_turn(session_id, owner))
+    if not accepted:
+        return web.json_response({'error': 'Active runtime ownership could not be confirmed'}, status=409)
+    return web.json_response({'status': 'cancelling', 'session_id': session_id, 'turn_id': turn['turn_id']}, status=202)
+
+
 async def send_message(request: web.Request) -> web.Response:
     """Send a message to an agent."""
     agent_id = request.match_info["agent_id"]
@@ -1353,8 +1388,19 @@ async def remove_from_whitelist(request: web.Request) -> web.Response:
 
 
 async def get_agent_commands(request: web.Request) -> web.Response:
-    """GET /agent/commands — return slash commands for autocomplete."""
+    """GET /agent/commands — return slash commands for the selected session."""
     from ..slash_commands import AVAILABLE_THEMES
+    from ..sessions import SessionStore
+    from .. import pi_client
+
+    session_id = request.query.get('session_id', 'default')
+    if not await SessionStore(await get_db()).get(session_id):
+        return web.json_response({'error': 'Session not found'}, status=404)
+
+    # Non-default chats currently reject generic slash commands. Do not offer
+    # actions that the send route cannot execute (turn abort has its own route).
+    if session_id != 'default':
+        return web.json_response({'commands': []})
 
     # Base commands that are always available
     commands = [
@@ -1385,9 +1431,10 @@ async def get_agent_commands(request: web.Request) -> web.Response:
 
     # Try to query agent-specific commands from the running agent
     config = get_config()
-    if config.pi_enabled and is_pi_running():
+    if config.pi_enabled and config.default_agent.lower() == 'pi':
         try:
-            resp = await send_rpc_command({"type": "get_state"}, timeout=2.0)
+            # Do not read another session or steal events from an active turn.
+            resp = await pi_client.inspect_model_state(session_id)
             if resp and resp.get("success"):
                 data = resp.get("data", {})
                 agent_cmds = data.get("commands") or data.get("available_commands") or []
@@ -1416,6 +1463,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_get("/agent/turn/{turn_id}", get_turn_preview)
     app.router.add_post("/agent/turn/{turn_id}/panel", set_turn_panel_state)
     app.router.add_post("/agent/{agent_id}/message", send_message)
+    app.router.add_post("/agent/{agent_id}/abort", abort_turn)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/queue-remove", remove_queue_item)
     app.router.add_post("/agent/queue-reorder", reorder_queue_item)

@@ -7,6 +7,7 @@ import { eventMatchesSession } from './components/session-events.js';
 import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
+import { QuickActions } from './components/quick-actions.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
@@ -706,6 +707,8 @@ function App() {
     const [sessionOptions, setSessionOptions] = useState([]);
     const [sessionRefreshError, setSessionRefreshError] = useState('');
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
+    const [quickActionsRequest, setQuickActionsRequest] = useState(0);
+    const [composePrefill, setComposePrefill] = useState(null);
     const sessionTriggerRef = useRef(null);
     const closeSessionPicker = () => {
         setSessionPickerOpen(false);
@@ -764,6 +767,7 @@ function App() {
         const result = await getSessionTimeline(id);
         if (generation !== switchGeneration.current) return;
         const draft = composeDrafts.load(id);
+        setComposePrefill(null);
         searchGeneration.current++;
         selectedSessionRef.current = id;
         setSelectedSession(id);
@@ -791,6 +795,9 @@ function App() {
     const [agentThought, setAgentThought] = useState({ text: '', totalLines: 0 });
     const [pendingRequest, setPendingRequest] = useState(null);
     const [currentTurnId, setCurrentTurnId] = useState(null);
+    const [turnRunning, setTurnRunning] = useState(false);
+    const turnStatusGeneration = useRef(0);
+    const turnEventGeneration = useRef(0);
     const [steerQueuedTurnId, setSteerQueuedTurnId] = useState(null);
     const [queuedFollowups, setQueuedFollowups] = useState([]);
     const [agents, setAgents] = useState({});
@@ -928,22 +935,14 @@ function App() {
         return () => { disposed = true; clearInterval(timer); };
     }, [selectedSession]);
     useEffect(() => {
-        let disposed = false;
-        getAgentStatus(selectedSession).then(status => {
-            if (disposed || selectedSessionRef.current !== selectedSession) return;
-            const turns = status.active_turns || [];
-            if (turns.length) {
-                const turn = turns[turns.length - 1];
-                setActiveTurn(turn.turn_id);
-                isAgentRunningRef.current = true;
-                setAgentStatus({ ...(turn.last_status || { type: 'thinking', title: 'Thinking...' }), turn_id: turn.turn_id, thread_id: turn.thread_id });
-            }
-        }).catch(error => console.warn('Session status refresh failed:', error));
-        return () => { disposed = true; };
+        void refreshSelectedTurn();
+        // Recover missed starts as well as missed terminal events, including
+        // while SSE is disconnected. Session/event epochs reject stale results.
+        const timer = setInterval(() => { void refreshSelectedTurn(); }, 5000);
+        return () => { turnStatusGeneration.current++; clearInterval(timer); };
     }, [selectedSession]);
     const syncQueueState = useCallback((statusData) => {
         if (!statusData) return;
-        refreshSelectedQueue().catch(error => console.warn('Queue refresh failed:', error));
         const pendingSteers = Array.isArray(statusData.pending_steers) ? statusData.pending_steers : [];
         const turns = Array.isArray(statusData.active_turns) ? statusData.active_turns : [];
         if (pendingSteers.length > 0 && turns.length > 0) {
@@ -1312,6 +1311,7 @@ function App() {
         lastAgentEventRef.current = Date.now();
         if (options.running) {
             isAgentRunningRef.current = true;
+            setTurnRunning(true);
         }
         if (options.clearSilence) {
             lastSilenceNoticeRef.current = 0;
@@ -1450,6 +1450,7 @@ function App() {
 
     const clearAgentRunState = useCallback(() => {
         isAgentRunningRef.current = false;
+        setTurnRunning(false);
         lastAgentEventRef.current = null;
         lastSilenceNoticeRef.current = 0;
         draftBufferRef.current = '';
@@ -1533,8 +1534,6 @@ function App() {
         isAgentRunningRef.current = false;
         lastSilenceNoticeRef.current = 0;
         lastAgentEventRef.current = null;
-        currentTurnIdRef.current = null;
-        setCurrentTurnId(null);
 
         const partial = (draftBufferRef.current || '').trim();
         draftBufferRef.current = '';
@@ -1591,48 +1590,45 @@ function App() {
         }
     }, []);
 
+    const refreshSelectedTurn = useCallback(async () => {
+        const session = selectedSessionRef.current;
+        const selection = switchGeneration.current;
+        const request = ++turnStatusGeneration.current;
+        const events = turnEventGeneration.current;
+        try {
+            const status = await getAgentStatus(session);
+            if (!status || session !== selectedSessionRef.current || selection !== switchGeneration.current
+                || request !== turnStatusGeneration.current || events !== turnEventGeneration.current) return;
+            syncQueueState(status);
+            const turn = (status.active_turns || []).at(-1);
+            if (turn) {
+                setActiveTurn(turn.turn_id);
+                noteAgentActivity({ running: true });
+                setAgentStatus({ ...(turn.last_status || { type: 'thinking', title: 'Thinking…' }),
+                    turn_id: turn.turn_id, thread_id: turn.thread_id, agent_id: turn.agent_id });
+            } else if (!status.busy && (isAgentRunningRef.current || currentTurnIdRef.current)) {
+                clearAgentRunState(); setAgentStatus(null);
+                setAgentDraft({ text: '', totalLines: 0 }); setAgentPlan('');
+                setAgentThought({ text: '', totalLines: 0 }); setPendingRequest(null);
+                void refreshSelectedContext();
+                const view = viewStateRef.current || {};
+                if (!view.currentHashtag && !view.searchQuery) loadPosts();
+            }
+        } catch { /* A transport failure is not evidence that a turn ended. */ }
+    }, [clearAgentRunState, loadPosts, setActiveTurn, noteAgentActivity, syncQueueState]);
+
     const handleConnectionStatusChange = useCallback((status) => {
         setConnectionStatus(status);
-        if (status !== 'connected') {
-            setAgentStatus(null);
-            setAgentDraft({ text: '', totalLines: 0 });
-            setAgentPlan('');
-            setAgentThought({ text: '', totalLines: 0 });
-            setPendingRequest(null);
-            pendingRequestRef.current = null;
-            clearAgentRunState();
-            return;
-        }
-        if (!hasConnectedOnceRef.current) {
-            hasConnectedOnceRef.current = true;
-        }
-        // On every (re)connect, poll agent status to restore in-flight state
-        const statusSession = selectedSessionRef.current;
-        getAgentStatus(statusSession).then((statusData) => {
-            if (!statusData || statusSession !== selectedSessionRef.current) return;
-            syncQueueState(statusData);
-            const turns = statusData.active_turns || [];
-            if (turns.length > 0) {
-                const turn = turns[turns.length - 1];
-                setActiveTurn(turn.turn_id);
-                noteAgentActivity({ running: true, clearSilence: true });
-                const lastStatus = turn.last_status || { type: 'thinking', title: 'Thinking...' };
-                setAgentStatus({
-                    thread_id: turn.thread_id,
-                    agent_id: turn.agent_id,
-                    turn_id: turn.turn_id,
-                    ...lastStatus,
-                });
-            }
-        }).catch(() => {});
-        // Always refresh context usage on reconnect
+        // Keep cancel available through stream interruptions. Only scoped server
+        // state or a terminal event can establish that the turn has ended.
+        if (status !== 'connected') return;
+        hasConnectedOnceRef.current = true;
+        void refreshSelectedTurn();
         void refreshSelectedContext();
-        const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current;
-        if (!activeHashtag && !activeSearch) {
-            loadPosts();
-        }
-    }, [clearAgentRunState, loadPosts, setActiveTurn, noteAgentActivity, syncQueueState]);
-    
+        const view = viewStateRef.current;
+        if (!view.currentHashtag && !view.searchQuery) loadPosts();
+    }, [loadPosts, refreshSelectedTurn]);
+
     // Load older messages (prepend)
     const loadMore = useCallback(async () => {
         if (!posts || posts.length === 0) return;
@@ -1969,15 +1965,11 @@ function App() {
         }
 
         if (eventType === 'connected') {
-            setAgentStatus(null);
-            setAgentDraft({ text: '', totalLines: 0 });
-            setAgentPlan('');
-            setAgentThought({ text: '', totalLines: 0 });
-            setPendingRequest(null);
-            pendingRequestRef.current = null;
-            clearAgentRunState();
+            // The SSE greeting is a transport event, not a turn completion.
+            void refreshSelectedTurn();
             return;
         }
+        if (eventType.startsWith('agent_')) turnEventGeneration.current++;
 
         if (selectedSessionRef.current !== 'default' && ['model_changed', 'agent_followup_queued', 'agent_steer_queued', 'agent_queue_reordered'].includes(eventType)) return;
         updateAgentProfile(data);
@@ -2235,7 +2227,7 @@ function App() {
         if (eventType === 'agents_changed') {
             loadAgents();
         }
-    }, [clearAgentRunState, loadAgents, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile, updateUserProfile]);
+    }, [clearAgentRunState, loadAgents, setActiveTurn, noteAgentActivity, removeStalledPost, updateAgentProfile, updateUserProfile, refreshSelectedTurn]);
 
     // Set up SSE connection
     useEffect(() => {
@@ -2265,69 +2257,14 @@ function App() {
         };
     }, [loadPosts, handleSseEvent]);
 
-    // Adaptive backstop poller — SSE is the primary event source; this is
-    // a safety net only. 15 s when a turn is active, 60 s when idle.
-    // When active, also polls /agents/status to detect long-running agent
-    // activity and update the UI if SSE events are lagging.
-    const isAgentActive = agentStatus !== null;
+    // Timeline backstop; turn recovery is independent of SSE connectivity.
     useEffect(() => {
-        if (connectionStatus !== 'connected') return;
-        const intervalMs = isAgentActive ? 15000 : 60000;
-        const interval = setInterval(async () => {
-            if (isAgentActive) {
-                // Poll server to verify agent is still active and update status
-                try {
-                    const statusSession = selectedSessionRef.current;
-                    const statusData = await getAgentStatus(statusSession);
-                    if (selectedSessionRef.current !== statusSession) return;
-                    if (!statusData) return;
-                    syncQueueState(statusData);
-                    const turns = statusData.active_turns || [];
-                    if (turns.length > 0) {
-                        const turn = turns[turns.length - 1];
-                        const lastStatus = turn.last_status;
-                        if (lastStatus && turn.turn_id === currentTurnIdRef.current) {
-                            noteAgentActivity({ running: true });
-                            // Only update status bar with server state for non-streaming types
-                            const statusType = lastStatus.type;
-                            if (statusType && statusType !== 'done' && statusType !== 'error' && statusType !== 'cancelled') {
-                                setAgentStatus({
-                                    thread_id: turn.thread_id,
-                                    agent_id: turn.agent_id,
-                                    turn_id: turn.turn_id,
-                                    ...lastStatus,
-                                });
-                            }
-                        }
-                        // Refresh context usage while agent is working
-                        void refreshSelectedContext();
-                    } else if (!statusData.busy) {
-                        // Server says no active turns but UI thinks agent is active —
-                        // the done/error SSE event was likely lost.
-                        if (isAgentRunningRef.current) {
-                            const { currentHashtag: ah, searchQuery: sq } = viewStateRef.current || {};
-                            if (!ah && !sq) loadPosts();
-                            clearAgentRunState();
-                            setAgentStatus(null);
-                            setAgentDraft({ text: '', totalLines: 0 });
-                            setAgentPlan('');
-                            setAgentThought({ text: '', totalLines: 0 });
-                            // Refresh context usage since the turn completed
-                            void refreshSelectedContext();
-                        }
-                    }
-                } catch {
-                    // ignore polling errors
-                }
-            } else {
-                const { currentHashtag: activeHashtag, searchQuery: activeSearch } = viewStateRef.current || {};
-                if (!activeHashtag && !activeSearch) {
-                    loadPosts();
-                }
-            }
-        }, intervalMs);
-        return () => clearInterval(interval);
-    }, [connectionStatus, isAgentActive, loadPosts, clearAgentRunState, noteAgentActivity, syncQueueState]);
+        const timer = setInterval(() => {
+            const view = viewStateRef.current || {};
+            if (!view.currentHashtag && !view.searchQuery) loadPosts();
+        }, 60000);
+        return () => clearInterval(timer);
+    }, [loadPosts]);
 
     const handleSplitterMouseDown = useRef((e) => {
         e.preventDefault();
@@ -2462,9 +2399,21 @@ function App() {
     const editorOpen = editorTabs.length > 0;
     const activeEditorTab = editorTabs.find((tab) => tab.id === activeEditorTabId) || editorTabs[editorTabs.length - 1] || null;
     const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
+    const quickWorkspaceActions = useMemo(() => [
+        { id: 'toggle-workspace', title: workspaceOpen ? 'Hide workspace' : 'Show workspace',
+            subtitle: 'Toggle the workspace explorer', run: toggleWorkspace },
+        ...(terminalEnabled ? [{ id: 'open-terminal', title: 'Open terminal',
+            subtitle: 'Open the terminal pane', run: () => { setTerminalVisible(true); setWorkspaceOpen(false); } }] : []),
+    ], [workspaceOpen, terminalEnabled]);
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
+            ${!popoutMode && !terminalPopout && html`<${QuickActions}
+                sessions=${sessionOptions} sessionId=${selectedSession} workspace=${quickWorkspaceActions}
+                openRequest=${quickActionsRequest} onRefreshSessions=${refreshSessions}
+                onSwitchSession=${selectSession}
+                onPrefill=${command => { setSearchOpen(false); setComposePrefill({ command, sessionId: selectedSession }); }}
+            />`}
             ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
             ${workspaceOpen && !popoutMode && !terminalPopout && html`<div class="workspace-drawer-backdrop" aria-hidden="true" onPointerDown=${event => { event.preventDefault(); setWorkspaceOpen(false); }}></div>`}
             ${!popoutMode && html`<button
@@ -2567,6 +2516,7 @@ function App() {
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
+                    prefillRequest=${composePrefill} onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)}
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}
                     onQueueSteer=${handleQueueSteer}
@@ -2606,7 +2556,7 @@ function App() {
                     supportsThinking=${supportsThinking}
                     isCompacting=${isCompacting}
                     contextUsage=${contextUsage}
-                    agentBusy=${Boolean(agentStatus && !agentStatus.last_activity && !agentStatus.lastActivity && !['done', 'error', 'cancelled', 'idle'].includes(agentStatus.type))}
+                    agentBusy=${turnRunning} activeTurnId=${currentTurnId}
                     onModelChange=${setActiveModel}
                     onModelStateChange=${applyModelState}
                     notificationsEnabled=${notificationsEnabled}

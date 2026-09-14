@@ -55,3 +55,25 @@ retained under `/workspace/tmp/vibes-css-parity/first-results`. Targeted failure
 are in `targeted-results`; the final passing run is `browser-second.log` in the
 same directory. Exhaustive rendered pixel-identity verification is deferred;
 behavioural regression checks take priority. The `v0.8.0` tag is unchanged.
+
+## Quick actions and turn cancellation
+
+Typing with focus on the timeline opens the classic quick-actions palette. The
+composer's lightning button also opens it on touch devices. Sessions, workspace
+visibility, an enabled terminal and supported slash commands are searchable;
+arrows select, Enter activates and Escape restores focus. Inserting a command
+preserves existing draft text, attachments and references, and never sends it.
+Generic slash commands remain unavailable in non-default sessions, so their
+catalogue is empty. VNC, chat pop-outs and full Settings actions are not offered.
+
+The composer stop control follows turn activity, including restored turns and
+SSE interruptions, rather than the status caption. It stays accessible in search
+mode. Cancellation uses a separate endpoint with session/turn/runtime ownership
+checks, reports rejected requests, and leaves composition and queued items alone.
+The connection notice no longer intercepts pointer input over the stop control.
+
+Validation: 557 backend tests, 26 frontend tests (140 assertions), and 220 focused
+headed Chromium/WebKit cases passed with one worker and no retries. The full
+browser run timed out after a terminal-load failure and an over-specific default
+session label assertion; those artifacts were retained. The corrected session
+assertion and terminal suite passed separately, not as a full-suite checkpoint.

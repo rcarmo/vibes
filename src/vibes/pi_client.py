@@ -360,6 +360,24 @@ async def send_rpc_fire_and_forget(payload: dict) -> bool:
         return False
 
 
+async def abort_chat_turn(chat_id: str, expected_task) -> bool:
+    """Cancel only the confirmed in-flight chat; never a subsequent request."""
+    task = _state.current_request_task
+    writer = _state.agent_writer
+    if (_state.session_selector.uncertain or _state.session_selector.active != chat_id
+            or not _state.request_lock.locked() or task is None or task is not expected_task or task.done()):
+        return False
+    # Capture ownership and signal/cancel before yielding. Calling the global
+    # cancel_current_request after a drain could cancel a newly promoted turn.
+    try:
+        if writer is not None:
+            writer.write(b'{"type":"abort"}\n')
+    except Exception:
+        logger.warning('Pi abort write failed; cancelling the owning task', exc_info=True)
+    task.cancel()
+    return True
+
+
 def cancel_current_request() -> bool:
     """Cancel the in-flight request task, releasing the request_lock.
 

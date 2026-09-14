@@ -1348,6 +1348,25 @@ async def stop_agent():
         _state.chat_id = 'default'
 
 
+async def abort_chat_turn(chat_id: str, expected_request) -> bool:
+    """Signal cancellation only for the confirmed in-flight ACP conversation."""
+    if (_state.chat_id != chat_id or not _state.request_lock.locked()
+            or expected_request is None or _state.cancel_event is not expected_request
+            or not _state.session_id or _state.agent_writer is None):
+        return False
+    # No await between ownership validation and writing to the captured session.
+    payload = {'jsonrpc': '2.0', 'method': 'session/cancel',
+               'params': {'sessionId': _state.session_id, '_meta': {}}}
+    try:
+        _state.agent_writer.write((json.dumps(payload) + '\n').encode('utf-8'))
+    except Exception:
+        logger.warning('Failed to cancel ACP chat turn', exc_info=True)
+        return False
+    _state._cancelled = True
+    _state._cancel_reason = 'abort'
+    return True
+
+
 async def cancel_session():
     """Send a session/cancel notification without stopping the agent."""
     if _state.session_id and _state.agent_writer:

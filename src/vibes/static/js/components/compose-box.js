@@ -9,7 +9,7 @@ import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
 import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
-import { getModelPreferences, saveModelPreferences, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
+import { abortAgentTurn, getModelPreferences, saveModelPreferences, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
  * Slash command definitions for autocomplete.
@@ -153,6 +153,8 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
 export function ComposeBox({
     sessionId = 'default',
     onPost,
+    prefillRequest = null,
+    onOpenQuickActions,
     sessionTrigger = null,
     sessionPicker = null,
     queuedFollowups = [],
@@ -180,6 +182,7 @@ export function ComposeBox({
     isCompacting = false,
     contextUsage = null,
     agentBusy = false,
+    activeTurnId = null,
     onModelChange,
     onModelStateChange,
     notificationsEnabled = false,
@@ -187,6 +190,8 @@ export function ComposeBox({
     onToggleNotifications,
 }) {
     const [content, setContent] = useState(() => composeDrafts.load(sessionId).text);
+    const [aborting, setAborting] = useState(false);
+    const abortPending = useRef(false);
     const [searchText, setSearchText] = useState('');
     const [speechState, setSpeechState] = useState({ kind: 'idle', detail: '' });
     const speechRef = useRef(null);
@@ -364,7 +369,7 @@ export function ComposeBox({
         }
         return { ...group, providers: Array.from(providers, ([label, models]) => ({ label, models })) };
     });
-    const [slashCommands, setSlashCommands] = useState(SLASH_COMMANDS);
+    const [slashCommands, setSlashCommands] = useState(sessionId === 'default' ? SLASH_COMMANDS : []);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
     const uploadedFiles = useRef(new WeakMap());
@@ -405,11 +410,13 @@ export function ComposeBox({
         historyDraftRef.current = '';
     }, [sessionId]);
 
-    // Fetch dynamic slash commands on mount
+    // Fetch commands for this session without consuming another Pi stream.
     useEffect(() => {
-        getAgentCommands()
+        let disposed = false;
+        getAgentCommands(sessionId)
             .then((data) => {
-                if (data?.commands?.length) {
+                if (!disposed && Array.isArray(data?.commands)) {
+                    if (sessionId !== 'default') { setSlashCommands(data.commands); return; }
                     const existing = new Set(SLASH_COMMANDS.map(c => c.name));
                     const merged = [...SLASH_COMMANDS];
                     for (const cmd of data.commands) {
@@ -422,7 +429,8 @@ export function ComposeBox({
                 }
             })
             .catch(() => {});
-    }, []);
+        return () => { disposed = true; };
+    }, [sessionId]);
 
     const canSend = !loading && (content.trim() || mediaFiles.length > 0 || folderRefs.length > 0 || fileRefs.length > 0 || messageRefs.length > 0);
     const canShareLocation = typeof window !== 'undefined'
@@ -640,16 +648,16 @@ export function ComposeBox({
     };
 
     const handleAbort = async () => {
-        if (!agentBusy || loading) return;
-        setLoading(true);
-        setSubmitError('');
+        if (!agentBusy || !activeTurnId || abortPending.current) return;
+        abortPending.current = true;
+        setAborting(true); setSubmitError('');
         try {
-            const response = await sendAgentMessage('default', '/abort', null, [], 'steer', sessionId);
-            onPost?.(response);
+            await abortAgentTurn(sessionId, activeTurnId);
+            // Wait for server confirmation; do not clear draft, media or queue.
         } catch (error) {
             setSubmitError(error.message || 'Cancel turn failed');
         } finally {
-            setLoading(false);
+            abortPending.current = false; setAborting(false);
         }
     };
 
@@ -920,6 +928,21 @@ export function ComposeBox({
         setMentionRange(range); setMentionIndex(0);
         if (range) setShowSlash(false);
     };
+
+    const consumedPrefill = useRef(null);
+    useEffect(() => {
+        if (!prefillRequest || consumedPrefill.current === prefillRequest || prefillRequest.sessionId !== sessionId || loading || searchMode) return;
+        consumedPrefill.current = prefillRequest;
+        cancelSpeech();
+        // Insert, never submit or discard an existing draft, media or references.
+        setContent(text => `${prefillRequest.command} ${text}`);
+        setShowSlash(false); setMentionRange(null); setSubmitError('');
+        requestAnimationFrame(() => {
+            textareaRef.current?.focus();
+            textareaRef.current?.setSelectionRange(prefillRequest.command.length + 1, prefillRequest.command.length + 1);
+            resizeTextarea();
+        });
+    }, [prefillRequest, sessionId, loading, searchMode]);
 
     const handleLocation = () => {
         if (!navigator.geolocation) {
@@ -1198,6 +1221,9 @@ export function ComposeBox({
                         </div>
                     `}
                 <div class="compose-actions ${searchMode ? 'search-mode' : ''}">
+                    ${onOpenQuickActions && html`<button type="button" class="icon-btn quick-actions-toggle" aria-label="Quick actions" title="Quick actions (or type while focused on the timeline)" disabled=${loading} onClick=${onOpenQuickActions}>
+                        <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 10-12h-7z"/></svg>
+                    </button>`}
                     <button type="button" class="icon-btn search-toggle"
                         onClick=${searchMode ? onExitSearch : onEnterSearch}
                         title=${searchMode ? "Close search" : "Search"}
@@ -1242,13 +1268,13 @@ export function ComposeBox({
                             </svg>
                         </button>
                     `}
-                    ${!searchMode && html`
-                        <label class="icon-btn" title="Attach files">
+                    ${(!searchMode || agentBusy) && html`
+                        ${!searchMode && html`<label class="icon-btn" title="Attach files">
                             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <input type="file" multiple hidden onChange=${handleFileChange} />
-                        </label>
+                        </label>`}
                         <div class="compose-send-stack">
-                            <button type="button" class="icon-btn send-btn"
+                            ${!searchMode && html`<button type="button" class="icon-btn send-btn"
                                 data-testid="send-button"
                                 onClick=${() => handleSubmit('auto')}
                                 disabled=${!canSend}
@@ -1256,13 +1282,15 @@ export function ComposeBox({
                                 aria-label="Send message"
                             >
                                 <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                            </button>
+                            </button>`}
                             ${agentBusy && html`
                                 <button type="button" class="icon-btn send-btn abort-mode"
                                     data-testid="stop-button"
                                     onClick=${handleAbort}
-                                    title="Cancel current turn"
+                                    title=${aborting ? 'Cancelling current turn…' : 'Cancel current turn'}
                                     aria-label="Cancel current turn"
+                                    disabled=${aborting || !activeTurnId}
+                                    aria-busy=${aborting}
                                 >
                                     <span class="compose-submit-spinner" aria-hidden="true">
                                         <svg width="18" height="18" viewBox="0 0 24 24" fill="none">

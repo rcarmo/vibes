@@ -96,6 +96,12 @@ export async function deletePost(postId, cascade = false) {
 /**
  * Send message to agent
  */
+export async function abortAgentTurn(sessionId, turnId) {
+    return request('/agent/default/abort', {
+        method: 'POST', body: JSON.stringify({ session_id: sessionId, turn_id: turnId }),
+    });
+}
+
 export async function sendAgentMessage(agentId, content, threadId = null, mediaIds = [], mode = null, sessionId = 'default', intent = null) {
     return request(`/agent/${agentId}/message`, {
         method: 'POST',
@@ -438,8 +444,8 @@ export function getWorkspaceDownloadUrl(path, showHidden = false) {
     return `${API_BASE}/workspace/download?${query}`;
 }
 
-export async function getAgentCommands() {
-    return request('/agent/commands');
+export async function getAgentCommands(sessionId = 'default') {
+    return request(`/agent/commands?session_id=${encodeURIComponent(sessionId)}`);
 }
 
 /**
