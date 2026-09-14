@@ -639,6 +639,20 @@ export function ComposeBox({
         finally { setLoading(false); }
     };
 
+    const handleAbort = async () => {
+        if (!agentBusy || loading) return;
+        setLoading(true);
+        setSubmitError('');
+        try {
+            const response = await sendAgentMessage('default', '/abort', null, [], 'steer', sessionId);
+            onPost?.(response);
+        } catch (error) {
+            setSubmitError(error.message || 'Cancel turn failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSubmit = async (mode = 'auto') => {
         cancelSpeech();
         if (!content.trim() && mediaFiles.length === 0 && fileRefs.length === 0 && folderRefs.length === 0 && messageRefs.length === 0) return;
@@ -1233,13 +1247,32 @@ export function ComposeBox({
                             <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                             <input type="file" multiple hidden onChange=${handleFileChange} />
                         </label>
-                        <button type="button" class="icon-btn send-btn"
-                            onClick=${() => handleSubmit('auto')}
-                            disabled=${!canSend}
-                            title="Send (Enter); steer with Ctrl/Cmd+Enter"
-                        >
-                            <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-                        </button>
+                        <div class="compose-send-stack">
+                            <button type="button" class="icon-btn send-btn"
+                                data-testid="send-button"
+                                onClick=${() => handleSubmit('auto')}
+                                disabled=${!canSend}
+                                title="Send (Enter); steer with Ctrl/Cmd+Enter"
+                                aria-label="Send message"
+                            >
+                                <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                            </button>
+                            ${agentBusy && html`
+                                <button type="button" class="icon-btn send-btn abort-mode"
+                                    data-testid="stop-button"
+                                    onClick=${handleAbort}
+                                    title="Cancel current turn"
+                                    aria-label="Cancel current turn"
+                                >
+                                    <span class="compose-submit-spinner" aria-hidden="true">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                                            <circle class="compose-submit-spinner-ring" cx="12" cy="12" r="10.5" stroke-width="2.25" stroke-linecap="round"></circle>
+                                            <rect class="compose-submit-spinner-stop" x="6" y="6" width="12" height="12" fill="currentColor"></rect>
+                                        </svg>
+                                    </span>
+                                </button>
+                            `}
+                        </div>
                     `}
                 </div>
                 </div>
