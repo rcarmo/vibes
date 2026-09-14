@@ -16,9 +16,9 @@ KEY = web.AppKey("terminal_adapter", object)
 
 
 class TerminalAdapter:
-    def __init__(self, cwd, enabled=False, grace=15, handoff_ttl=30):
+    def __init__(self, cwd, enabled=False, grace=15, handoff_ttl=30, shell="/bin/sh"):
         self.enabled = enabled
-        self.service = TerminalService(cwd)
+        self.service = TerminalService(cwd, shell=shell)
         self.owners = set()
         self.sockets = {}
         self.timers = {}
@@ -173,7 +173,8 @@ class TerminalAdapter:
 
 
 def setup_routes(app):
-    adapter = TerminalAdapter(os.getcwd(), os.environ.get("VIBES_ENABLE_TERMINAL", "").lower() in {"1", "true"})
+    shell = os.environ.get("VIBES_SHELL") or os.environ.get("SHELL") or "/bin/sh"
+    adapter = TerminalAdapter(os.getcwd(), os.environ.get("VIBES_ENABLE_TERMINAL", "").lower() in {"1", "true"}, shell=shell)
     app[KEY] = adapter
     app.router.add_get("/terminal/session", adapter.info)
     app.router.add_post("/terminal/handoff", adapter.handoff)

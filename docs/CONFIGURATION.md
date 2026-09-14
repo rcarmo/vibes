@@ -38,6 +38,8 @@ See [installation](INSTALLATION.md) for setup, upgrades and network protection. 
 
 `VIBES_ENABLE_TERMINAL` is a separate, environment-only switch: `1` or `true` enables the POSIX terminal; it is disabled otherwise. It is not a settings JSON field, and unlike the settings booleans below, it does not accept `yes`. Enabling it grants shell access as the server account.
 
+The terminal shell is also environment-only: `VIBES_SHELL` overrides the shell to launch; otherwise the server user's `$SHELL` is used, falling back to `/bin/sh`.
+
 For Pi mode details, see [docs/PI_MODE.md](PI_MODE.md).
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).

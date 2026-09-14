@@ -122,6 +122,20 @@ async def test_deployed_client_metadata_ping_and_exit(aiohttp_client, tmp_path):
 
 
 @pytest.mark.asyncio
+async def test_setup_routes_resolves_terminal_shell(monkeypatch):
+    module = importlib.import_module("vibes.routes.terminal")
+    monkeypatch.delenv("VIBES_SHELL", raising=False)
+    monkeypatch.setenv("SHELL", "/bin/bash")
+    app = web.Application()
+    module.setup_routes(app)
+    assert app[module.KEY].service.shell == "/bin/bash"
+    monkeypatch.setenv("VIBES_SHELL", "/usr/bin/zsh")
+    app2 = web.Application()
+    module.setup_routes(app2)
+    assert app2[module.KEY].service.shell == "/usr/bin/zsh"
+
+
+@pytest.mark.asyncio
 async def test_owner_limit_reclaims_unused_page_visitors_without_evicting_live_shell(aiohttp_client, tmp_path):
     import aiohttp
     c, adapter, headers = await client_for(aiohttp_client, tmp_path)
