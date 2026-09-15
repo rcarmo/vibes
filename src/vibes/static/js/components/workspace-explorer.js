@@ -16,7 +16,7 @@ import {
 } from '../api.js';
 import { DiskUsageSunburst } from './sunburst.js';
 
-const INDENT = 16;
+const INDENT = 18;
 const REFRESH_INTERVAL_MS = 60_000;
 
 /**
