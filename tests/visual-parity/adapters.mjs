@@ -27,7 +27,7 @@ export function apiResponse(app, path, scenario) {
   if (path === '/agents' || path === '/agent/roster') return agents;
   if (path === '/agent/context') return context;
   if (path === '/system/metrics' || path === '/agent/system-metrics') return metrics();
-  if (path === '/agent/models' || path.endsWith('/model-state')) return app === 'piclaw' ? { ...modelState, model: modelState.current, models: [modelState.current], model_options: [{ ...state.model, key: modelState.current, label: modelState.current }]} : modelState;
+  if (path === '/agent/models' || path.endsWith('/model-state')) return app === 'piclaw' ? { ...modelState, model: modelState.current, models: [modelState.current], model_options: [{ ...state.model, key: modelState.current, label: modelState.current, thinking_levels: ['off', 'low', 'medium', 'high'] }]} : modelState;
   if (path.endsWith('/models')) return { ...modelState, models: [state.model], providers: [] };
   if (path === '/model-preferences') return { version: 1, pins: [] };
   if (path === '/sessions') return { sessions, runtime_isolation: false };

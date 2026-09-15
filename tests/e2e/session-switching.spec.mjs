@@ -287,7 +287,6 @@ test('model picker keyboard navigation focuses choices and Escape restores trigg
         node.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, isComposing: true }));
     });
     await expect(search).toBeFocused();
-    await search.press('ArrowDown');
     await expect(search).toBeFocused();
     await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Falpha');
     await page.keyboard.press('ArrowDown');
@@ -313,6 +312,7 @@ test('Next model cycles scoped catalog without default commands', async ({ page 
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Next model', exact: true }).click();
     await expect.poll(() => mutation).toEqual({ path: `/sessions/${id}/model`, data: { provider: 'test', model_id: 'beta' } });
     expect(commandCount).toBe(0);
@@ -338,7 +338,7 @@ test('late model mutation cannot relabel a newly selected chat', async ({ page }
     await page.getByRole('option', { name: 'test/late', exact: true }).click();
     await expect.poll(() => !!release).toBe(true);
     // WebKit drops focus when the selected option becomes disabled mid-mutation.
-    await page.getByRole('button', { name: 'Close model picker', exact: true }).click();
+    await page.keyboard.press('Escape');
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + second).click();
     const label = page.getByRole('button', { name: 'Open model picker', exact: true });
@@ -375,7 +375,7 @@ test('context gauge hides invalid percent and exposes accessible valid usage', a
     await expect(page.locator('.compose-context-pie')).toHaveCount(0);
     context = { percent: 25, tokens: 1000, contextWindow: 4000 };
     await page.reload();
-    await expect(page.getByRole('img', { name: /Context:.*25%/ })).toBeVisible();
+    await expect(page.getByRole('button', { name: /Context:.*25%/ })).toBeVisible();
 });
 
 test('compaction indicator requires explicit selected-session confirmation', async ({ page }) => {
@@ -483,7 +483,7 @@ test('context refresh follows completion of held model inspection', async ({ pag
 test('over-capacity context retains true percentage with bounded gauge geometry', async ({ page }) => {
     await page.route('**/agent/context?*', route => route.fulfill({ contentType: 'application/json', body: '{"percent":125,"tokens":5000,"contextWindow":4000}' }));
     await page.goto('/');
-    const gauge = page.getByRole('img', { name: /Context:.*125%/ });
+    const gauge = page.getByRole('button', { name: /Context:.*125%/ });
     await expect(gauge).toBeVisible();
     const dash = await gauge.locator('circle').last().getAttribute('stroke-dasharray');
     const values = dash.split(' ').map(Number);
@@ -612,12 +612,12 @@ test('agent registry polling removes capability claims after refresh failure', a
     await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0, { timeout: 20000 });
 });
 
-test('model picker close button restores model trigger focus', async ({ page }) => {
+test('model picker Escape restores model trigger focus', async ({ page }) => {
     await page.route('**/sessions/default/model-state', route => route.fulfill({ contentType: 'application/json', body: '{"available":true,"model":{"provider":"test","id":"current"}}' }));
     await page.goto('/');
     const trigger = page.getByRole('button', { name: 'Open model picker', exact: true });
     await trigger.click();
-    await page.getByRole('button', { name: 'Close model picker', exact: true }).click();
+    await page.keyboard.press('Escape');
     await expect(page.getByRole('combobox', { name: 'Search models' })).toHaveCount(0);
     await expect(trigger).toBeFocused();
 });
@@ -854,14 +854,14 @@ for (const width of [1280, 390]) {
         const footer = page.locator('.compose-model-catalogue-footer');
         await expect(footer).toHaveCSS('display', 'flex');
         await expect(footer.locator('.compose-model-catalogue-footer-start')).toHaveCSS('flex-wrap', 'wrap');
-        for (const name of ['Next model', 'Refresh model catalog', 'Open Models settings']) {
+        for (const name of ['Open Models settings']) {
             await expect(footer.getByRole('button', { name, exact: true })).toBeInViewport();
         }
         await expect(footer.locator('button.primary')).toHaveText('Open Models settings');
         await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
         await expect(page.getByRole('button', { name: 'Load instance pins', exact: true })).toBeInViewport();
         await page.getByRole('button', { name: 'Close Models settings', exact: true }).click();
-        await expect(page.getByRole('group', { name: 'Current', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/alpha');
+        await expect(page.getByRole('group', { name: 'Current', exact: true })).toContainText('test/alpha');
         await expect(page.getByRole('group', { name: 'Other models', exact: true }).getByRole('group', { name: 'test', exact: true })).toContainText('test/beta');
         const popup = page.locator('.compose-model-popup').filter({ has: page.getByRole('combobox', { name: 'Search models' }) });
         const bounds = await popup.boundingBox();
@@ -887,7 +887,7 @@ test('model display names remain searchable without replacing canonical identity
     await expect(choice).toHaveAttribute('aria-selected', 'true');
     await expect(page.getByRole('combobox', { name: 'Search models' })).toHaveAttribute('aria-controls', 'compose-model-results');
     await expect(page.getByRole('listbox', { name: 'Models', exact: true })).toContainText('Friendly Model');
-    await expect(choice.locator('.compose-model-catalogue-badge')).toHaveText(['Reasoning', '128,000 context tokens']);
+    await expect(choice.locator('.compose-model-catalogue-badge')).toHaveText(['128K context', 'reasoning']);
     await expect(page.getByRole('option', { name: 'test/beta', exact: true }).locator('.compose-model-catalogue-badge')).toHaveCount(0);
     await expect(choice.locator('.compose-model-catalogue-option-key')).toHaveText('test/alpha');
     await page.getByRole('combobox', { name: 'Search models' }).fill('friendly');
@@ -907,11 +907,12 @@ test('search virtual focus pins without mutation then Enter selects canonical mo
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     const search = page.getByRole('combobox', { name: 'Search models' });
     await expect(page.getByRole('option', { name: 'test/next', exact: true })).toBeVisible();
-    await search.press('ArrowDown');
+    await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fcurrent');
     await search.press('ArrowDown');
     const next = page.getByRole('option', { name: 'test/next', exact: true });
     await expect(next).toHaveClass(/focused/);
-    await expect(next).toHaveCSS('outline-style', 'solid');
+    await expect(next).toHaveCSS('border-left-style', 'solid');
+    await expect(next).not.toHaveCSS('border-left-color', 'rgba(0, 0, 0, 0)');
     await search.press('Alt+Enter');
     await expect(page.getByRole('button', { name: 'Unpin model test/next', exact: true })).toHaveAttribute('aria-pressed', 'true');
     await expect(search).toBeFocused();
@@ -941,10 +942,10 @@ for (const width of [1280, 390]) {
         const inner = await last.boundingBox();
         expect(inner.y).toBeGreaterThanOrEqual(outer.y - 1);
         expect(inner.y + inner.height).toBeLessThanOrEqual(outer.y + outer.height + 1);
-        await expect(page.getByRole('button', { name: 'Next model', exact: true })).toBeInViewport();
+        await expect(page.getByRole('button', { name: 'Open Models settings', exact: true })).toBeInViewport();
         await search.fill('m00');
         await expect(results.getByRole('option')).toHaveCount(1);
-        await expect(search).not.toHaveAttribute('aria-activedescendant', /.+/);
+        await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fm00');
         await search.press('ArrowDown');
         await expect(search).toHaveAttribute('aria-activedescendant', 'model-option-test%2Fm00');
     });
@@ -989,6 +990,7 @@ test('explicit catalogue refresh updates choices without model mutation', async 
     await trigger.click();
     await expect(page.getByRole('option', { name: 'test/old', exact: true })).toBeVisible();
     refreshed = true;
+    await page.getByRole('button', { name: 'Open Models settings', exact: true }).click();
     await page.getByRole('button', { name: 'Refresh model catalog', exact: true }).click();
     await expect(page.getByRole('option', { name: 'test/new', exact: true })).toBeVisible();
     await expect(page.getByRole('option', { name: 'test/old', exact: true })).toHaveCount(0);

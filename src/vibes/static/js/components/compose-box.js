@@ -8,7 +8,7 @@ import { useComposeSizing } from './compose-sizing.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
 import { FilePill } from './file-pill.js';
 import { parseQueuedContent } from './queued-content.js';
-import { html, useRef, useState, useEffect, useCallback } from '../vendor/preact-htm.js';
+import { html, useRef, useState, useEffect, useLayoutEffect, useCallback } from '../vendor/preact-htm.js';
 import { abortAgentTurn, getModelPreferences, saveModelPreferences, getSessionModels, changeSessionModel, getSessions, sendAgentMessage, uploadMedia, getAgentCommands } from '../api.js';
 
 /**
@@ -56,7 +56,7 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
     const canCompact = usage.compactCommand === '/compact';
     const known = typeof usage.percent === 'number' && Number.isFinite(usage.percent) && usage.percent >= 0;
     if (!known && !canCompact) return null;
-    const Tag = canCompact ? 'button' : 'span';
+    const Tag = 'button';
     const pct = known ? usage.percent : 0;
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
@@ -64,7 +64,7 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
         ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${pct.toFixed(0)}%)`
         : `Context: ${pct.toFixed(0)}%`;
 
-    const r = 8;
+    const r = 9;
     const circ = 2 * Math.PI * r;
     const filled = (Math.min(100, pct) / 100) * circ;
 
@@ -73,23 +73,23 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
             : 'var(--context-green, #22c55e)';
 
     return html`
-        <${Tag} class="compose-context-pie icon-btn" type=${canCompact ? 'button' : undefined}
-            role=${canCompact ? undefined : 'img'} aria-label=${canCompact ? `${label}. Compact context` : label}
-            disabled=${canCompact ? disabled : undefined} aria-busy=${compacting ? 'true' : undefined}
+        <${Tag} class=${`compose-context-pie${compacting ? ' is-compacting' : ''}`} type="button"
+            aria-label=${canCompact ? `${label}. Compact context` : label}
+            disabled=${!canCompact || disabled} aria-busy=${compacting ? 'true' : undefined}
             onClick=${canCompact ? onCompact : undefined}
             title=${[label, usagePresentation(usage).title, canCompact && 'Compact context (agent-advertised /compact)'].filter(Boolean).join('\n')}>
-            <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true">
-                <circle cx="10" cy="10" r=${r}
+            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
+                <circle cx="11" cy="11" r=${r}
                     fill="none"
-                    stroke="var(--context-track, rgba(128,128,128,0.2))"
-                    stroke-width="3" />
-                <circle cx="10" cy="10" r=${r}
+                    stroke="var(--border-color)"
+                    stroke-width="2.5" />
+                <circle cx="11" cy="11" r=${r}
                     fill="none"
                     stroke=${color}
-                    stroke-width="3"
+                    stroke-width="2.5"
                     stroke-dasharray=${`${filled} ${circ}`}
                     stroke-linecap="round"
-                    transform="rotate(-90 10 10)" />
+                    transform="rotate(-90 11 11)" />
             </svg>
         <//>
     `;
@@ -628,7 +628,12 @@ export function ComposeBox({
             : (current + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length;
         choices[next].focus(); choices[next].scrollIntoView({ block: 'nearest' });
     };
-    useEffect(() => { if (showModelPopup) modelSearchRef.current?.focus(); }, [showModelPopup]);
+    useLayoutEffect(() => { if (showModelPopup) modelSearchRef.current?.focus(); }, [showModelPopup]);
+    useEffect(() => {
+        if (!showModelPopup) return;
+        setHighlightedModel(previous => filteredModels.includes(previous) ? previous
+            : filteredModels.includes(activeModel) ? activeModel : filteredModels[0] || null);
+    }, [showModelPopup, modelQuery, modelOptions, activeModel]);
     const toggleModelPopup = (event) => {
         event.preventDefault();
         event.stopPropagation();
@@ -1105,62 +1110,40 @@ export function ComposeBox({
                     ${showModelPopup && !searchMode && html`
                         <div class="compose-model-popup compose-model-catalogue" ref=${modelPopupRef} onKeyDown=${modelPickerKeys}>
                             <div class="compose-model-catalogue-header">
-                                <div class="compose-session-popup-header"><label class="compose-model-catalogue-search-label" for="compose-model-search">Search models</label><button type="button" class="compose-session-popup-close" aria-label="Close model picker" onClick=${() => { setShowModelPopup(false); requestAnimationFrame(() => modelHintRef.current?.focus()); }}>×</button></div>
+                                <label class="compose-model-catalogue-search-label" for="vibes-model-search">Search models</label>
                                 <div class="compose-model-catalogue-search-row">
-                                    <input ref=${modelSearchRef} id="compose-model-search" class="compose-model-catalogue-search" type="search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="compose-model-results" aria-activedescendant=${filteredModels.includes(highlightedModel) ? `model-option-${encodeURIComponent(highlightedModel)}` : undefined} aria-label="Search models" placeholder="Search models" value=${modelQuery} onInput=${event => setModelQuery(event.target.value)} />
+                                    <input id="vibes-model-search" type="search" ref=${modelSearchRef} class="compose-model-catalogue-search" role="combobox" aria-label="Search models" aria-expanded="true" aria-controls="compose-model-results" aria-activedescendant=${highlightedModel ? 'model-option-' + encodeURIComponent(highlightedModel) : undefined} aria-autocomplete="list" value=${modelQuery} placeholder="Search models…" onInput=${e => { setModelQuery(e.target.value); setHighlightedModel(null); }} />
                                     ${modelQuery && html`<button type="button" class="compose-model-catalogue-clear" aria-label="Clear model search" onClick=${() => { setModelQuery(''); modelSearchRef.current?.focus(); }}>×</button>`}
                                 </div>
-                                <div class="compose-model-catalogue-summary" role="status">${loadingModels ? 'Refreshing…' : modelCatalogError ? 'Catalog unavailable' : `${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}`}</div>
+                                <div class="compose-model-catalogue-summary" role="status"><span>${filteredModels.length} ${filteredModels.length === 1 ? 'model' : 'models'}</span>${loadingModels && html`<span>Refreshing…</span>`}</div>
+                                ${modelCatalogError && html`<div role="alert">${modelCatalogError}<button type="button" onClick=${() => setModelRefresh(v => v + 1)}>Retry model catalog</button></div>`}
+                                ${modelPinError && html`<div role="alert">${modelPinError}</div>`}
                             </div>
-                            <div hidden=${!modelPinError} role=${modelPinError ? 'alert' : undefined} class="compose-model-popup-empty">${modelPinError}</div>
-                            <div id="compose-model-results" class="compose-model-popup-menu compose-model-catalogue-results" role="listbox" aria-label="Models">
-                                ${loadingModels && html`
-                                    <div class="compose-model-popup-empty">Loading models…</div>
-                                `}
-                                ${modelCatalogError && html`<div role="alert" class="compose-model-popup-empty">${modelCatalogError}<button type="button" onClick=${() => setModelRefresh(value => value + 1)}>Retry model catalog</button></div>`}
-                            ${!loadingModels && !modelCatalogError && modelOptions.length === 0 && html`
-                                    <div class="compose-model-popup-empty">No models available.</div>
-                                `}
-                                ${!loadingModels && modelOptions.length > 0 && filteredModels.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching models</div>`}
-                            ${!loadingModels && modelGroups.map(group => html`<div role="group" aria-label=${group.label}>
-                                <div class="compose-session-section-heading">${group.label}</div>
-                                ${group.providers.map(provider => html`<div class="compose-model-catalogue-group" role="group" aria-label=${provider.label}>
-                                <div class="compose-model-catalogue-group-heading">${provider.label}</div>
-                                ${provider.models.map((modelLabel) => html`<div class="compose-model-popup-item-row" key=${modelLabel}>
-                                    <button type="button" class="compose-session-row-pin" aria-label=${`${modelPins.includes(modelLabel) ? 'Unpin' : 'Pin'} model ${modelLabel}`} aria-pressed=${modelPins.includes(modelLabel)} aria-keyshortcuts="Alt+Enter" onClick=${() => toggleModelPin(modelLabel)}>${modelPins.includes(modelLabel) ? '★' : '☆'}</button>
-                                    <button
-                                        key=${modelLabel}
-                                        type="button"
-                                        role="option"
-                                        id=${`model-option-${encodeURIComponent(modelLabel)}`}
-                                        aria-selected=${activeModel === modelLabel}
-                                        data-model-label=${modelLabel}
-                                        aria-label=${modelLabel}
-                                        class=${`compose-model-popup-item${activeModel === modelLabel ? ' active' : ''}${highlightedModel === modelLabel ? ' focused' : ''}`}
-                                        onClick=${() => { void handleSelectModel(modelLabel); }}
-                                        disabled=${switchingModel}
-                                    >
-                                        <span class="compose-model-catalogue-option-content">
-                                            <span class="compose-model-catalogue-option-name">${modelNames.get(modelLabel) || modelLabel}</span>
-                                            ${modelNames.get(modelLabel) !== modelLabel && html`<span class="compose-model-catalogue-option-key">${modelLabel}</span>`}
-                                            <span class="compose-model-catalogue-option-badges">
-                                                ${modelMetadata.get(modelLabel)?.reasoning === true && html`<span class="compose-model-catalogue-badge">Reasoning</span>`}
-                                                ${Number.isInteger(modelMetadata.get(modelLabel)?.contextWindow) && modelMetadata.get(modelLabel).contextWindow > 0 && html`<span class="compose-model-catalogue-badge">${modelMetadata.get(modelLabel).contextWindow.toLocaleString('en-US')} context tokens</span>`}
-                                            </span>
-                                        </span>
-                                    </button></div>
-                                `)}
-                                </div>`)}
-                            </div>`)}
+                            <div class="compose-model-popup-menu compose-model-catalogue-results" id="compose-model-results" role="listbox" aria-label="Models">
+                                ${!loadingModels && filteredModels.length === 0 && html`<div class="compose-model-popup-empty">${modelQuery ? 'No matching models' : 'No models available.'}</div>`}
+                                ${!loadingModels && modelGroups.map(group => html`<section class="compose-model-catalogue-section" role="group" aria-label=${group.label}>
+                                    <div class="compose-model-catalogue-section-heading"><span>${group.label}</span><span>${group.models.length}</span></div>
+                                    ${(group.label === 'Current' || group.label === 'Pinned' ? [{ label: null, models: group.models }] : group.providers).map(provider => html`<div class="compose-model-catalogue-group" role=${provider.label ? 'group' : 'presentation'} aria-label=${provider.label || undefined}>
+                                        ${provider.label && html`<div class="compose-model-catalogue-group-heading"><span>${provider.label}</span><span>${provider.models.length}</span></div>`}
+                                        ${provider.models.map(modelLabel => {
+                                            const model = modelMetadata.get(modelLabel);
+                                            const displayName = modelNames.get(modelLabel) || modelLabel;
+                                            const context = model?.contextWindow ? (model.contextWindow / 1000).toFixed(0) + 'K context' : null;
+                                            return html`<button type="button" id=${'model-option-' + encodeURIComponent(modelLabel)} role="option" aria-selected=${modelLabel === activeModel} aria-label=${modelLabel} aria-description=${displayName + ', ' + (modelPins.includes(modelLabel) ? 'pinned. Alt+Enter to unpin.' : 'not pinned. Alt+Enter to pin.')} aria-keyshortcuts="Alt+Enter" class=${'compose-model-catalogue-option' + (modelLabel === activeModel ? ' selected' : '') + (modelLabel === highlightedModel ? ' focused' : '')} onFocus=${() => setHighlightedModel(modelLabel)} data-model-label=${modelLabel} disabled=${switchingModel} onMouseDown=${e => e.preventDefault()} onMouseEnter=${() => setHighlightedModel(modelLabel)} onClick=${() => handleSelectModel(modelLabel)}>
+                                                <span class=${'compose-model-catalogue-pin' + (modelPins.includes(modelLabel) ? ' pinned' : '')} role="button" aria-pressed=${modelPins.includes(modelLabel)} aria-label=${(modelPins.includes(modelLabel) ? 'Unpin model ' : 'Pin model ') + modelLabel} onClick=${e => { e.preventDefault(); e.stopPropagation(); toggleModelPin(modelLabel); }}>${modelPins.includes(modelLabel) ? '★' : '☆'}</span>
+                                                <span class="compose-model-catalogue-option-content"><span class="compose-model-catalogue-option-primary"><span class="compose-model-catalogue-option-name">${displayName}</span></span>
+                                                    ${displayName !== modelLabel && html`<span class="compose-model-catalogue-option-key">${modelLabel}</span>`}
+                                                    ${(model?.reasoning || context) && html`<span class="compose-model-catalogue-option-badges">${context && html`<span class="compose-model-catalogue-badge">${context}</span>`}${model?.reasoning && html`<span class="compose-model-catalogue-badge">reasoning</span>`}</span>`}
+                                                </span>
+                                            </button>`;
+                                        })}
+                                    </div>`)}
+                                </section>`)}
                             </div>
-                            ${!loadingModels && sessionCatalog?.available && sessionCatalog.thinking_levels?.length > 0 && html`<label class="compose-session-row-meta">Thinking level
-                                <select aria-label="Select thinking level" value=${thinkingLevel || ''} disabled=${switchingModel} onChange=${event => handleCycleThinking(event.target.value)}>
-                                    ${!sessionCatalog.thinking_levels.includes(thinkingLevel) && html`<option value="" disabled>Unknown</option>`}
-                                    ${sessionCatalog.thinking_levels.map(level => html`<option value=${level}>${level}</option>`)}
-                                </select>
-                            </label>`}
                             <dialog key="model-settings" ref=${modelSettingsRef} onCancel=${() => setModelSettingsOpen(false)} onClose=${() => setModelSettingsOpen(false)} class="model-settings-dialog" aria-label="Models settings" onKeyDown=${event => event.stopPropagation()} onClick=${event => event.stopPropagation()}>
                                 <h2>Models settings</h2>
+                                <button type="button" disabled=${loadingModels} onClick=${() => { setModelRefresh(value => value + 1); setModelSettingsOpen(false); modelSettingsRef.current?.close(); }}>Refresh model catalog</button>
+                                <button type="button" disabled=${switchingModel || loadingModels || modelOptions.length === 0} onClick=${() => { setModelSettingsOpen(false); modelSettingsRef.current?.close(); void handleCycleModel(); }}>Next model</button>
                                 <p>Browser pins: ${modelPins.length ? modelPins.join(', ') : 'None'}</p>
                                 <p>Provider credentials and model defaults are not managed here. Catalogue availability does not verify provider authentication.</p>
                                 <p>Load replaces browser pins. Save replaces instance pins only against the version last loaded.</p>
@@ -1171,15 +1154,11 @@ export function ComposeBox({
                             </dialog>
                             <div class="compose-model-catalogue-footer">
                                 <div class="compose-model-catalogue-footer-start">
-                                <button type="button" class="compose-model-popup-btn" disabled=${loadingModels || switchingModel} onClick=${() => setModelRefresh(value => value + 1)}>Refresh model catalog</button>
-                                <button
-                                    type="button"
-                                    class="compose-model-popup-btn"
-                                    onClick=${() => { void handleCycleModel(); }}
-                                    disabled=${switchingModel || loadingModels || (!sessionCatalog?.available || !modelOptions.length)}
-                                >
-                                    Next model
-                                </button>
+                                    ${!loadingModels && sessionCatalog?.thinking_levels?.length > 0 && html`<label class="compose-model-catalogue-thinking"><span>Thinking</span>
+                                        <select aria-label="Select thinking level" value=${thinkingLevel || ''} disabled=${switchingModel} onChange=${event => handleCycleThinking(event.target.value)}>
+                                            ${sessionCatalog.thinking_levels.map(level => html`<option value=${level}>${level}</option>`)}
+                                        </select>
+                                    </label>`}
                                 </div>
                                 <button type="button" class="compose-model-popup-btn primary" onClick=${() => { setModelSettingsOpen(true); modelSettingsRef.current?.showModal(); }}>Open Models settings</button>
                             </div>
@@ -1204,7 +1183,7 @@ export function ComposeBox({
                             <div class="compose-model-meta-subline">
                             ${usageMeta.label && html`<span class="compose-model-usage-hint" title=${usageMeta.title} aria-label=${usageMeta.title}>${usageMeta.label}</span>`}
                             ${supportsThinking && html`
-                                <button type="button" class="compose-thinking-pill"
+                                <button type="button" class="compose-thinking-pill compose-model-usage-hint"
                                     aria-label="Cycle thinking level"
                                     title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
                                     onClick=${() => { void handleCycleThinking(); }}

@@ -285,15 +285,14 @@ html[data-tint]::after {
 
 .compose-thinking-pill {
     flex-shrink: 0;
-    border: 1px solid var(--border-color);
-    background: var(--bg-primary);
+    border: 0;
+    background: transparent;
     color: var(--text-secondary);
-    border-radius: var(--radius-full);
-    font-size: 11px;
-    line-height: 1;
-    padding: 4px 8px;
+    border-radius: 0;
+    padding: 0;
     cursor: pointer;
-    transition: background-color var(--ui-transition-fast), color var(--ui-transition-fast), border-color var(--ui-transition-fast);
+    font-family: inherit;
+    text-align: left;
 }
 
 .compose-thinking-pill:hover,
@@ -442,4 +441,31 @@ html[data-tint]::after {
 @media (max-width: 600px) {
     .system-meters-source { max-width: 100%; }
     .system-meters-compact-summary { white-space: normal; overflow-wrap: anywhere; }
+}
+
+/* Current classic context control is a 22px gauge in a 4px button inset. */
+button.compose-context-pie {
+    padding: 4px;
+    border: 0;
+    background: transparent;
+    color: var(--accent-color);
+    border-radius: 0;
+}
+
+@media (max-width: 639px) {
+    .compose-model-popup.compose-model-catalogue {
+        position: fixed;
+        inset: 8px;
+        width: auto;
+        height: auto;
+        max-width: none;
+        max-height: none;
+    }
+}
+
+.compose-model-catalogue-thinking { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 11px; }
+.compose-model-catalogue-thinking select { max-width: 140px; min-height: 32px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg-primary); color: var(--text-primary); font-size: 11px; padding: 4px 8px; }
+@media (max-width: 639px) {
+    .compose-model-catalogue-footer select { min-height: 44px; font-size: 12px; }
+    .compose-model-catalogue-thinking { width: 100%; }
 }

@@ -671,7 +671,7 @@ function Post({
                         onClick=${handleCopyClick}
                         disabled=${!String(data.content || displayContent || '').trim()}
                     >
-                        ${copyState === 'success' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>` : copyState === 'error' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>` : html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg>`}
+                        ${copyState === 'success' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>` : copyState === 'error' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>` : html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="12" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>`}
                     </button>
                     <button
                         class="post-action-btn post-delete-btn"

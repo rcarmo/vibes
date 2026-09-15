@@ -106,3 +106,27 @@ Validation: build/lint, 564 backend tests, 28 frontend tests (161 assertions), a
 46 focused headed Chromium/WebKit tests passed, one worker and no retries. The
 browser checks include meter refresh/failure recovery, mobile layout, keyboard
 collapse/restore, quick actions, cancellation and composer sizing.
+
+## Controlled visual parity, first fix pass
+
+The shared fixture exposed a wrong composer-height storage key on its Vibes side.
+With the same 80px preference applied to both UIs, the remaining footer difference
+came from Vibes' bordered thinking control and an unstyled context-gauge button.
+Those now use classic geometry while preserving thinking changes and guarded
+compaction. Short Draft/Thought previews no longer show an overflow toggle;
+expanded long previews retain it. Overflow measurement runs outside the
+ResizeObserver callback to avoid WebKit notification loops.
+
+The model picker now uses classic option/section markup, mobile sizing and footer
+thinking controls. Refresh/cycle remain in Models settings, pinning and keyboard
+focus remain available. Meters retain their source description in the tooltip
+rather than an extra visible heading, and their compact summary follows classic
+ordering. Disclosure triangles and message Copy icons use matching SVG geometry.
+
+This is not final parity. The corrected 36-comparison matrix has zero browser
+errors, unhandled requests or changed pixels between repeats. Meter regions match
+in all captures, while session/quick-action presentation and smaller browser-specific
+differences remain. Regression validation: 570 backend tests, 30 frontend tests
+(220 assertions), 152 headed Chromium/WebKit cases, plus eight status cases after
+the ResizeObserver correction. Earlier failures were retained and resolved before
+this checkpoint; they were not retries of a failing acceptance run.

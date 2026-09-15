@@ -77,3 +77,15 @@ This is a focused baseline, not exhaustive parity coverage: light mode, expanded
 status panels, workspace/editor/terminal panes, permission dialogs, real runtime
 execution and OS-specific fonts are not covered yet. Add states to the shared
 fixture and explicit adapters before expanding the matrix.
+
+## Corrections found during the first UI fix pass
+
+The original baseline accidentally set `vibes_compose_height` on Vibes instead of
+its actual `piclaw_compose_height` preference. Both now receive an 80px textarea
+height. This means the initial reported 27.8px mobile height gap was partly a
+fixture error, not a production layout defect. Keep the original report as
+historical evidence; do not use its height percentages as the corrected baseline.
+
+The reference model catalogue now receives the same per-model thinking levels
+as Vibes. Geometry capture includes the textarea, footer, gauge, model hint and
+status title/body to separate missing fixture state from product styling.

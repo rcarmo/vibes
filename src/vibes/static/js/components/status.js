@@ -1,5 +1,6 @@
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
+import { disclosureTriangle } from './disclosure-triangle.js';
 
 const RATE_LIMIT_RE = /429|rate.?limit|too many requests|requests per minute|tokens per minute|rpm|tpm/i;
 
@@ -73,6 +74,26 @@ export function AgentStatus({
 
     const [expandedPanels, setExpandedPanels] = useState(new Set());
     const panelBodies = useRef(new Map());
+    const [overflowingPanels, setOverflowingPanels] = useState({});
+    useEffect(() => {
+        const measure = () => {
+            const next = {};
+            for (const [key, body] of panelBodies.current) {
+                const lineHeight = parseFloat(getComputedStyle(body).lineHeight) || 18;
+                next[key] = body.scrollHeight > lineHeight * 9 + 1;
+            }
+            setOverflowingPanels(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
+        };
+        let frame = 0;
+        const scheduleMeasure = () => {
+            cancelAnimationFrame(frame);
+            frame = requestAnimationFrame(measure);
+        };
+        const observer = new ResizeObserver(scheduleMeasure);
+        for (const body of panelBodies.current.values()) observer.observe(body);
+        scheduleMeasure();
+        return () => { cancelAnimationFrame(frame); observer.disconnect(); };
+    }, [draftInfo.text, thoughtInfo.text, expandedPanels, turnId]);
     const toggleExpand = (key) => {
         setExpandedPanels((prev) => {
             const next = new Set(prev);
@@ -122,6 +143,8 @@ export function AgentStatus({
     const activeTurn = status?.turn_id || turnId;
     const turnColor = getTurnColor ? getTurnColor(activeTurn) : null;
     const dotClass = steerQueued ? 'turn-dot turn-dot-queued' : 'turn-dot';
+    const statusIndicator = isLastActivity || status?.type === 'error' ? 'none'
+        : status?.tool_name || status?.command || ['tool_call', 'tool_status', 'thinking', 'waiting'].includes(status?.type) ? 'spinner' : 'dot';
     const renderThinking = renderThinkingMarkdown || ((value) => value || '');
 
     const renderThinkingPanel = ({ panelTitle, text, totalLines, maxLines, titleClass, panelKey }) => {
@@ -160,9 +183,9 @@ export function AgentStatus({
                 <div class="agent-thinking-title ${titleClass || ''}">
                     ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
                     ${panelTitle}
-                    ${isCollapsible && html`
+                    ${isCollapsible && (totalLines > maxLines || truncated.omitted > 0 || overflowingPanels[panelKey]) && html`
                         <button class="agent-thinking-truncation" onClick=${handleExpand} title=${isExpanded ? `Show fewer ${panelTitle} lines` : `Show more ${panelTitle}`}>
-                            <span class="agent-thinking-truncation-arrow" aria-hidden="true">${isExpanded ? '▴' : '▾'}</span>
+                            <span class="agent-thinking-truncation-arrow" aria-hidden="true">${disclosureTriangle(isExpanded ? 'up' : 'down')}</span>
                             <span>${isExpanded ? 'less' : 'more…'}</span>
                         </button>
                     `}
@@ -213,8 +236,8 @@ export function AgentStatus({
             })}
             ${status && html`
                 <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}${status?.type === 'error' ? ' agent-status-error' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
-                    ${turnColor && html`<span class=${dotClass} aria-hidden="true"></span>`}
-                    ${status?.type === 'error' ? html`<span class="agent-status-error-icon" aria-hidden="true">⚠</span>` : (!isLastActivity && html`<div class="agent-status-spinner"></div>`)}
+                    ${turnColor && statusIndicator === 'dot' && html`<span class=${dotClass} aria-hidden="true"></span>`}
+                    ${status?.type === 'error' ? html`<span class="agent-status-error-icon" aria-hidden="true">⚠</span>` : (statusIndicator === 'spinner' && html`<div class="agent-status-spinner"></div>`)}
                     <span class="agent-status-text">${content}</span>
                 </div>
             `}

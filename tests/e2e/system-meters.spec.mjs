@@ -13,7 +13,7 @@ test('desktop server meters render real-shaped histories, optional GPU, collapse
   await page.goto('/');
   const hud = page.getByTestId('system-meters');
   await expect(hud).toHaveAttribute('data-state', 'ready');
-  await expect(hud).toContainText('remote-box');
+  await expect(hud.locator('button')).toHaveAttribute('title', /remote-box/);
   for (const [row, value] of [['cpu','42%'],['ram','64%'],['rss','128M'],['buf','1.0G'],['swap','25%']]) {
     await expect(hud.locator(`.system-meters-row.${row}`)).toContainText(value);
     await expect(hud.locator(`.system-meters-row.${row} path`)).toHaveAttribute('d', /^M /);

@@ -40,7 +40,7 @@ function freeze({app,now,compose}) {
  const NativeDate=Date;class FixedDate extends NativeDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
  window.Date=FixedDate;
  localStorage.clear();sessionStorage.clear();
- const values=app==='piclaw'?{piclaw_theme:'dark',piclaw_system_meters_enabled:'true',piclaw_system_meters_collapsed:'false',workspaceVisible:'false',workspaceOpen:'false',piclaw_workspace_visible:'false',piclaw_compose_height:'80'}:{workspaceOpen:'false',workspaceVisible:'false',vibes_theme:'dark',vibes_system_meters_collapsed:'false',vibes_compose_height:'80'};
+ const values=app==='piclaw'?{piclaw_theme:'dark',piclaw_system_meters_enabled:'true',piclaw_system_meters_collapsed:'false',workspaceVisible:'false',workspaceOpen:'false',piclaw_workspace_visible:'false',piclaw_compose_height:'80'}:{workspaceOpen:'false',workspaceVisible:'false',vibes_theme:'dark',vibes_system_meters_collapsed:'false',piclaw_compose_height:'80'};
  for(const [k,v]of Object.entries(values))localStorage.setItem(k,v);
  window.__fixtureStreams=[];
  class Stream {
@@ -120,7 +120,7 @@ async function capture(browser,app,scenario,view,pass){
   if(scenario==='attachment')await expect(page.locator('#post-103 img[src*="/media/7"]')).toBeVisible();
   if(errors.length || unhandled.length)throw Error('Fixture diagnostics: '+JSON.stringify({errors,unhandled}));
   await page.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode().catch(()=>{})));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));});
-  const geometry=await page.evaluate(()=>Object.fromEntries(['.compose-box','.timeline','.agent-status-panel','.compose-session-popup','.compose-model-popup','.timeline-quick-actions','.system-meters-hud','.post','#post-103 img'].map(selector=>[selector,[...document.querySelectorAll(selector)].map(el=>{const b=el.getBoundingClientRect(),s=getComputedStyle(el);return {x:b.x,y:b.y,width:b.width,height:b.height,font:s.font,fontSize:s.fontSize,color:s.color,background:s.backgroundColor,padding:s.padding,border:s.border,display:s.display};})])));
+  const geometry=await page.evaluate(()=>Object.fromEntries(['.compose-box','.timeline','.agent-status-panel','.compose-session-popup','.compose-model-popup','.timeline-quick-actions','.system-meters-hud','.post','#post-103 img','.compose-input-wrapper','.compose-input-main','.compose-box textarea','.compose-footer','.compose-footer-left','.compose-actions','.compose-context-group','.compose-model-hint-btn','.compose-session-switcher-btn','.compose-context-pie','.agent-thinking-title','.agent-thinking-body'].map(selector=>[selector,[...document.querySelectorAll(selector)].map(el=>{const b=el.getBoundingClientRect(),s=getComputedStyle(el);return {x:b.x,y:b.y,width:b.width,height:b.height,font:s.font,fontSize:s.fontSize,color:s.color,background:s.backgroundColor,padding:s.padding,border:s.border,display:s.display};})])));
   await page.screenshot({path:resolve(output,stem+'.png'),animations:'disabled'});
   const text=await page.locator('body').innerText();
   const focus=await page.evaluate(()=>({tag:document.activeElement?.tagName,classes:document.activeElement?.className}));

@@ -18,7 +18,7 @@ for (const width of [1280, 390]) {
         const hint = page.locator('.compose-model-usage-hint');
         await expect(hint).toHaveText('USD 0.00');
         await expect(hint).toHaveAttribute('title', /Input: 773.*Output: 35/);
-        const gauge = page.getByRole('img', { name: /^Context:/ });
+        const gauge = page.getByRole('button', { name: /^Context:/ });
         await expect(gauge).toBeVisible();
         await expect(gauge).toHaveAttribute('title', /Cache read: 2,176/);
         await expect(page.getByRole('button', { name: /Compact context$/ })).toHaveCount(0);
@@ -37,7 +37,7 @@ test('cost-only ACP report survives missing percent; unsupported next session cl
         ? { ...reported, tokens: null, contextWindow: null, percent: null } : { percent: null, cost: null, turnUsage: null });
     await page.goto('/');
     await expect(page.locator('.compose-model-usage-hint')).toHaveText('USD 0.00');
-    await expect(page.getByRole('img', { name: /^Context:/ })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Context:/ })).toHaveCount(0);
     const created = await page.request.post('/sessions', { data: { name: 'No reported usage' } });
     const id = (await created.json()).session.id;
     await page.getByTestId('session-switcher').click();
