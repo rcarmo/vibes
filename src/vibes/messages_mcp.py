@@ -57,6 +57,15 @@ class MessagesMCP(AsyncMCPServer):
                 raise ValueError('Attachment endpoint must be the local Vibes service')
             self.register_tool('attach_file', self.attach_file, description=ATTACH_DESCRIPTION, input_schema=ATTACH_SCHEMA,
                                annotations={'readOnlyHint': False, 'destructiveHint': False})
+            self.register_tool('plan', self.plan,
+                description='Read/update the shared current-session Plan sidebar (max128KiB). Read first; mutations require expected_revision. update uses plan:[{step,status:pending|in_progress|completed}]. patch uses patches:[{operation:add|update|remove,index:1-based OR match:unique,step?,status?,position:start|end}]. edit uses edits:[{operation:replace|delete|insert_before|insert_after|append|prepend,oldText?,newText?,text?,anchorText?}], exact anchors only. At most one in-progress item; destination is bound to the active turn.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['action'], 'properties': {
+                    'action': {'type': 'string', 'enum': ['read', 'write', 'update', 'patch', 'edit']},
+                    'expected_revision': {'type': 'integer', 'minimum': 0}, 'markdown': {'type': 'string'},
+                    'plan': {'type': 'array', 'items': {'type': 'object'}},
+                    'patches': {'type': 'array', 'items': {'type': 'object'}},
+                    'edits': {'type': 'array', 'items': {'type': 'object'}},
+                }}, annotations={'readOnlyHint': False, 'destructiveHint': False})
         self.workspace = WorkspaceTools(workspace_root) if workspace_root else None
         if self.workspace:
             self.register_tool('workspace_list', self.workspace_list,
@@ -75,6 +84,19 @@ class MessagesMCP(AsyncMCPServer):
             self.register_tool('messages', self.messages,
                 description=TOOL['description'], input_schema=TOOL['inputSchema'],
                 annotations=TOOL['annotations'])
+
+    async def plan(self, action, expected_revision=None, markdown=None, plan=None, patches=None, edits=None):
+        fields = {'read': set(), 'write': {'markdown'}, 'update': {'plan'}, 'patch': {'patches'}, 'edit': {'edits'}}
+        allowed = {'action', 'expected_revision'} | fields.get(action, set())
+        params = {key: value for key, value in {'action': action, 'expected_revision': expected_revision,
+                  'markdown': markdown, 'plan': plan, 'patches': patches, 'edits': edits}.items() if value is not None and key in allowed}
+        url = self.attachment_url.removesuffix('/attach-file') + '/plan'
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.post(url, json=params, headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'Plan operation failed'))
+                return result
 
     async def attach_file(self, path: str, name=None, content_type=None, kind=None, request_id=None):
         params = {key: value for key, value in {'path': path, 'name': name, 'content_type': content_type,

@@ -38,6 +38,8 @@ The pill inside the composer selects a conversation and opens session management
 
 Agents can post generated images and files directly to the timeline with Pi's `vibes_attach_file` or ACP's `attach_file` tool. The file is stored immediately, so it survives reloads without the model copying image bytes into its final answer. See [agent attachments](docs/AGENT_ATTACHMENTS.md) for supported formats, inline references and limits.
 
+The right-hand [Plan drawer](docs/PLAN.md) shares its persistent checklist with the model through Pi `vibes_plan` or ACP `plan`. Browser and tool edits use revisions so a stale save cannot overwrite another editor's changes.
+
 Model and thinking controls depend on the selected adapter. Context occupancy and cost appear only when the agent reports usable values. For ACP, the context gauge offers compaction only when the agent advertises a no-argument `compact` command. Missing telemetry is not treated as zero.
 
 Conversations have separate stored timelines and agent-session bindings, but they share a server account and workspace. They are not security sandboxes. ACP text attachments can be read through the optional scoped messages tool; image and binary attachments have metadata-only retrieval through that tool, not guaranteed native model input. See the [agent file-access contract][files] for the exact boundary.

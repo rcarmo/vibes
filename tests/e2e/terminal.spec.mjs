@@ -200,7 +200,8 @@ test('mobile drawer backdrop closes without activating underlying chat', async (
     const toggle = page.locator('.workspace-toggle-tab');
     await toggle.click();
     await expect(page.locator('.workspace-drawer-backdrop')).toBeVisible();
-    await page.mouse.click(380, 400);
+    // Outside the drawer, away from the persistent right-hand Plan toggle.
+    await page.mouse.click(380, 200);
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
     await expect(page.locator('.workspace-drawer-backdrop')).toHaveCount(0);
     await expect(page.locator('.compose-input-main textarea')).not.toBeFocused();

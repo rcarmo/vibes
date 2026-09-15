@@ -42,7 +42,7 @@ test('app switches sessions with separate drafts and explicit send identity', as
     await input.fill('other draft');
     await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem('vibes_compose_draft:' + key) || '{}').text, id)).toBe('other draft');
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('option').filter({ hasText: '@default' }).click();
+    await page.locator('#session-option-default').click();
     await expect(input).toHaveValue('default draft');
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();

@@ -13,5 +13,8 @@ PI_PROMPT_PREFIX = (
     "  Do not paste base64 or copy image tool-result blocks into your final response.\n"
     "  For an explicit inline embed later, use ![caption](attachment:ID) from the tool result.\n"
     "  PNG/JPEG/GIF/WebP/AVIF display inline; SVG and other files are download attachments.\n"
+    "- Use vibes_plan to read/update the shared session Plan sidebar. Read before relying on it;\n"
+    "  mutations require expected_revision from the latest read. Keep at most one in_progress item.\n"
+    "  This Plan is shared with the user, not the streaming Planning preview.\n"
     "Do not emit raw HTML."
 )

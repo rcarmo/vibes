@@ -26,9 +26,13 @@ test('reload uses paired content-versioned assets and keeps the desktop picker a
         const popup = await picker.boundingBox();
         const composer = await page.locator('.compose-input-wrapper').boundingBox();
         expect(popup.y).toBeGreaterThan(0);
-        expect(popup.y + popup.height).toBeLessThanOrEqual(composer.y - 5);
-        expect(Math.abs(popup.x - composer.x)).toBeLessThanOrEqual(1);
-        expect(Math.abs(popup.width - composer.width)).toBeLessThanOrEqual(2);
+        const trigger = await page.getByTestId('session-switcher').boundingBox();
+        expect(popup.y + popup.height).toBeLessThanOrEqual(trigger.y + 1);
+        expect(popup.y + popup.height).toBeLessThanOrEqual(composer.y + 3);
+        // Reference classic aligns the popup to the composer's inner content box:
+        // 10px padding + 1px border each side (measured in the repeated dual-UI fixture).
+        expect(popup.x - composer.x).toBeCloseTo(11, 0);
+        expect(composer.width - popup.width).toBeCloseTo(22, 0);
         await page.getByRole('combobox', { name: 'Search sessions' }).press('Escape');
         await expect(page.getByTestId('session-switcher')).toBeFocused();
     }

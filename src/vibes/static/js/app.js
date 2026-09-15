@@ -1,6 +1,7 @@
 import { SessionDeleteDialog } from './components/session-delete-dialog.js';
 import { SessionNameDialog } from './components/session-name-dialog.js';
 import { SessionPicker } from './components/session-picker.js';
+import { installPlanSidebar } from './components/plan-sidebar.js';
 import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue, getSessionModelState } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
@@ -707,6 +708,10 @@ function App() {
     const [posts, setPosts] = useState(null);
     const [selectedSession, setSelectedSession] = useState('default');
     const selectedSessionRef = useRef('default');
+    useEffect(() => {
+        globalThis.__vibesCurrentSession = selectedSession;
+        window.dispatchEvent(new CustomEvent('vibes:session-changed', { detail: { session_id: selectedSession } }));
+    }, [selectedSession]);
     const switchGeneration = useRef(0);
     const searchGeneration = useRef(0);
     const modelGeneration = useRef(0);
@@ -1628,6 +1633,7 @@ function App() {
         // Keep cancel available through stream interruptions. Only scoped server
         // state or a terminal event can establish that the turn has ended.
         if (status !== 'connected') return;
+        if (hasConnectedOnceRef.current) window.dispatchEvent(new CustomEvent('vibes:reconnected'));
         hasConnectedOnceRef.current = true;
         void refreshSelectedTurn();
         void refreshSelectedContext();
@@ -1951,6 +1957,10 @@ function App() {
                 steerQueuedTurnIdRef.current = targetTurn;
                 setSteerQueuedTurnId(targetTurn);
             }
+            return;
+        }
+        if (eventType === 'plan_updated') {
+            window.dispatchEvent(new CustomEvent('vibes:plan-updated', { detail: data }));
             return;
         }
         if (eventType === 'sessions_changed') {
@@ -2583,3 +2593,4 @@ function App() {
 
 // Mount the app
 render(html`<${App} />`, document.getElementById('app'));
+if (!new URLSearchParams(window.location.search).has('popout')) installPlanSidebar();

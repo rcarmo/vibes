@@ -573,6 +573,9 @@ export class SSEClient {
             this.onEvent('sessions_changed', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('plan_updated', (e) => {
+            this.onEvent('plan_updated', JSON.parse(e.data));
+        });
         this.eventSource.addEventListener('session_model_changed', (e) => {
             this.onEvent('session_model_changed', JSON.parse(e.data));
         });

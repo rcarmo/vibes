@@ -51,7 +51,7 @@ test('upload cancellation keeps draft and prevents send', async ({ page }) => {
     await page.locator('input[type=file][hidden]').setInputFiles({ name: 'slow.txt', mimeType: 'text/plain', buffer: Buffer.from('data') });
     await page.getByTitle('Send (Enter); steer with Ctrl/Cmd+Enter', { exact: true }).click();
     await expect(page.getByTestId('compose-upload-status')).toBeVisible();
-    await expect(page.getByRole('progressbar')).toBeVisible();
+    await expect(page.getByRole('progressbar', { name: 'Attachment upload progress' })).toBeVisible();
     await page.getByRole('button', { name: 'Cancel upload' }).click();
     await expect(page.getByTestId('compose-upload-status')).toHaveCount(0);
     await expect(page.getByRole('alert')).toContainText('Upload cancelled');

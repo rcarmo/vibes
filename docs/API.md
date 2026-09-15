@@ -66,6 +66,16 @@
 | POST | `/agent/whitelist` | Add pattern to whitelist |
 | DELETE | `/agent/whitelist` | Remove pattern from whitelist |
 
+## Session Plan
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/sessions/{id}/plan` | Read the persistent session checklist and revision |
+| PUT | `/sessions/{id}/plan` | Save `markdown` with `expected_revision`; stale revisions return 409 |
+| POST | `/internal/agent-tools/plan` | Local turn-owned Plan tool; same store and revision checks |
+
+See [shared Plan](PLAN.md) for the sidebar, Pi `vibes_plan`, ACP `plan`, and conflict semantics.
+
 ## Avatars
 
 | Method | Endpoint | Description |
@@ -83,6 +93,7 @@
 | Event | Description |
 |-------|-------------|
 | `connected` | Connection established |
+| `plan_updated` | Shared Plan saved; session ID, Markdown and revision |
 | `new_post` | New post created |
 | `new_reply` | New reply in thread |
 | `agent_response` | Agent posted a response |

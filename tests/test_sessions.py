@@ -35,7 +35,8 @@ async def test_registry_survives_reopen_without_duplicate_migration(db):
     async with db._connection.execute('SELECT version FROM schema_version') as cursor:
         rows = await cursor.fetchall()
     assert len(rows) == 1
-    assert rows[0]['version'] == 7
+    from vibes.db import SCHEMA_VERSION
+    assert rows[0]['version'] == SCHEMA_VERSION
 
 
 @pytest.mark.asyncio
