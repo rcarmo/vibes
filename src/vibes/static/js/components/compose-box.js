@@ -117,8 +117,9 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                             <button
                                 type="button"
                                 class="compose-queue-stack-steer-btn"
-                                title="Inject as steer"
+                                title=${onSteer ? 'Inject as steer' : 'Steering requires a matching active turn'}
                                 aria-label=${`Promote queued item to steering: ${itemLabel}`}
+                                disabled=${!onSteer}
                                 onClick=${() => onSteer?.(item.row_id)}
                             >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

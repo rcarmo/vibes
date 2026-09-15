@@ -22,6 +22,32 @@ test('queue move buttons submit direction and reflect server order', async ({ pa
     expect(payload).toEqual({ row_id: -2, direction: 'up' });
 });
 
+test('idle queued items disable steering and send no request', async ({ page }) => {
+    let requests = 0;
+    await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [{ row_id: -1, content: 'Idle queued', agent_id: 'default', thread_id: 1 }], pending_steers: [] } }));
+    await page.route('**/agent/queue-steer', route => { requests++; return route.fulfill({ json: {} }); });
+    await page.goto('/');
+    const steer = page.getByRole('button', { name: /Promote queued item to steering/ });
+    await expect(steer).toBeDisabled();
+    await expect(steer).toHaveAttribute('title', 'Steering requires a matching active turn');
+    await steer.press('Enter');
+    expect(requests).toBe(0);
+});
+
+test('active queued item steering submits its durable ID once', async ({ page }) => {
+    let requests = [];
+    await page.addInitScript(() => { window.EventSource = class extends EventTarget { constructor(){ super(); window.testEventSource=this; } close(){} }; });
+    await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [{ row_id: -7, content: 'Active queued', agent_id: 'default', thread_id: 1 }], pending_steers: [] } }));
+    await page.route('**/agent/queue-steer', async route => { requests.push(route.request().postDataJSON()); await new Promise(resolve=>setTimeout(resolve,30)); await route.fulfill({ json: { status: 'ok' } }); });
+    await page.goto('/');
+    await page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('agent_status', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', type: 'thinking', title: 'Thinking' }) })));
+    const steer = page.getByRole('button', { name: /Promote queued item to steering/ });
+    await expect(steer).toBeEnabled();
+    await steer.click(); await steer.click({ force: true });
+    await expect.poll(() => requests.length).toBe(1);
+    expect(requests[0]).toEqual({ row_id: -7 });
+});
+
 test('queued steering renders the classic queued turn dot', async ({ page }) => {
     await page.addInitScript(() => {
         window.EventSource = class extends EventTarget {

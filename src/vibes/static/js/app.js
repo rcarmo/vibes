@@ -1875,14 +1875,18 @@ function App() {
         } catch (err) { alert(err.message || 'Failed to reorder queue.'); }
     }, []);
 
+    const steeringQueueRowsRef = useRef(new Set());
     const handleQueueSteer = useCallback(async (rowId) => {
-        if (rowId == null) return;
+        if (rowId == null || steeringQueueRowsRef.current.has(rowId)) return;
+        steeringQueueRowsRef.current.add(rowId);
         try {
             await steerAgentQueueItem(rowId);
             await refreshSelectedQueue();
         } catch (error) {
             console.error('Failed to steer queued item:', error);
             alert('Failed to steer queued item: ' + error.message);
+        } finally {
+            steeringQueueRowsRef.current.delete(rowId);
         }
     }, []);
 
@@ -2543,7 +2547,7 @@ function App() {
                     prefillRequest=${composePrefill}
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}
-                    onQueueSteer=${handleQueueSteer}
+                    onQueueSteer=${turnRunning && currentTurnId ? handleQueueSteer : undefined}
                     onQueueReorder=${handleQueueReorder}
                     sessionPicker=${sessionPickerOpen && html`<${SessionPicker} sessions=${sessionOptions} refreshError=${sessionRefreshError} currentId=${selectedSession} onSelect=${async id => { if (sessionOptions.find(item => item.id === id)?.archived) { await updateSession(id, { archived: false }); await refreshSessions(); } await selectSession(id); }} onClose=${closeSessionPicker}
                         onCreate=${() => { createdSessionRef.current = null; createParentRef.current = null; setCreatingSession(true); }}
