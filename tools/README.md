@@ -1,5 +1,11 @@
 # Developer tools
 
+## Same-state Vibes/Piclaw comparison
+
+See [the dual-UI visual fixture](../tests/visual-parity/README.md) for isolated
+full-app captures, repeatability checks, side-by-side images, pixel diffs and
+regional comparisons. It does not call live APIs or alter running services.
+
 ## UI screenshots
 
 Install frontend dependencies (`bun install --frozen-lockfile`) and the browser
