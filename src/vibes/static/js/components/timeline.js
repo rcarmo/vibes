@@ -1,5 +1,8 @@
 import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { getMediaInfo, getMediaUrl, getThumbnailUrl } from '../api.js';
+import { FilePill } from './file-pill.js';
+import { highlightCodeToHtml } from '../code-highlighting.js';
+import { buildSpeakablePostText, getSpeechPlaybackState, isSpeechSynthesisSupported, speakPostText, stopSpeechPlayback, subscribeSpeechPlayback } from './post-speech.js';
 
 const SAFE_URL_RE = /^(https?:|mailto:|blob:|data:)/i;
 function sanitizeUrl(url) {
@@ -53,22 +56,9 @@ function highlightHtml(htmlStr, query) {
 }
 
 const CODE_COPY_RESET_MS = 2000;
-const COPY_ICON_SVG = `
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-        <rect x="5" y="3" width="8" height="10" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"></rect>
-        <path d="M3 11V4.5C3 3.67 3.67 3 4.5 3H10" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"></path>
-    </svg>
-`;
-const COPY_SUCCESS_SVG = `
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-        <path d="M3.5 8.5 6.5 11.5 12.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path>
-    </svg>
-`;
-const COPY_ERROR_SVG = `
-    <svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true" focusable="false">
-        <path d="M4.5 4.5 11.5 11.5M11.5 4.5 4.5 11.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
-    </svg>
-`;
+const COPY_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg>';
+const COPY_SUCCESS_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 12.5 9.5 17 19 7.5"/></svg>';
+const COPY_ERROR_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 5v9"/><circle cx="12" cy="18" r="1"/><circle cx="12" cy="12" r="9"/></svg>';
 
 async function copyCodeText(text) {
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
@@ -128,6 +118,12 @@ function enhanceCodeBlocks(container) {
     };
 
     blocks.forEach((pre) => {
+        const code = pre.querySelector('code');
+        if (code && !code.classList.contains('hljs')) {
+            const language = [...code.classList].find(value => value.startsWith('language-'))?.slice(9) || '';
+            code.innerHTML = highlightCodeToHtml(code.textContent || '', language);
+            code.classList.add('hljs');
+        }
         const wrapper = document.createElement('div');
         wrapper.className = 'post-code-block';
         pre.parentNode?.insertBefore(wrapper, pre);
@@ -327,6 +323,26 @@ function ResourceBlock({ block }) {
     `;
 }
 
+function AttachmentPill({ attachment, onPreview }) {
+    const id = Number(attachment.id);
+    const [info, setInfo] = useState(null);
+    useEffect(() => {
+        let cancelled = false;
+        if (Number.isSafeInteger(id) && id > 0) getMediaInfo(id).then(value => { if (!cancelled) setInfo(value); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, [id]);
+    const filename = info?.filename || attachment.label;
+    if (!Number.isSafeInteger(id) || id <= 0) return html`<${FilePill} prefix="post" label=${attachment.label} />`;
+    return html`<span class="attachment-pill" title=${filename}>
+        <a href=${getMediaUrl(id)} download=${filename} class="attachment-pill-main" onClick=${e => e.stopPropagation()}>
+            <${FilePill} prefix="post" label=${attachment.label} title=${filename} />
+        </a>
+        ${info && onPreview && /^(text\/|application\/pdf$|image\/svg\+xml$)/.test(info.content_type || '') && html`<button type="button" class="attachment-pill-preview" title="Preview attachment" onClick=${e => { e.preventDefault(); e.stopPropagation(); onPreview(attachment); }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8-4 8-11 8S1 12 1 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>`}
+    </span>`;
+}
+
 function LinkPreview({ preview }) {
     const bgStyle = preview.image
         ? `background-image: url('${preview.image}')`
@@ -463,6 +479,20 @@ function Post({
     const [copyState, setCopyState] = useState('idle');
     const copyTimer = useRef(null);
     const contentRef = useRef(null);
+    // A mounted instance, not a row ID shared by timelines/sessions, owns playback.
+    const speechOwner = useRef(Symbol('post-speech'));
+    const [speechState, setSpeechState] = useState(getSpeechPlaybackState);
+    useEffect(() => subscribeSpeechPlayback(setSpeechState), []);
+    useEffect(() => () => {
+        if (getSpeechPlaybackState().activePostId === speechOwner.current) stopSpeechPlayback();
+    }, [post.id, post.chat_jid, post.data?.session_id]);
+    const speakingThisPost = speechState.speaking && speechState.activePostId === speechOwner.current;
+    const speakableText = buildSpeakablePostText(post.data?.content);
+    const handleSpeakClick = event => {
+        event.preventDefault(); event.stopPropagation();
+        if (speakingThisPost) stopSpeechPlayback();
+        else speakPostText(speechOwner.current, speakableText);
+    };
 
     const data = post.data;
     const isAgent = data.type === 'agent_response';
@@ -663,6 +693,14 @@ function Post({
             </div>
             <div class="post-body">
                 <div class="post-actions">
+                    ${isAgent && isSpeechSynthesisSupported() && speakableText && html`
+                        <button class=${`post-action-btn post-speak-btn${speakingThisPost ? ' is-active' : ''}`} onClick=${handleSpeakClick}
+                            title=${speakingThisPost ? 'Stop reading aloud' : 'Read aloud'} aria-label=${speakingThisPost ? 'Stop reading aloud' : 'Read aloud'}>
+                            ${speakingThisPost
+                                ? html`<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="1.2"/></svg>`
+                                : html`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3 3.5 6H1.75v4H3.5L7 13V3Z"/><path d="M10 5.5a3.5 3.5 0 0 1 0 5"/><path d="M12 3.5a6.2 6.2 0 0 1 0 9"/></svg>`}
+                        </button>
+                    `}
                     <button
                         class=${`post-action-btn post-copy-btn${copyState === 'success' ? ' is-success' : copyState === 'error' ? ' is-error' : ''}`}
                         type="button"
@@ -671,7 +709,7 @@ function Post({
                         onClick=${handleCopyClick}
                         disabled=${!String(data.content || displayContent || '').trim()}
                     >
-                        ${copyState === 'success' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>` : copyState === 'error' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>` : html`<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="10" height="12" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>`}
+                        ${copyState === 'success' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>` : copyState === 'error' ? html`<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/></svg>` : html`<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M7 15H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h7a2 2 0 0 1 2 2v1"/></svg>`}
                     </button>
                     <button
                         class="post-action-btn post-delete-btn"
@@ -749,18 +787,7 @@ function Post({
                                 </span>
                             `;
                         })}
-                        ${attachmentPills.map((attachment) => html`
-                            <span class="post-file-pill" title=${attachment.label}
-                                onClick=${onOpenAttachmentPreview ? (e) => { e.stopPropagation(); onOpenAttachmentPreview(attachment); } : undefined}
-                                style=${onOpenAttachmentPreview ? { cursor: 'pointer' } : undefined}
-                            >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                </svg>
-                                <span class="post-file-name">${attachment.label}</span>
-                            </span>
-                        `)}
+                        ${attachmentPills.map(attachment => html`<${AttachmentPill} key=${attachment.id} attachment=${attachment} onPreview=${onOpenAttachmentPreview} />`)}
                     </div>
                 `}
                 ${shouldRenderContent && html`

@@ -114,12 +114,12 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                             ${parsed.refs.length > 0 && html`<div class="compose-queue-stack-refs">${parsed.refs.map((ref, index) => html`<${FilePill} key=${index} prefix="compose" icon=${ref.kind === 'attachment' ? 'file' : ref.kind} label=${ref.label} title=${ref.title} />`)}</div>`}
                         </div>
                         <div class="compose-queue-stack-actions" role="group" aria-label="Queue controls">
-                            <button type="button" data-action="move-up" class="compose-queue-stack-move-btn" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
+                            ${peers.length > 1 && html`<button type="button" data-action="move-up" class="compose-queue-stack-move-btn" disabled=${position === 0} title="Move up" aria-label="Move up in queue" onClick=${() => onReorder?.(item.row_id, 'up')}>
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 10l5-5 5 5" /></svg>
                             </button>
                             <button type="button" data-action="move-down" class="compose-queue-stack-move-btn" disabled=${position === peers.length - 1} title="Move down" aria-label="Move down in queue" onClick=${() => onReorder?.(item.row_id, 'down')}>
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5" /></svg>
-                            </button>
+                            </button>`}
                             <button
                                 type="button"
                                 class="compose-queue-stack-steer-btn"
@@ -128,8 +128,8 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                                 onClick=${() => onSteer?.(item.row_id)}
                             >
                                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                                    <path d="M4 20h12a2 2 0 0 0 2-2V8" />
-                                    <polyline points="14 12 18 8 22 12" />
+                                    <path d="M4 20H10C12.2091 20 14 18.2091 14 16V4" />
+                                    <path d="M8 10L14 4L20 10" />
                                 </svg>
                                 <span>Steer</span>
                             </button>
@@ -1253,7 +1253,7 @@ export function ComposeBox({
                             <input type="file" multiple hidden onChange=${handleFileChange} />
                         </label>`}
                         <div class="compose-send-stack">
-                            ${!searchMode && html`<button type="button" class="icon-btn send-btn"
+                            ${!searchMode && html`<button type="button" class=${`icon-btn send-btn${agentBusy ? ' queue-mode' : ''}`}
                                 data-testid="send-button"
                                 onClick=${() => handleSubmit('auto')}
                                 disabled=${!canSend}
@@ -1271,12 +1271,7 @@ export function ComposeBox({
                                     disabled=${aborting || !activeTurnId}
                                     aria-busy=${aborting}
                                 >
-                                    <span class="compose-submit-spinner" aria-hidden="true">
-                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                                            <circle class="compose-submit-spinner-ring" cx="12" cy="12" r="10.5" stroke-width="2.25" stroke-linecap="round"></circle>
-                                            <rect class="compose-submit-spinner-stop" x="6" y="6" width="12" height="12" fill="currentColor"></rect>
-                                        </svg>
-                                    </span>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><rect class="compose-turn-stop-icon" x="6" y="6" width="12" height="12" rx="2" /></svg>
                                 </button>
                             `}
                         </div>

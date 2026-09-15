@@ -42,7 +42,7 @@ test('app switches sessions with separate drafts and explicit send identity', as
     await input.fill('other draft');
     await expect.poll(() => page.evaluate(key => JSON.parse(localStorage.getItem('vibes_compose_draft:' + key) || '{}').text, id)).toBe('other draft');
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('option').filter({ hasText: 'Default' }).click();
+    await page.getByRole('option').filter({ hasText: '@default' }).click();
     await expect(input).toHaveValue('default draft');
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
@@ -97,7 +97,7 @@ test('open picker refreshes registry changes from another client', async ({ page
     const id = (await result.json()).session.id;
     await expect(page.locator('#session-option-' + id)).toBeVisible({ timeout: 10000 });
     await page.request.patch('/sessions/' + id, { data: { name: 'External rename' } });
-    await expect(page.locator('#session-option-' + id)).toContainText('External rename', { timeout: 10000 });
+    await expect(page.locator('#session-option-' + id)).toContainText('@external rename', { timeout: 10000 });
 });
 
 test('selected chat loads only its scoped queue endpoint', async ({ page }) => {

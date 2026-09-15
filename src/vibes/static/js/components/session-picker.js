@@ -1,7 +1,7 @@
 // Registry adapter using deployed Piclaw classic picker class/role structure.
 import { sessionLastMessage, sessionMessageCount } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
-import { html, useState, useMemo, useEffect, useRef } from '../vendor/preact-htm.js';
+import { html, useState, useMemo, useEffect, useLayoutEffect, useRef } from '../vendor/preact-htm.js';
 
 export function SessionPicker({ sessions = [], refreshError = '', currentId = 'default', onSelect, onClose, onCreate, onCreateBranch, onRename, onDelete, onPin, onArchive }) {
     const [query, setQuery] = useState('');
@@ -12,12 +12,12 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
     const typeahead = useRef({ query: '', time: 0 });
     const search = useRef(null);
     const results = useRef(null);
-    const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => `${item.name} ${item.id}`.toLowerCase().includes(query.toLowerCase())) })).filter(group => group.items.length), [sessions, currentId, query]);
+    const groups = useMemo(() => groupSessions(sessions, currentId).map(group => ({ ...group, items: group.items.filter(item => query.toLowerCase().trim().split(/\s+/).every(term => `${item.name} @${item.name} ${item.id} ${item.model || ''} ${item.archived ? 'archived' : item.is_running === true ? 'active running' : item.is_running === false ? 'idle' : 'unavailable'}`.toLowerCase().includes(term))) })).filter(group => group.items.length), [sessions, currentId, query]);
     const matches = groups.flatMap(group => group.items);
     const parents = new Set(sessions.map(item => item.parent_id).filter(Boolean));
     const selectedIndex = Math.max(0, Math.min(index, matches.length - 1));
     const selectedId = matches[selectedIndex]?.id;
-    useEffect(() => { search.current?.focus(); }, []);
+    useLayoutEffect(() => { search.current?.focus(); }, []);
     useEffect(() => {
         const option = Array.from(results.current?.querySelectorAll('[role="option"]') || [])
             .find(node => node.id === `session-option-${selectedId}`);
@@ -75,22 +75,22 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             <label class="compose-model-popup-title compose-session-search-heading" for="compose-session-search">Search sessions</label>
             <button type="button" class="compose-session-popup-close" aria-label="Close session picker" onClick=${onClose}>×</button>
         </div>
-        <input id="compose-session-search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" autocomplete="off" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Session name or ID" aria-label="Search sessions" />
+        <input id="compose-session-search" role="combobox" aria-autocomplete="list" aria-expanded="true" aria-controls="session-picker-results" aria-activedescendant=${selectedId ? `session-option-${selectedId}` : undefined} ref=${search} class="compose-session-search" type="search" autocomplete="off" value=${query} onInput=${e => { setQuery(e.target.value); setIndex(0); }} placeholder="Handle, ID, state, or model" aria-label="Search sessions" />
         ${busy && html`<div class="compose-model-popup-empty" role="status">Updating session…</div>`}
         ${refreshError && html`<div class="compose-model-popup-empty" role="alert">${refreshError}</div>`}
         ${error && html`<div role="alert">${error}</div>`}
         ${matches.length === 0 && html`<div class="compose-model-popup-empty" role="status">No matching sessions</div>`}
         <div ref=${results} id="session-picker-results" class="compose-model-popup-menu compose-session-popup-results" role="listbox" aria-label="Sessions" aria-activedescendant=${matches[selectedIndex] ? `session-option-${matches[selectedIndex].id}` : undefined}>
             ${groups.map(group => html`<div class="session-popup-group" role="group" aria-label=${group.label}>
-                <div class="compose-session-section-heading">${group.label}</div>
+                <div class="compose-session-section-heading">${({ Tree: 'This session tree', Other: 'Other sessions' })[group.label] || group.label}</div>
                 ${group.items.map(item => { const lastMessage = sessionLastMessage(item.last_message_at); return html`<div key=${item.id} class=${`compose-model-popup-item-row session-picker-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
                 <button type="button" class=${`compose-session-row-pin${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!item.archived || !onPin} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>${item.pinned ? '★' : '☆'}</button>
-                <button type="button" id=${`session-option-${item.id}`} class=${`compose-model-popup-item session-item${item.archived ? ' archived' : item.id === currentId ? ' current' : ''}`} role="option" aria-selected=${item.id === currentId} aria-description=${`Session ID: ${item.id}`} title=${`Session ID: ${item.id}`} onClick=${() => act(() => onSelect?.(item.id))}>
-                    <span class="compose-session-row-content"><span class="compose-session-row-main"><span class="compose-session-row-label">${item.name}</span><span class="compose-session-row-meta">${sessionMessageCount(item.message_count)}</span>${lastMessage && html`<time class="compose-session-row-meta" datetime=${lastMessage.datetime} title="Last persisted message (not runtime activity)">Last message: ${lastMessage.label}</time>`}</span><span class="compose-session-row-pills">
-                    ${item.id === currentId && html`<span class="compose-session-status-pill current">Current</span>`}
-                    <span class=${`compose-session-status-pill ${item.archived ? 'archived' : item.is_running === true ? 'active' : item.is_running === false ? 'idle' : 'unavailable'}`}>${item.archived ? 'Archived' : item.is_running === true ? 'Running' : item.is_running === false ? 'Idle' : 'Status unavailable'}</span>
-                    ${item.queued_count > 0 && html`<span class="compose-session-status-pill queued" title="Queued follow-ups and pending steering in this process">${item.queued_count} queued</span>`}
-                    </span></span>
+                <button type="button" id=${`session-option-${item.id}`} class=${`compose-model-popup-item session-item${item.archived ? ' archived' : ''}${matches[selectedIndex]?.id === item.id ? ' active' : ''}`} role="option" aria-selected=${item.id === currentId} aria-description=${`Session ID: ${item.id}; ${sessionMessageCount(item.message_count)}; ${item.is_running === true ? 'running' : item.is_running === false ? 'idle' : 'status unavailable'}; ${item.queued_count || 0} queued`} title=${`Session ID: ${item.id}; ${sessionMessageCount(item.message_count)}${lastMessage ? '; Last message: ' + lastMessage.label : ''}`} onClick=${() => act(() => onSelect?.(item.id))}>
+                    <span class="compose-session-row-content" style=${item.is_running ? 'font-weight:700' : ''}><span class="compose-session-row-main"><span class="compose-session-row-label">@${(item.name || item.id).toLowerCase()}</span><span class="compose-session-row-meta"><span class="compose-session-row-jid">${item.id}</span></span></span>
+                    ${(item.id === currentId || item.archived || item.is_running) && html`<span class="compose-session-row-pills">
+                        ${item.id === currentId && html`<span class="compose-session-status-pill current">current</span>`}
+                        ${item.archived ? html`<span class="compose-session-status-pill archived">archived</span>` : item.is_running && html`<span class="compose-session-status-pill active">active</span>`}
+                    </span>`}</span>
                 </button>
                 <button type="button" class="session-row-action session-row-icon compose-model-popup-btn" aria-label=${`Rename ${item.name}`} title=${`Rename ${item.name}`} disabled=${!onRename} onClick=${() => act(() => onRename?.(item.id))}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5Z"/><path d="m14 5 5 5"/></svg></button>
                 ${item.id !== 'default' && onArchive && html`<button type="button" class="session-row-action session-row-icon compose-model-popup-btn" aria-label=${`${item.archived ? 'Restore' : 'Archive'} ${item.name}`} disabled=${!item.archived && item.is_running === true} title=${!item.archived && item.is_running ? 'Stop the running turn before archiving' : `${item.archived ? 'Restore' : 'Archive'} ${item.name}`} onClick=${() => act(() => onArchive(item.id, !item.archived))}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 10v11h16V10M3 3h18v5H3Z"/><path d=${item.archived ? 'M12 18v-6m-3 3 3-3 3 3' : 'M9 13h6'}/></svg></button>`}
@@ -99,9 +99,9 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
             </div>`)}
         </div>
         <div class="compose-model-popup-actions">
-            ${onCreateBranch && html`<button type="button" class="compose-model-popup-btn" title="Create an empty child session; history is not copied" onClick=${() => act(onCreateBranch)}>New branch</button>`}
-            <button type="button" class="compose-model-popup-btn" title="Create an independent root session" disabled=${!onCreate} onClick=${() => act(onCreate)}>New root session…</button>
-            ${onRename && sessions.some(item => item.id === currentId) && html`<button type="button" class="compose-model-popup-btn" onClick=${() => act(() => onRename(currentId))}>Rename current session</button>`}
+            ${onCreateBranch && html`<button type="button" class="compose-model-popup-btn primary" title="Create an empty child session; history is not copied" onClick=${() => act(onCreateBranch)}>New branch</button>`}
+            <button type="button" class="compose-model-popup-btn" title="Create an independent root session" disabled=${!onCreate} onClick=${() => act(onCreate)}>New root…</button>
+            ${onRename && sessions.some(item => item.id === currentId) && html`<button type="button" class="compose-model-popup-btn" onClick=${() => act(() => onRename(currentId))}>Rename current…</button>`}
         </div>
     </div>`;
 }

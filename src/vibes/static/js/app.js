@@ -71,6 +71,11 @@ function estimatePreviewLines(text, maxCharsPerLine = 160) {
 
 function getTurnColor(turnId) {
     if (!turnId) return null;
+    const root = document.documentElement;
+    if (root.dataset.tint || root.dataset.theme && root.dataset.theme !== 'default') {
+        const accent = getComputedStyle(root).getPropertyValue('--accent-color').trim();
+        if (accent) return accent;
+    }
     const palette = [
         '#4ECDC4', '#FF6B6B', '#45B7D1', '#BB8FCE', '#FDCB6E',
         '#00B894', '#74B9FF', '#FD79A8', '#81ECEC', '#FFA07A',
@@ -709,7 +714,6 @@ function App() {
     const [sessionRefreshError, setSessionRefreshError] = useState('');
     const [sessionPickerOpen, setSessionPickerOpen] = useState(false);
     const [quickActionsRequest, setQuickActionsRequest] = useState(0);
-    const [metersToggleRequest, setMetersToggleRequest] = useState(0);
     const [composePrefill, setComposePrefill] = useState(null);
     const sessionTriggerRef = useRef(null);
     const closeSessionPicker = () => {
@@ -2402,24 +2406,23 @@ function App() {
     const activeEditorTab = editorTabs.find((tab) => tab.id === activeEditorTabId) || editorTabs[editorTabs.length - 1] || null;
     const previewOpen = activeEditorTab ? previewTabs.has(activeEditorTab.id) : false;
     const quickWorkspaceActions = useMemo(() => [
-        { id: 'toggle-system-meters', title: 'Toggle server resource meters',
-            subtitle: 'CPU, RAM and server memory history', run: () => setMetersToggleRequest(value => value + 1) },
         { id: 'toggle-workspace', title: workspaceOpen ? 'Hide workspace' : 'Show workspace',
-            subtitle: 'Toggle the workspace explorer', run: toggleWorkspace },
+            subtitle: workspaceOpen ? 'Hide the workspace sidebar.' : 'Show the workspace sidebar.', run: toggleWorkspace },
+        ...(!workspaceOpen ? [{ id: 'open-explorer', title: 'Open explorer', subtitle: 'Open the workspace explorer sidebar.', run: () => setWorkspaceOpen(true) }] : []),
         ...(terminalEnabled ? [{ id: 'open-terminal', title: 'Open terminal',
             subtitle: 'Open the terminal pane', run: () => { setTerminalVisible(true); setWorkspaceOpen(false); } }] : []),
     ], [workspaceOpen, terminalEnabled]);
     
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
-            ${!popoutMode && !terminalPopout && html`<${SystemMeters} toggleRequest=${metersToggleRequest} />`}
+            ${!popoutMode && !terminalPopout && html`<${SystemMeters} />`}
             ${!popoutMode && !terminalPopout && html`<${QuickActions}
                 sessions=${sessionOptions} sessionId=${selectedSession} workspace=${quickWorkspaceActions}
                 openRequest=${quickActionsRequest} onRefreshSessions=${refreshSessions}
                 onSwitchSession=${selectSession}
                 onPrefill=${command => { setSearchOpen(false); setComposePrefill({ command, sessionId: selectedSession }); }}
             />`}
-            ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
+            ${!popoutMode && html`<${WorkspaceExplorer} onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
             ${workspaceOpen && !popoutMode && !terminalPopout && html`<div class="workspace-drawer-backdrop" aria-hidden="true" onPointerDown=${event => { event.preventDefault(); setWorkspaceOpen(false); }}></div>`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
@@ -2521,7 +2524,7 @@ function App() {
                     onPanelExpandedChange=${handlePanelExpandedChange}
                 />
                 <${ComposeBox} key=${selectedSession} sessionId=${selectedSession}
-                    prefillRequest=${composePrefill} onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)}
+                    prefillRequest=${composePrefill}
                     queuedFollowups=${queuedFollowups}
                     onQueueRemove=${handleQueueRemove}
                     onQueueSteer=${handleQueueSteer}

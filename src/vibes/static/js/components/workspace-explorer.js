@@ -149,7 +149,7 @@ function FileAttachmentCard({ mediaId }) {
     `;
 }
 
-export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true, active = undefined, onOpenEditor, onOpenTerminalTab, renderMarkdown }) {
+export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true, active = undefined, onOpenEditor, onOpenTerminalTab, onOpenQuickActions, renderMarkdown }) {
     const [tree, setTree] = useState(null);
     const [expanded, setExpanded] = useState(new Set(['.']));
     const [selectedPath, setSelectedPath] = useState(null);
@@ -1038,6 +1038,9 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
             <div class="workspace-header">
                 <span>Workspace</span>
                 <div class="workspace-header-actions">
+                    ${visible && onOpenQuickActions && html`<button type="button" class="workspace-toggle-hidden" title="Quick actions (or type on the timeline)" aria-label="Quick actions" onClick=${onOpenQuickActions}>
+                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 10-12h-7z"/></svg>
+                    </button>`}
                     ${onOpenTerminalTab && html`<button class="workspace-refresh workspace-terminal" onClick=${onOpenTerminalTab} title="Open terminal" aria-label="Open terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 6 6 6-6 6M13 18h7" /></svg></button>`}
                     <button class="workspace-create" onClick=${handleCreateFileClick} title="New file" disabled=${uploading}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"

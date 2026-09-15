@@ -34,8 +34,10 @@ test('queued steering renders the classic queued turn dot', async ({ page }) => 
     await page.evaluate(() => {
         window.testEventSource.dispatchEvent(new MessageEvent('agent_status', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', type: 'thinking', title: 'Thinking' }) }));
         window.testEventSource.dispatchEvent(new MessageEvent('agent_steer_queued', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', row_id: -7 }) }));
+        window.testEventSource.dispatchEvent(new MessageEvent('agent_thought', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', text: 'Thinking preview', mode: 'replace', total_lines: 1 }) }));
     });
-    await expect(page.locator('.agent-status-panel .turn-dot-queued')).toBeVisible();
+    await expect(page.locator('.agent-status-panel .agent-thinking .turn-dot-queued')).toBeVisible();
+    await expect(page.locator('.agent-status-panel .agent-status-spinner')).toBeVisible();
 });
 
 test('queued reference blocks render as pills without hiding invalid lines', async ({ page }) => {

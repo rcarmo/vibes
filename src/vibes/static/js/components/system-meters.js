@@ -44,12 +44,14 @@ export function SystemMeters({ toggleRequest = 0 }) {
         query.addEventListener('change', change);
         return () => query.removeEventListener('change', change);
     }, []);
+    const toggleCollapsed = () => setCollapsed(value => {
+        const next = !value;
+        try { localStorage.setItem(METERS_KEY, String(next)); } catch { /* optional preference */ }
+        return next;
+    });
     useEffect(() => {
-        if (toggleRequest) setCollapsed(value => !value);
+        if (toggleRequest) toggleCollapsed();
     }, [toggleRequest]);
-    useEffect(() => {
-        try { localStorage.setItem(METERS_KEY, String(collapsed)); } catch { /* optional preference */ }
-    }, [collapsed]);
     useEffect(() => {
         let disposed = false, timer, controller;
         const refresh = async () => {
@@ -92,7 +94,7 @@ export function SystemMeters({ toggleRequest = 0 }) {
     const description = `Vibes server${metrics?.hostname ? ` ${metrics.hostname}` : ''} — OS view, not browser or inference-server usage. GPU metrics only when available from Linux DRM.`;
     return html`
         <div class=${`system-meters-hud system-meters-hud-overlay${collapsed ? ' is-collapsed' : ''}`} data-testid="system-meters" data-state=${unavailable ? 'unavailable' : metrics ? 'ready' : 'loading'}>
-            <button type="button" class="system-meters-card" aria-label=${collapsed ? 'Show server resource meters' : 'Collapse server resource meters'} aria-expanded=${!collapsed} title=${description} onClick=${() => setCollapsed(value => !value)}>
+            <button type="button" class="system-meters-card" aria-label=${collapsed ? 'Show server resource meters' : 'Collapse server resource meters'} aria-expanded=${!collapsed} title=${description} onClick=${toggleCollapsed}>
                 ${collapsed ? html`<span class="system-meters-collapse-tab" aria-hidden="true">${disclosureTriangle('left')}</span>` : html`
                     ${unavailable || !metrics ? html`<span class="system-meters-source">${unavailable ? 'Server metrics unavailable' : 'Loading server metrics…'}</span>` : null}
                     ${narrow ? html`<span class="system-meters-compact-summary">${summary}</span>` : rows.map(([kind, label, value, series, percentage, title]) => html`

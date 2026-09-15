@@ -28,9 +28,7 @@ test('desktop server meters render real-shaped histories, optional GPU, collapse
   await expect(expand).toHaveAttribute('aria-expanded', 'false');
   await expand.focus(); await page.keyboard.press('Enter');
   await expect(hud).not.toHaveClass(/is-collapsed/);
-  await page.getByRole('button', { name: 'Quick actions', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Search quick actions' }).fill('server resource');
-  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Collapse server resource meters' }).click();
   await expect(hud).toHaveClass(/is-collapsed/);
 });
 

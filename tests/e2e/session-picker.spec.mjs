@@ -22,7 +22,7 @@ test('session picker searches, navigates and keeps action buttons separate', asy
     const input = fixture.getByRole('combobox', { name: 'Search sessions' });
     await expect(input).toBeFocused();
     await expect(fixture.locator('.compose-session-popup-header > label[for="compose-session-search"]')).toHaveText('Search sessions');
-    await expect(fixture.locator('.compose-session-popup-header + input')).toHaveAttribute('placeholder', 'Session name or ID');
+    await expect(fixture.locator('.compose-session-popup-header + input')).toHaveAttribute('placeholder', 'Handle, ID, state, or model');
     await input.fill('Research');
     await expect(fixture.getByRole('option')).toHaveCount(1);
     await input.press('Enter');
@@ -125,7 +125,7 @@ test('create dialog preserves input on server error then creates selected sessio
         return route.continue();
     });
     await page.getByTestId('session-switcher').click();
-    await page.getByRole('button', { name: 'New root session…', exact: true }).click();
+    await page.getByRole('button', { name: 'New root…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'New session' });
     const input = dialog.getByRole('textbox', { name: 'Session name' });
     await expect(input).toBeFocused();
@@ -182,12 +182,11 @@ for (const width of [1280, 390]) {
         });
         const fixture = page.locator('#metrics-fixture');
         const idle = fixture.locator('#session-option-default');
-        await expect(idle.locator('.compose-session-status-pill.idle')).toHaveText('Idle');
-        await expect(idle.locator('.queued')).toHaveText('2 queued');
-        await expect(idle.locator('time')).toHaveAttribute('datetime', '2026-09-06T12:30:00.000Z');
-        await expect(idle.locator('time')).toContainText('Last message:');
+        await expect(idle).toHaveAccessibleDescription(/5 messages; idle; 2 queued/);
+        await expect(idle).toHaveAttribute('title', /Last message:/);
+        await expect(idle.locator('.compose-session-status-pill.idle, .queued, time')).toHaveCount(0);
         const running = fixture.locator('#session-option-running');
-        await expect(running.locator('.compose-session-status-pill.active')).toHaveText('Running');
+        await expect(running.locator('.compose-session-status-pill.active')).toHaveText('active');
         await expect(running.locator('time, .queued')).toHaveCount(0);
         const box = await fixture.getByTestId('session-popup').boundingBox();
         expect(box.x).toBeGreaterThanOrEqual(0);
@@ -248,7 +247,7 @@ test('picker renders group precedence and announces empty search', async ({ page
         ]} />`, root);
     });
     const fixture = page.locator('#groups-fixture');
-    await expect(fixture.locator('.compose-session-section-heading')).toHaveText(['Current', 'Pinned', 'Active', 'Tree', 'Other', 'Archived']);
+    await expect(fixture.locator('.compose-session-section-heading')).toHaveText(['Current', 'Pinned', 'Active', 'This session tree', 'Other sessions', 'Archived']);
     for (const [group, id] of [['Current', 'current'], ['Pinned', 'pin'], ['Active', 'run'], ['Tree', 'parent'], ['Other', 'other'], ['Archived', 'closed']]) {
         await expect(fixture.getByRole('group', { name: group, exact: true }).locator('#session-option-' + id)).toBeVisible();
     }
@@ -272,9 +271,9 @@ for (const width of [1280, 390]) {
             expect(popup.height).toBeCloseTo(828, 0);
         } else {
             const composer = await page.locator('.compose-input-wrapper').boundingBox();
-            expect(Math.abs(popup.x - composer.x)).toBeLessThanOrEqual(1);
-            expect(Math.abs(popup.width - composer.width)).toBeLessThanOrEqual(2);
-            expect(popup.y + popup.height).toBeLessThanOrEqual(composer.y - 5);
+            expect(Math.abs(popup.x - composer.x - 11)).toBeLessThanOrEqual(1);
+            expect(Math.abs(popup.width - composer.width + 22)).toBeLessThanOrEqual(2);
+            expect(popup.y + popup.height).toBeLessThanOrEqual(composer.y + 2);
             expect(popup.height).toBeLessThan(630);
         }
         await page.screenshot({ path: testInfo.outputPath(`session-picker-${width}.png`), fullPage: true });
@@ -376,7 +375,7 @@ test('Rename current footer targets selected chat despite search filter', async 
     await page.locator('#session-option-' + id).click();
     await page.getByTestId('session-switcher').click();
     await page.getByRole('combobox', { name: 'Search sessions' }).fill('no matches');
-    await page.getByRole('button', { name: 'Rename current session', exact: true }).click();
+    await page.getByRole('button', { name: 'Rename current…', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Rename session' });
     await expect(dialog.getByRole('textbox', { name: 'Session name' })).toHaveValue('Footer target');
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
@@ -386,8 +385,9 @@ test('current selection badge does not imply a running turn', async ({ page }) =
     await page.goto('/');
     await page.getByTestId('session-switcher').click();
     const selected = page.locator('#session-option-default');
-    await expect(selected.locator('.compose-session-status-pill.current')).toHaveText('Current');
-    await expect(selected.locator('.compose-session-status-pill.idle')).toHaveText('Idle');
+    await expect(selected.locator('.compose-session-status-pill.current')).toHaveText('current');
+    await expect(selected).toHaveAccessibleDescription(/; idle;/);
+    await expect(selected.locator('.compose-session-status-pill.idle')).toHaveCount(0);
     await expect(selected.locator('.compose-session-status-pill.active')).toHaveCount(0);
 });
 
@@ -419,7 +419,7 @@ test('missing runtime state is unavailable rather than idle', async ({ page }) =
         render(html`<${SessionPicker} sessions=${[{ id: 'default', name: 'Unknown state' }]} />`, root);
     });
     const row = page.locator('#unknown-state-fixture #session-option-default');
-    await expect(row.locator('.compose-session-status-pill.unavailable')).toHaveText('Status unavailable');
+    await expect(row).toHaveAccessibleDescription(/status unavailable/);
     await expect(row.locator('.compose-session-status-pill.idle, .compose-session-status-pill.active')).toHaveCount(0);
 });
 
@@ -429,7 +429,7 @@ test('mobile picker footer actions remain within popup bounds', async ({ page })
     await page.getByTestId('session-switcher').click();
     const popup = page.getByTestId('session-popup');
     const bounds = await popup.boundingBox();
-    for (const name of ['New branch', 'New root session…', 'Rename current session']) {
+    for (const name of ['New branch', 'New root…', 'Rename current…']) {
         const action = popup.getByRole('button', { name, exact: true });
         await expect(action).toBeVisible();
         const box = await action.boundingBox();
@@ -581,9 +581,9 @@ test('picker disables mutation controls when callbacks are unavailable', async (
         render(html`<${SessionPicker} sessions=${[{ id: 'empty', name: 'Read only', message_count: 0 }, { id: 'unknown', name: 'Unknown history' }]} />`, root);
     });
     const picker = page.locator('#readonly-picker');
-    await expect(picker.locator('#session-option-empty')).toContainText('0 messages');
-    await expect(picker.locator('#session-option-unknown')).toContainText('Message count unavailable');
-    for (const name of ['Rename Read only', 'Delete Read only', 'New root session…']) {
+    await expect(picker.locator('#session-option-empty')).toHaveAccessibleDescription(/0 messages/);
+    await expect(picker.locator('#session-option-unknown')).toHaveAccessibleDescription(/Message count unavailable/);
+    for (const name of ['Rename Read only', 'Delete Read only', 'New root…']) {
         await expect(picker.getByRole('button', { name, exact: true })).toBeDisabled();
     }
     const pins = picker.getByRole('button', { name: 'Pin session', exact: true });
@@ -593,13 +593,13 @@ test('picker disables mutation controls when callbacks are unavailable', async (
     await expect(picker.getByRole('button', { name: 'Archive Read only', exact: true })).toHaveCount(0);
 });
 
-test('canonical ID stays searchable and described without a metadata row', async ({ page }) => {
+test('canonical ID stays searchable and visible with accessible metadata', async ({ page }) => {
     await page.goto('/');
     await page.getByTestId('session-switcher').click();
     await page.getByRole('combobox', { name: 'Search sessions', exact: true }).fill('default');
     const option = page.locator('#session-option-default');
     await expect(option).toBeVisible();
-    await expect(option).toHaveAccessibleDescription('Session ID: default');
-    await expect(option).toHaveAttribute('title', 'Session ID: default');
-    await expect(option.locator('.compose-session-row-meta').filter({ hasText: /^default$/ })).toHaveCount(0);
+    await expect(option).toHaveAccessibleDescription(/^Session ID: default;/);
+    await expect(option).toHaveAttribute('title', /^Session ID: default;/);
+    await expect(option.locator('.compose-session-row-meta').filter({ hasText: /^default$/ })).toHaveCount(1);
 });

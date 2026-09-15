@@ -1,0 +1,39 @@
+{
+  "manifest_id": "codemirror-editor",
+  "package_name": "codemirror",
+  "package_version": "6.0.2",
+  "package_license": "MIT",
+  "package_repository": "https://github.com/codemirror/basic-setup.git",
+  "package_versions": {
+    "codemirror": "6.0.2"
+  },
+  "package_licenses": {
+    "codemirror": "MIT"
+  },
+  "package_repositories": {
+    "codemirror": "https://github.com/codemirror/basic-setup.git"
+  },
+  "source_entry": "extensions/viewers/editor/vendor/codemirror-entry.ts",
+  "output_file": "extensions/viewers/editor/vendor/codemirror.js",
+  "output_files": [
+    {
+      "package_path": null,
+      "output_file": "extensions/viewers/editor/vendor/codemirror.js",
+      "sha256": "c96806050d7a1e33ef1c119528e9df8251d7f83f6edd48efff9b3dadc161df26",
+      "size_bytes": 1413631
+    }
+  ],
+  "metadata_file": "extensions/viewers/editor/vendor/codemirror.meta.json",
+  "sha256": "c96806050d7a1e33ef1c119528e9df8251d7f83f6edd48efff9b3dadc161df26",
+  "size_bytes": 1413631,
+  "build_command": [
+    "bun",
+    "build",
+    "extensions/viewers/editor/vendor/codemirror-entry.ts",
+    "--target=browser",
+    "--format=esm",
+    "--minify",
+    "--outfile",
+    "extensions/viewers/editor/vendor/codemirror.js"
+  ]
+}

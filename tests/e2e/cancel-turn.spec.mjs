@@ -20,7 +20,7 @@ test('active turn shows Piclaw cancel control and dispatches scoped abort', asyn
     const stop = page.getByTestId('stop-button');
     await expect(stop).toBeVisible();
     await expect(stop).toHaveClass(/abort-mode/);
-    await expect(stop.locator('.compose-submit-spinner-stop')).toBeVisible();
+    await expect(stop.locator('.compose-turn-stop-icon')).toBeVisible();
     await stop.dispatchEvent('click');
     await expect.poll(() => payload).toEqual({ session_id: 'default', turn_id: 'turn-1' });
 });

@@ -12,7 +12,7 @@
 @media (min-width: 640px) {
     .compose-input-wrapper > .compose-session-popup {
         position: absolute;
-        inset: auto 0 calc(100% + 6px);
+        inset: auto 10px calc(100% - 1px);
         width: auto;
         min-height: 300px;
         max-height: min(72vh, 620px);
@@ -291,7 +291,8 @@ html[data-tint]::after {
     border-radius: 0;
     padding: 0;
     cursor: pointer;
-    font-family: inherit;
+    font-family: monospace;
+    appearance: none;
     text-align: left;
 }
 
@@ -368,11 +369,10 @@ html[data-tint]::after {
 .rename-branch-panel h2 { margin: 0 0 16px; font-size: 18px; }
 .rename-branch-input { box-sizing: border-box; width: 100%; padding: 8px; background: var(--bg-secondary); color: inherit; border: 1px solid var(--border-color); border-radius: 6px; }
 .rename-branch-actions button { padding: 6px 12px; }
-.compose-session-popup .session-picker-row { flex-wrap: wrap; min-width: 0; }
+.compose-session-popup .session-picker-row { flex-wrap: nowrap; min-width: 0; }
 .compose-session-popup .session-row-action { min-height: 32px; flex-shrink: 0; }
-.compose-session-popup .session-picker-row.keyboard-active { background: var(--bg-hover); }
 @media (max-width: 600px) {
-    .compose-session-popup .session-picker-row > .session-item { flex-basis: calc(100% - 58px); }
+    .compose-session-popup .session-picker-row > .session-item { flex: 1; min-width: 0; }
     .compose-session-popup .session-row-action { min-height: 44px; }
 }
 
@@ -389,9 +389,8 @@ html[data-tint]::after {
 }
 
 @media (max-width: 600px) {
-    .compose-session-popup .compose-session-row-content { flex-wrap: wrap; }
-    .compose-session-popup .compose-session-row-main { flex-basis: 100%; }
-    .compose-session-popup .compose-session-row-pills { flex-wrap: wrap; max-width: 100%; }
+    .compose-session-popup .compose-session-row-content { flex-wrap: nowrap; }
+    .compose-session-popup .compose-session-row-pills { flex-shrink: 0; }
 }
 
 .compose-agent-capabilities { font-size: 11px; color: var(--text-secondary); margin: 4px 0; }
@@ -469,3 +468,9 @@ button.compose-context-pie {
     .compose-model-catalogue-footer select { min-height: 44px; font-size: 12px; }
     .compose-model-catalogue-thinking { width: 100%; }
 }
+.compose-model-catalogue-thinking { justify-content: space-between; }
+.compose-model-catalogue-thinking select { font: revert; padding: 0; }
+/* The close hint doubles as a touch target without adding separate chrome. */
+.quick-actions-close-hint { appearance: none; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.quick-actions-close-hint:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 3px; }
+.compose-session-trigger .compose-current-agent-label.active { color: #fff; }

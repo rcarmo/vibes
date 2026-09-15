@@ -24,11 +24,11 @@ export function quickActionItems({ sessions = [], commands = [], workspace = [],
     for (const session of sessions) {
         if (session.archived || !session.id) continue;
         add({ key: `session:${session.id}`, kind: 'agent', title: `@${session.name || session.id}`, subtitle: session.id,
-            hint: 'Open', visual: '@', sessionId: session.id });
+            hint: 'Open', visual: String(session.name || session.id).trim().slice(0, 1).toUpperCase(), sessionId: session.id });
     }
     for (const action of workspace) {
         if (typeof action.run !== 'function') continue;
-        add({ key: `workspace:${action.id}`, kind: 'workspace', hint: 'Run', visual: '›', ...action });
+        add({ key: `workspace:${action.id}`, kind: 'workspace', hint: 'Run', visual: String(action.title || '').trim().slice(0, 1).toUpperCase(), ...action });
     }
     for (const command of commands) {
         if (typeof command?.name !== 'string' || !command.name.trim().replace(/^\/+/, '')) continue;
@@ -155,7 +155,8 @@ export function QuickActions({ sessions, sessionId, workspace, openRequest = 0, 
     useEffect(() => () => { generation.current++; }, []);
     if (!open) return null;
     let lastKind = null;
-    const labels = { agent: 'Sessions', workspace: 'Workspace', slash: 'Slash commands' };
+    const labels = { agent: 'Agents', workspace: 'Workspace', slash: 'Slash commands' };
+    const categories = { agent: 'Agent', workspace: 'Workspace', slash: 'Slash' };
     return html`
         <div class="timeline-quick-actions-portal">
             <div class="timeline-quick-actions-overlay">
@@ -163,12 +164,11 @@ export function QuickActions({ sessions, sessionId, workspace, openRequest = 0, 
                     <div class="timeline-quick-actions-header">
                         <div class="timeline-quick-actions-search-row">
                             <input ref=${input} class="timeline-quick-actions-input" type="text" role="combobox" aria-label="Search quick actions" aria-autocomplete="list" aria-expanded="true" aria-controls="quick-actions-list" aria-activedescendant=${items[highlight] ? `quick-action-${highlight}` : undefined} value=${query} placeholder="Search sessions, workspace actions and commands…" onInput=${event => setQuery(event.currentTarget.value)} />
-                            <div class="timeline-quick-actions-hints" aria-hidden="true">
-                                <span class="timeline-quick-actions-keyhint"><kbd>↑↓</kbd>Move</span>
-                                <span class="timeline-quick-actions-keyhint"><kbd>↵</kbd>Select</span>
-                                <span class="timeline-quick-actions-keyhint"><kbd>Esc</kbd>Close</span>
+                            <div class="timeline-quick-actions-hints">
+                                <span class="timeline-quick-actions-keyhint"><kbd>↑↓</kbd><span>Move</span></span>
+                                <span class="timeline-quick-actions-keyhint"><kbd>↵</kbd><span>Select</span></span>
+                                <button type="button" class="timeline-quick-actions-keyhint quick-actions-close-hint" aria-label="Close quick actions" onClick=${() => close()}><kbd>Esc</kbd><span>Close</span></button>
                             </div>
-                            <button type="button" class="icon-btn" aria-label="Close quick actions" onClick=${() => close()}>×</button>
                         </div>
                     </div>
                     ${(error || commandError) && html`<div class="timeline-quick-actions-empty" role="alert">${error || commandError}</div>`}
@@ -181,7 +181,7 @@ export function QuickActions({ sessions, sessionId, workspace, openRequest = 0, 
                                 <button key=${item.key} type="button" role="option" aria-selected=${highlight === index} id=${`quick-action-${index}`} data-action-index=${index} data-action-key=${item.key} class=${`timeline-quick-actions-item timeline-quick-actions-item-${item.kind}${highlight === index ? ' active' : ''}`} disabled=${pending} onClick=${() => activate(item)}>
                                     <span class="timeline-quick-actions-item-media"><span class="timeline-quick-actions-item-placeholder" aria-hidden="true">${item.visual}</span></span>
                                     <span class="timeline-quick-actions-item-copy"><span class="timeline-quick-actions-item-title-row"><span class="timeline-quick-actions-item-title">${item.title}</span><span class="timeline-quick-actions-item-action-hint">${item.hint}</span></span><span class="timeline-quick-actions-item-subtitle">${item.subtitle}</span></span>
-                                    <span class="timeline-quick-actions-item-category">${labels[item.kind]}</span>
+                                    <span class="timeline-quick-actions-item-category">${categories[item.kind]}</span>
                                 </button>`;
                         })}
                     </div>

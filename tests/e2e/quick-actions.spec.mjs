@@ -6,9 +6,10 @@ const option = (page, key) => page.locator(`[data-action-key="${key}"]`);
 async function ready(page) {
   await page.goto('/');
   await expect(page.locator('.compose-box textarea')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Quick actions', exact: true })).toBeVisible();
+  await expect(page.locator('.workspace-toggle-tab')).toBeVisible();
 }
 async function open(page) {
+  if (!await page.getByRole('button', { name: 'Quick actions', exact: true }).isVisible()) await page.getByRole('button', { name: 'Show workspace', exact: true }).click();
   await page.getByRole('button', { name: 'Quick actions', exact: true }).click();
   await expect(input(page)).toBeFocused();
 }
@@ -24,7 +25,7 @@ test('timeline typing opens grouped actions; filtering, wrapping arrows, Escape 
   await expect(input(page)).toBeFocused();
   await expect(option(page, 'slash:/model')).toHaveClass(/active/);
   await input(page).fill('');
-  await expect(page.locator('.timeline-quick-actions-section')).toHaveText(['Sessions', 'Workspace', 'Slash commands']);
+  await expect(page.locator('.timeline-quick-actions-section')).toHaveText(['Agents', 'Workspace', 'Slash commands']);
   const options = page.locator('.timeline-quick-actions-item');
   await expect(options.first()).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('ArrowUp');
