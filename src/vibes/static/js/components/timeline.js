@@ -537,16 +537,16 @@ function Post({
 
         const replaced = content.replace(/attachment:([^\s)"']+)/g, (match, rawRef, offset, source) => {
             const ref = rawRef.replace(/^\/+/, '');
-            const byName = attachments.find(
-                (entry) => entry.name && entry.name.toLowerCase() === ref.toLowerCase() && !usedIds.has(entry.id)
-            );
-            const entry = byName || attachments.find((item) => !usedIds.has(item.id));
+            const entry = /^\d+$/.test(ref)
+                ? attachments.find(item => String(item.id) === ref)
+                : attachments.find(item => item.name?.toLowerCase() === ref.toLowerCase());
             if (!entry) return match;
-            usedIds.add(entry.id);
             const prefix = source.slice(Math.max(0, offset - 2), offset);
             if (prefix === '](') {
+                usedIds.add(entry.id);
                 return `/media/${entry.id}`;
             }
+            // A bare reference must not hide the actual gallery/download card.
             return entry.name || 'attachment';
         });
 

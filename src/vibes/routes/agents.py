@@ -7,6 +7,7 @@ import re
 from aiohttp import web
 import asyncio
 from ..db import get_db
+from .. import agent_attachments
 from ..config import get_config
 from .. import acp_client
 from ..opengraph import queue_link_preview_fetch
@@ -671,6 +672,9 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         except Exception:
             pass
 
+    attachment_context = {'mode': _resolve_agent_mode(agent_id), 'agent_id': agent_id,
+                          'session_id': chat_session_id, 'thread_id': thread_id, 'turn_id': turn_id, 'receipts': {}}
+    agent_attachments.active = attachment_context
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
@@ -815,6 +819,13 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 if media_id:
                     media_ids.append(media_id)
 
+        # Explicit numeric references can embed files previously attached in this
+        # conversation, but never resolve media belonging only to another chat.
+        for block in await agent_attachments.referenced_media(text_content, chat_session_id):
+            if block['media_id'] not in media_ids:
+                media_ids.append(block['media_id'])
+                content_blocks.append(block)
+
         if _has_meaningful_response(text_content, content_blocks, media_ids):
             # Store agent response
             agent_response = {
@@ -884,6 +895,8 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         response_interaction = await db.get_interaction(response_id)
         await broadcast_event("agent_response", response_interaction)
     finally:
+        if agent_attachments.active is attachment_context:
+            agent_attachments.active = None
         # Always clean up turn state
         _turn_previews.pop(turn_id, None)
 

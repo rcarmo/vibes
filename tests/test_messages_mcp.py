@@ -80,7 +80,7 @@ async def test_acp_session_creation_includes_descriptor(db, monkeypatch, already
     from unittest.mock import AsyncMock, MagicMock
     from vibes import acp_client
     acp_client.reset_state()
-    config = SimpleNamespace(acp_messages_enabled=True, db_path=db.db_path, acp_agent='fake-acp')
+    config = SimpleNamespace(acp_messages_enabled=True, db_path=db.db_path, acp_agent='fake-acp', port=8765)
     monkeypatch.setattr(acp_client, 'get_config', lambda: config)
     process = MagicMock(returncode=None)
     process.stdin = MagicMock()
@@ -98,7 +98,8 @@ async def test_acp_session_creation_includes_descriptor(db, monkeypatch, already
         assert len(session_calls) == 1
         descriptor = session_calls[0].args[1]['mcpServers'][0]
         assert descriptor['name'] == 'vibes-messages'
-        assert '--workspace-access' in descriptor['args']
+        assert '--session-id' in descriptor['args']
+        assert 'default' in descriptor['args']
         assert descriptor['command'] == sys.executable
     finally:
         acp_client.reset_state()

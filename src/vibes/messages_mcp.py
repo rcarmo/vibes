@@ -1,9 +1,13 @@
-"""Read-only stdio MCP server for Vibes messages. No HTTP listener or migrations."""
+"""Stdio message reads and optional capability-scoped attachment delivery."""
 import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
+import uuid
+from urllib.parse import urlsplit
+import aiohttp
 from pathlib import Path
 
 import aiosqlite
@@ -30,14 +34,29 @@ TOOL = {
 }
 
 
+ATTACH_DESCRIPTION = 'Attach a workspace image or file (up to 10 MB) to this chat immediately. Returns a durable media ID and attachment: reference. No base64 or copying into the final answer is needed. Raster images display inline; SVG and other files are downloads.'
+ATTACH_SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': ['path'], 'properties': {
+    'path': {'type': 'string', 'maxLength': 4096}, 'name': {'type': 'string', 'maxLength': 255},
+    'content_type': {'type': 'string', 'maxLength': 100}, 'kind': {'type': 'string', 'enum': ['image', 'file']},
+    'request_id': {'type': 'string', 'maxLength': 200, 'description': 'Stable ID when retrying the same attachment'},
+}}
+
+
 class MessagesMCP(AsyncMCPServer):
     def _setup_logging(self):
         # Never create vendor-directory log files or put diagnostics on stdout.
         self.logger = logging.getLogger('vibes.messages_mcp')
 
-    def __init__(self, tools, workspace_root=None):
+    def __init__(self, tools, workspace_root=None, attachment_url=None, attachment_token=None, attachment_session=None):
         super().__init__()
         self.tools = tools
+        self.attachment_url, self.attachment_token = attachment_url, attachment_token
+        if attachment_url and attachment_token and (attachment_session or tools and tools.session_id):
+            parsed = urlsplit(attachment_url)
+            if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', '::1') or parsed.path != '/internal/agent-tools/attach-file':
+                raise ValueError('Attachment endpoint must be the local Vibes service')
+            self.register_tool('attach_file', self.attach_file, description=ATTACH_DESCRIPTION, input_schema=ATTACH_SCHEMA,
+                               annotations={'readOnlyHint': False, 'destructiveHint': False})
         self.workspace = WorkspaceTools(workspace_root) if workspace_root else None
         if self.workspace:
             self.register_tool('workspace_list', self.workspace_list,
@@ -52,9 +71,20 @@ class MessagesMCP(AsyncMCPServer):
                     'path': {'type': 'string'}, 'offset': {'type': 'integer', 'minimum': 0},
                     'limit': {'type': 'integer', 'minimum': 1, 'maximum': 24000}}},
                 annotations={'readOnlyHint': True, 'destructiveHint': False})
-        self.register_tool('messages', self.messages,
-            description=TOOL['description'], input_schema=TOOL['inputSchema'],
-            annotations=TOOL['annotations'])
+        if tools is not None:
+            self.register_tool('messages', self.messages,
+                description=TOOL['description'], input_schema=TOOL['inputSchema'],
+                annotations=TOOL['annotations'])
+
+    async def attach_file(self, path: str, name=None, content_type=None, kind=None, request_id=None):
+        params = {key: value for key, value in {'path': path, 'name': name, 'content_type': content_type,
+                  'kind': kind, 'request_id': request_id or uuid.uuid4().hex}.items() if value is not None}
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.post(self.attachment_url, json=params, headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'Attachment failed'))
+                return result
 
     async def workspace_list(self, path: str = '.', limit: int = 100):
         if not self.workspace:
@@ -79,25 +109,31 @@ async def serve(database, thread_id=None, workspace_access=False, workspace_root
     async with aiosqlite.connect(uri, uri=True) as connection:
         connection.row_factory = aiosqlite.Row
         await connection.execute('PRAGMA query_only=ON')
-        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, session_id=session_id, workspace_access=workspace_access), workspace_root)
-        while True:
-            line = await asyncio.to_thread(sys.stdin.buffer.readline, 65537)
-            if not line:
-                break
-            if len(line) > 65536:
-                # Close rather than interpreting fragments of an oversized frame.
-                break
-            try:
-                response = await server.handle(json.loads(line))
-            except (ValueError, UnicodeError):
-                response = {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'Parse error'}}
-            if response is not None:
-                print(json.dumps(response, ensure_ascii=False), flush=True)
+        server = MessagesMCP(MessageTools(connection, thread_id=thread_id, session_id=session_id, workspace_access=workspace_access), workspace_root,
+                             os.environ.get('VIBES_ATTACHMENT_URL'), os.environ.get('VIBES_ATTACHMENT_TOKEN'))
+        await serve_requests(server)
+
+
+async def serve_requests(server):
+    while True:
+        line = await asyncio.to_thread(sys.stdin.buffer.readline, 65537)
+        if not line:
+            break
+        if len(line) > 65536:
+            # Close rather than interpreting fragments of an oversized frame.
+            break
+        try:
+            response = await server.handle(json.loads(line))
+        except (ValueError, UnicodeError):
+            response = {'jsonrpc': '2.0', 'id': None, 'error': {'code': -32700, 'message': 'Parse error'}}
+        if response is not None:
+            print(json.dumps(response, ensure_ascii=False), flush=True)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--database', required=True)
+    parser.add_argument('--database')
+    parser.add_argument('--attachments-only', action='store_true', help='Expose only attachment delivery, with no database read access')
     parser.add_argument('--workspace-root', help='Explicitly enable bounded workspace reads')
     scope = parser.add_mutually_exclusive_group(required=True)
     scope.add_argument('--thread-id', type=int)
@@ -106,7 +142,16 @@ def main():
     args = parser.parse_args()
     if args.thread_id is not None and args.thread_id < 1:
         parser.error('--thread-id must be positive')
-    asyncio.run(serve(args.database, args.thread_id, args.workspace_access, args.workspace_root, args.session_id))
+    if args.attachments_only:
+        if not args.session_id or not os.environ.get('VIBES_ATTACHMENT_TOKEN') or not os.environ.get('VIBES_ATTACHMENT_URL'):
+            parser.error('Attachment delivery requires a session and configured transport')
+        server = MessagesMCP(None, attachment_url=os.environ['VIBES_ATTACHMENT_URL'],
+                             attachment_token=os.environ['VIBES_ATTACHMENT_TOKEN'], attachment_session=args.session_id)
+        asyncio.run(serve_requests(server))
+    else:
+        if not args.database:
+            parser.error('--database is required for message reads')
+        asyncio.run(serve(args.database, args.thread_id, args.workspace_access, args.workspace_root, args.session_id))
 
 
 if __name__ == '__main__':

@@ -29,7 +29,7 @@ class MessageTools:
             raise ValueError('media_id must be a positive integer')
         scope, params = self.scope()
         # Authorization is through a referencing message, never the attachment ID alone.
-        sql = '''SELECT m.id, m.content_type, length(m.data) AS size,
+        sql = '''SELECT m.id, m.filename, m.content_type, length(m.data) AS size,
                  substr(m.data, 1, 24001) AS preview
                  FROM media m WHERE m.id = ? AND EXISTS (
                    SELECT 1 FROM interactions i, json_each(i.data, '$.media_ids') ref
@@ -39,7 +39,7 @@ class MessageTools:
         if not row:
             raise ValueError('Attachment unavailable in current scope')
         mime = row['content_type'].split(';', 1)[0].lower()
-        result = {'media_id': row['id'], 'content_type': mime, 'size': row['size']}
+        result = {'media_id': row['id'], 'filename': row['filename'], 'content_type': mime, 'size': row['size']}
         if mime.startswith('text/') or mime in {'application/json', 'application/xml', 'application/yaml'}:
             raw = bytes(row['preview'])
             result.update({'text': raw[:24000].decode('utf-8', errors='replace'),

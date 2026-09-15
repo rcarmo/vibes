@@ -432,6 +432,8 @@ async def start_pi_agent() -> bool:
         # The Vibes-owned Pi extension uses this loopback-only API for bounded,
         # currently-selected-session message references.
         env.setdefault("VIBES_PI_TOOLS_URL", f"http://127.0.0.1:{config.port}")
+        from .agent_attachments import PI_TOKEN
+        env['VIBES_ATTACHMENT_TOKEN'] = PI_TOKEN
         _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
             stdin=asyncio.subprocess.PIPE,

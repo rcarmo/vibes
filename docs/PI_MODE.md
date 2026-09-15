@@ -36,7 +36,7 @@ Agent ids:
 - **Thinking stream**: `thinking_delta` events appear in the Thoughts pane.
 - **Tool status**: `tool_execution_start/update/end` map to `agent_status` updates.
 - **Permission/choice prompts**: Pi `extension_ui_request` events (`confirm`, `select`) surface in the existing approval modal.
-- **Media**: base64 image blocks, file attachments, and the `vibes_attach_file` tool from the bundled extension.
+- **Media**: `vibes_attach_file` posts durable image/file cards immediately, with session-scoped `attachment:ID` references for later inline embeds. Legacy base64 image/file blocks remain supported. See [agent attachments](AGENT_ATTACHMENTS.md).
 - **Live model/thinking changes**: `/model` and `/thinking` slash commands use RPC (no restart needed).
 - **Mid-turn steering**: `/steer` sends guidance while the agent is working.
 - **Abort**: `/abort` cancels the current request immediately.

@@ -13,8 +13,6 @@ from pathlib import Path
 
 from .config import get_config
 from .acp_usage import context_update, turn_usage
-from .db import get_db
-from .routes.media import generate_thumbnail
 from .acp_protocol import (
     parse_frame,
     classify_frame,
@@ -322,75 +320,18 @@ async def _build_preview_file_result(params: dict) -> dict:
 
 
 async def _build_store_media_result(params: dict) -> dict:
-    path_value = params.get("path") or params.get("file") or params.get("filepath")
-    if not path_value:
-        raise ValueError("Missing required 'path' parameter")
-
-    resolved = _resolve_preview_path(path_value)
-    display_name = (
-        params.get("title")
-        or params.get("name")
-        or params.get("filename")
-        or resolved.name
-    )
-    max_bytes = _coerce_int(
-        params.get("maxBytes") or params.get("max_bytes"),
-        DEFAULT_STORE_MAX_BYTES,
-    )
-
-    mime_type = (
-        params.get("mimeType")
-        or params.get("mime_type")
-        or params.get("content_type")
-        or mimetypes.guess_type(display_name)[0]
-        or "application/octet-stream"
-    )
-
-    data = await asyncio.to_thread(resolved.read_bytes)
-    if len(data) > max_bytes:
-        raise ValueError(f"File too large to store ({len(data)} bytes > {max_bytes} bytes)")
-
-    thumbnail = generate_thumbnail(data, mime_type)
-    metadata = {"size": len(data)}
-    if mime_type.startswith("image/"):
-        try:
-            from PIL import Image
-            import io
-
-            img = Image.open(io.BytesIO(data))
-            metadata["width"] = img.size[0]
-            metadata["height"] = img.size[1]
-        except Exception:
-            pass
-
-    db = await get_db()
-    media_id = await db.create_media(
-        filename=display_name,
-        content_type=mime_type,
-        data=data,
-        thumbnail=thumbnail,
-        metadata=metadata,
-    )
-
-    if mime_type.startswith("image/"):
-        block = {
-            "type": "image",
-            "name": display_name,
-            "content_type": mime_type,
-            "media_id": media_id,
-        }
-    else:
-        block = {
-            "type": "file",
-            "name": display_name,
-            "content_type": mime_type,
-            "media_id": media_id,
-        }
-
-    return {
-        "text": f"Stored {display_name} in media.",
-        "content": [block],
-    }
+    from . import agent_attachments
+    import uuid
+    fields = {'path': params.get('path') or params.get('file') or params.get('filepath'),
+              'request_id': params.get('request_id') or uuid.uuid4().hex,
+              'max_bytes': params.get('maxBytes') or params.get('max_bytes') or DEFAULT_STORE_MAX_BYTES}
+    for key, value in {'name': params.get('title') or params.get('name') or params.get('filename'),
+                       'content_type': params.get('mimeType') or params.get('mime_type') or params.get('content_type'),
+                       'kind': params.get('kind')}.items():
+        if value is not None:
+            fields[key] = value
+    result = await agent_attachments.publish_file(fields, 'acp', _state.chat_id)
+    return {'text': result['text'], 'content': [{'type': 'text', 'text': json.dumps(result)}]}
 
 
 def _next_request_id():
@@ -943,17 +884,27 @@ def _messages_mcp_servers(chat_id=None):
     """Single ACP session currently implies explicitly enabled workspace scope."""
     config = get_config()
     if not getattr(config, 'acp_messages_enabled', False):
-        return []
+        if chat_id is None:
+            return []
+        from .agent_attachments import acp_token
+        return [{'name': 'vibes-attachments', 'command': sys.executable,
+                 'args': ['-m', 'vibes.messages_mcp', '--attachments-only', '--session-id', chat_id],
+                 'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])},
+                         {'name': 'VIBES_ATTACHMENT_URL', 'value': f'http://127.0.0.1:{config.port}/internal/agent-tools/attach-file'},
+                         {'name': 'VIBES_ATTACHMENT_TOKEN', 'value': acp_token(chat_id)}]}]
     if config.db_path == ':memory:':
         raise ValueError('ACP messages require a persistent database')
     database = Path(config.db_path).resolve()
     if not database.is_file():
         raise ValueError('ACP messages database does not exist')
+    from .agent_attachments import acp_token
     return [{
         'name': 'vibes-messages', 'command': sys.executable,
         'args': ['-m', 'vibes.messages_mcp', '--database', str(database), ] + (['--session-id', chat_id] if chat_id is not None else ['--workspace-access'])
                 + (['--workspace-root', str(Path.cwd().resolve())] if getattr(config, 'acp_workspace_read_enabled', False) else []),
-        'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])}],
+        'env': [{'name': 'PYTHONPATH', 'value': str(Path(__file__).resolve().parents[1])}]
+            + ([{'name': 'VIBES_ATTACHMENT_URL', 'value': f'http://127.0.0.1:{config.port}/internal/agent-tools/attach-file'},
+                {'name': 'VIBES_ATTACHMENT_TOKEN', 'value': acp_token(chat_id)}] if chat_id is not None else []),
     }]
 
 
@@ -1010,7 +961,7 @@ async def _ensure_agent():
                 cwd = str(Path.cwd())
                 result = await _send_request("session/new", {
                     "cwd": cwd,
-                    "mcpServers": _messages_mcp_servers()
+                    "mcpServers": _messages_mcp_servers('default')
                 })
                 _state.session_id = result.get("sessionId")
                 logger.info(f"Session created: {_state.session_id}")
@@ -1079,7 +1030,7 @@ async def _ensure_agent():
         cwd = str(Path.cwd())
         result = await _send_request("session/new", {
             "cwd": cwd,
-            "mcpServers": _messages_mcp_servers()
+            "mcpServers": _messages_mcp_servers('default')
         })
         _state.session_id = result.get("sessionId")
         logger.info(f"Session created: {_state.session_id}")

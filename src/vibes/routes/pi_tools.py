@@ -34,5 +34,27 @@ async def messages(request):
     return web.json_response(result)
 
 
+async def attach_file(request):
+    from .. import agent_attachments
+    if not _loopback(request) or request.headers.get('Origin'):
+        return web.json_response({'error': 'Agent attachments require a local tool connection'}, status=403)
+    try:
+        token = request.headers.get('Authorization', '').removeprefix('Bearer ')
+        mode, session_id = agent_attachments.resolve_token(token)
+        context = agent_attachments.active
+        if context is None:
+            raise PermissionError('No active agent turn')
+        payload = await request.json()
+        if not isinstance(payload, dict):
+            raise ValueError('Invalid attachment request')
+        result = await agent_attachments.publish_file(payload, mode, session_id, expected=context)
+        return web.json_response(result, status=201)
+    except PermissionError as exc:
+        return web.json_response({'error': str(exc)}, status=403)
+    except (ValueError, TypeError, OSError) as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+
+
 def setup_routes(app):
     app.router.add_post('/internal/pi-tools/messages', messages)
+    app.router.add_post('/internal/agent-tools/attach-file', attach_file)

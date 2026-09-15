@@ -26,6 +26,7 @@
 | GET | `/media/{id}` | Get media file |
 | GET | `/media/{id}/thumbnail` | Get media thumbnail |
 | GET | `/media/{id}/info` | Get media metadata |
+| POST | `/internal/agent-tools/attach-file` | Local capability-scoped agent attachment delivery; see [agent attachments](AGENT_ATTACHMENTS.md) |
 
 ## Workspace
 
