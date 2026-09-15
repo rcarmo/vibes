@@ -1029,6 +1029,7 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
     return html`
         <aside
             class=${`workspace-sidebar${dragActive ? ' workspace-drop-active' : ''}`}
+            data-workspace-scale="comfortable"
             ref=${sidebarRef}
             onDragEnter=${handleDragEnter}
             onDragOver=${handleDragOver}

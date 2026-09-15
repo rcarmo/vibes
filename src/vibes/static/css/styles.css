@@ -383,7 +383,7 @@ html[data-tint]::after {
 
 @media (max-width: 1023px), (orientation: portrait) {
     .app-shell:not(.workspace-collapsed):not(.popout-mode):not(.terminal-popout) > .workspace-sidebar {
-        display: flex; position: fixed; inset: 0 auto 0 0; width: min(320px, 90vw); z-index: 201;
+        display: flex; position: fixed; inset: 0 auto 0 0; width: min(var(--sidebar-width, 280px), 90vw); z-index: 201;
     }
 }
 
