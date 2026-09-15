@@ -230,6 +230,20 @@ function FileAttachment({ mediaId }) {
     `;
 }
 
+function OutcomePill({ marker }) {
+    const [expanded, setExpanded] = useState(false);
+    if (!marker) return null;
+    const severity = marker.severity || 'warning';
+    const label = marker.tool_action_summary || marker.title || marker.label || marker.kind || 'issue';
+    const details = [marker.title && marker.title !== label ? marker.title : '', marker.detail || '', marker.next_action ? `Next: ${marker.next_action}` : ''].filter(Boolean);
+    return html`<span class="post-outcome-wrap">
+        <button type="button" class=${`post-recovery-chip post-outcome-chip post-outcome-chip-${severity}${marker.kind === 'tool_budget' ? ' post-outcome-chip-tool-budget' : ''}`}
+            title=${[marker.title, marker.detail, marker.tool_action_summary, marker.next_action, marker.draft_recovered && 'draft recovered'].filter(Boolean).join(' · ')}
+            aria-expanded=${details.length ? String(expanded) : undefined} onClick=${event => { event.stopPropagation(); if (details.length) setExpanded(value => !value); }}>${label}</button>
+        ${expanded && details.length > 0 && html`<span class=${`post-outcome-pill post-outcome-pill-${severity}`}><span class="post-outcome-pill-detail">${details.map(detail => html`<span>${detail}</span>`)}</span></span>`}
+    </span>`;
+}
+
 function AnnotationsBadge({ annotations }) {
     if (!annotations) return null;
     const { audience, priority, lastModified } = annotations;
@@ -590,6 +604,7 @@ function Post({
     const resources = [];
     const textAnnotations = [];
     const blocks = data.content_blocks || [];
+    const outcomeMarker = blocks.find(block => block?.type === 'turn_outcome_marker') || null;
     const mediaIds = data.media_ids || [];
     let mediaIndex = 0;
 
@@ -729,6 +744,7 @@ function Post({
                             onMessageRef(String(post.id));
                         }
                     }} style=${onMessageRef ? 'cursor:pointer' : ''}>${formatTimeLabel(post.timestamp)}</span>
+                    ${outcomeMarker && html`<${OutcomePill} marker=${outcomeMarker} />`}
                 </div>
                 ${isHardTruncated && truncatedInfo && html`
                     <div class="post-content truncated">
