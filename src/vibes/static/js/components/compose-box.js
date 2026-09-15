@@ -292,6 +292,7 @@ export function ComposeBox({
     const returnQueueToEditor = async item => {
         if (!onQueueRemove || returningQueue.current.has(item.row_id)) return;
         const origin = sessionId;
+        const originDraft = { text: content, files: mediaFiles, fileRefs, folderRefs, messageRefs };
         const text = typeof item.content === 'string' ? item.content : '';
         if (!text.trim()) return;
         if (content.trim() && !confirm('Append this queued message to your existing draft?')) return;
@@ -300,12 +301,15 @@ export function ComposeBox({
         try {
             const outcome = await returnQueuedText({
                 text,
-                preserve: async value => { recoveryKey = preserveQueuedRecovery(localStorage, { sessionId: origin, queueId: item.row_id, text: value }); },
+                preserve: async value => {
+                    composeDrafts.save(origin, originDraft);
+                    recoveryKey = preserveQueuedRecovery(localStorage, { sessionId: origin, queueId: item.row_id, text: value });
+                },
                 remove: () => onQueueRemove(item.row_id, origin),
             });
             if (!outcome.removed) return;
-            const current = latestQueueDraft.current;
-            if (queueMounted.current && current.sessionId === origin) composeDrafts.save(origin, current);
+            // Input effects persist later origin edits while DELETE is in flight.
+            // Read that durable latest draft here; never save props from a new session.
             const restored = recoverQueuedDraft(localStorage, recoveryKey, origin);
             if (queueMounted.current && latestQueueDraft.current.sessionId === origin) {
                 setContent(restored);

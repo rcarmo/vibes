@@ -63,6 +63,26 @@ test('return to editor preserves latest draft before deleting and ignores duplic
     expect(JSON.parse(await page.evaluate(() => localStorage.getItem('vibes_compose_draft:default'))).text).toContain('Recovered queued text');
 });
 
+test('return to editor writes only the origin draft when session switches in flight', async ({ page }) => {
+    const created = await page.request.post('/sessions', { data: { name: 'Queue destination' } });
+    const other = (await created.json()).session.id;
+    let release;
+    await page.route('**/agent/queue?*', route => {
+        const session = new URL(route.request().url()).searchParams.get('session_id');
+        return route.fulfill({ json: { items: session === 'default' ? [{ row_id: -8, content: 'Origin queued', agent_id: 'default', thread_id: 1 }] : [], pending_steers: [] } });
+    });
+    await page.route('**/agent/queue-remove', async route => { await new Promise(resolve => { release = resolve; }); await route.fulfill({ json: { removed: true } }); });
+    await page.goto('/'); const editor = page.locator('.compose-box textarea'); await editor.fill('Origin latest');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Return queued message to editor' }).click(); await expect.poll(() => !!release).toBe(true);
+    await page.getByTestId('session-switcher').click(); await page.locator(`#session-option-${other}`).click();
+    await expect(page.getByTestId('session-switcher')).toContainText('Queue destination');
+    await editor.fill('Other draft');
+    release(); await expect(editor).toHaveValue('Other draft');
+    await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('vibes_compose_draft:default') || '{}').text)).toBe('Origin latest\n\nOrigin queued');
+    await expect.poll(() => page.evaluate(id => JSON.parse(localStorage.getItem(`vibes_compose_draft:${encodeURIComponent(id)}`) || '{}').text, other)).toBe('Other draft');
+});
+
 test('return to editor storage failure prevents queue deletion', async ({ page }) => {
     let deletes = 0;
     await page.addInitScript(() => { const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key.startsWith('vibes_queue_return:'))throw new Error('fixture quota');return original.call(this,key,value);}; });

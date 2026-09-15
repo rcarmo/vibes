@@ -23,6 +23,7 @@ export class ComposeDrafts {
     save(sessionId, draft) {
         const strings = values => Array.isArray(values) ? values.filter(x => typeof x === 'string').slice(0, 100) : [];
         const data = {
+            sessionId,
             text: typeof draft.text === 'string' ? draft.text.slice(0, 100000) : '',
             fileRefs: strings(draft.fileRefs), folderRefs: strings(draft.folderRefs), messageRefs: strings(draft.messageRefs),
         };
