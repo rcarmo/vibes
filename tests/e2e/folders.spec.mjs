@@ -7,7 +7,7 @@ test('folder selection creates removable reference and folder-only message', asy
         await route.fulfill({ contentType: 'application/json', body: '{"status":"queued"}' });
     });
     await page.goto('/');
-    if (!(await page.locator('.workspace-sidebar').isVisible())) await page.locator('.workspace-toggle-tab').click();
+    if (!(await page.locator('.workspace-sidebar').isVisible())) { await page.getByTestId('hamburger').click(); await page.getByRole('menuitem', { name: 'Show workspace', exact: true }).click(); }
     await page.locator('.workspace-row[data-path="src"]').click();
     const pill = page.locator('.compose-file-pill[title="src"]');
     await expect(pill).toBeVisible();

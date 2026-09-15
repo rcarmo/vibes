@@ -6,11 +6,11 @@ const option = (page, key) => page.locator(`[data-action-key="${key}"]`);
 async function ready(page) {
   await page.goto('/');
   await expect(page.locator('.compose-box textarea')).toBeVisible();
-  await expect(page.locator('.workspace-toggle-tab')).toBeVisible();
+  await expect(page.getByTestId('hamburger')).toBeVisible();
 }
 async function open(page) {
-  if (!await page.getByRole('button', { name: 'Quick actions', exact: true }).isVisible()) await page.getByRole('button', { name: 'Show workspace', exact: true }).click();
-  await page.getByRole('button', { name: 'Quick actions', exact: true }).click();
+  await page.getByTestId('hamburger').click();
+  await page.getByRole('menuitem', { name: 'Quick actions', exact: true }).click();
   await expect(input(page)).toBeFocused();
 }
 async function timelineFocus(page) {
@@ -117,9 +117,9 @@ test('session actions switch via pointer and keyboard while preserving separate 
 
 test('workspace and capability-gated terminal actions use real controls', async ({ page }) => {
   await ready(page); await open(page);
-  const initial = await page.locator('.workspace-toggle-tab').getAttribute('aria-expanded');
+  const initiallyClosed = await page.locator('.app-shell').evaluate(node => node.classList.contains('workspace-collapsed'));
   await input(page).fill('workspace'); await option(page, 'workspace:toggle-workspace').click();
-  await expect(page.locator('.workspace-toggle-tab')).toHaveAttribute('aria-expanded', initial === 'true' ? 'false' : 'true');
+  await expect.poll(() => page.locator('.app-shell').evaluate(node => node.classList.contains('workspace-collapsed'))).toBe(!initiallyClosed);
   await open(page); await input(page).fill('terminal'); await option(page, 'workspace:open-terminal').click();
   await expect(page.locator('.terminal-panel')).toBeVisible();
   await expect(dialog(page)).toHaveCount(0);
@@ -136,7 +136,7 @@ test('mobile launcher, focus trap, outside dismiss and unsupported actions absen
   await expect(page.locator('.timeline-quick-actions-item').last()).toBeFocused();
   await page.keyboard.press('Tab'); await expect(input(page)).toBeFocused();
   await page.getByRole('button', { name: 'Close quick actions' }).click();
-  await expect(page.getByRole('button', { name: 'Quick actions', exact: true })).toBeFocused();
+  await expect(page.getByTestId('hamburger')).toBeFocused();
   await open(page); await page.mouse.click(2, 2); await expect(dialog(page)).toHaveCount(0);
 });
 

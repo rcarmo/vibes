@@ -1,4 +1,4 @@
-import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
+import { html, useEffect, useLayoutEffect, useRef, useState } from '../vendor/preact-htm.js';
 
 // Piclaw-compatible shell menu exposing only actions implemented by this host.
 export function TimelineMenu({ workspaceOpen, onToggleWorkspace, onOpenTerminal, onOpenQuickActions }) {
@@ -9,9 +9,13 @@ export function TimelineMenu({ workspaceOpen, onToggleWorkspace, onOpenTerminal,
         setOpen(false);
         if (restore) requestAnimationFrame(() => button.current?.focus());
     };
-    const run = action => { close(); action?.(); };
+    const run = (action, restoreTarget = false) => {
+        close();
+        if (restoreTarget) button.current?.focus({ preventScroll: true });
+        action?.();
+    };
     useEffect(() => { close(); }, [workspaceOpen]);
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!open) return;
         const pointer = event => {
             if (button.current?.contains(event.target) || menu.current?.contains(event.target)) return;
@@ -39,7 +43,7 @@ export function TimelineMenu({ workspaceOpen, onToggleWorkspace, onOpenTerminal,
         ${open && html`<div ref=${menu} class="workspace-menu-dropdown timeline-menu-dropdown" role="menu">
             <button class="workspace-menu-item" role="menuitem" onClick=${() => run(onToggleWorkspace)}>${workspaceOpen ? 'Hide workspace' : 'Show workspace'}</button>
             ${!workspaceOpen && html`<button class="workspace-menu-item" role="menuitem" onClick=${() => run(onToggleWorkspace)}>Open explorer</button>`}
-            ${onOpenQuickActions && html`<button class="workspace-menu-item" role="menuitem" onClick=${() => run(onOpenQuickActions)}>Quick actions</button>`}
+            ${onOpenQuickActions && html`<button class="workspace-menu-item" role="menuitem" onClick=${() => run(onOpenQuickActions, true)}>Quick actions</button>`}
             ${onOpenTerminal && html`<button class="workspace-menu-item" role="menuitem" onClick=${() => run(onOpenTerminal)}>Open terminal</button>`}
         </div>`}
     </div>`;

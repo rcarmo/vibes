@@ -506,7 +506,7 @@ function Post({
         ? userAvatarBackground.trim().toLowerCase() : '';
     const clearUserBackground = !isAgent && avatarInfo.image
         && (normalizedUserBackground === 'clear' || normalizedUserBackground === 'transparent');
-    const avatarBgColor = avatarInfo.image ? 'transparent' : avatarInfo.color;
+    const avatarBgColor = clearUserBackground || isAgent && avatarInfo.image ? 'transparent' : avatarInfo.color;
     const formatTimeLabel = formatTime || ((value) => String(value || ''));
     const formatCountLabel = formatCount || ((value) => String(value ?? 0));
     const contentMeta = data.content_meta;

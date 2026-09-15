@@ -1,14 +1,20 @@
 import { test, expect } from '@playwright/test';
 
+async function showWorkspace(page) {
+    if (await page.locator('.workspace-sidebar').isVisible()) return;
+    await page.getByTestId('hamburger').click();
+    await page.getByRole('menuitem', { name: 'Show workspace', exact: true }).click();
+}
+
 async function openTerminal(page) {
-    if (!await page.locator('.workspace-sidebar').isVisible()) await page.locator('.workspace-toggle-tab').click();
+    await showWorkspace(page);
     await page.getByTitle('Open terminal', { exact: true }).click();
     await expect(page.locator('.workspace-sidebar')).not.toBeVisible();
 }
 
 async function openEditor(page) {
     const sidebar = page.locator('.workspace-sidebar');
-    if (!await sidebar.isVisible()) await page.locator('.workspace-toggle-tab').click();
+    if (!await sidebar.isVisible()) await showWorkspace(page);
     await page.locator('.workspace-row .workspace-label').filter({ hasText: 'README.md' }).first().click();
     await page.locator('.workspace-edit').click();
     await expect(page.locator('.editor-stack')).toBeVisible();
@@ -147,7 +153,7 @@ for (const width of [1440, 390]) {
 
 test('Control Backquote toggles dock and preserves shell during grace', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.workspace-toggle-tab').click();
+    await showWorkspace(page);
     await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
     await page.keyboard.press('Control+Backquote');
     await expect(page.locator('.terminal-status')).toHaveText('Connected', { timeout: 15000 });
@@ -164,7 +170,7 @@ test('Control Backquote toggles dock and preserves shell during grace', async ({
 
 test('terminal shortcut does not bypass modal session dialog', async ({ page }) => {
     await page.goto('/');
-    await page.locator('.workspace-toggle-tab').click();
+    await showWorkspace(page);
     await expect(page.getByTitle('Open terminal', { exact: true })).toBeVisible();
     await page.getByTestId('session-switcher').click();
     await page.getByRole('button', { name: 'New root…', exact: true }).click();
@@ -182,13 +188,13 @@ test('terminal shortcut does not bypass modal session dialog', async ({ page }) 
 test('mobile workspace drawer Escape restores toggle and composer access', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
+    await expect(page.locator('.workspace-toggle-tab')).not.toBeVisible();
+    await showWorkspace(page);
     const toggle = page.locator('.workspace-toggle-tab');
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await toggle.click();
     await expect(page.getByRole('button', { name: 'Open terminal', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
-    await expect(toggle).toBeFocused();
+    await expect(page.getByTestId('hamburger')).toBeFocused();
     await page.locator('.compose-input-main textarea').click();
     await page.locator('.compose-input-main textarea').pressSequentially('Drawer dismissed');
     await expect(page.locator('.compose-input-main textarea')).toHaveValue('Drawer dismissed');
@@ -197,8 +203,8 @@ test('mobile workspace drawer Escape restores toggle and composer access', async
 test('mobile drawer backdrop closes without activating underlying chat', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
+    await showWorkspace(page);
     const toggle = page.locator('.workspace-toggle-tab');
-    await toggle.click();
     await expect(page.locator('.workspace-drawer-backdrop')).toBeVisible();
     // Outside the drawer, away from the persistent right-hand Plan toggle.
     await page.mouse.click(380, 200);

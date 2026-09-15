@@ -835,7 +835,7 @@ function App() {
             if (document.querySelector('[aria-modal="true"], .compose-model-popup')) return;
             event.preventDefault();
             setWorkspaceOpen(false);
-            requestAnimationFrame(() => document.querySelector('.workspace-toggle-tab')?.focus());
+            requestAnimationFrame(() => document.querySelector('[data-testid="hamburger"]')?.focus());
         };
         window.addEventListener('keydown', dismissDrawer);
         return () => window.removeEventListener('keydown', dismissDrawer);

@@ -12,7 +12,8 @@ async function waitForApp(page) {
 async function ensureWorkspaceOpen(page) {
     const sidebar = page.locator('.workspace-sidebar');
     if (!(await sidebar.isVisible().catch(() => false))) {
-        await page.locator('.workspace-toggle-tab').click();
+        await page.getByTestId('hamburger').click();
+        await page.getByRole('menuitem', { name: 'Show workspace', exact: true }).click();
         await sidebar.waitFor({ state: 'visible', timeout: 5000 });
     }
 }
