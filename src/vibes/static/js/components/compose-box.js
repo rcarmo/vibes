@@ -3,6 +3,7 @@ import { loadModelPins, saveModelPins, modelPinStorage } from './model-pins.js';
 import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
 import { composeDrafts } from './compose-drafts.js';
+import { preserveQueuedRecovery, recoverQueuedDraft, returnQueuedText } from './queue-return.js';
 import { usagePresentation } from './usage.js';
 import { useComposeSizing } from './compose-sizing.js';
 import { loadComposeHistory, saveComposeHistory } from './compose-history.js';
@@ -89,7 +90,7 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
     `;
 }
 
-export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
+export function FollowupQueue({ items, onRemove, onReturn, onSteer, onReorder }) {
     if (!items || items.length === 0) return null;
     return html`
         <div class="compose-queue-stack" aria-label="Queued follow-ups" role="list">
@@ -113,6 +114,10 @@ export function FollowupQueue({ items, onRemove, onSteer, onReorder }) {
                             </button>
                             <button type="button" data-action="move-down" class="compose-queue-stack-move-btn" disabled=${position === peers.length - 1} title="Move down" aria-label="Move down in queue" onClick=${() => onReorder?.(item.row_id, 'down')}>
                                 <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6l5 5 5-5" /></svg>
+                            </button>`}
+                            ${onReturn && html`<button type="button" class="compose-queue-stack-move-btn queue-edit" data-action="edit"
+                                title="Edit in compose" aria-label="Return queued message to editor" onClick=${() => onReturn(item)}>
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
                             </button>`}
                             <button
                                 type="button"
@@ -279,6 +284,37 @@ export function ComposeBox({
     const uploadController = useRef(null);
     useEffect(() => () => uploadController.current?.abort(), []);
     const [mediaFiles, setMediaFiles] = useState(() => composeDrafts.load(sessionId).files);
+    const latestQueueDraft = useRef(null);
+    const returningQueue = useRef(new Set());
+    const queueMounted = useRef(true);
+    latestQueueDraft.current = { sessionId, text: content, files: mediaFiles, fileRefs, folderRefs, messageRefs };
+    useEffect(() => { queueMounted.current = true; return () => { queueMounted.current = false; }; }, []);
+    const returnQueueToEditor = async item => {
+        if (!onQueueRemove || returningQueue.current.has(item.row_id)) return;
+        const origin = sessionId;
+        const text = typeof item.content === 'string' ? item.content : '';
+        if (!text.trim()) return;
+        if (content.trim() && !confirm('Append this queued message to your existing draft?')) return;
+        returningQueue.current.add(item.row_id);
+        let recoveryKey;
+        try {
+            const outcome = await returnQueuedText({
+                text,
+                preserve: async value => { recoveryKey = preserveQueuedRecovery(localStorage, { sessionId: origin, queueId: item.row_id, text: value }); },
+                remove: () => onQueueRemove(item.row_id, origin),
+            });
+            if (!outcome.removed) return;
+            const current = latestQueueDraft.current;
+            if (queueMounted.current && current.sessionId === origin) composeDrafts.save(origin, current);
+            const restored = recoverQueuedDraft(localStorage, recoveryKey, origin);
+            if (queueMounted.current && latestQueueDraft.current.sessionId === origin) {
+                setContent(restored);
+                requestAnimationFrame(() => textareaRef.current?.focus());
+            }
+        } catch (error) {
+            alert(`Could not return queued message: ${error.message}. Any preserved recovery copy is retained.`);
+        } finally { returningQueue.current.delete(item.row_id); }
+    };
     useEffect(() => {
         composeDrafts.save(sessionId, { text: content, files: mediaFiles, fileRefs, folderRefs, messageRefs });
     }, [content, mediaFiles, fileRefs, folderRefs, messageRefs, sessionId]);
@@ -1041,7 +1077,7 @@ export function ComposeBox({
             ${submitError && html`
                 <div class="compose-inline-status compose-submit-error" role="alert" aria-live="assertive"><div class="compose-inline-status-detail">${submitError}</div></div>
             `}
-            ${!searchMode && html`<${FollowupQueue} items=${queuedFollowups} onRemove=${onQueueRemove} onSteer=${onQueueSteer} onReorder=${onQueueReorder} />`}
+            ${!searchMode && html`<${FollowupQueue} items=${queuedFollowups} onRemove=${onQueueRemove} onReturn=${returnQueueToEditor} onSteer=${onQueueSteer} onReorder=${onQueueReorder} />`}
             <div
                 class=${`compose-input-wrapper${isDragActive ? ' drag-active' : ''}`}
                 onDragEnter=${handleDragEnter}

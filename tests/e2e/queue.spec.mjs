@@ -48,6 +48,32 @@ test('active queued item steering submits its durable ID once', async ({ page })
     expect(requests[0]).toEqual({ row_id: -7 });
 });
 
+test('return to editor preserves latest draft before deleting and ignores duplicate activation', async ({ page }) => {
+    let releases, deletes = 0;
+    await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [{ row_id: -4, content: 'Recovered queued text', agent_id: 'default', thread_id: 1 }], pending_steers: [] } }));
+    await page.route('**/agent/queue-remove', async route => { deletes++; await new Promise(resolve => { releases = resolve; }); await route.fulfill({ json: { removed: true } }); });
+    await page.goto('/');
+    const editor = page.locator('.compose-box textarea'); await editor.fill('Draft before request');
+    page.once('dialog', dialog => dialog.accept());
+    const button = page.getByRole('button', { name: 'Return queued message to editor' });
+    await button.click(); await expect.poll(() => !!releases).toBe(true);
+    await button.click({ force: true }); expect(deletes).toBe(1);
+    await editor.fill('Newer draft while deleting'); releases();
+    await expect(editor).toHaveValue('Newer draft while deleting\n\nRecovered queued text');
+    expect(JSON.parse(await page.evaluate(() => localStorage.getItem('vibes_compose_draft:default'))).text).toContain('Recovered queued text');
+});
+
+test('return to editor storage failure prevents queue deletion', async ({ page }) => {
+    let deletes = 0;
+    await page.addInitScript(() => { const original=Storage.prototype.setItem;Storage.prototype.setItem=function(key,value){if(key.startsWith('vibes_queue_return:'))throw new Error('fixture quota');return original.call(this,key,value);}; });
+    await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [{ row_id: -5, content: 'Preserve me', agent_id: 'default', thread_id: 1 }], pending_steers: [] } }));
+    await page.route('**/agent/queue-remove', route => { deletes++; return route.fulfill({ json: { removed: true } }); });
+    await page.goto('/');let message='';page.once('dialog',async dialog=>{message=dialog.message();await dialog.accept();});
+    await page.getByRole('button', { name: 'Return queued message to editor' }).click();
+    await expect.poll(()=>message).toContain('fixture quota');expect(deletes).toBe(0);
+    await expect(page.locator('.compose-queue-stack-item')).toContainText('Preserve me');
+});
+
 test('queued steering renders the classic queued turn dot', async ({ page }) => {
     await page.addInitScript(() => {
         window.EventSource = class extends EventTarget {

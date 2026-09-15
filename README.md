@@ -34,7 +34,7 @@ See the [installation guide][install] for source installs, upgrades, service ope
 
 Chat streams over SSE and supports Markdown, maths, diagrams and attachments. The workspace tree opens files in a tabbed CodeMirror editor, with search, Vim mode and editor pop-outs. The optional terminal has a separate pop-out and reconnect support; enable it with `VIBES_ENABLE_TERMINAL=1` on a POSIX host.
 
-The pill inside the composer selects a conversation and opens session management. Drag the grip above the input to make room for a longer draft; the chosen height survives a reload. Follow-ups can be queued and reordered, and Pi supports steering an active turn. File, folder and message references travel with the draft.
+The pill inside the composer selects a conversation and opens session management. Drag the grip above the input to make room for a longer draft; the chosen height survives a reload. Follow-ups can be queued, reordered or safely returned to the latest draft; steering is enabled only for a matching active turn. File, folder and message references travel with the draft.
 
 Agents can post generated images and files directly to the timeline with Pi's `vibes_attach_file` or ACP's `attach_file` tool. The file is stored immediately, so it survives reloads without the model copying image bytes into its final answer. See [agent attachments](docs/AGENT_ATTACHMENTS.md) for supported formats, inline references and limits.
 

@@ -1857,14 +1857,16 @@ function App() {
         });
     }, []);
 
-    const handleQueueRemove = useCallback(async (rowId) => {
-        if (rowId == null) return;
+    const handleQueueRemove = useCallback(async (rowId, expectedSession = selectedSessionRef.current) => {
+        if (rowId == null || selectedSessionRef.current !== expectedSession) return false;
         try {
             await removeAgentQueueItem(rowId);
-            await refreshSelectedQueue();
+            if (selectedSessionRef.current === expectedSession) await refreshSelectedQueue();
+            return true;
         } catch (error) {
             console.error('Failed to remove queued item:', error);
             alert('Failed to remove queued item: ' + error.message);
+            return false;
         }
     }, []);
 
