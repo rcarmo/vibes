@@ -5,7 +5,7 @@ import { installPlanSidebar } from './components/plan-sidebar.js';
 import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue, getSessionModelState } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
-import { html, render, useState, useEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
+import { html, render, useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
 import { QuickActions } from './components/quick-actions.js';
@@ -732,7 +732,7 @@ function App() {
     const [creatingSession, setCreatingSession] = useState(false);
     const createdSessionRef = useRef(null);
     const createParentRef = useRef(null);
-    useEffect(() => {
+    useLayoutEffect(() => {
         if (!sessionPickerOpen || renamingSession || deletingSession || creatingSession) return;
         const outside = event => {
             if (event.target?.closest?.('[data-testid="session-popup"], [data-testid="session-switcher"]')) return;

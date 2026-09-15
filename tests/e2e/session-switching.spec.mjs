@@ -97,7 +97,7 @@ test('open picker refreshes registry changes from another client', async ({ page
     const id = (await result.json()).session.id;
     await expect(page.locator('#session-option-' + id)).toBeVisible({ timeout: 10000 });
     await page.request.patch('/sessions/' + id, { data: { name: 'External rename' } });
-    await expect(page.locator('#session-option-' + id)).toContainText('@external rename', { timeout: 10000 });
+    await expect(page.locator('#session-option-' + id)).toContainText('@external-rename', { timeout: 10000 });
 });
 
 test('selected chat loads only its scoped queue endpoint', async ({ page }) => {
