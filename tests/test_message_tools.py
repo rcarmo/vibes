@@ -35,6 +35,28 @@ async def test_explicit_scope_bounds_and_pagination(db):
 
 
 @pytest.mark.asyncio
+async def test_explicit_ids_context_missing_and_row_windows_stay_session_scoped(db):
+    from vibes.sessions import SessionStore
+    other = await SessionStore(db).create('Private')
+    ids = [await db.create_interaction({'type': 'user', 'content': f'row {i}'}) for i in range(6)]
+    private = await db.create_interaction({'type': 'user', 'content': 'private', 'session_id': other['id']})
+    tools = MessageTools(db._connection, session_id='default')
+    result = await tools.query('get', row_ids=[ids[2], private, 999999], context_before=2, context_after=2, limit=10)
+    assert [m['row_id'] for m in result['messages']] == list(reversed(ids[:5]))
+    assert result['missing_row_ids'] == [private, 999999]
+    assert [m['row_id'] for m in (await tools.query('search', query='row', after_row=ids[1], limit=2))['messages']] == list(reversed(ids[4:6]))
+    assert [m['row_id'] for m in (await tools.query('search', query='row', before_row=ids[4], limit=2))['messages']] == list(reversed(ids[2:4]))
+    for kwargs in [
+        {'before_row': ids[4], 'after_row': ids[1]}, {'after_row': True},
+        {'context_before': 21}, {'context_after': -1},
+    ]:
+        with pytest.raises(ValueError):
+            await tools.query('get', row_ids=[ids[2]], **kwargs)
+    with pytest.raises(ValueError):
+        await tools.query('search', query='row', context_before=1)
+
+
+@pytest.mark.asyncio
 async def test_attachment_references_are_scoped_bounded_and_sanitized(db):
     root = await db.create_interaction({'type': 'user', 'content': 'files', 'media_ids': [1, 1, True, -2, '3'] + list(range(2, 100))})
     hidden = await db.create_interaction({'type': 'user', 'content': 'private', 'media_ids': [999]})

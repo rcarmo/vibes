@@ -71,20 +71,47 @@ class MessageTools:
             row = await cursor.fetchone()
         return {'session': {'id': row[0], 'name': row[1], 'archived': bool(row[2])} if row else None}
 
-    async def query(self, action, *, row_ids=None, query='', limit=10, before_row=None, media_id=None, reference=None):
+    async def query(self, action, *, row_ids=None, query='', limit=10, before_row=None, after_row=None,
+                    context_before=0, context_after=0, media_id=None, reference=None):
         if action == 'resolve_session':
             return await self.resolve_session(reference)
         if action == 'attachment':
             return await self.attachment(media_id)
         if type(limit) is not int or not 1 <= limit <= 50:
             raise ValueError('limit must be between 1 and 50')
-        where, params = self.scope()
+        if before_row is not None and after_row is not None:
+            raise ValueError('before_row and after_row are mutually exclusive')
+        for name, value in [('before_row', before_row), ('after_row', after_row)]:
+            if value is not None and (type(value) is not int or value < 1):
+                raise ValueError(f'{name} must be a positive integer')
+        if any(type(value) is not int or not 0 <= value <= 20 for value in (context_before, context_after)):
+            raise ValueError('context_before and context_after must be between 0 and 20')
+        if action != 'get' and (context_before or context_after):
+            raise ValueError('context windows are only supported for get')
+        where, scope_params = self.scope()
+        params = list(scope_params)
         clauses = [where]
+        requested = []
         if action == 'get':
             if not isinstance(row_ids, list) or not 1 <= len(row_ids) <= 50 or any(type(i) is not int or i < 1 for i in row_ids):
                 raise ValueError('row_ids must contain 1 to 50 positive integers')
-            clauses.append('i.id IN (' + ','.join('?' for _ in row_ids) + ')')
-            params.extend(row_ids)
+            requested = list(dict.fromkeys(row_ids))
+            authorized_requested = set()
+            for row_id in requested:
+                async with self.connection.execute('SELECT i.id FROM interactions i WHERE ' + where + ' AND i.id=?', [*scope_params, row_id]) as cursor:
+                    if await cursor.fetchone(): authorized_requested.add(row_id)
+            if context_before or context_after:
+                selected = set(authorized_requested)
+                for row_id in authorized_requested:
+                    for op, count, order in [('<', context_before, 'DESC'), ('>', context_after, 'ASC')]:
+                        if not count: continue
+                        async with self.connection.execute('SELECT i.id FROM interactions i WHERE ' + where + f' AND i.id {op} ? ORDER BY i.id {order} LIMIT ?', [*scope_params, row_id, count]) as cursor:
+                            selected.update(row[0] for row in await cursor.fetchall())
+                clauses.append('i.id IN (' + ','.join('?' for _ in selected or [0]) + ')')
+                params.extend(selected or [0])
+            else:
+                clauses.append('i.id IN (' + ','.join('?' for _ in requested) + ')')
+                params.extend(requested)
         elif action == 'search':
             if not isinstance(query, str) or not query.strip() or len(query) > 500:
                 raise ValueError('query must contain 1 to 500 characters')
@@ -95,10 +122,9 @@ class MessageTools:
         else:
             raise ValueError('Unsupported messages action')
         if before_row is not None:
-            if type(before_row) is not int or before_row < 1:
-                raise ValueError('before_row must be a positive integer')
-            clauses.append('i.id < ?')
-            params.append(before_row)
+            clauses.append('i.id < ?'); params.append(before_row)
+        if after_row is not None:
+            clauses.append('i.id > ?'); params.append(after_row)
         sql = 'SELECT i.id, i.timestamp, i.data FROM interactions i WHERE ' + ' AND '.join(clauses) + ' ORDER BY i.id DESC LIMIT ?'
         params.append(limit + 1)
         async with self.connection.execute(sql, params) as cursor:
@@ -122,5 +148,8 @@ class MessageTools:
             if remaining <= 0:
                 break
         more = len(rows) > len(messages)
-        return {'messages': messages, 'has_more': more,
+        result = {'messages': messages, 'has_more': more,
             'next_before_row': messages[-1]['row_id'] if more and messages else None}
+        if action == 'get':
+            result['missing_row_ids'] = [row_id for row_id in requested if row_id not in authorized_requested]
+        return result

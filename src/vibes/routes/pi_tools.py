@@ -22,13 +22,14 @@ async def messages(request):
         raise web.HTTPBadRequest(text='Invalid JSON')
     if not isinstance(payload, dict):
         raise web.HTTPBadRequest(text='Expected object')
-    allowed = {'action', 'row_ids', 'query', 'limit', 'before_row'}
+    allowed = {'action', 'row_ids', 'query', 'limit', 'before_row', 'after_row', 'context_before', 'context_after'}
     if set(payload) - allowed:
         raise web.HTTPBadRequest(text='Unsupported field')
     try:
         result = await MessageTools((await get_db())._connection, session_id=session_id).query(
             payload.get('action'), row_ids=payload.get('row_ids'), query=payload.get('query', ''),
-            limit=payload.get('limit', 10), before_row=payload.get('before_row'))
+            limit=payload.get('limit', 10), before_row=payload.get('before_row'), after_row=payload.get('after_row'),
+            context_before=payload.get('context_before', 0), context_after=payload.get('context_after', 0))
     except ValueError as exc:
         raise web.HTTPBadRequest(text=str(exc))
     return web.json_response(result)

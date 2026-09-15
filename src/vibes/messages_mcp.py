@@ -28,6 +28,9 @@ TOOL = {
             'media_id': {'type': 'integer', 'minimum': 1},
             'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50, 'default': 10},
             'before_row': {'type': 'integer', 'minimum': 1},
+            'after_row': {'type': 'integer', 'minimum': 1},
+            'context_before': {'type': 'integer', 'minimum': 0, 'maximum': 20, 'default': 0},
+            'context_after': {'type': 'integer', 'minimum': 0, 'maximum': 20, 'default': 0},
         },
     },
     'annotations': {'readOnlyHint': True, 'destructiveHint': False, 'openWorldHint': False},
@@ -118,9 +121,11 @@ class MessagesMCP(AsyncMCPServer):
             raise ValueError('Workspace access not configured')
         return await asyncio.to_thread(self.workspace.read, path, offset, limit)
 
-    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None, media_id=None, reference=None):
-        return await self.tools.query(action, row_ids=row_ids, query=query,
-            limit=limit, before_row=before_row, media_id=media_id, reference=reference)
+    async def messages(self, action: str, row_ids=None, query: str = '', limit: int = 10, before_row=None,
+                       after_row=None, context_before: int = 0, context_after: int = 0, media_id=None, reference=None):
+        return await self.tools.query(action, row_ids=row_ids, query=query, limit=limit,
+            before_row=before_row, after_row=after_row, context_before=context_before,
+            context_after=context_after, media_id=media_id, reference=reference)
 
     async def handle(self, request):
         return await self.process_request_async(json.dumps(request))

@@ -23,6 +23,12 @@ async def test_pi_messages_tool_uses_active_session_scope(db, aiohttp_client, mo
     assert response.status == 200
     result = await response.json()
     assert [item['row_id'] for item in result['messages']] == [current_id]
+    assert result['missing_row_ids'] == [other_id]
+    window = await client.post('/internal/pi-tools/messages', json={
+        'action': 'get', 'row_ids': [current_id], 'context_before': 1, 'context_after': 1,
+    })
+    assert window.status == 200
+    assert all(item['row_id'] != other_id for item in (await window.json())['messages'])
 
 
 @pytest.mark.asyncio
