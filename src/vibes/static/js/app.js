@@ -13,6 +13,7 @@ import { SystemMeters } from './components/system-meters.js';
 import { Timeline } from './components/timeline.js';
 import { AgentStatus, AgentRequestModal, ConnectionStatus } from './components/status.js';
 import { WorkspaceExplorer } from './components/workspace-explorer.js';
+import { TimelineMenu } from './components/timeline-menu.js';
 import { WorkspaceEditor } from './components/editor.js';
 import { TerminalPanel } from './components/terminal-panel.js';
 import { TabStrip } from './components/tab-strip.js';
@@ -2426,6 +2427,11 @@ function App() {
     return html`
         <div class=${`app-shell${workspaceOpen ? '' : ' workspace-collapsed'}${editorOpen ? ' editor-open' : ''}${popoutMode ? ' popout-mode' : ''}${terminalPopout ? ' terminal-popout' : ''}`} ref=${appShellRef}>
             ${!popoutMode && !terminalPopout && html`<${SystemMeters} />`}
+            ${!popoutMode && !terminalPopout && html`<${TimelineMenu}
+                workspaceOpen=${workspaceOpen} onToggleWorkspace=${toggleWorkspace}
+                onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)}
+                onOpenTerminal=${terminalEnabled ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined}
+            />`}
             ${!popoutMode && !terminalPopout && html`<${QuickActions}
                 sessions=${sessionOptions} sessionId=${selectedSession} workspace=${quickWorkspaceActions}
                 openRequest=${quickActionsRequest} onRefreshSessions=${refreshSessions}

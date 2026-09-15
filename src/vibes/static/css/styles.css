@@ -445,10 +445,7 @@ html[data-tint]::after {
 /* Current classic context control is a 22px gauge in a 4px button inset. */
 button.compose-context-pie {
     padding: 4px;
-    border: 0;
-    background: transparent;
     color: var(--accent-color);
-    border-radius: 0;
 }
 
 @media (max-width: 639px) {

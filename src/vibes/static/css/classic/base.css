@@ -115,7 +115,7 @@
 
     /* Misc */
     --placeholder-opacity: 0.65;
-    --model-hint-opacity: 0.85;
+    --model-hint-opacity: 0.90;
     --ui-transition-fast: 0.15s ease;
     --ui-disclosure-triangle-size: 10px;
 }

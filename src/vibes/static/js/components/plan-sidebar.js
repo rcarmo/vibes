@@ -64,7 +64,7 @@ export function installPlanSidebar() {
       <span class="plan-sidebar-toggle-progress plan-sidebar-sr-only"></span>
     </button>
     <aside class="plan-sidebar-panel" aria-label="Session plan">
-      <div class="plan-sidebar-resizer" title="Resize plan sidebar"></div>
+      <div class="plan-sidebar-resizer" role="separator" aria-label="Resize plan sidebar" aria-orientation="vertical" tabindex="0" title="Resize plan sidebar"></div>
       <header class="plan-sidebar-header">
         <div class="plan-sidebar-title">Plan</div>
         <div class="plan-sidebar-subtitle"></div>
@@ -596,21 +596,32 @@ export function installPlanSidebar() {
   saveButton.addEventListener("click", () => savePlan().catch(() => undefined));
   submitButton.addEventListener("click", () => submitToModel().catch(() => undefined));
 
-  resizer.addEventListener("mousedown", (event) => {
+  resizer.addEventListener('keydown', event => {
+    if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
     event.preventDefault();
-    state.resizeStart = { x: event.clientX, width: state.width };
-    document.body.classList.add("plan-sidebar-resizing");
+    state.width = clampWidth(state.width + (event.key === 'ArrowLeft' ? 20 : -20));
+    localStorage.setItem(STORAGE_WIDTH, String(state.width));
+    renderChrome();
   });
-  window.addEventListener("mousemove", (event) => {
-    if (!state.resizeStart) return;
+  resizer.addEventListener('pointerdown', event => {
+    event.preventDefault();
+    state.resizeStart = { x: event.clientX, width: state.width, pointerId: event.pointerId };
+    resizer.setPointerCapture?.(event.pointerId);
+    document.body.classList.add('plan-sidebar-resizing');
+  });
+  resizer.addEventListener('pointermove', event => {
+    if (!state.resizeStart || event.pointerId !== state.resizeStart.pointerId) return;
     state.width = clampWidth(state.resizeStart.width + (state.resizeStart.x - event.clientX));
     localStorage.setItem(STORAGE_WIDTH, String(state.width));
     renderChrome();
   });
-  window.addEventListener("mouseup", () => {
+  const finishResize = event => {
+    if (!state.resizeStart || event.pointerId !== state.resizeStart.pointerId) return;
     state.resizeStart = null;
-    document.body.classList.remove("plan-sidebar-resizing");
-  });
+    document.body.classList.remove('plan-sidebar-resizing');
+  };
+  resizer.addEventListener('pointerup', finishResize);
+  resizer.addEventListener('pointercancel', finishResize);
 
   window.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || !state.open) return;

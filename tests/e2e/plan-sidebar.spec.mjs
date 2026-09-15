@@ -115,6 +115,17 @@ test('late save preserves newer Plan edits, submission is scoped and keeps compo
     await expect(page.locator('.compose-box textarea')).toHaveValue('Keep this composer draft');
 });
 
+test('Plan drawer resizer supports keyboard and pointer without losing editor text', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 }); await seed(page); await page.goto('/'); await openPlan(page);
+    await replacePlan(page, '- [ ] Unsaved while resizing');
+    const panel = page.locator('.plan-sidebar-panel'), separator = page.getByRole('separator', { name: 'Resize plan sidebar' });
+    const before = await panel.boundingBox(); await separator.focus(); await page.keyboard.press('ArrowLeft');
+    await expect.poll(async () => (await panel.boundingBox()).width).toBeCloseTo(before.width + 20, 0);
+    const box = await separator.boundingBox(); await page.mouse.move(box.x + 2, box.y + 100); await page.mouse.down(); await page.mouse.move(box.x - 38, box.y + 100); await page.mouse.up();
+    await expect.poll(async () => (await panel.boundingBox()).width).toBeGreaterThan(before.width + 40);
+    await expect(page.locator('.cm-content')).toContainText('Unsaved while resizing');
+});
+
 for (const width of [390, 820, 1440]) test(`Plan drawer is usable at ${width}px without layout masks`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await seed(page);

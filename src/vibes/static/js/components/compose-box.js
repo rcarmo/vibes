@@ -53,45 +53,39 @@ function formatK(n) {
  * Green when <75%, amber 75–90%, red >90%. Tooltip shows exact numbers.
  */
 function ContextPie({ usage, onCompact, disabled, compacting }) {
-    const canCompact = usage.compactCommand === '/compact';
+    const advertised = usage.compactCommand === '/compact';
     const known = typeof usage.percent === 'number' && Number.isFinite(usage.percent) && usage.percent >= 0;
-    if (!known && !canCompact) return null;
-    const Tag = 'button';
-    const pct = known ? usage.percent : 0;
+    if (!known && !advertised) return null;
+    const canCompact = advertised && !disabled;
+    const reportedPct = Math.max(0, known ? usage.percent : 0);
+    const pct = Math.min(100, reportedPct);
     const tokens = usage.tokens;
     const ctxWindow = usage.contextWindow;
-    const label = !known ? 'Context usage unavailable' : Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
-        ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${pct.toFixed(0)}%)`
-        : `Context: ${pct.toFixed(0)}%`;
-
+    const label = Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
+        ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${reportedPct.toFixed(0)}%)`
+        : known ? `Context: ${reportedPct.toFixed(0)}%` : 'Context usage unavailable';
+    const title = [label, usagePresentation(usage).title, advertised && 'Compact context (agent-advertised /compact)'].filter(Boolean).join(' — ');
     const r = 9;
     const circ = 2 * Math.PI * r;
-    const filled = (Math.min(100, pct) / 100) * circ;
-
+    const filled = (pct / 100) * circ;
     const color = pct > 90 ? 'var(--context-red, #ef4444)'
         : pct > 75 ? 'var(--context-amber, #f59e0b)'
             : 'var(--context-green, #22c55e)';
 
     return html`
-        <${Tag} class=${`compose-context-pie${compacting ? ' is-compacting' : ''}`} type="button"
-            aria-label=${canCompact ? `${label}. Compact context` : label}
-            disabled=${!canCompact || disabled} aria-busy=${compacting ? 'true' : undefined}
-            onClick=${canCompact ? onCompact : undefined}
-            title=${[label, usagePresentation(usage).title, canCompact && 'Compact context (agent-advertised /compact)'].filter(Boolean).join('\n')}>
-            <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true">
-                <circle cx="11" cy="11" r=${r}
-                    fill="none"
-                    stroke="var(--border-color)"
-                    stroke-width="2.5" />
-                <circle cx="11" cy="11" r=${r}
-                    fill="none"
-                    stroke=${color}
-                    stroke-width="2.5"
-                    stroke-dasharray=${`${filled} ${circ}`}
-                    stroke-linecap="round"
-                    transform="rotate(-90 11 11)" />
+        <button class=${`compose-context-pie icon-btn${compacting ? ' is-compacting' : ''}`} type="button"
+            aria-label=${title} data-tooltip=${title} disabled=${!canCompact}
+            aria-busy=${compacting ? 'true' : undefined} onClick=${event => {
+                event.preventDefault(); event.stopPropagation(); if (canCompact) onCompact?.();
+            }} title=${title}>
+            <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+                <circle cx="12" cy="12" r=${r} fill="none"
+                    stroke="var(--context-track, rgba(128,128,128,0.2))" stroke-width="2.5" />
+                <circle cx="12" cy="12" r=${r} fill="none" stroke=${color}
+                    stroke-width="2.5" stroke-dasharray=${`${filled} ${circ}`}
+                    stroke-linecap="round" transform="rotate(-90 12 12)" />
             </svg>
-        <//>
+        </button>
     `;
 }
 
