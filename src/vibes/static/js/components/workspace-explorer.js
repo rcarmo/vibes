@@ -589,6 +589,11 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
             return next;
         });
     }).current;
+    useEffect(() => {
+        const toggle = () => handleToggleHidden();
+        window.addEventListener('vibes:workspace-toggle-hidden', toggle);
+        return () => window.removeEventListener('vibes:workspace-toggle-hidden', toggle);
+    }, [handleToggleHidden]);
 
     const handleBackgroundClick = useRef((e) => {
         if (e.target.closest('[data-path]')) return;
@@ -1039,9 +1044,6 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
             <div class="workspace-header">
                 <span>Workspace</span>
                 <div class="workspace-header-actions">
-                    ${visible && onOpenQuickActions && html`<button type="button" class="workspace-toggle-hidden" title="Quick actions (or type on the timeline)" aria-label="Quick actions" onClick=${onOpenQuickActions}>
-                        <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2 4 14h7l-1 8 10-12h-7z"/></svg>
-                    </button>`}
                     ${onOpenTerminalTab && html`<button class="workspace-refresh workspace-terminal" onClick=${onOpenTerminalTab} title="Open terminal" aria-label="Open terminal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m4 6 6 6-6 6M13 18h7" /></svg></button>`}
                     <button class="workspace-create" onClick=${handleCreateFileClick} title="New file" disabled=${uploading}>
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
@@ -1050,23 +1052,13 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
                             <line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
                     </button>
-                    <button class="workspace-refresh" onClick=${handleRefresh} title="Refresh">
+                    <button class="workspace-refresh" onClick=${handleRefresh} title="Refresh tree">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                             <circle cx="12" cy="12" r="8.5" stroke-dasharray="42 12" stroke-dashoffset="6" transform="rotate(75 12 12)" />
                             <polyline points="21 3 21 9 15 9" />
                         </svg>
                     </button>
-                    <button
-                        class=${`workspace-toggle-hidden${showHidden ? ' active' : ''}`}
-                        onClick=${handleToggleHidden}
-                        title=${showHidden ? 'Hide hidden files' : 'Show hidden files'}
-                    >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                            <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" />
-                            <circle cx="12" cy="12" r="3" />
-                            ${!showHidden && html`<line x1="3" y1="3" x2="21" y2="21" />`}
-                        </svg>
-                    </button>
+
                 </div>
             </div>
             <div class="workspace-tree" onClick=${handleBackgroundClick}>

@@ -2436,6 +2436,7 @@ function App() {
             ${!popoutMode && !terminalPopout && html`<${TimelineMenu}
                 workspaceOpen=${workspaceOpen} onToggleWorkspace=${toggleWorkspace}
                 onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)}
+                onToggleHidden=${workspaceOpen ? () => window.dispatchEvent(new CustomEvent('vibes:workspace-toggle-hidden')) : undefined}
                 onOpenTerminal=${terminalEnabled ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined}
             />`}
             ${!popoutMode && !terminalPopout && html`<${QuickActions}
@@ -2444,7 +2445,7 @@ function App() {
                 onSwitchSession=${selectSession}
                 onPrefill=${command => { setSearchOpen(false); setComposePrefill({ command, sessionId: selectedSession }); }}
             />`}
-            ${!popoutMode && html`<${WorkspaceExplorer} onOpenQuickActions=${() => setQuickActionsRequest(value => value + 1)} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
+            ${!popoutMode && html`<${WorkspaceExplorer} onFileSelect=${addFileRef} onFolderSelect=${path => setFolderRefs(prev => prev.includes(path) ? prev : [...prev, path])} visible=${workspaceOpen} active=${workspaceOpen || editorOpen} onOpenEditor=${openEditor} onOpenTerminalTab=${terminalEnabled && !terminalPopout ? () => { setTerminalVisible(true); setWorkspaceOpen(false); } : undefined} renderMarkdown=${renderMarkdown} />`}
             ${workspaceOpen && !popoutMode && !terminalPopout && html`<div class="workspace-drawer-backdrop" aria-hidden="true" onPointerDown=${event => { event.preventDefault(); setWorkspaceOpen(false); }}></div>`}
             ${!popoutMode && html`<button
                 class=${`workspace-toggle-tab${workspaceOpen ? ' open' : ' closed'}`}
