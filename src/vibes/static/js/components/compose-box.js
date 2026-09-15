@@ -1176,16 +1176,7 @@ export function ComposeBox({
                             `}
                             <div class="compose-model-meta-subline">
                             ${usageMeta.label && html`<span class="compose-model-usage-hint" title=${usageMeta.title} aria-label=${usageMeta.title}>${usageMeta.label}</span>`}
-                            ${supportsThinking && html`
-                                <button type="button" class="compose-thinking-pill compose-model-usage-hint"
-                                    aria-label="Cycle thinking level"
-                                    title=${switchingModel ? 'Switching thinking level…' : `${thinkingLabel} (tap to cycle)`}
-                                    onClick=${() => { void handleCycleThinking(); }}
-                                    disabled=${loading || switchingModel}
-                                >
-                                    ${thinkingLevel || 'thinking'}
-                                </button>
-                            `}
+                            ${supportsThinking && html`<span class="compose-model-usage-hint" title=${thinkingLabel}>${thinkingLevel || 'thinking'}</span>`}
                             </div>
                             </div>`}
                             ${contextUsage && (contextUsage.percent != null || contextUsage.compactCommand) && html`

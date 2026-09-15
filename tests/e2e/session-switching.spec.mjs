@@ -206,7 +206,8 @@ test('nondefault thinking cycle uses supported scoped levels', async ({ page }) 
     const id = (await created.json()).session.id;
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
-    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Select thinking level' }).selectOption('low');
     await expect.poll(() => payload?.thinking_level).toBe('low');
     expect(path).toBe(`/sessions/${id}/model`);
 });
@@ -362,7 +363,8 @@ test('default composer model controls use scoped mutation, not slash messages', 
     await page.goto('/');
     await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await page.getByRole('option', { name: 'test/beta', exact: true }).click();
-    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
+    await page.getByRole('combobox', { name: 'Select thinking level' }).selectOption('low');
     await expect.poll(() => changes).toEqual([{ provider: 'test', model_id: 'beta' }, { thinking_level: 'low' }]);
     expect(commands).toBe(0);
 });
@@ -407,8 +409,9 @@ test('switching chats during thinking catalog lookup prevents late mutation', as
     await page.goto('/');
     const created = await page.request.post('/sessions', { data: { name: 'Thinking lookup switch' } });
     const id = (await created.json()).session.id;
-    await page.getByRole('button', { name: 'Cycle thinking level', exact: true }).click();
+    await page.getByRole('button', { name: 'Open model picker', exact: true }).click();
     await expect.poll(() => !!release).toBe(true);
+    await page.keyboard.press('Escape');
     await page.getByTestId('session-switcher').click();
     await page.locator('#session-option-' + id).click();
     await expect(page.getByTestId('session-switcher')).toContainText('Thinking lookup switch');
@@ -1126,7 +1129,7 @@ for (const width of [1280, 390]) {
         expect(await footer.locator('.compose-actions svg').evaluateAll(icons => icons.length > 0 && icons.every(icon => icon.getAttribute('aria-hidden') === 'true'))).toBe(true);
         const meta = footer.locator('.compose-model-meta');
         const model = meta.getByRole('button', { name: 'Open model picker', exact: true });
-        const thinking = meta.locator('.compose-model-meta-subline').getByRole('button', { name: 'Cycle thinking level', exact: true });
+        const thinking = meta.locator('.compose-model-meta-subline .compose-model-usage-hint');
         await expect(model).toContainText('reasoner');
         await expect(thinking).toHaveText('low');
         const inputBounds = await page.locator('.compose-input-main textarea').boundingBox();
