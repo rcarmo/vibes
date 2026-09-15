@@ -122,42 +122,27 @@ function decodeEntitiesDeep(text, maxDepth = 2) {
     return current;
 }
 
-function extractMermaidBlocks(text) {
-    if (!text) return { text: '', blocks: [] };
+function extractDiagramBlocks(text) {
+    if (!text) return { text: '', mermaidBlocks: [], svgBlocks: [] };
     const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     const lines = normalized.split('\n');
-    const blocks = [];
-    const output = [];
-    let inMermaid = false;
-    let current = [];
+    const mermaidBlocks = [], svgBlocks = [], output = [];
+    let kind = null, current = [];
 
     for (const line of lines) {
-        if (!inMermaid && line.trim().match(/^```mermaid\s*$/i)) {
-            inMermaid = true;
-            current = [];
-            continue;
-        }
-        if (inMermaid && line.trim().match(/^```\s*$/)) {
+        const opening = !kind && line.trim().match(/^```(mermaid|svg)\s*$/i);
+        if (opening) { kind = opening[1].toLowerCase(); current = []; continue; }
+        if (kind && line.trim().match(/^```\s*$/)) {
+            const blocks = kind === 'svg' ? svgBlocks : mermaidBlocks;
             const idx = blocks.length;
             blocks.push(current.join('\n'));
-            output.push(`@@MERMAID_BLOCK_${idx}@@`);
-            inMermaid = false;
-            current = [];
-            continue;
+            output.push(`@@${kind.toUpperCase()}_BLOCK_${idx}@@`);
+            kind = null; current = []; continue;
         }
-        if (inMermaid) {
-            current.push(line);
-        } else {
-            output.push(line);
-        }
+        if (kind) current.push(line); else output.push(line);
     }
-
-    if (inMermaid) {
-        output.push('```mermaid');
-        output.push(...current);
-    }
-
-    return { text: output.join('\n'), blocks };
+    if (kind) output.push(`\`\`\`${kind}`, ...current);
+    return { text: output.join('\n'), mermaidBlocks, svgBlocks };
 }
 
 function decodeMermaidBlock(text) {
@@ -173,6 +158,34 @@ function injectMermaidBlocks(html, blocks) {
         const decoded = decodeMermaidBlock(raw);
         const encoded = btoa(unescape(encodeURIComponent(decoded)));
         return `<div class="mermaid-container" data-mermaid="${encoded}"><div class="mermaid-loading">Loading diagram...</div></div>`;
+    });
+}
+
+function sanitizeSvgImage(raw) {
+    const doc = new DOMParser().parseFromString(decodeEntitiesDeep(raw, 2), 'image/svg+xml');
+    const svg = doc.documentElement;
+    if (!svg || svg.localName !== 'svg' || doc.querySelector('parsererror')) return '';
+    const blocked = new Set(['script', 'foreignObject', 'iframe', 'object', 'embed', 'audio', 'video']);
+    for (const el of [...svg.querySelectorAll('*')]) {
+        if (blocked.has(el.localName)) { el.remove(); continue; }
+        for (const attr of [...el.attributes]) {
+            const name = attr.name.toLowerCase(), value = attr.value.trim();
+            const externalUrl = /url\(\s*['"]?(?!#)/i.test(value);
+            if (name.startsWith('on') || name === 'style' || externalUrl || ((name === 'href' || name.endsWith(':href')) && !value.startsWith('#'))) el.removeAttribute(attr.name);
+        }
+    }
+    for (const attr of [...svg.attributes]) if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'style') svg.removeAttribute(attr.name);
+    if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    return new XMLSerializer().serializeToString(svg);
+}
+
+function injectSvgBlocks(html, blocks) {
+    if (!html || !blocks?.length) return html;
+    return html.replace(/@@SVG_BLOCK_(\d+)@@/g, (_match, idx) => {
+        const safe = sanitizeSvgImage(blocks[Number(idx)] ?? '');
+        if (!safe) return '<div class="model-inline-svg-error">Invalid SVG</div>';
+        const encoded = btoa(unescape(encodeURIComponent(safe)));
+        return `<img class="model-inline-svg" src="data:image/svg+xml;base64,${encoded}" alt="Model-generated SVG">`;
     });
 }
 
@@ -333,7 +346,7 @@ function renderMarkdown(text, onHashtagClick) {
     if (!text) return '';
 
     const normalizedMath = normalizeMathFences(text);
-    const { text: stripped, blocks: mermaidBlocks } = extractMermaidBlocks(normalizedMath);
+    const { text: stripped, mermaidBlocks, svgBlocks } = extractDiagramBlocks(normalizedMath);
 
     // Decode HTML entities first (in case content has encoded entities)
     const decoded = decodeEntitiesDeep(stripped, 2);
@@ -355,6 +368,7 @@ function renderMarkdown(text, onHashtagClick) {
 
     // Inject Mermaid blocks after markdown processing to avoid double-encoding
     html_content = injectMermaidBlocks(html_content, mermaidBlocks);
+    html_content = injectSvgBlocks(html_content, svgBlocks);
 
     return html_content;
 }

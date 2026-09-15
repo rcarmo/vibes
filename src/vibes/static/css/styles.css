@@ -386,6 +386,8 @@ html[data-tint]::after {
     .compose-session-popup .compose-session-row-pills { flex-shrink: 0; }
 }
 
+.model-inline-svg { display: block; max-width: 100%; height: auto; margin: var(--spacing-sm, 8px) 0; }
+.model-inline-svg-error { color: var(--danger-color); font-size: var(--font-size-sm); }
 .compose-agent-capabilities { font-size: 11px; color: var(--text-secondary); margin: 4px 0; }
 .compose-agent-capabilities summary { cursor: pointer; }
 .compose-agent-capabilities p { margin: 4px 0; }
