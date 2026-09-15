@@ -3,6 +3,9 @@ import { sessionLastMessage, sessionMessageCount } from './session-metrics.js';
 import { groupSessions } from './session-groups.js';
 import { html, useState, useMemo, useEffect, useLayoutEffect, useRef } from '../vendor/preact-htm.js';
 
+export const normalizeSessionHandle = value => String(value || '').trim().toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').replace(/-{2,}/g, '-');
+
 export function SessionPicker({ sessions = [], refreshError = '', currentId = 'default', onSelect, onClose, onCreate, onCreateBranch, onRename, onDelete, onPin, onArchive }) {
     const [query, setQuery] = useState('');
     const [index, setIndex] = useState(0);
@@ -86,7 +89,7 @@ export function SessionPicker({ sessions = [], refreshError = '', currentId = 'd
                 ${group.items.map(item => { const lastMessage = sessionLastMessage(item.last_message_at); return html`<div key=${item.id} class=${`compose-model-popup-item-row session-picker-row${item.id === currentId ? ' active' : ''}${matches[selectedIndex]?.id === item.id ? ' keyboard-active' : ''}`}>
                 <button type="button" class=${`compose-session-row-pin${item.pinned ? ' pinned' : ''}`} aria-label=${item.pinned ? 'Unpin session' : 'Pin session'} aria-pressed=${!!item.pinned} aria-keyshortcuts="Alt+Enter" disabled=${!!item.archived || !onPin} onClick=${() => act(() => onPin?.(item.id, !item.pinned))}>${item.pinned ? '★' : '☆'}</button>
                 <button type="button" id=${`session-option-${item.id}`} class=${`compose-model-popup-item session-item${item.archived ? ' archived' : ''}${matches[selectedIndex]?.id === item.id ? ' active' : ''}`} role="option" aria-selected=${item.id === currentId} aria-description=${`Session ID: ${item.id}; ${sessionMessageCount(item.message_count)}; ${item.is_running === true ? 'running' : item.is_running === false ? 'idle' : 'status unavailable'}; ${item.queued_count || 0} queued`} title=${`Session ID: ${item.id}; ${sessionMessageCount(item.message_count)}${lastMessage ? '; Last message: ' + lastMessage.label : ''}`} onClick=${() => act(() => onSelect?.(item.id))}>
-                    <span class="compose-session-row-content" style=${item.is_running ? 'font-weight:700' : ''}><span class="compose-session-row-main"><span class="compose-session-row-label">@${(item.name || item.id).toLowerCase()}</span><span class="compose-session-row-meta"><span class="compose-session-row-jid">${item.id}</span></span></span>
+                    <span class="compose-session-row-content" style=${item.is_running ? 'font-weight:700' : ''}><span class="compose-session-row-main"><span class="compose-session-row-label">@${normalizeSessionHandle(item.name || item.id)}</span><span class="compose-session-row-meta"><span class="compose-session-row-jid">${item.id}</span></span></span>
                     ${(item.id === currentId || item.archived || item.is_running) && html`<span class="compose-session-row-pills">
                         ${item.id === currentId && html`<span class="compose-session-status-pill current">current</span>`}
                         ${item.archived ? html`<span class="compose-session-status-pill archived">archived</span>` : item.is_running && html`<span class="compose-session-status-pill active">active</span>`}
