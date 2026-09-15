@@ -37,6 +37,70 @@ Feature: Piclaw-compatible interaction model
     Then the current session and composer content are unchanged
     And on narrow layouts the drawer backdrop activates no Plan or composer control
 
+  @quick-actions @typeahead @keyboard
+  Scenario: Type on the idle timeline to open Quick actions
+    Given focus is on noninteractive timeline content
+    And no modal, session picker, model picker, workspace editor or composer control is active
+    When I type one printable non-whitespace character without Control, Meta or Alt
+    Then Quick actions opens exactly once
+    And its search field has focus
+    And the typed character is the initial query
+    And matching sessions, workspace actions and supported slash commands are grouped in native order
+    And the highlighted result prefers exact title, then title prefix, then the first result
+    When I press ArrowDown or ArrowUp
+    Then the highlight wraps through the filtered results
+    When I press Enter
+    Then the highlighted action runs exactly once
+    And Quick actions closes without erasing the composer draft
+
+  @quick-actions @typeahead @focus @failure
+  Scenario Outline: Do not steal typing from an interactive surface
+    Given focus is inside <surface>
+    When I type a printable character
+    Then Quick actions remains closed
+    And the surface receives the character normally
+
+    Examples:
+      | surface                  |
+      | composer textarea        |
+      | input or select          |
+      | button or link           |
+      | contenteditable editor   |
+      | workspace sidebar        |
+      | open modal dialog        |
+      | session or model picker  |
+
+  @quick-actions @typeahead @ime
+  Scenario: Ignore consumed, modified and composing keys
+    Given focus is on noninteractive timeline content
+    When a key event is already prevented, repeated, composing, whitespace, Control-modified, Meta-modified or Alt-modified
+    Then Quick actions remains closed
+    And no action is activated
+
+  @quick-actions @dismissal @scope
+  Scenario Outline: Dismiss Quick actions without side effects
+    Given Quick actions was opened from a connected visible trigger
+    And its search query has not activated an action
+    When I dismiss it using <dismissal>
+    Then Quick actions is closed
+    And focus returns to the connected opening trigger when applicable
+    And the current session, composer draft, media and references are unchanged
+
+    Examples:
+      | dismissal       |
+      | Escape          |
+      | outside pointer |
+      | close control   |
+
+  @quick-actions @scope @race @failure
+  Scenario: Activate only current supported Quick actions
+    Given command and session results are scoped to session "main"
+    When I change to session "research" while an older catalogue or activation is pending
+    Then the older result cannot replace or activate an action in "research"
+    And failed activation keeps Quick actions open with recoverable input and an error
+    And unsupported commands and workspace actions are absent rather than simulated
+    And command insertion preserves the existing composer draft and does not submit it
+
   @plan @pointer @keyboard
   Scenario Outline: Open Plan and edit the loaded revision
     Given session "main" has the canonical Plan at revision 1
