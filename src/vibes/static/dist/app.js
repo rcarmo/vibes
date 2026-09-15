@@ -891,7 +891,7 @@ ${zt.map((Zt,Pn)=>{let Ln=go[Pn]?.name||`image-${Pn+1}`;return`- attachment:${Zt
                     ${wt&&Oqt()&&ke&&Ve`
                         <button class=${`post-action-btn post-speak-btn${Jt?" is-active":""}`} onClick=${Ge}
                             title=${Jt?"Stop reading aloud":"Read aloud"} aria-label=${Jt?"Stop reading aloud":"Read aloud"}>
-                            ${Jt?Ve`<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="1.2"/></svg>`:Ve`<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3 3.5 6H1.75v4H3.5L7 13V3Z"/><path d="M10 5.5a3.5 3.5 0 0 1 0 5"/><path d="M12 3.5a6.2 6.2 0 0 1 0 9"/></svg>`}
+                            ${Jt?Ve`<svg viewBox="0 0 16 16" fill="currentColor"><rect x="4" y="4" width="8" height="8" rx="1.2"/></svg>`:Ve`<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M11 5 6 9H3v6h3l5 4z"></path><path d="M15.5 8.5a5 5 0 0 1 0 7"></path><path d="M18 6a8.5 8.5 0 0 1 0 12"></path></svg>`}
                         </button>
                     `}
                     <button
@@ -2419,4 +2419,4 @@ ${o}
         </div>
     `}gQt(Ve`<${ADn} />`,document.getElementById("app"));if(!new URLSearchParams(window.location.search).has("popout"))Vjt();
 
-//# debugId=694FC70DA99703C164756E2164756E21
+//# debugId=B74A2CC159395A3D64756E2164756E21
