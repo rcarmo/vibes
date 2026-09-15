@@ -15,6 +15,7 @@ import {
     uploadWorkspaceFile,
 } from '../api.js';
 import { DiskUsageSunburst } from './sunburst.js';
+import { disclosureTriangle } from './disclosure-triangle.js';
 
 const INDENT = 18;
 const REFRESH_INTERVAL_MS = 60_000;
@@ -1090,11 +1091,7 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
                                     onDragEnd=${handleRowDragEnd}
                                 >
                                     <span class="workspace-caret" aria-hidden="true">
-                                        ${isDir
-                                            ? (isOpen
-                                                ? html`<svg viewBox="0 0 12 12"><polygon points="1,2 11,2 6,11"/></svg>`
-                                                : html`<svg viewBox="0 0 12 12"><polygon points="2,1 11,6 2,11"/></svg>`)
-                                            : null}
+                                        ${isDir ? disclosureTriangle(isOpen ? 'down' : 'right') : null}
                                     </span>
                                     <svg class=${`workspace-node-icon${isDir ? ' folder' : ''}`} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                                         ${isDir
@@ -1119,6 +1116,13 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
                                         : html`<span class="workspace-label">${node.name}</span>`}
                                     ${isDir && !isOpen && ((Array.isArray(node.children) && node.children.length > 0) || node.child_count > 0) && html`
                                         <span class="workspace-count">${Array.isArray(node.children) && node.children.length > 0 ? node.children.length : node.child_count}</span>
+                                    `}
+                                    ${isDir && onFolderSelect && html`
+                                        <button class="workspace-folder-upload" data-folder-hint-target=${node.path}
+                                            onClick=${event => { event.stopPropagation(); onFolderSelect(node.path); }}
+                                            title="Add folder hint to compose" aria-label=${`Add folder hint for ${node.path}`}>
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M12 11v6"/><path d="M9 14h6"/></svg>
+                                        </button>
                                     `}
                                     ${isDir && html`
                                         <button class="workspace-folder-upload" data-upload-target=${node.path}
