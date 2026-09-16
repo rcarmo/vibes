@@ -135,8 +135,12 @@ function extractDiagramBlocks(text) {
         if (kind && line.trim().match(/^```\s*$/)) {
             const blocks = kind === 'svg' ? svgBlocks : mermaidBlocks;
             const idx = blocks.length;
-            blocks.push(current.join('\n'));
+            const source = current.join('\n');
+            blocks.push(source);
             output.push(`@@${kind.toUpperCase()}_BLOCK_${idx}@@`);
+            // SVG source remains readable and copyable whether rendering succeeds
+            // or falls back. Mermaid retains its existing diagram-only behavior.
+            if (kind === 'svg') output.push('```svg', ...current, '```');
             kind = null; current = []; continue;
         }
         if (kind) current.push(line); else output.push(line);
@@ -161,21 +165,41 @@ function injectMermaidBlocks(html, blocks) {
     });
 }
 
+const SVG_MAX_BYTES = 64 * 1024;
+const SVG_MAX_NODES = 1000;
+const SVG_MAX_DEPTH = 32;
+
 function sanitizeSvgImage(raw) {
-    const doc = new DOMParser().parseFromString(decodeEntitiesDeep(raw, 2), 'image/svg+xml');
+    const decoded = decodeEntitiesDeep(raw, 2);
+    if (new TextEncoder().encode(decoded).byteLength > SVG_MAX_BYTES) return '';
+    const doc = new DOMParser().parseFromString(decoded, 'image/svg+xml');
     const svg = doc.documentElement;
     if (!svg || svg.localName !== 'svg' || doc.querySelector('parsererror')) return '';
-    const blocked = new Set(['script', 'foreignObject', 'iframe', 'object', 'embed', 'audio', 'video']);
-    for (const el of [...svg.querySelectorAll('*')]) {
-        if (blocked.has(el.localName)) { el.remove(); continue; }
+    const elements = [svg, ...svg.querySelectorAll('*')];
+    if (elements.length > SVG_MAX_NODES) return '';
+    for (const el of elements) {
+        let depth = 0;
+        for (let parent = el.parentElement; parent && parent !== svg; parent = parent.parentElement) depth++;
+        if (depth > SVG_MAX_DEPTH) return '';
+    }
+    const blocked = new Set([
+        'script', 'style', 'foreignObject', 'iframe', 'object', 'embed', 'audio', 'video',
+        'animate', 'animateMotion', 'animateTransform', 'discard', 'set',
+    ].map(value => value.toLowerCase()));
+    for (const el of elements) {
+        if (el !== svg && blocked.has(el.localName.toLowerCase())) { el.remove(); continue; }
         for (const attr of [...el.attributes]) {
             const name = attr.name.toLowerCase(), value = attr.value.trim();
-            const externalUrl = /url\(\s*['"]?(?!#)/i.test(value);
-            if (name.startsWith('on') || name === 'style' || externalUrl || ((name === 'href' || name.endsWith(':href')) && !value.startsWith('#'))) el.removeAttribute(attr.name);
+            const urlValue = /url\s*\(/i.test(value);
+            const href = name === 'href' || name.endsWith(':href');
+            if (name.startsWith('on') || name === 'style' || name === 'class' || urlValue || /(?:javascript|data|https?|file):/i.test(value) || (href && !value.startsWith('#'))) {
+                el.removeAttribute(attr.name);
+            }
         }
     }
-    for (const attr of [...svg.attributes]) if (attr.name.toLowerCase().startsWith('on') || attr.name.toLowerCase() === 'style') svg.removeAttribute(attr.name);
-    if (!svg.getAttribute('xmlns')) svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+    svg.setAttribute('role', 'img');
+    if (!svg.getAttribute('aria-label')?.trim()) svg.setAttribute('aria-label', svg.querySelector('title')?.textContent?.trim() || 'Model-generated SVG preview');
     return new XMLSerializer().serializeToString(svg);
 }
 
@@ -183,9 +207,9 @@ function injectSvgBlocks(html, blocks) {
     if (!html || !blocks?.length) return html;
     return html.replace(/@@SVG_BLOCK_(\d+)@@/g, (_match, idx) => {
         const safe = sanitizeSvgImage(blocks[Number(idx)] ?? '');
-        if (!safe) return '<div class="model-inline-svg-error">Invalid SVG</div>';
+        if (!safe) return '<div class="model-inline-svg-error" role="status">SVG preview unavailable; source retained below.</div>';
         const encoded = btoa(unescape(encodeURIComponent(safe)));
-        return `<img class="model-inline-svg" src="data:image/svg+xml;base64,${encoded}" alt="Model-generated SVG">`;
+        return `<img class="model-inline-svg" src="data:image/svg+xml;base64,${encoded}" alt="Model-generated SVG diagram">`;
     });
 }
 
