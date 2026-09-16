@@ -15,6 +15,7 @@ test('dual UI fixture maps equivalent messages, model, metrics and scoped turn s
   expect(apiResponse('vibes','/agents/status','working').active_turns[0].turn_id).toBe('fixture-turn');
   expect(apiResponse('piclaw','/agent/queue-state','working').items[0].content).toBe(state.queue);
   expect(apiResponse('vibes','/agent/queue','working').items[0].content).toBe(state.queue);
+  expect(apiResponse('vibes','/sessions/default/plan','idle')).toEqual({ markdown: '', revision: 0, updated_at: null });
   expect(apiResponse('piclaw','/unhandled','idle')).toBeUndefined();
 });
 

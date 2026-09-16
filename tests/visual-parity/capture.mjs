@@ -1,7 +1,7 @@
 /** @script Run isolated, deterministic full-app Vibes/Piclaw visual comparisons.
  * bun tests/visual-parity/capture.mjs [--out PATH] [--browsers chromium,webkit]
  * [--scenarios idle,working,sessions,models,quick-actions,attachment] [--viewports desktop,tablet,mobile]
- * [--reference PATH] [--repeat 2]
+ * [--reference PATH] [--repeat 2] [--themes light,dark]
  */
 import { chromium, webkit, expect } from '@playwright/test';
 import { PNG } from 'pngjs';
@@ -18,10 +18,12 @@ const args=process.argv.slice(2); const arg=(name,fallback)=>{const i=args.index
 const output=resolve(arg('out','/workspace/tmp/vibes-visual-diffs'));
 const reference=resolve(arg('reference','/opt/piclaw/releases/piclaw-3.1.2-linux-x64-baseline/app/runtime/web/static'));
 const browsers=arg('browsers','chromium,webkit').split(',');
+const themes=arg('themes','dark').split(',');
 const chosenScenarios=arg('scenarios',scenarios.join(',')).split(',');
 const chosenViews=arg('viewports',Object.keys(viewports).join(',')).split(',');
 const repeats=Number(arg('repeat','2'));
 if(![1,2].includes(repeats))throw Error('--repeat must be 1 or 2');
+for(const theme of themes)if(!['light','dark'].includes(theme))throw Error('Unknown theme '+theme);
 for(const s of chosenScenarios)if(!scenarios.includes(s))throw Error('Unknown scenario '+s);
 for(const v of chosenViews)if(!viewports[v])throw Error('Unknown viewport '+v);
 await mkdir(output,{recursive:true});
@@ -36,11 +38,11 @@ function assetPath(app,path){
  const p=resolve(base,path.slice('/static/'.length));
  return relative(base,p).startsWith('..')?null:p;
 }
-function freeze({app,now,compose}) {
+function freeze({app,now,compose,theme}) {
  const NativeDate=Date;class FixedDate extends NativeDate{constructor(...args){super(...(args.length?args:[now]));}static now(){return now;}}
  window.Date=FixedDate;
  localStorage.clear();sessionStorage.clear();
- const values=app==='piclaw'?{piclaw_theme:'dark',piclaw_system_meters_enabled:'true',piclaw_system_meters_collapsed:'false',workspaceVisible:'false',workspaceOpen:'false',piclaw_workspace_visible:'false',piclaw_compose_height:'80'}:{workspaceOpen:'false',workspaceVisible:'false','vibes-theme':'dark',vibes_system_meters_collapsed:'false',piclaw_compose_height:'80'};
+ const values=app==='piclaw'?{piclaw_theme:theme==='dark'?'dark':'default',piclaw_system_meters_enabled:'true',piclaw_system_meters_collapsed:'false',workspaceVisible:'false',workspaceOpen:'false',piclaw_workspace_visible:'false',piclaw_compose_height:'80'}:{workspaceOpen:'false',workspaceVisible:'false',...(theme==='dark'?{'vibes-theme':'dark'}:{}),vibes_system_meters_collapsed:'false',piclaw_compose_height:'80'};
  for(const [k,v]of Object.entries(values))localStorage.setItem(k,v);
  window.__fixtureStreams=[];
  class Stream {
@@ -56,11 +58,11 @@ function freeze({app,now,compose}) {
  // No real sockets or service workers in the isolated fixture context.
  window.WebSocket=class{constructor(){throw Error('Unmocked WebSocket in visual fixture');}};
 }
-async function capture(browser,app,scenario,view,pass){
- const context=await browser.newContext({viewport:viewports[view],deviceScaleFactor:1,colorScheme:'dark',locale:'en-GB',timezoneId:'UTC',reducedMotion:'reduce',serviceWorkers:'block'});
+async function capture(browser,app,scenario,view,theme,pass){
+ const context=await browser.newContext({viewport:viewports[view],deviceScaleFactor:1,colorScheme:theme,locale:'en-GB',timezoneId:'UTC',reducedMotion:'reduce',serviceWorkers:'block'});
  const page=await context.newPage();const requests=[],errors=[],unhandled=[];
  page.on('pageerror',e=>errors.push(e.message));
- await context.addInitScript(freeze,{app,now:Date.parse(state.now),compose:state.compose});
+ await context.addInitScript(freeze,{app,now:Date.parse(state.now),compose:state.compose,theme});
  await context.route('**/*',async route=>{
   const req=route.request(),url=new URL(req.url()),path=url.pathname;requests.push({method:req.method(),path});
   if(url.hostname!=='fixture.invalid'){unhandled.push({external:req.url()});return route.abort();}
@@ -74,7 +76,7 @@ async function capture(browser,app,scenario,view,pass){
   unhandled.push({method:req.method(),path});
   return route.fulfill({contentType:'application/json',body:'{}'});
  });
- const stem=`${browser.browserType().name()}-${view}-${scenario}-${app}${pass?'-repeat':''}`;
+ const stem=`${browser.browserType().name()}-${theme}-${view}-${scenario}-${app}${pass?'-repeat':''}`;
  try{
   await page.goto('http://fixture.invalid/',{waitUntil:'domcontentloaded'});
   await expect(page.locator('.compose-box textarea').first()).toBeVisible({timeout:20000});
@@ -124,17 +126,17 @@ async function capture(browser,app,scenario,view,pass){
   await page.screenshot({path:resolve(output,stem+'.png'),animations:'disabled'});
   const text=await page.locator('body').innerText();
   const focus=await page.evaluate(()=>({tag:document.activeElement?.tagName,classes:document.activeElement?.className,rootData:{...document.documentElement.dataset},accent:getComputedStyle(document.documentElement).getPropertyValue('--accent-color')}));
-  const result={focus,stem,app,scenario,view,pass,geometry,errors,unhandled,requests,text};
+  const result={focus,stem,app,scenario,view,theme,pass,geometry,errors,unhandled,requests,text};
   await writeFile(resolve(output,stem+'.json'),JSON.stringify(result,null,2));
   return result;
  }catch(error){await page.screenshot({path:resolve(output,stem+'-failed.png')}).catch(()=>{});await writeFile(resolve(output,stem+'-failed.json'),JSON.stringify({error:String(error),errors,requests,unhandled,text:await page.locator('body').innerText().catch(()=>'' )},null,2));throw error;}
  finally{await context.close();}
 }
 const results=[];let failures=0;const browserVersions={};
-for(const name of browsers){const type={chromium,webkit}[name];if(!type)throw Error('Unknown browser');const browser=await type.launch({headless:false});browserVersions[name]=browser.version();try{for(const view of chosenViews)for(const scenario of chosenScenarios){try{
- const captures={};for(let pass=0;pass<repeats;pass++)for(const app of ['piclaw','vibes']){console.log('capture',name,view,scenario,app,pass);captures[app+(pass?'-repeat':'')]=await capture(browser,app,scenario,view,pass);}
+for(const name of browsers){const type={chromium,webkit}[name];if(!type)throw Error('Unknown browser');const browser=await type.launch({headless:false});browserVersions[name]=browser.version();try{for(const theme of themes)for(const view of chosenViews)for(const scenario of chosenScenarios){try{
+ const captures={};for(let pass=0;pass<repeats;pass++)for(const app of ['piclaw','vibes']){console.log('capture',name,theme,view,scenario,app,pass);captures[app+(pass?'-repeat':'')]=await capture(browser,app,scenario,view,theme,pass);}
  const a=PNG.sync.read(await readFile(resolve(output,captures.piclaw.stem+'.png'))),b=PNG.sync.read(await readFile(resolve(output,captures.vibes.stem+'.png')));
- const diff=compare(a,b),prefix=`${name}-${view}-${scenario}`;await writeFile(resolve(output,prefix+'-diff.png'),PNG.sync.write(diff.diff));
+ const diff=compare(a,b),prefix=`${name}-${theme}-${view}-${scenario}`;await writeFile(resolve(output,prefix+'-diff.png'),PNG.sync.write(diff.diff));
  await writeFile(resolve(output,prefix+'-side-by-side.png'),PNG.sync.write(sideBySide(a,b)));
  await writeFile(resolve(output,prefix+'-overlay.png'),PNG.sync.write(overlay(a,b)));
  const regions={};
@@ -144,14 +146,14 @@ for(const name of browsers){const type={chromium,webkit}[name];if(!type)throw Er
   await writeFile(resolve(output,prefix+'-'+name+'-comparison.png'),PNG.sync.write(sideBySide(region.left,region.right)));
  }
  const stability={};if(repeats===2)for(const app of ['piclaw','vibes']){const first=PNG.sync.read(await readFile(resolve(output,captures[app].stem+'.png'))),second=PNG.sync.read(await readFile(resolve(output,captures[app+'-repeat'].stem+'.png')));stability[app]=compare(first,second).count;}
- results.push({prefix,view,scenario,browser:name,differentPixels:diff.count,ratio:diff.ratio,regions,stability,captures});
+ results.push({prefix,view,theme,scenario,browser:name,differentPixels:diff.count,ratio:diff.ratio,regions,stability,captures});
  console.log('diff',prefix,(diff.ratio*100).toFixed(2)+'%', 'repeat',JSON.stringify(stability));
  }catch(error){failures++;console.error(name,view,scenario,String(error));}}}finally{await browser.close();}}
 const sha=async p=>createHash('sha256').update(await readFile(p)).digest('hex');
 const manifest={createdAt:new Date().toISOString(),git:execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim(),reference,
  hashes:{piclawJs:await sha(resolve(reference,'classic/dist/app.bundle.js')),piclawCss:await sha(resolve(reference,'classic/dist/app.bundle.css')),vibesJs:await sha(resolve(root,'src/vibes/static/dist/app.js')),vibesCss:await sha(resolve(root,'src/vibes/static/dist/app.css')),fixture:await sha(resolve(root,'tests/visual-parity/state.mjs'))},
- options:{browsers,chosenScenarios,chosenViews,repeats},browserVersions,
- fixturePolicy:{clock:state.now,dpr:1,theme:'dark',locale:'en-GB',timezone:'UTC',headless:false,retries:0,workers:1,network:'all requests intercepted; external blocked',normalisation:['animation/transition disabled','caret hidden','mouse away from controls','focus reset for closed surfaces'],uncovered:['light theme','workspace/editor/terminal panes','permission dialogs','expanded statuses','OS-specific fonts','real-agent execution']},
+ options:{browsers,themes,chosenScenarios,chosenViews,repeats},browserVersions,
+ fixturePolicy:{clock:state.now,dpr:1,themes,locale:'en-GB',timezone:'UTC',headless:false,retries:0,workers:1,network:'all requests intercepted; external blocked',normalisation:['animation/transition disabled','caret hidden','mouse away from controls','focus reset for closed surfaces'],uncovered:['workspace/editor/terminal panes','permission dialogs','expanded statuses','OS-specific fonts','real-agent execution']},
  sourceHashes:{state:await sha(resolve(root,'tests/visual-parity/state.mjs')),adapters:await sha(resolve(root,'tests/visual-parity/adapters.mjs')),capture:await sha(resolve(root,'tests/visual-parity/capture.mjs')),images:await sha(resolve(root,'tests/visual-parity/images.mjs')),editorVendor:await sha(resolve(reference,'../../extensions/viewers/editor/vendor/codemirror.js'))},pixelmatch:diffOptions,failures,results,unstable:results.filter(r=>Object.values(r.stability).some(n=>n>0)).map(r=>r.prefix)};
 await writeFile(resolve(output,'manifest.json'),JSON.stringify(manifest,null,2));
 const html=`<!doctype html><meta charset="utf-8"><title>Vibes / Piclaw visual diff</title><style>body{font:15px system-ui;background:#182028;color:#eee;margin:24px}img{max-width:100%;border:1px solid #64748b}section{margin:32px 0}a{color:#7dd3fc}summary{cursor:pointer}code{color:#ddd}</style><h1>Piclaw (left) / Vibes (right)</h1><p>Same fixture. No live API calls. Frozen time; animation/caret disabled. Pixelmatch threshold 0.1 excludes antialiasing. Differences are evidence, not an acceptance score.</p>${results.map(r=>`<section><h2>${r.prefix}: ${(r.ratio*100).toFixed(2)}% pixels differ</h2><p>Repeat changed pixels: ${JSON.stringify(r.stability)}. <a href="${r.prefix}-diff.png">Pixel diff</a> · <a href="${r.prefix}-overlay.png">50% overlay</a> · ${Object.entries(r.regions).map(([name,data])=>`<a href="${r.prefix}-${name}-comparison.png">${name}: ${(data.ratio*100).toFixed(1)}%</a>`).join(' · ')}</p><img loading="lazy" src="${r.prefix}-side-by-side.png"><details><summary>Diff</summary><img loading="lazy" src="${r.prefix}-diff.png"></details></section>`).join('')}<p>See manifest.json for asset hashes, request logs, geometry and fixture diagnostics. Failures: ${failures}.</p>`;

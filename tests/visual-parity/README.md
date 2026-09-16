@@ -17,6 +17,9 @@ xvfb-run -a -s '-screen 0 1920x1080x24' \
   --out /workspace/tmp/vibes-visual-new-run
 ```
 
+Add `--themes light,dark` for the complete two-theme matrix. The default remains
+`dark` so historical commands and baselines stay reproducible.
+
 The reference is an **installed release** containing `classic`, `common`, and the
 sibling `../../extensions/viewers/editor/vendor` assets. Vibes uses the checked-in
 `src/vibes/static/dist` build. Run `make build-frontend` first if testing source
@@ -40,7 +43,7 @@ reported, not thresholded into a false parity pass.
 
 * Chromium and WebKit, headed, serial execution, no retries.
 * Desktop 1440×900, tablet 1024×768, mobile 390×844; DPR 1.
-* Dark theme, en-GB locale, UTC, frozen time and deterministic avatars/image bytes.
+* Dark theme by default, or explicit `--themes light,dark`; en-GB locale, UTC, frozen time and deterministic avatars/image bytes.
 * Idle messages, active draft/thought/status/queue, session picker, model picker,
   quick actions, and an assistant image attachment.
 * The workspace is closed via the normal control; composer text and popup state
@@ -73,8 +76,8 @@ of changed screenshot pixels, **not** a usability or parity score. Region crops
 use the union of actual positions; they are not translated to conceal offsets.
 Blank space can dilute full-screen percentages, so inspect the region diffs too.
 
-This is a focused baseline, not exhaustive parity coverage: light mode, expanded
-status panels, workspace/editor/terminal panes, permission dialogs, real runtime
+This is a focused baseline, not exhaustive parity coverage: expanded status
+panels, workspace/editor/terminal panes, permission dialogs, real runtime
 execution and OS-specific fonts are not covered yet. Add states to the shared
 fixture and explicit adapters before expanding the matrix.
 

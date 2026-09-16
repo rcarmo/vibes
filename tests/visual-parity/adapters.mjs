@@ -31,6 +31,7 @@ export function apiResponse(app, path, scenario) {
   if (path.endsWith('/models')) return { ...modelState, models: [state.model], providers: [] };
   if (path === '/model-preferences') return { version: 1, pins: [] };
   if (path === '/sessions') return { sessions, runtime_isolation: false };
+  if (/^\/sessions\/[^/]+\/plan$/.test(path)) return { markdown: '', revision: 0, updated_at: null };
   if (path === '/agent/status') return { status: working ? status : null, active: working,
     thought: { text: working ? state.thought : '', totalLines: 2 }, draft: { text: working ? state.draft : '', totalLines: 2 }, plan: '', pending_request: null };
   if (path === '/agents/status') return { busy: working, pi_busy: working, acp_busy: false,
