@@ -26,10 +26,12 @@ test('timeline typing opens grouped actions; filtering, wrapping arrows, Escape 
   await expect(option(page, 'slash:/model')).toHaveClass(/active/);
   await input(page).fill('');
   await expect(page.locator('.timeline-quick-actions-section')).toHaveText(['Agents', 'Workspace', 'Slash commands']);
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   const options = page.locator('.timeline-quick-actions-item');
   await expect(options.first()).toHaveAttribute('aria-selected', 'true');
-  await page.keyboard.press('ArrowUp');
-  await expect(options.last()).toHaveAttribute('aria-selected', 'true');
+  const lastKey = await options.last().getAttribute('data-action-key');
+  await input(page).press('ArrowUp');
+  await expect(page.locator(`[data-action-key="${lastKey}"]`)).toHaveAttribute('aria-selected', 'true');
   await page.keyboard.press('ArrowDown');
   await expect(options.first()).toHaveAttribute('aria-selected', 'true');
   await input(page).fill('zz-no-such-action');

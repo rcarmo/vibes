@@ -10,6 +10,7 @@ async function imagePost(page) {
   await page.route('**/media/7{,/**}', route => route.fulfill({ body: png, contentType: 'image/png' }));
   await timeline(page, [post(700, '', { media_ids: [7], content_blocks: [{ type: 'image', media_id: 7, name: 'pixel.png' }] })]);
   await page.goto('/'); await page.locator('#post-700 img').click(); await expect(page.locator('.image-modal')).toBeVisible();
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
 }
 
 test('@ux-timeline-013 Escape dismisses image lightbox', async ({ page }) => { await imagePost(page); await page.keyboard.press('Escape'); await expect(page.locator('.image-modal')).toHaveCount(0); await expect(page.locator('.timeline')).toBeVisible(); });
