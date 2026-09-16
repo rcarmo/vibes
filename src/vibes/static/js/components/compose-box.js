@@ -65,7 +65,7 @@ function ContextPie({ usage, onCompact, disabled, compacting }) {
     const label = Number.isFinite(tokens) && tokens >= 0 && Number.isFinite(ctxWindow) && ctxWindow > 0
         ? `Context: ${formatK(tokens)} / ${formatK(ctxWindow)} tokens (${reportedPct.toFixed(0)}%)`
         : known ? `Context: ${reportedPct.toFixed(0)}%` : 'Context usage unavailable';
-    const title = [label, usagePresentation(usage).title, advertised && 'Compact context (agent-advertised /compact)'].filter(Boolean).join(' — ');
+    const title = [label, usagePresentation(usage).title, advertised && 'Compact context'].filter(Boolean).join(' — ');
     const r = 9;
     const circ = 2 * Math.PI * r;
     const filled = (pct / 100) * circ;
