@@ -27,9 +27,14 @@ class PiSessionSelector:
             self.paths[chat_id] = persisted_path
         if chat_id == self.active and (not persisted_path or persisted_path == current_path):
             return current_path
-        if not current_path:
-            raise RuntimeError('Pi session persistence is required for switching')
         target = self.paths.get(chat_id)
+        # A freshly started Pi process has no sessionFile until a conversation
+        # is created. It is safe to create the requested named conversation
+        # only while no current or remembered conversation exists. Once any
+        # path is known, never switch away from an unpersisted state.
+        fresh_bootstrap = not current_path and not self.paths and target is None
+        if not current_path and not fresh_bootstrap:
+            raise RuntimeError('Pi session persistence is required for switching')
         command = {'type': 'switch_session', 'sessionPath': target} if target else {'type': 'new_session'}
         self.uncertain = True
         result = await rpc(command)
