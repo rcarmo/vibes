@@ -79,11 +79,11 @@ class MessageTools:
             return await self.attachment(media_id)
         if type(limit) is not int or not 1 <= limit <= 50:
             raise ValueError('limit must be between 1 and 50')
-        if before_row is not None and after_row is not None:
-            raise ValueError('before_row and after_row are mutually exclusive')
         for name, value in [('before_row', before_row), ('after_row', after_row)]:
             if value is not None and (type(value) is not int or value < 1):
                 raise ValueError(f'{name} must be a positive integer')
+        if before_row is not None and after_row is not None and after_row >= before_row:
+            raise ValueError('after_row must be less than before_row')
         if any(type(value) is not int or not 0 <= value <= 20 for value in (context_before, context_after)):
             raise ValueError('context_before and context_after must be between 0 and 20')
         if action != 'get' and (context_before or context_after):

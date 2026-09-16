@@ -46,8 +46,16 @@ async def test_explicit_ids_context_missing_and_row_windows_stay_session_scoped(
     assert result['missing_row_ids'] == [private, 999999]
     assert [m['row_id'] for m in (await tools.query('search', query='row', after_row=ids[1], limit=2))['messages']] == list(reversed(ids[4:6]))
     assert [m['row_id'] for m in (await tools.query('search', query='row', before_row=ids[4], limit=2))['messages']] == list(reversed(ids[2:4]))
+    bounded = await tools.query('search', query='row', after_row=ids[1], before_row=ids[5], limit=2)
+    assert [m['row_id'] for m in bounded['messages']] == list(reversed(ids[3:5]))
+    assert bounded['has_more']
+    assert bounded['next_before_row'] == ids[3]
+    page_two = await tools.query('search', query='row', after_row=ids[1], before_row=bounded['next_before_row'], limit=2)
+    assert [m['row_id'] for m in page_two['messages']] == [ids[2]]
+    assert not page_two['has_more']
+    assert private not in {m['row_id'] for m in bounded['messages'] + page_two['messages']}
     for kwargs in [
-        {'before_row': ids[4], 'after_row': ids[1]}, {'after_row': True},
+        {'before_row': ids[1], 'after_row': ids[4]}, {'before_row': ids[2], 'after_row': ids[2]}, {'after_row': True},
         {'context_before': 21}, {'context_after': -1},
     ]:
         with pytest.raises(ValueError):
