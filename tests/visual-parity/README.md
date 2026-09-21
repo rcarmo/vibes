@@ -1,5 +1,10 @@
 # Same-state visual comparison
 
+Vibes owns this focused full-app comparison in its source tree. The broader
+canonical interaction/capture artifacts are likewise owned at `tests/parity/`;
+see `tests/parity/OWNERSHIP.md`. Neither suite depends on a mutable shared
+workspace directory to run.
+
 This fixture boots the real built Vibes UI and the deployed Piclaw classic UI in
 isolated browser contexts. `state.mjs` defines shared semantic data;
 `adapters.mjs` translates it into each application's API/SSE formats. It does not

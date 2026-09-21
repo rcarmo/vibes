@@ -11,7 +11,8 @@
   },
   "scripts": {
     "lint:frontend": "eslint \"src/vibes/static/js/**/*.js\"",
-    "build:frontend": "bun run build.js"
+    "build:frontend": "bun run build.js",
+    "test:parity": "bun test tests/parity tests/frontend/canonical-ux-contract.test.mjs tests/frontend/visual-parity.test.mjs"
   },
   "dependencies": {
     "beautiful-mermaid": "1.1.3",

@@ -1,0 +1,13 @@
+{
+  "name": "ui-parity-fixtures",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test"
+  },
+  "devDependencies": {
+    "pixelmatch": "7.2.0",
+    "playwright": "1.63.0",
+    "pngjs": "7.0.0"
+  }
+}

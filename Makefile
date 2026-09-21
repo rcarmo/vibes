@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
+.PHONY: help install install-dev lint format test test-parity coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -36,6 +36,9 @@ format: ## Format code with ruff
 
 test: ## Run pytest
 	PYTHONPATH=src $(PYTHON) -m pytest
+
+test-parity: ## Run the Vibes-owned canonical parity contracts and fixture tests
+	bun run test:parity
 
 coverage: ## Run pytest with coverage
 	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
