@@ -33,3 +33,18 @@ The initial import was copied in full from `/workspace/projects/ui-parity-fixtur
 - `run-plan-comparison.mjs`: `690c616e9ded7fbcc004ca382de7a3f31ff43480769b1b467f88bfde593d9f15`
 - `adapters/tau.mjs`: `d5be996ab5af23b7742c5604931c3178ee47391d0aac32c783f1109c6bcfeb4f`
 - `adapters/vibes.mjs`: `096842d46464ef52b7e1b334d52a9ffe91a34ef44a4cd217479cc5200763f38d` (before replacing its absolute Vibes path with a repository-relative default)
+
+## Cross-project alignment checkpoint
+
+As of 2026-09-21:
+
+- Vibes owns this suite at commit `0ecf550aa328dc33d6d657a2c53322eee5c7b7f3`.
+- Tau owns its independent copy at commit `62d28201ec1d16f3a8097f159a88f2bfdacd932f`.
+- Both commits are pushed to their respective `main` branches.
+- Both trees contain the same 50-file relative inventory.
+- 47 files are byte-identical.
+- The three deliberate differences are `OWNERSHIP.md`, `adapters/vibes.mjs`, and `adapters/vibes.test.mjs`. Tau requires the external Vibes static root explicitly; Vibes defaults to its repository-relative static assets.
+- Both canonical product and parity Gherkin copies have SHA-256 `a08a623880c6f327bc051edc51bb2bbff2959aed86421b5227e61d5a92fc2441`.
+- `make test-parity` passes 44 tests in Vibes and 41 tests in Tau. Vibes includes its frontend canonical/visual contract tests in that target; Tau runs the owned parity directory directly.
+
+For future parity work, change the canonical artifacts in one owned repository, port the same semantic change to the other, and compare the two relative file inventories and SHA-256 hashes. Review ownership documentation and product-root adapter differences rather than forcing those files to be identical. Run `make test-parity` in both repositories before any headed cross-product comparison, and record both commit IDs plus the canonical Gherkin hash in the resulting evidence.
