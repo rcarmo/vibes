@@ -1,0 +1,21 @@
+# GitHub Linguist metadata
+#
+# Vibes is a Python application with checked-in generated frontend bundles,
+# third-party browser assets, and JavaScript-heavy acceptance fixtures. Keep
+# maintained frontend source detectable as JavaScript, but do not let generated,
+# vendored, documentation, or test-only artifacts determine repository language.
+
+# Generated frontend output.
+src/vibes/static/dist/** linguist-generated=true
+
+# Vendored Piclaw/common assets and browser libraries.
+src/vibes/static/common/** linguist-vendored=true
+src/vibes/static/js/vendor/** linguist-vendored=true
+src/vibes/static/fonts/** linguist-vendored=true
+src/vibes/static/common/fonts/vendor/** linguist-vendored=true
+
+# Test and parity fixtures are not production implementation languages.
+tests/**/*.mjs linguist-detectable=false
+
+# Documentation media.
+docs/demo.gif linguist-documentation=true
