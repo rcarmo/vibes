@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-parity coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
+.PHONY: help install install-dev lint format test test-parity fixtures-vibes coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -39,6 +39,9 @@ test: ## Run pytest
 
 test-parity: ## Run the Vibes-owned canonical parity contracts and fixture tests
 	bun run test:parity
+
+fixtures-vibes: ## Run the shared Classic compliance suite
+	$(MAKE) -C references/fixtures-vibes deps compliance PROFILE=$(CURDIR)/tests/fixtures-vibes/profile.json
 
 coverage: ## Run pytest with coverage
 	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing

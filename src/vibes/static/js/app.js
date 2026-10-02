@@ -199,8 +199,17 @@ function sanitizeSvgImage(raw) {
     }
     svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svg.setAttribute('role', 'img');
-    if (!svg.getAttribute('aria-label')?.trim()) svg.setAttribute('aria-label', svg.querySelector('title')?.textContent?.trim() || 'Model-generated SVG preview');
-    return new XMLSerializer().serializeToString(svg);
+    const label = svg.querySelector('title')?.textContent?.trim() || 'Model-generated SVG preview';
+    svg.setAttribute('aria-label', label);
+    return { source: new XMLSerializer().serializeToString(svg), label };
+}
+
+function escapeHtmlAttribute(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/"/g, '&quot;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
 }
 
 function injectSvgBlocks(html, blocks) {
@@ -208,16 +217,10 @@ function injectSvgBlocks(html, blocks) {
     return html.replace(/@@SVG_BLOCK_(\d+)@@/g, (_match, idx) => {
         const safe = sanitizeSvgImage(blocks[Number(idx)] ?? '');
         if (!safe) return '<div class="model-inline-svg-error" role="status">SVG preview unavailable; source retained below.</div>';
-        const encoded = btoa(unescape(encodeURIComponent(safe)));
-        return `<img class="model-inline-svg" src="data:image/svg+xml;base64,${encoded}" alt="Model-generated SVG diagram">`;
+        const encoded = btoa(unescape(encodeURIComponent(safe.source)));
+        return `<img class="model-inline-svg" src="data:image/svg+xml;base64,${encoded}" alt="${escapeHtmlAttribute(safe.label)}">`;
     });
 }
-
-const ALLOWED_HTML_TAGS = new Set([
-    'strong', 'em', 'b', 'i', 'u', 's', 'br', 'p',
-    'ul', 'ol', 'li', 'blockquote',
-    'ruby', 'rt', 'rp',
-]);
 
 function normalizeHtmlCodeTags(text) {
     if (!text) return text;
@@ -226,24 +229,6 @@ function normalizeHtmlCodeTags(text) {
             return `\n\`\`\`\n${code}\n\`\`\`\n`;
         }
         return `\`${code}\``;
-    });
-}
-
-function restoreAllowedHtmlTags(text) {
-    if (!text) return text;
-    return text.replace(/&lt;([\s\S]*?)(?:&gt;|>)/g, (match, content) => {
-        const trimmed = content.trim();
-        const isClosing = trimmed.startsWith('/');
-        const rawTag = isClosing ? trimmed.slice(1).trim() : trimmed;
-        const isSelfClosing = rawTag.endsWith('/');
-        const tagContent = isSelfClosing ? rawTag.slice(0, -1).trim() : rawTag;
-        const tagName = tagContent.split(/\s+/)[0]?.toLowerCase();
-        if (!tagName || !ALLOWED_HTML_TAGS.has(tagName)) return match;
-        if (tagName === 'br') {
-            return isClosing ? '' : '<br>';
-        }
-        if (isClosing) return `</${tagName}>`;
-        return `<${tagName}>`;
     });
 }
 
@@ -378,10 +363,10 @@ function renderMarkdown(text, onHashtagClick) {
     // Escaping `<` is sufficient to prevent raw HTML from opening a tag.
     // Preserve `>` because it is Markdown's blockquote marker.
     const escaped = normalized.replace(/</g, '&lt;');
-    const safeHtml = restoreAllowedHtmlTags(escaped);
 
-    // Render markdown to HTML (preserve escaped HTML)
-    let html_content = marked.parse(safeHtml, { headerIds: false, mangle: false });
+    // Raw model-authored HTML stays inert text. Markdown syntax is converted
+    // only after the source has been escaped.
+    let html_content = marked.parse(escaped, { headerIds: false, mangle: false });
 
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
@@ -448,8 +433,7 @@ function renderThinkingMarkdown(text) {
     const escaped = normalizedHtml
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-    const safeHtml = restoreAllowedHtmlTags(escaped);
-    let html_content = marked.parse(safeHtml);
+    let html_content = marked.parse(escaped);
     html_content = decodeCodeEntities(html_content);
     html_content = decodeTextEntities(html_content);
     return html_content;

@@ -30,7 +30,7 @@ test('renders fenced SVG inline as a sanitized inert image', async ({ page }) =>
     await page.addInitScript(() => Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async text => { window.copiedCode = text; } } }));
     const external = [];
     page.on('request', request => { if (request.url().includes('evil.invalid')) external.push(request.url()); });
-    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" onload="alert(1)" style="background:url(https://evil.invalid/root)"><style>text{fill:url(https://evil.invalid/css)}</style><script>alert(2)</script><animate attributeName="opacity" values="0;1"/><foreignObject><iframe src="https://evil.invalid"></iframe></foreignObject><a href="https://evil.invalid"><rect width="120" height="40" fill="#326b82" onclick="alert(3)"/></a><image href="https://evil.invalid/image.png"/><text x="8" y="26">Safe diagram</text></svg>';
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 40" onload="alert(1)" style="background:url(https://evil.invalid/root)"><title>Safe diagram title</title><style>text{fill:url(https://evil.invalid/css)}</style><script>alert(2)</script><animate attributeName="opacity" values="0;1"/><foreignObject><iframe src="https://evil.invalid"></iframe></foreignObject><a href="https://evil.invalid"><rect width="120" height="40" fill="#326b82" onclick="alert(3)"/></a><image href="https://evil.invalid/image.png"/><text x="8" y="26">Safe diagram</text></svg>';
     await page.route('**/timeline?*', route => route.fulfill({ json: {
         posts: [{ id: 94, timestamp: '2026-09-14 20:00:00', data: { type: 'agent_response', content: `\`\`\`svg\n${svg}\n\`\`\``, agent_id: 'default', session_id: 'default' } }],
         has_more: false,
@@ -38,7 +38,7 @@ test('renders fenced SVG inline as a sanitized inert image', async ({ page }) =>
     await page.goto('/');
     const image = page.locator('#post-94 img.model-inline-svg');
     await expect(image).toBeVisible();
-    await expect(image).toHaveAttribute('alt', 'Model-generated SVG diagram');
+    await expect(image).toHaveAttribute('alt', 'Safe diagram title');
     const decoded = await image.getAttribute('src').then(src => decodeURIComponent(escape(atob(src.split(',')[1]))));
     expect(decoded).toContain('Safe diagram');
     expect(decoded).not.toMatch(/script|style|foreignObject|iframe|animate|onload|onclick|https:\/\/evil/i);
@@ -52,6 +52,15 @@ test('renders fenced SVG inline as a sanitized inert image', async ({ page }) =>
     await page.reload();
     await expect(page.locator('#post-94 img.model-inline-svg')).toBeVisible();
     expect(external).toEqual([]);
+});
+
+test('model-authored raw HTML remains escaped text while Markdown formatting renders', async ({ page }) => {
+    const content = 'Raw <b>unsafe bold</b> and **safe Markdown**';
+    await page.route('**/timeline?*', route => route.fulfill({ json: { posts: [{ id: 96, data: { type: 'agent_response', content, session_id: 'default' } }], has_more: false } }));
+    await page.goto('/'); const post = page.locator('#post-96 .post-content');
+    await expect(post.locator('b')).toHaveCount(0);
+    await expect(post.locator('strong')).toHaveText('safe Markdown');
+    await expect(post).toContainText('<b>unsafe bold</b>');
 });
 
 test('SVG fallback keeps malformed incomplete oversized and over-complex source readable', async ({ page }) => {

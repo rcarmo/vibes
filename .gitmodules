@@ -1,0 +1,3 @@
+[submodule "references/fixtures-vibes"]
+	path = references/fixtures-vibes
+	url = https://github.com/rcarmo/fixtures-vibes.git
