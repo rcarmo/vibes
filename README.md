@@ -28,7 +28,7 @@ For [Pi][pi], use its RPC adapter instead:
 VIBES_DEFAULT_AGENT=pi ~/.venvs/vibes/bin/vibes
 ```
 
-See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, and [Pi mode][pimode] for adapter settings.
+See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, [Windows host support](docs/WINDOWS.md) for platform limits and resource counters, and [Pi mode][pimode] for adapter settings.
 
 ## Working in the browser
 
