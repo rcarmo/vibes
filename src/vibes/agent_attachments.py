@@ -100,10 +100,16 @@ async def referenced_media(content, session_id):
     return result
 
 
-async def publish_file(params, mode, session_id=None, *, expected=None):
+async def publish_file(params, mode, session_id=None, *, expected=None, owner_check=None):
     from .routes.sse import broadcast_event
-    context = active
-    if not context or context['mode'] != mode or session_id is not None and context['session_id'] != session_id:
+    # FFI tools carry a captured per-turn context plus a live ownership check.
+    # Legacy Pi/ACP retain their single-active-context behavior.
+    context = expected if owner_check is not None else active
+    def is_current():
+        return bool(owner_check()) if owner_check is not None else active is context
+    if not is_current():
+        raise PermissionError('Agent turn ended')
+    if not context or context.get('cancelled') or context['mode'] != mode or session_id is not None and context['session_id'] != session_id:
         raise PermissionError('No matching active agent turn')
     if expected is not None and context is not expected:
         raise PermissionError('Agent turn changed')
@@ -115,7 +121,7 @@ async def publish_file(params, mode, session_id=None, *, expected=None):
         raise ValueError('Unsupported attachment fields')
     fingerprint = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()
     async with publish_lock:
-        if active is not context:
+        if not is_current() or context.get('cancelled'):
             raise PermissionError('Agent turn ended')
         if len(context['receipts']) >= 100 and request_id not in context['receipts']:
             raise ValueError('Attachment limit reached for this turn')
@@ -126,12 +132,12 @@ async def publish_file(params, mode, session_id=None, *, expected=None):
             return existing[1]
         filename, mime, data, thumbnail, metadata = await asyncio.to_thread(
             read_attachment_file, Path.cwd(), **{key: value for key, value in params.items() if key != 'request_id'})
-        if active is not context:
+        if not is_current() or context.get('cancelled'):
             raise PermissionError('Agent turn ended before attachment was stored')
         database = await get_db()
         media_id = await database.create_media(filename, mime, data, thumbnail, metadata)
         try:
-            if active is not context:
+            if not is_current() or context.get('cancelled'):
                 raise PermissionError('Agent turn ended before delivery')
             row = {'type': 'agent_response', 'content': '', 'agent_id': context['agent_id'],
                    'thread_id': context['thread_id'], 'session_id': context['session_id'],

@@ -36,6 +36,12 @@ def generate_thumbnail(data: bytes, content_type: str) -> bytes | None:
 
 async def upload_media(request: web.Request) -> web.Response:
     """Handle media file upload."""
+    from ..sessions import SessionStore
+    session_id = request.query.get('session_id', 'default')
+    db = await get_db()
+    session = await SessionStore(db).get(session_id)
+    if not session or session['archived']:
+        return web.json_response({'error': 'Session unavailable'}, status=404)
     reader = await request.multipart()
     
     field = await reader.next()
@@ -63,7 +69,7 @@ async def upload_media(request: web.Request) -> web.Response:
     thumbnail = generate_thumbnail(data, content_type)
     
     # Extract metadata
-    metadata = {"size": len(data), "source": "composer-upload"}
+    metadata = {"size": len(data), "source": "composer-upload", "session_id": session_id}
     if content_type.startswith("image/"):
         try:
             img = Image.open(io.BytesIO(data))

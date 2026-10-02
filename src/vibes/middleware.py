@@ -76,6 +76,31 @@ def _apply_security_headers(response: web.StreamResponse) -> None:
 # Middleware factories
 # ---------------------------------------------------------------------------
 
+def create_loopback_middleware() -> web.middleware:
+    """FFI preview only: reject network peers and DNS-rebinding Host headers."""
+    import ipaddress
+
+    def local(value):
+        if value == 'localhost':
+            return True
+        try:
+            return ipaddress.ip_address(value).is_loopback
+        except (ValueError, TypeError):
+            return False
+
+    @web.middleware
+    async def loopback(request, handler):
+        try:
+            hostname = urlsplit('http://' + request.host).hostname
+        except ValueError:
+            hostname = None
+        if not local(hostname) or not local(request.remote):
+            return web.json_response({'error': 'Copilot FFI preview requires loopback access'}, status=403)
+        return await handler(request)
+
+    return loopback
+
+
 def create_cors_middleware() -> web.middleware:
     """CORS middleware with permissive policy (single-user app)."""
 
