@@ -6,6 +6,7 @@ import { getSessions, getSessionTimeline, createSession, updateSession, deleteSe
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
 import { applyDraftEvent } from './components/draft-stream.js';
+import { createQueueSteeringGuard } from './components/queue-steering.js';
 import { formatRelativeTime as formatTime } from './components/timestamps.js';
 import { html, render, useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
@@ -1893,18 +1894,21 @@ function App() {
         } catch (err) { alert(err.message || 'Failed to reorder queue.'); }
     }, []);
 
-    const steeringQueueRowsRef = useRef(new Set());
+    const steeringQueueRowsRef = useRef(null);
+    if (!steeringQueueRowsRef.current) steeringQueueRowsRef.current = createQueueSteeringGuard();
     const handleQueueSteer = useCallback(async (rowId) => {
-        if (rowId == null || steeringQueueRowsRef.current.has(rowId)) return;
-        steeringQueueRowsRef.current.add(rowId);
+        const session = selectedSessionRef.current, turn = currentTurnIdRef.current;
         try {
-            await steerAgentQueueItem(rowId);
-            await refreshSelectedQueue();
+            const submitted = await steeringQueueRowsRef.current.run(session, turn, rowId, () => steerAgentQueueItem(rowId));
+            if (submitted) {
+                // An acknowledged promotion cannot be repeated if queue polling
+                // returns a stale row or the user clicks after the response.
+                if (selectedSessionRef.current === session) setQueuedFollowups(items => items.filter(item => item.row_id !== rowId));
+                await refreshSelectedQueue().catch(error => console.warn('Failed to refresh promoted queue:', error));
+            }
         } catch (error) {
             console.error('Failed to steer queued item:', error);
             alert('Failed to steer queued item: ' + error.message);
-        } finally {
-            steeringQueueRowsRef.current.delete(rowId);
         }
     }, []);
 
