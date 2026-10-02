@@ -1,6 +1,7 @@
 import { html, useCallback, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { getMediaInfo, getMediaUrl, getThumbnailUrl } from '../api.js';
 import { FilePill } from './file-pill.js';
+import { parseTimestamp } from './timestamps.js';
 import { highlightCodeToHtml } from '../code-highlighting.js';
 import { buildSpeakablePostText, getSpeechPlaybackState, isSpeechSynthesisSupported, speakPostText, stopSpeechPlayback, subscribeSpeechPlayback } from './post-speech.js';
 
@@ -738,7 +739,7 @@ function Post({
                 </div>
                 <div class="post-meta">
                     <span class="post-author">${displayName}</span>
-                    <span class="post-time" onClick=${(e) => {
+                    <span class="post-time" title=${parseTimestamp(post.timestamp)?.toLocaleString() || ''} onClick=${(e) => {
                         if (onMessageRef) {
                             e.stopPropagation();
                             onMessageRef(String(post.id));

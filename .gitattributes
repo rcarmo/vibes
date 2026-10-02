@@ -16,6 +16,10 @@ src/vibes/static/common/fonts/vendor/** linguist-vendored=true
 
 # Test and parity fixtures are not production implementation languages.
 tests/**/*.mjs linguist-detectable=false
+# Preserve the byte-identical canonical UX fixture on Windows checkouts.
+tests/ux/features/canonical-ux.feature text eol=lf
+# Bun emits meaningful multiline template literals; do not rewrite their whitespace.
+src/vibes/static/dist/*.js -whitespace
 
 # Documentation media.
 docs/demo.gif linguist-documentation=true

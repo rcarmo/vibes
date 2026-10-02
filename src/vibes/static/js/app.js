@@ -5,6 +5,8 @@ import { installPlanSidebar } from './components/plan-sidebar.js';
 import { getSessions, getSessionTimeline, createSession, updateSession, deleteSession, getAgentQueue, getSessionModelState } from './api.js';
 import { composeDrafts } from './components/compose-drafts.js';
 import { eventMatchesSession } from './components/session-events.js';
+import { applyDraftEvent } from './components/draft-stream.js';
+import { formatRelativeTime as formatTime } from './components/timestamps.js';
 import { html, render, useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo } from './vendor/preact-htm.js';
 import { getTimeline, getPostsByHashtag, searchPosts, getThread, createPost, deletePost, uploadMedia, getThumbnailUrl, getMediaUrl, getMediaInfo, respondToAgentRequest, addToWhitelist, getAgents, getAgentTurnPreview, setAgentTurnPanelExpanded, getWorkspaceFile, updateWorkspaceFile, getAgentContext, getAgentStatus, removeAgentQueueItem, steerAgentQueueItem, reorderAgentQueueItem, SSEClient } from './api.js';
 import { ComposeBox } from './components/compose-box.js';
@@ -505,34 +507,6 @@ function linkifyContent(text, onHashtagClick) {
             return hpart;
         });
     });
-}
-
-/**
- * Format relative time
- */
-function formatTime(timestamp) {
-    const date = new Date(timestamp);
-    if (Number.isNaN(date.getTime())) return timestamp;
-    const now = new Date();
-    const diffMs = now - date;
-    const diffSec = diffMs / 1000;
-    const dayMs = 24 * 60 * 60 * 1000;
-
-    if (diffMs < dayMs) {
-        if (diffSec < 60) return 'just now';
-        if (diffSec < 3600) return `${Math.floor(diffSec / 60)}m`;
-        return `${Math.floor(diffSec / 3600)}h`;
-    }
-
-    if (diffMs < 5 * dayMs) {
-        const weekday = date.toLocaleDateString(undefined, { weekday: 'short' });
-        const time = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-        return `${weekday} ${time}`;
-    }
-
-    const datePart = date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    const timePart = date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-    return `${datePart} ${timePart}`;
 }
 
 /**
@@ -1650,6 +1624,10 @@ function App() {
             if (!status || session !== selectedSessionRef.current || selection !== switchGeneration.current
                 || request !== turnStatusGeneration.current || events !== turnEventGeneration.current) return;
             syncQueueState(status);
+            if (Array.isArray(status.pending_requests)) {
+                const pending = status.pending_requests[0] || null;
+                setPendingRequest(pending); pendingRequestRef.current = pending;
+            }
             const turn = (status.active_turns || []).at(-1);
             if (turn) {
                 setActiveTurn(turn.turn_id);
@@ -2079,15 +2057,10 @@ function App() {
                 setActiveTurn(turnId);
             }
             noteAgentActivity({ running: true, clearSilence: true });
-            if (data?.reset) {
-                draftBufferRef.current = '';
-            }
-            if (data?.delta) {
-                draftBufferRef.current += data.delta;
-            }
-            if (expandedPanelsRef.current.draft) {
-                const fullText = draftBufferRef.current;
-                setAgentDraft({ text: fullText, totalLines: estimatePreviewLines(fullText) });
+            const next = applyDraftEvent(draftBufferRef.current, eventType, data, expandedPanelsRef.current.draft);
+            if (next !== null) {
+                draftBufferRef.current = next;
+                setAgentDraft({ text: next, totalLines: estimatePreviewLines(next) });
             }
             return;
         }
@@ -2110,9 +2083,10 @@ function App() {
                 if (mode === 'replace') setAgentPlan(text);
                 else setAgentPlan((prev) => (prev || '') + text);
             } else {
-                if (!expandedPanelsRef.current.draft) {
-                    draftBufferRef.current = text;
-                    setAgentDraft({ text, totalLines: inferredTotal });
+                const next = applyDraftEvent(draftBufferRef.current, eventType, data, expandedPanelsRef.current.draft);
+                if (next !== null) {
+                    draftBufferRef.current = next;
+                    setAgentDraft({ text: next, totalLines: mode === 'append' ? estimatePreviewLines(next) : inferredTotal });
                 }
             }
             return;
@@ -2168,6 +2142,17 @@ function App() {
             noteAgentActivity({ running: true, clearSilence: true });
             setPendingRequest(data);
             pendingRequestRef.current = data;
+            return;
+        }
+
+        if (eventType === 'agent_request_closed') {
+            // Closing one request must not dismiss a newer concurrent prompt or
+            // report that the whole turn stopped: the runtime can continue after denial.
+            if (pendingRequestRef.current?.request_id === data.request_id) {
+                setPendingRequest(null);
+                pendingRequestRef.current = null;
+            }
+            void refreshSelectedTurn();
             return;
         }
 
@@ -2636,7 +2621,7 @@ function App() {
             ${creatingSession && html`<${SessionNameDialog} creating=${true} parentName=${createParentRef.current ? (sessionOptions.find(item => item.id === createParentRef.current)?.name || createParentRef.current) : null} onClose=${() => setCreatingSession(false)} onSave=${async name => { if (!createdSessionRef.current) { const result = await createSession(name, createParentRef.current); createdSessionRef.current = result.session.id; } await refreshSessions(); await selectSession(createdSessionRef.current); }} />`}
             ${deletingSession && html`<${SessionDeleteDialog} key=${deletingSession.id} name=${deletingSession.name} onClose=${() => setDeletingSession(null)} onDelete=${async () => { if (!deletedSessionRef.current) { await deleteSession(deletingSession.id); deletedSessionRef.current = true; } if (deletingSession.id === selectedSession) await selectSession('default'); await refreshSessions(); }} />`}
             <${ConnectionStatus} status=${connectionStatus} />
-                <${AgentRequestModal} request=${pendingRequest} onRespond=${() => setPendingRequest(null)} />
+                <${AgentRequestModal} request=${pendingRequest} onRespond=${(requestId) => { if (pendingRequestRef.current?.request_id === requestId) { setPendingRequest(null); pendingRequestRef.current = null; } void refreshSelectedTurn(); }} />
             </div>`}
         </div>
     `;

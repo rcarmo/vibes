@@ -1,4 +1,3 @@
-import { AgentCapabilities } from './agent-capabilities.js';
 import { loadModelPins, saveModelPins, modelPinStorage } from './model-pins.js';
 import { createSpeechInput, speechInputConstructor, shouldStartSpeechPushToTalk } from './compose-speech.js';
 import { sessionMentionQuery, sessionMentionMatches, insertSessionMention } from './session-mentions.js';
@@ -1092,7 +1091,6 @@ export function ComposeBox({
                 ${sessionPicker}
                 ${sessionTrigger && html`<div class="compose-session-trigger-group compose-session-trigger-top">${sessionTrigger}</div>`}
                 <div class="compose-input-main">
-                    ${!searchMode && html`<${AgentCapabilities} agent=${defaultAgent} />`}
                     ${!searchMode && isCompacting && html`<div class="compose-inline-status" role="status" aria-live="polite"><span class="compose-session-status-pill compacting">Compacting context…</span></div>`}
                     ${speechState.kind !== 'idle' && html`<div class=${`compose-inline-status compose-speech-status compose-speech-status-${speechState.kind}`} role="status" aria-live="polite"><div class="compose-inline-status-row"><span class="compose-inline-status-dot" aria-hidden="true"></span><span class="compose-inline-status-title">${speechState.kind === 'listening' ? 'Listening…' : speechState.kind === 'requesting_permission' ? 'Requesting microphone permission…' : 'Speech input error'}</span></div>${speechState.detail && html`<div class="compose-inline-status-detail">${speechState.detail}</div>`}</div>`}
                     ${(folderRefs.length > 0 || fileRefs.length > 0 || mediaFiles.length > 0 || messageRefs.length > 0) && html`

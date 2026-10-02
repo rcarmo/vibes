@@ -469,3 +469,58 @@ button.compose-context-pie.icon-btn:disabled {
 .quick-actions-close-hint { appearance: none; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
 .quick-actions-close-hint:focus-visible { outline: 2px solid var(--accent-color); outline-offset: 3px; }
 .compose-session-trigger .compose-current-agent-label.active { color: #fff; }
+
+/* Reviewable permissions: one scrolling body, full wrapped commands, pinned actions. */
+.permission-review { box-sizing: border-box; background: rgb(0 0 0 / 55%); padding: 20px; }
+.permission-review .agent-request-content {
+    width: 100%; max-width: 780px; min-width: 0; padding: 0; overflow: hidden;
+    max-height: min(880px, calc(var(--app-height, 100dvh) - 40px));
+    background: var(--bg-primary); color: var(--text-primary); border-color: var(--border-color);
+    box-shadow: 0 20px 70px rgb(0 0 0 / 30%); border-radius: 14px;
+}
+.permission-review .agent-request-header { flex: 0 0 auto; margin: 0; padding: 20px 24px; border-bottom: 1px solid var(--border-color); align-items: flex-start; }
+.permission-review .agent-request-icon { background: var(--bg-secondary); color: var(--text-secondary); border: 1px solid var(--border-color); }
+.permission-review .agent-request-icon svg { stroke: currentColor; color: inherit; fill: none; }
+.agent-request-heading-group { min-width: 0; flex: 1; }
+.agent-request-eyebrow { color: var(--text-secondary); font-size: 12px; margin-bottom: 4px; }
+.permission-review .agent-request-title { margin: 0; color: var(--text-primary); font-size: 20px; line-height: 1.3; overflow-wrap: anywhere; }
+.permission-review .agent-request-body { flex: 1 1 auto; min-height: 0; min-width: 0; margin: 0; padding: 20px 24px; overflow: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+.permission-review .agent-request-description { color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: anywhere; margin-bottom: 16px; }
+.permission-review .agent-request-files { min-width: 0; color: var(--text-secondary); }
+.permission-review .agent-request-files li { overflow-wrap: anywhere; word-break: break-word; }
+.permission-review .agent-request-subtitle { color: var(--text-secondary); text-transform: none; letter-spacing: normal; font-size: 12px; font-weight: 600; overflow-wrap: anywhere; }
+.agent-request-command-section { margin: 0 0 18px; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; background: var(--bg-secondary); }
+.agent-request-section-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 12px; border-bottom: 1px solid var(--border-color); }
+.agent-request-copy { color: var(--text-primary); background: var(--bg-primary); border: 1px solid var(--border-color); border-radius: 6px; padding: 5px 10px; min-height: 32px; font: inherit; font-size: 12px; cursor: pointer; }
+.permission-review .agent-request-command, .permission-review .agent-request-diff pre {
+    box-sizing: border-box; min-width: 0; max-width: 100%; max-height: none;
+    white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; overflow: visible;
+    color: var(--text-primary); background: var(--bg-secondary); font-family: var(--font-family-mono); font-size: 13px; line-height: 1.6;
+    padding: 12px; tab-size: 4; margin: 0;
+}
+.agent-request-command-note { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 0 12px 10px; color: var(--text-secondary); font-size: 11px; }
+.permission-review .agent-request-diff { color: var(--text-secondary); margin-top: 16px; }
+.permission-review .agent-request-diff summary { color: var(--text-secondary); min-height: 28px; overflow-wrap: anywhere; }
+.agent-request-footer { flex: 0 0 auto; padding: 16px 24px; border-top: 1px solid var(--border-color); background: var(--bg-primary); }
+.agent-request-scope { color: var(--text-secondary); font-size: 12px; line-height: 1.4; margin: 0 0 12px; }
+.permission-review .permission-actions { flex-direction: row; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
+.permission-review .agent-request-btn { color: var(--text-primary); background: var(--bg-secondary); border-color: var(--border-color); padding: 10px 18px; min-height: 42px; overflow-wrap: anywhere; }
+.permission-review .agent-request-btn:hover { background: var(--bg-hover); }
+.permission-review .agent-request-btn.primary { background: var(--accent-color); border-color: var(--accent-color); color: var(--accent-contrast-text); }
+.permission-review .agent-request-btn.primary:hover { background: var(--accent-hover); }
+.permission-review .agent-request-btn:disabled { opacity: .55; cursor: not-allowed; }
+.permission-review :is(button, summary, textarea, .agent-request-body):focus-visible { outline: 2px solid var(--accent-color); outline-offset: 2px; }
+.agent-request-answer { display: flex; flex-direction: column; gap: 8px; margin-top: 16px; color: var(--text-secondary); }
+.agent-request-answer textarea { box-sizing: border-box; width: 100%; min-height: 100px; resize: vertical; padding: 10px; background: var(--bg-secondary); color: var(--text-primary); border: 1px solid var(--border-color); border-radius: 6px; font: inherit; }
+.agent-request-error { color: var(--danger-color); overflow-wrap: anywhere; }
+.agent-request-warning { margin: 0 0 12px; padding: 10px 12px; border-left: 3px solid var(--warning-color); background: var(--bg-secondary); color: var(--text-primary); font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 520px), (max-height: 500px) {
+    .permission-review { padding: 10px; }
+    .permission-review .agent-request-content { max-height: calc(var(--app-height, 100dvh) - 20px); border-radius: 10px; }
+    .permission-review .agent-request-header { padding: 14px 16px; gap: 10px; }
+    .permission-review .agent-request-title { font-size: 17px; }
+    .permission-review .agent-request-body { padding: 16px; }
+    .agent-request-footer { padding: 12px 16px; }
+    .permission-review .permission-actions > button { flex: 1; }
+    .agent-request-copy { min-height: 40px; }
+}

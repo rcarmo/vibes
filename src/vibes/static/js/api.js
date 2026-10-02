@@ -269,11 +269,11 @@ export async function uploadMedia(file, { signal, onProgress } = {}) {
 /**
  * Respond to an agent request (permission, choice)
  */
-export async function respondToAgentRequest(requestId, outcome) {
+export async function respondToAgentRequest(requestId, outcome, answer) {
     const response = await fetch(API_BASE + '/agent/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: requestId, outcome }),
+        body: JSON.stringify({ request_id: requestId, outcome, ...(answer !== undefined ? { answer } : {}) }),
     });
     
     if (!response.ok) {
@@ -527,6 +527,10 @@ export class SSEClient {
         
         this.eventSource.addEventListener('agent_request', (e) => {
             this.onEvent('agent_request', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_request_closed', (e) => {
+            this.onEvent('agent_request_closed', JSON.parse(e.data));
         });
 
         this.eventSource.addEventListener('agent_request_timeout', (e) => {
