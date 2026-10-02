@@ -573,13 +573,18 @@ test('model pins update across browser tabs through storage events', async ({ pa
     await other.close();
 });
 
-test('ACP declarations display as reported capability, not live model availability', async ({ page }) => {
-    await page.route('**/agents', route => route.fulfill({ contentType: 'application/json', body: '{"agents":[{"id":"default","name":"ACP","status":"running","reported_capabilities":{"loadSession":true,"promptCapabilities":{"image":false}}}]}' }));
+test('ACP registry declarations neither clutter composer nor imply live model availability', async ({ page }) => {
+    let registryReads = 0;
+    await page.route('**/agents', route => {
+        registryReads++;
+        return route.fulfill({ json: {agents:[{id:'default',name:'ACP',status:'running',reported_capabilities:{loadSession:true,promptCapabilities:{image:false}}}]} });
+    });
+    await page.route('**/sessions/default/model-state', route => route.fulfill({ json: {available:false,model:null} }));
     await page.goto('/');
-    await page.getByText('Agent-reported capabilities', { exact: true }).click();
-    await expect(page.getByText('Session resume: reported supported', { exact: true })).toBeVisible();
-    await expect(page.getByText('Image prompts: reported unsupported', { exact: true })).toBeVisible();
-    await expect(page.getByText('Connection declarations only; not verified execution or session availability.', { exact: true })).toBeVisible();
+    await expect.poll(() => registryReads).toBeGreaterThan(0);
+    await expect(page.locator('.compose-input-main textarea')).toBeVisible();
+    await expect(page.locator('.compose-agent-capabilities')).toHaveCount(0);
+    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'Open model picker', exact: true })).toHaveCount(0);
 });
 
@@ -604,15 +609,22 @@ test('capability panel hides stopped absent and malformed declarations', async (
     }
 });
 
-test('agent registry polling removes capability claims after refresh failure', async ({ page }) => {
-    let fail = false;
-    await page.route('**/agents', route => route.fulfill(fail
-        ? { status: 503, contentType: 'application/json', body: '{"error":"offline"}' }
-        : { contentType: 'application/json', body: '{"agents":[{"id":"default","name":"ACP","status":"running","reported_capabilities":{"loadSession":true}}]}' }));
+test('agent registry refresh failure preserves draft without restoring capability diagnostics', async ({ page }) => {
+    await page.clock.install();
+    let fail = false, failures = 0;
+    await page.route('**/agents', route => {
+        if (fail) { failures++; return route.fulfill({ status:503,json:{error:'offline'} }); }
+        return route.fulfill({ json:{agents:[{id:'default',name:'ACP',status:'running',reported_capabilities:{loadSession:true}}]} });
+    });
     await page.goto('/');
-    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toBeVisible();
+    const input = page.locator('.compose-input-main textarea');
+    await input.fill('Keep my draft');
+    await expect(page.locator('.compose-agent-capabilities')).toHaveCount(0);
     fail = true;
-    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0, { timeout: 20000 });
+    await page.clock.runFor(16000);
+    await expect.poll(() => failures).toBeGreaterThan(0);
+    await expect(input).toHaveValue('Keep my draft');
+    await expect(page.getByText('Agent-reported capabilities', { exact: true })).toHaveCount(0);
 });
 
 test('model picker Escape restores model trigger focus', async ({ page }) => {
