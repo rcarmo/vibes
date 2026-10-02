@@ -1,5 +1,184 @@
 {
   "runtime": "vibes-python",
-  "fixturesVibes": "v0.1.0-rc.6",
-  "skips": []
+  "fixturesVibes": "v0.1.0-rc.12",
+  "skips": [
+    {
+      "id": "@ux-chat-lifecycle-002",
+      "reason": "known-defect",
+      "detail": "Thoughts and Draft stream separately, but the active turn does not expose the required Writing response status label.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-chat-lifecycle-003",
+      "reason": "known-defect",
+      "detail": "Streamed shell output is not exposed through the required Classic Output status pane semantics.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-chat-lifecycle-005",
+      "reason": "known-defect",
+      "detail": "A simulated terminal provider outage does not settle into one visible agent error within the compliance timeout.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-thoughts-001",
+      "reason": "known-defect",
+      "detail": "The collapsed thought panel does not expose the required newest-nine-line disclosure window.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-thoughts-004",
+      "reason": "known-defect",
+      "detail": "Escape does not collapse an expanded thought panel back to the required tail disclosure window.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-timeline-017",
+      "reason": "known-defect",
+      "detail": "Deleting a visible assistant reply does not remove that reply from the timeline and persisted reload state.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-timeline-020",
+      "reason": "known-defect",
+      "detail": "Cascade confirmation counts two replies where the deterministic fixture has one visible reply.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-shared-009",
+      "reason": "known-defect",
+      "detail": "Saving Plan Markdown updates the sidebar UI but the session-scoped plan tool returns “Tool plan not found”.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-shared-010",
+      "reason": "known-defect",
+      "detail": "A remote Plan write cannot be applied because the session-scoped plan tool returns “Tool plan not found”.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-shared-012",
+      "reason": "known-defect",
+      "detail": "The Plan sidebar exists, but the model cannot access the required session-scoped plan tool.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-007",
+      "reason": "known-defect",
+      "detail": "Quick Actions opens, but its search control is exposed as “Search quick actions” rather than the required slash-command textbox contract.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-008",
+      "reason": "known-defect",
+      "detail": "Quick Actions has no loaded skill commands and exposes its search control outside the required slash-command textbox contract.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-009",
+      "reason": "known-defect",
+      "detail": "Saving Plan Markdown updates the sidebar UI but the session-scoped plan tool returns “Tool plan not found”.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-010",
+      "reason": "known-defect",
+      "detail": "A remote Plan write cannot be applied because the session-scoped plan tool returns “Tool plan not found”.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-012",
+      "reason": "known-defect",
+      "detail": "Plan checklist UI exists, but the model cannot access the required session-scoped plan tool.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-029",
+      "reason": "known-defect",
+      "detail": "User-authored hostile fenced SVG is rendered as a data-image preview instead of remaining inert source.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-pwa-003",
+      "reason": "known-defect",
+      "detail": "The manifest declares 192x192 and 512x512 static icons, but both served files are 256x256.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-pwa-004",
+      "reason": "known-defect",
+      "detail": "The required sized Apple touch icon routes return non-success responses.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-pwa-005",
+      "reason": "known-defect",
+      "detail": "The favicon route returns a non-success response instead of a compatible non-empty image.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-019",
+      "reason": "known-defect",
+      "detail": "Steering removes the queued item, but the interrupted original turn never produces its expected persisted reply.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-original-030",
+      "reason": "known-defect",
+      "detail": "A failed Steer does not expose the required warning that the item could not be sent as steering.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-compose-002",
+      "reason": "known-defect",
+      "detail": "While a submission request is pending, the composer is disabled and cannot accept the newer draft required for failed-send restoration.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-compose-004",
+      "reason": "known-defect",
+      "detail": "Returning a queued message removes the queue item but leaves the newer editor draft instead of replacing it with the queued text.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-compose-005",
+      "reason": "known-defect",
+      "detail": "During a held attachment upload, the upload action remains enabled instead of exposing disabled upload-progress state.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-compose-006",
+      "reason": "known-defect",
+      "detail": "The session picker does not expose the required accessible session-search control while an upload is pending.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-timeline-019",
+      "reason": "known-defect",
+      "detail": "After a synthetic Replies-exist rejection and confirmed retry, the expected persisted parent message is absent after reload.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18"
+    },
+    {
+      "id": "@ux-pwa-002",
+      "reason": "capability-absent",
+      "capability": "@cap-agent-avatar",
+      "detail": "This runtime profile does not claim @cap-agent-avatar and supplies no composer command for setting an agent avatar."
+    },
+    {
+      "id": "@ux-pwa-006",
+      "reason": "capability-absent",
+      "capability": "@cap-agent-avatar",
+      "detail": "This runtime profile does not claim @cap-agent-avatar and supplies no composer command for clearing an agent avatar."
+    },
+    {
+      "id": "@ux-chat-lifecycle-001",
+      "reason": "known-defect",
+      "detail": "The deterministic idle-chat reply intermittently fails to appear in WebKit phone while passing the other five projects and prior isolated runs.",
+      "issue": "https://github.com/rcarmo/vibes/issues/18",
+      "projects": [
+        "webkit-phone"
+      ],
+      "intermittent": true
+    }
+  ]
 }
