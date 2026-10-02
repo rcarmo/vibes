@@ -47,7 +47,7 @@ Permissions offer **Allow once** and **Deny**. Vibes ignores blanket auto-approv
 
 Multiple-choice and explicit free-form questions are supported, with answers limited to 8,000 characters. Responses are single-use and scoped to the requesting owner. Timeouts deny requests and dismiss their browser prompt. Closing one prompt cannot dismiss a newer one. Permission/answer callbacks recheck ownership after asynchronous close notifications; cancellation during notification cannot deliver an approval. Pending approvals are not persisted across server restarts.
 
-The existing per-session model picker uses native model APIs. Model/reasoning changes are blocked during a turn in that same chat, reasoning must be advertised for the selected model, and changes require authoritative read-back. Bound sessions are saved after confirmed changes. Model reads were exercised against FFI; catalogue/switch/reasoning contracts use mocked SDK responses because authenticated account discovery is not authorised in this test environment.
+The existing per-session model picker uses native model APIs. Model/reasoning changes are blocked during a turn in that same chat, reasoning must be advertised for the selected model, and changes require authoritative read-back. Bound sessions are saved after confirmed changes. Model reads and account-backed catalogue/model switching were manually checked in the authorised preview. Automated catalogue/switch/reasoning contracts use mocked SDK responses and no inherited credentials; account policy and supported reasoning levels still require operator validation.
 
 ## Input and output files
 
@@ -63,6 +63,25 @@ Limits: eight files, 10 MiB per file, 20 MiB total, 40 million pixels per image,
 The native file-reference input alone did not supply document contents to the synthetic model. Vibes therefore supplies extracted text and an explicit selection range. Temporary files have generated names and are removed after the turn. Native journals can retain supplied input content; apply retention and access controls to the state directory.
 
 `vibes_attach_file` publishes output to the active conversation; it cannot choose another destination. Windows reads retain ancestor and final-file handles, reject links/reparse points, UNC/device paths, ADS and ambiguous names, and deny concurrent rename/write sharing. Cancellation is rechecked before delivery. `vibes_plan` writes require a revision from a prior read.
+
+## Practical native coding tools
+
+Defaults intentionally offer only `vibes_plan` and `vibes_attach_file`; they do not grant a shell or general filesystem tools. For an operator-approved Windows coding workspace, explicitly add:
+
+```json
+{
+  "copilot_available_tools": [
+    "builtin:ask_user", "builtin:view", "builtin:glob",
+    "builtin:grep", "builtin:rg", "builtin:create", "builtin:edit", "builtin:apply_patch",
+    "builtin:powershell", "builtin:read_powershell", "builtin:stop_powershell", "builtin:list_powershell",
+    "builtin:web_fetch"
+  ]
+}
+```
+
+The effective tool names depend on the model/runtime. Some models use `rg` and `apply_patch` instead of `grep`, `create` and `edit`; unsupported selectors do not create tools. On POSIX inspect the SDK's tool descriptors for that platform's shell names. Native shell/file tools run with the server account's authority and can reach outside the workspace; permission prompts are not confinement.
+
+`web_fetch` reads a known URL. No dedicated web-search provider is configured by Vibes. Shell networking and enabled MCP servers are separate capabilities, not a search feature. Restart the server while chats are idle after changing operator settings, so cached native sessions are resumed with the new allowlist.
 
 ## Explicit MCP and skills
 
@@ -108,4 +127,5 @@ Opt-in native tests require explicit `COPILOT_CLI_PATH` pointing to the provisio
 - `python tests/ffi_smoke.py --session --resume`: retained diagnostic reproducer for unpersisted empty sessions; expected to fail with this runtime.
 - `python tests/ffi_concurrency_smoke.py`: six overlapping real native sessions through HTTP and loopback fake inference, with scoped cancellation, permission timeout, plan reads, attachment ownership and stale-response rejection. No external model calls.
 - `python tests/ffi_persistence_smoke.py --vibes`: real FFI and Vibes adapter with local fake inference/MCP, isolated state and no inherited credentials. Includes journal resume in a separate OS process via `ffi_resume_child.py`.
+- `bun tests/ffi-stream-web-smoke.mjs`: native multi-chunk fake inference through actual HTTP routes and SSE into Edge, with cumulative previews, polling, expansion and a final stored reply. Requires `VIBES_TEST_PYTHON` and `COPILOT_CLI_PATH`.
 - `bun tests/ffi-web-smoke.mjs`: isolated native host plus Edge browser. Requires `VIBES_TEST_PYTHON` and `VIBES_TEST_OUTPUT`. Exercises reload recovery, free-form submission, stale-response rejection and timeout dismissal without model calls.

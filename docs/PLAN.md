@@ -28,6 +28,16 @@ The result includes `session_id`, `markdown`, `revision` and `updated_at`. Mutat
 
 The limit is 128 KiB of UTF-8 Markdown. A stale revision fails rather than overwriting another editor. No tool argument selects a destination: the server resolves it from the authenticated Pi/ACP capability and current turn. Browser-origin calls to the internal tool endpoint are rejected, even on loopback. Provider-generated empty optional fields are removed by the tool adapter before sending the action-specific payload.
 
+## Copilot FFI tool
+
+Copilot FFI registers `vibes_plan` directly through the Python SDK. Its schema exposes `read` and full Markdown `write`; use `expected_revision` from a read for a write. The broader Pi/ACP `update`, `patch` and `edit` actions above are not advertised by this adapter. The native invocation must match the captured active chat/turn, including during concurrent chats; no destination override is accepted.
+
+```json
+{"action":"write","expected_revision":2,"markdown":"- [x] Inspect reference\n- [-] Implement changes\n- [ ] Verify"}
+```
+
+FFI writes use the same Plan store and broadcast, without calling the internal HTTP capability endpoint. The SQLite connection's write lock prevents one chat's cancelled transaction from rolling back another chat's write.
+
 ## HTTP and persistence
 
 `GET /sessions/{id}/plan` returns the saved snapshot, or an empty revision-zero Plan for an existing session without a record. `PUT` requires exactly `markdown` and `expected_revision`. Success advances the revision and broadcasts `plan_updated`; conflicts return 409 with `code: plan_revision_conflict`. Unknown sessions return 404. Archived sessions are readable but cannot be changed.
