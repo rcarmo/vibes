@@ -46,6 +46,8 @@ Model and thinking controls depend on the selected adapter. Context occupancy an
 
 Conversations have separate stored timelines and agent-session bindings, but they share a server account and workspace. They are not security sandboxes. ACP text attachments can be read through the optional scoped messages tool; image and binary attachments have metadata-only retrieval through that tool, not guaranteed native model input. See the [agent file-access contract][files] for the exact boundary.
 
+See [drafts, timestamps and permission review](docs/BROWSER_REVIEW.md) for streaming behavior, UTC time labels, exact command copying and approval-dialog controls.
+
 ## Keep it private
 
 Vibes binds to `127.0.0.1` by default and has **no built-in login**. Anyone who can reach its API can read or modify workspace files and operate the agent; enabling the terminal also gives them a shell as the server user. Put authentication and HTTPS in front of it before enabling remote access, including on a tailnet shared with other people.
