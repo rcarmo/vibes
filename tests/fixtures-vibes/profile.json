@@ -2,7 +2,7 @@
   "runtime": "vibes-python",
   "version": "9a34046d31d4d6d0cc6ccc666aa891d4e2ed5de0",
   "lifecycle": {
-    "prepare": "mkdir -p \"$FIXTURES_ROOT/pi\" \"$FIXTURES_ROOT/ws\" && printf '{\"providers\":{\"fixture\":{\"baseUrl\":\"%s\",\"api\":\"openai-completions\",\"apiKey\":\"fixture-local-only\",\"models\":[{\"id\":\"fixture-1\"}]}}}' \"$FIXTURE_MODEL_URL\" > \"$FIXTURES_ROOT/pi/models.json\"",
+    "prepare": "mkdir -p \"$FIXTURES_ROOT/pi\" \"$FIXTURES_ROOT/ws\" && printf '{\"providers\":{\"fixture\":{\"baseUrl\":\"%s\",\"api\":\"openai-completions\",\"apiKey\":\"fixture-local-only\",\"models\":[{\"id\":\"fixture-1\"},{\"id\":\"fixture-2\"}]}}}' \"$FIXTURE_MODEL_URL\" > \"$FIXTURES_ROOT/pi/models.json\"",
     "start": "REPO=\"$(cd ../.. && pwd)\" && PY=\"${VIBES_PYTHON:-$REPO/.venv/bin/python}\" && cd \"$FIXTURES_ROOT/ws\" && PYTHONPATH=$REPO/src PI_CODING_AGENT_DIR=\"$FIXTURES_ROOT/pi\" VIBES_HOST=127.0.0.1 VIBES_PORT=$FIXTURES_PORT VIBES_DB_PATH=\"$FIXTURES_ROOT/vibes.db\" VIBES_DEFAULT_AGENT=pi VIBES_PI_ENABLED=true VIBES_PI_MODEL=fixture/fixture-1 exec \"$PY\" -m vibes.app"
   },
   "readiness": {

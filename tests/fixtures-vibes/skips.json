@@ -1,6 +1,6 @@
 {
   "runtime": "vibes-python",
-  "fixturesVibes": "v0.1.0-rc.12",
+  "fixturesVibes": "v0.1.0-rc.14",
   "skips": [
     {
       "id": "@ux-chat-lifecycle-002",
