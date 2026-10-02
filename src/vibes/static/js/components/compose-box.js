@@ -716,6 +716,7 @@ export function ComposeBox({
                     const progress = { current: index + 1, total: mediaFiles.length, name: file.name, percent: 0 };
                     setUploadProgress(progress);
                     const result = await uploadMedia(file, {
+                        sessionId,
                         signal: uploadController.current.signal,
                         onProgress: percent => setUploadProgress({ ...progress, percent }),
                     });

@@ -189,6 +189,42 @@ class Config:
         self.pi_model: Optional[str] = _resolve(s, "pi_model", "VIBES_PI_MODEL", None, "str")
         self.pi_thinking: Optional[str] = _resolve(s, "pi_thinking", "VIBES_PI_THINKING", None, "str")
 
+        # Optional native Copilot backend. Runtime provisioning happens outside the server.
+        self.copilot_model = _resolve(s, 'copilot_model', 'VIBES_COPILOT_MODEL', None, 'str')
+        self.copilot_state_dir = _resolve(s, 'copilot_state_dir', 'VIBES_COPILOT_STATE_DIR', '.vibes/copilot', 'str')
+        self.copilot_use_logged_in_user = _resolve(s, 'copilot_use_logged_in_user', 'VIBES_COPILOT_USE_LOGGED_IN_USER', False, 'bool')
+        self.copilot_start_timeout = _resolve(s, 'copilot_start_timeout', 'VIBES_COPILOT_START_TIMEOUT', 30, 'int')
+        self.copilot_event_timeout = _resolve(s, 'copilot_event_timeout', 'VIBES_COPILOT_EVENT_TIMEOUT', 300, 'int')
+        # JSON arrays in operator-owned settings, never values from browser requests.
+        self.copilot_skill_directories = s.get('copilot_skill_directories', [])
+        self.copilot_available_tools = s.get('copilot_available_tools', [])
+        self.copilot_mcp_servers = s.get('copilot_mcp_servers', {})
+        if not isinstance(self.copilot_mcp_servers, dict):
+            raise ValueError('Copilot MCP settings must be an object')
+        for name, server in self.copilot_mcp_servers.items():
+            if not isinstance(name, str) or not isinstance(server, dict):
+                raise ValueError('Invalid Copilot MCP server')
+            if (not isinstance(server.get('tools'), list) or not server['tools']
+                    or any(not isinstance(tool, str) or not tool or '*' in tool or '?' in tool for tool in server['tools'])):
+                raise ValueError('Each Copilot MCP server requires an explicit non-wildcard tool allowlist')
+        for values in (self.copilot_skill_directories, self.copilot_available_tools):
+            if not isinstance(values, list) or any(not isinstance(v, str) or not v for v in values):
+                raise ValueError('Copilot tool and skill settings must be lists of nonempty strings')
+        if any(not v.startswith(('builtin:', 'custom:', 'mcp:')) or not v.partition(':')[2]
+               or '*' in v or '?' in v for v in self.copilot_available_tools):
+            raise ValueError('Copilot tools require explicit source-qualified, non-wildcard selectors')
+        if self.copilot_start_timeout <= 0 or self.copilot_event_timeout <= 0 or (self.default_agent.lower() == 'copilot-ffi' and self.permission_timeout <= 0):
+            raise ValueError('Agent timeouts must be positive')
+        if self.default_agent.lower() == 'copilot-ffi':
+            import ipaddress
+            try:
+                local_host = self.host == 'localhost' or ipaddress.ip_address(self.host).is_loopback
+            except ValueError:
+                local_host = False
+            if not local_host:
+                raise ValueError('Copilot FFI preview requires a literal loopback host or localhost')
+            self.pi_enabled = False
+
         # User-supplied prompt appended to the system prompt for both Pi and ACP.
         # Can be changed at runtime via /prompt command.
         self.prompt: str = _resolve(s, "prompt", "VIBES_PROMPT", "", "str")

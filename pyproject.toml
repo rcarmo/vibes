@@ -27,6 +27,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+copilot = ["github-copilot-sdk==1.0.14; python_version >= '3.11'"]
 dev = [
     "pytest==9.1.1",
     "pytest-asyncio==1.4.0",

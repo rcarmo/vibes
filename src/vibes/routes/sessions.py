@@ -2,6 +2,7 @@
 from aiohttp import web
 from ..db import get_db
 from ..sessions import SessionStore
+from ..config import get_config
 from .sse import broadcast_event
 
 
@@ -40,6 +41,12 @@ async def session_model_state(request):
     unavailable = {'session_id': session_id, 'available': False, 'model': None, 'thinking_level': None, 'compacting': None}
     if session['archived']:
         return web.json_response(unavailable)
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        from ..copilot_host import backend
+        try:
+            return web.json_response(await backend.model(session_id, store))
+        except Exception:
+            return web.json_response({**unavailable, 'busy': backend.busy(session_id)})
     if is_busy():
         return web.json_response({**unavailable, 'busy': True})
     try:
@@ -70,6 +77,12 @@ async def session_model_catalog(request):
     unavailable = {'available': False, 'models': [], 'thinking_levels': []}
     if session['archived']:
         return web.json_response(unavailable)
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        from ..copilot_host import backend
+        try:
+            return web.json_response(await backend.models(session_id, SessionStore(await get_db())))
+        except Exception:
+            return web.json_response(unavailable)
     try:
         catalog = await inspect_model_catalog(session_id)
         if not catalog:
@@ -92,6 +105,24 @@ async def session_model_catalog(request):
 
 
 async def change_session_model(request):
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        from ..copilot_host import backend
+        store = SessionStore(await get_db())
+        session_id = request.match_info['id']
+        session = await store.get(session_id)
+        if not session or session['archived']:
+            return web.json_response({'error': 'Session unavailable'}, status=404)
+        try:
+            changes = await request.json()
+            if not isinstance(changes, dict) or not changes:
+                raise ValueError('Expected model changes')
+            result = await backend.model(session_id, store, changes)
+            await broadcast_event('session_model_changed', result)
+            return web.json_response(result)
+        except ValueError:
+            return web.json_response({'error': 'Invalid model change'}, status=400)
+        except Exception:
+            return web.json_response({'error': 'Model change unavailable or unconfirmed; reread state'}, status=409)
     from ..pi_client import change_chat_model
     session_id = request.match_info['id']
     store = SessionStore(await get_db())

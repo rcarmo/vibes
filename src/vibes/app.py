@@ -11,7 +11,7 @@ from aiohttp import web
 from .config import get_config
 from .avatar import resolve_avatar_url
 from .db import init_db, close_db, get_db, Database
-from .middleware import create_auth_middleware, create_cors_middleware, create_security_middleware
+from .middleware import create_auth_middleware, create_cors_middleware, create_security_middleware, create_loopback_middleware
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
 from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
@@ -29,7 +29,11 @@ STATIC_PATH = Path(__file__).parent / "static"
 
 async def health_check(request: web.Request) -> web.Response:
     """Health check endpoint."""
-    return web.json_response({"status": "ok"})
+    result = {"status": "ok"}
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        from .copilot_host import backend
+        result['agent'] = backend.status()
+    return web.json_response(result)
 
 
 async def manifest_handler(request: web.Request) -> web.Response:
@@ -86,11 +90,18 @@ async def on_startup(app: web.Application) -> None:
     if removed_uploads:
         logger.info("Removed %s expired abandoned uploads", removed_uploads)
     
+    agents.start_ffi_dispatch()
     await start_task_queue(num_workers=3)
     logger.info("Background task queue started")
     
     # Start the configured agent (only one at a time).
-    if config.pi_enabled:
+    if config.default_agent.lower() == 'copilot-ffi':
+        from .copilot_host import backend
+        try:
+            await backend.start()
+        except RuntimeError:
+            logger.warning('Copilot FFI not ready; see /health agent status')
+    elif config.pi_enabled:
         if await start_pi_agent():
             logger.info(f"Pi agent started: {config.pi_agent}")
         else:
@@ -118,13 +129,22 @@ async def on_cleanup(app: web.Application) -> None:
     """Application cleanup handler."""
     logger.info("Shutting down...")
     
-    if get_config().pi_enabled:
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        from .copilot_host import backend
+        agents.close_ffi_admission()
+        try:
+            await backend.stop(permanent=True)
+        except Exception:
+            # Finish application cleanup even when native shutdown fails.
+            logger.error('Copilot native cleanup failed; process restart required')
+    elif get_config().pi_enabled:
         await stop_pi_agent()
         logger.info("Pi agent stopped")
     else:
         await stop_acp_agent()
         logger.info("ACP agent stopped")
     
+    await agents.stop_ffi_dispatch()
     await stop_task_queue()
     logger.info("Background task queue stopped")
 
@@ -137,7 +157,9 @@ async def on_cleanup(app: web.Application) -> None:
 
 def create_app() -> web.Application:
     """Create and configure the aiohttp application."""
+    loopback_gate = [create_loopback_middleware()] if get_config().default_agent.lower() == 'copilot-ffi' else []
     app = web.Application(middlewares=[
+        *loopback_gate,
         create_cors_middleware(),
         create_security_middleware(),
         create_auth_middleware(),

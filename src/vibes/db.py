@@ -1,6 +1,7 @@
 """Database layer for Vibes using SQLite with JSON columns and BLOBs."""
 
 import aiosqlite
+import asyncio
 import json
 from pathlib import Path
 from typing import Optional
@@ -177,6 +178,7 @@ class Database:
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
         self.db_path = db_path
         self._connection: Optional[aiosqlite.Connection] = None
+        self._write_lock = asyncio.Lock()
 
     async def connect(self) -> None:
         """Connect to the database and ensure schema is initialized."""
@@ -239,12 +241,15 @@ class Database:
     @asynccontextmanager
     async def transaction(self):
         """Context manager for database transactions."""
-        try:
-            yield self._connection
-            await self._connection.commit()
-        except Exception:
-            await self._connection.rollback()
-            raise
+        # A shared aiosqlite connection shares a transaction too. Keep one chat's
+        # rollback/cancellation from committing or discarding another chat's write.
+        async with self._write_lock:
+            try:
+                yield self._connection
+                await self._connection.commit()
+            except BaseException:
+                await self._connection.rollback()
+                raise
 
     # Interaction methods
     async def create_interaction(self, data: dict) -> int:

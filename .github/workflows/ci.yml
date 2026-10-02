@@ -8,6 +8,9 @@ on:
 permissions:
   contents: read
 
+env:
+  COPILOT_SKIP_CLI_DOWNLOAD: '1'
+
 concurrency:
   group: python-ci-${{ github.ref }}
   cancel-in-progress: true
@@ -24,13 +27,14 @@ jobs:
       - run: |
           python -m venv .venv
           .venv/bin/python -m pip install -e '.[dev]'
+          .venv/bin/python -m pip install 'github-copilot-sdk==1.0.14'
           PATH="$PWD/.venv/bin:$PATH" make check PYTHON=.venv/bin/python
       - name: Test installed package without source imports
         run: |
           .venv/bin/python -m pip install --force-reinstall --no-deps .
           .venv/bin/python -I tests/packaging_smoke.py
 
-  windows-host:
+  windows-ffi-contracts:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -38,13 +42,15 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - run: python -m pip install -e '.[dev]'
-      - name: Full supported Windows suite and lint
+      - name: Install package and offline SDK contract dependencies (no native download)
+        run: python -m pip install -e '.[dev,copilot]'
+      - name: Full supported Windows suite (explicit POSIX skips) and lint
         env:
           PYTHONPATH: src
         run: |
           python -m ruff check src tests
           python -m pytest tests -q -rs
+      # Real FFI/model tests are opt-in. No runtime auto-download or credentials here.
 
   browser:
     runs-on: ubuntu-latest
