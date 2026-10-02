@@ -2,7 +2,7 @@
 
 These instructions are for `main`. The [Go branch][go] has its own build and deployment instructions; an old Go binary, container image or release tag is not a Python installation.
 
-Python 3.12 on Linux is the tested installation path. Package metadata permits Python 3.10 and later, but that is not a claim that every interpreter/platform combination has been tested. The PTY terminal and descriptor-confined workspace reader require POSIX facilities; native Windows is not the verified server path. A browser on Windows, macOS, iOS or Android can connect to a server running elsewhere.
+Python 3.12 is tested locally on Linux and Windows. Package metadata permits Python 3.10 and later, but not every interpreter/platform combination has been tested. Windows supports HTTP UI/workspace operations, confined output attachments and native CPU/RAM/process metrics. The PTY terminal stays disabled and legacy descriptor-relative MCP workspace tools require POSIX. See [Windows host support](WINDOWS.md) for scope, tests and remaining hosted-CI gates. A browser on Windows, macOS, iOS or Android can also connect to a server running elsewhere.
 
 You need Git to install from this repository. Install and authenticate an ACP agent or Pi separately, under the account that will run Vibes. Check that its executable is on that account's `PATH`. Vibes does not install agents, choose their provider credentials or grant API access.
 

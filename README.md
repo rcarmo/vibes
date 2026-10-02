@@ -28,9 +28,9 @@ For [Pi][pi], use its RPC adapter instead:
 VIBES_DEFAULT_AGENT=pi ~/.venvs/vibes/bin/vibes
 ```
 
-An optional, local-preview **Copilot FFI backend** embeds the native runtime without a CLI process. See [Copilot FFI](docs/COPILOT_FFI.md) for provisioning, safety boundaries and current gaps. Existing ACP/Pi defaults are unchanged.
+An optional, local-preview **Copilot FFI backend** embeds the native runtime without a CLI process. See [Copilot FFI](docs/COPILOT_FFI.md) for provisioning, safety boundaries and current gaps, and [the direct SDK architecture](docs/COPILOT_FFI_ARCHITECTURE.md) for how it works. Existing ACP/Pi defaults are unchanged.
 
-See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, and [Pi mode][pimode] for adapter settings.
+See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, [Windows host support](docs/WINDOWS.md) for platform limits and resource counters, and [Pi mode][pimode] for adapter settings.
 
 ## Working in the browser
 
