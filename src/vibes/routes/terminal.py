@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from urllib.parse import urlsplit
 
 from aiohttp import web
-from vibes.terminal import TerminalService
+if os.name == 'posix':
+    from vibes.terminal import TerminalService
+else:
+    TerminalService = None
 
 COOKIE = "vibes_terminal_owner"
 KEY = web.AppKey("terminal_adapter", object)
@@ -17,8 +20,8 @@ KEY = web.AppKey("terminal_adapter", object)
 
 class TerminalAdapter:
     def __init__(self, cwd, enabled=False, grace=15, handoff_ttl=30, shell="/bin/sh"):
-        self.enabled = enabled
-        self.service = TerminalService(cwd, shell=shell)
+        self.enabled = enabled and TerminalService is not None
+        self.service = TerminalService(cwd, shell=shell) if TerminalService else None
         self.owners = set()
         self.sockets = {}
         self.timers = {}
@@ -169,7 +172,8 @@ class TerminalAdapter:
         for timer in list(self.timers.values()):
             timer.cancel()
         await asyncio.gather(*list(self.timers.values()), return_exceptions=True)
-        await self.service.shutdown()
+        if self.service is not None:
+            await self.service.shutdown()
 
 
 def setup_routes(app):

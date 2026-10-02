@@ -30,6 +30,22 @@ jobs:
           .venv/bin/python -m pip install --force-reinstall --no-deps .
           .venv/bin/python -I tests/packaging_smoke.py
 
+  windows-host:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e '.[dev]'
+      - name: Full supported Windows suite and lint
+        env:
+          PYTHONPATH: src
+        run: |
+          python -m ruff check src tests
+          python -m pytest tests -q -rs
+
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 20

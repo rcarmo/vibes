@@ -83,7 +83,7 @@ export function SystemMeters({ toggleRequest = 0 }) {
     const rows = [
         ['cpu', 'CPU', metrics?.cpu_percent, metrics?.cpu_series, true, 'Host CPU utilisation'],
         ['ram', 'RAM', metrics?.ram_percent, metrics?.ram_series, true, `Host RAM: ${formatBytes(metrics?.ram_used_bytes)} / ${formatBytes(metrics?.ram_total_bytes)}`],
-        ...(finite(metrics?.process_rss_bytes) ? [['rss', 'RSS', metrics.process_rss_bytes, metrics.process_rss_series_bytes, false, 'Vibes server process resident memory (not agent children)']] : []),
+        ...(finite(metrics?.process_rss_bytes) ? [['rss', 'RSS', metrics.process_rss_bytes, metrics.process_rss_series_bytes, false, 'Vibes process resident memory, including the in-process FFI runtime (not child processes)']] : []),
         ...(finite(metrics?.vram_percent) && metrics?.vram_total_bytes > 0 ? [['vram', 'VRAM', metrics.vram_percent, metrics.vram_series, true, `GPU memory (${metrics.gpu_provider}): ${formatBytes(metrics.vram_used_bytes)} / ${formatBytes(metrics.vram_total_bytes)}`]] : []),
         ...(finite(metrics?.buffer_cache_bytes) ? [['buf', 'BUF', metrics.buffer_cache_bytes, metrics.buffer_cache_series_bytes, false, 'Host buffer/cache memory']] : []),
         ...(metrics?.swap_total_bytes > 0 ? [['swap', 'SWP', metrics.swap_percent, metrics.swap_series, true, `Host swap: ${formatBytes(metrics.swap_used_bytes)} / ${formatBytes(metrics.swap_total_bytes)}`]] : []),

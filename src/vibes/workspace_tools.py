@@ -6,6 +6,8 @@ from pathlib import Path
 
 class WorkspaceTools:
     def __init__(self, root):
+        if os.name != 'posix':
+            raise ValueError('Legacy MCP workspace reads require POSIX; use the Copilot native tools on Windows')
         self.root = str(Path(root).resolve(strict=True))
 
     def list_directory(self, path: str = '.', limit: int = 100):
