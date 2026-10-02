@@ -31,8 +31,10 @@ async def active_turn(db, session_id='default', turn_id='turn-one'):
 async def test_scoped_abort_sends_no_message_and_preserves_queue(client, db, mode):
     session = await SessionStore(db).create('Other')
     await active_turn(db, session['id'])
-    import vibes
-    module = vibes.pi_client if mode == 'pi' else agents.acp_client
+    # Other test modules purge package attributes during collection. Import the
+    # same live module the route resolves instead of relying on package attributes.
+    from vibes import pi_client as live_pi_client
+    module = live_pi_client if mode == 'pi' else agents.acp_client
     with patch.object(agents, '_resolve_agent_mode', return_value=mode), \
          patch.object(module, 'abort_chat_turn', AsyncMock(return_value=True)) as abort, \
          patch.object(db, 'create_interaction', AsyncMock()) as post, \

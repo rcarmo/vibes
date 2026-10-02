@@ -3,6 +3,7 @@ import os
 import pytest
 
 WorkspaceTools = importlib.import_module('vibes.workspace_tools').WorkspaceTools
+pytestmark = pytest.mark.skipif(os.name != 'posix', reason='Descriptor-relative legacy workspace tools are POSIX-only')
 
 
 def test_bounded_reads_and_rejected_paths(tmp_path):

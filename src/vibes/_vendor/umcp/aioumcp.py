@@ -29,9 +29,12 @@ _os.environ.setdefault("PYTHONUNBUFFERED", "1")
 # readline() returns raw bytes without encoding surprises.
 if _os.name == "nt":
     import msvcrt as _msvcrt  # Windows-only
-    _msvcrt.setmode(_sys.stdin.fileno(), _os.O_BINARY)
-    _msvcrt.setmode(_sys.stdout.fileno(), _os.O_BINARY)
-    _msvcrt.setmode(_sys.stderr.fileno(), _os.O_BINARY)
+    for _stream in (_sys.stdin, _sys.stdout, _sys.stderr):
+        try:
+            _msvcrt.setmode(_stream.fileno(), _os.O_BINARY)
+        except (OSError, ValueError):
+            # Embedded/test streams may not expose OS descriptors.
+            pass
 
 # Regardless of platform, grab the raw binary buffers for stdio.
 # Using .buffer bypasses Python's text-mode buffering layer entirely.

@@ -381,6 +381,8 @@ async def test_shell_no_args():
 
 @pytest.mark.asyncio
 async def test_shell_success():
+    if sys.platform == 'win32':
+        pytest.skip('Legacy /shell executes /bin/bash; not available on Windows')
     cmd = SlashCommand(name="shell", args="echo hello", raw="/shell echo hello")
     result = await execute_command(cmd, "acp")
     assert result.status == "success"
@@ -392,6 +394,8 @@ async def test_shell_success():
 
 @pytest.mark.asyncio
 async def test_shell_failure():
+    if sys.platform == 'win32':
+        pytest.skip('Legacy /shell executes /bin/bash; not available on Windows')
     cmd = SlashCommand(name="shell", args="false", raw="/shell false")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
@@ -401,6 +405,8 @@ async def test_shell_failure():
 
 @pytest.mark.asyncio
 async def test_shell_stderr_merged():
+    if sys.platform == 'win32':
+        pytest.skip('Legacy /shell executes /bin/bash; not available on Windows')
     cmd = SlashCommand(name="shell", args="echo err >&2", raw="/shell echo err >&2")
     result = await execute_command(cmd, "acp")
     assert result.handled is True
@@ -409,6 +415,8 @@ async def test_shell_stderr_merged():
 
 @pytest.mark.asyncio
 async def test_bash_alias_note():
+    if sys.platform == 'win32':
+        pytest.skip('Legacy /shell executes /bin/bash; not available on Windows')
     cmd = SlashCommand(name="bash", args="echo hi", raw="/bash echo hi")
     result = await execute_command(cmd, "acp")
     assert result.status == "success"

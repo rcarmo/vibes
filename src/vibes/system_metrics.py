@@ -1,7 +1,7 @@
-"""Bounded, read-only Linux host metrics, shared between browser clients.
+"""Bounded, read-only host metrics shared between browser clients.
 
-/proc describes the server's OS view, not cgroup limits or an inference endpoint.
-No commands are spawned. Optional VRAM comes from kernel DRM counters only.
+Linux /proc and Windows APIs describe the server OS view, not cgroup limits or
+an inference endpoint. No commands are spawned. Optional VRAM uses Linux DRM.
 """
 import asyncio
 from collections import deque
@@ -85,9 +85,15 @@ class SystemMetrics:
               'buffer_cache_bytes': 'buffer_cache_series_bytes', 'process_rss_bytes': 'process_rss_series_bytes',
               'vram_percent': 'vram_series'}
 
-    def __init__(self, reader=read_linux, clock=time.monotonic, system=None):
-        self.reader, self.clock = reader, clock
+    def __init__(self, reader=None, clock=time.monotonic, system=None):
         self.platform = system or platform.system().lower()
+        if reader is None:
+            if self.platform == 'windows':
+                from .windows_metrics import read_windows
+                reader = read_windows
+            else:
+                reader = read_linux
+        self.reader, self.clock = reader, clock
         self.host = socket.gethostname()
         self.lock = asyncio.Lock()
         self.previous_cpu = None
@@ -101,7 +107,7 @@ class SystemMetrics:
             if self.snapshot is not None and now - self.last_sample < INTERVAL_MS / 1000:
                 return self.snapshot
             try:
-                sample = await asyncio.to_thread(self.reader) if self.platform == 'linux' else {}
+                sample = await asyncio.to_thread(self.reader) if self.platform in {'linux', 'windows'} else {}
             except (OSError, ValueError):
                 sample = {}
             current = sample.pop('cpu_ticks', None)

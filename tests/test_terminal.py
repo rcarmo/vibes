@@ -2,10 +2,10 @@
 import asyncio
 import importlib
 import struct
-import termios
-import fcntl
 
 import pytest
+termios = pytest.importorskip('termios', reason='POSIX PTY module; Windows terminal is explicitly disabled')
+fcntl = pytest.importorskip('fcntl', reason='POSIX PTY module; Windows terminal is explicitly disabled')
 
 TerminalService = importlib.import_module("vibes.terminal").TerminalService
 
