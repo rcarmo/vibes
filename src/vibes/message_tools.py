@@ -99,12 +99,14 @@ class MessageTools:
             authorized_requested = set()
             for row_id in requested:
                 async with self.connection.execute('SELECT i.id FROM interactions i WHERE ' + where + ' AND i.id=?', [*scope_params, row_id]) as cursor:
-                    if await cursor.fetchone(): authorized_requested.add(row_id)
+                    if await cursor.fetchone():
+                        authorized_requested.add(row_id)
             if context_before or context_after:
                 selected = set(authorized_requested)
                 for row_id in authorized_requested:
                     for op, count, order in [('<', context_before, 'DESC'), ('>', context_after, 'ASC')]:
-                        if not count: continue
+                        if not count:
+                            continue
                         async with self.connection.execute('SELECT i.id FROM interactions i WHERE ' + where + f' AND i.id {op} ? ORDER BY i.id {order} LIMIT ?', [*scope_params, row_id, count]) as cursor:
                             selected.update(row[0] for row in await cursor.fetchall())
                 clauses.append('i.id IN (' + ','.join('?' for _ in selected or [0]) + ')')
@@ -122,9 +124,11 @@ class MessageTools:
         else:
             raise ValueError('Unsupported messages action')
         if before_row is not None:
-            clauses.append('i.id < ?'); params.append(before_row)
+            clauses.append('i.id < ?')
+            params.append(before_row)
         if after_row is not None:
-            clauses.append('i.id > ?'); params.append(after_row)
+            clauses.append('i.id > ?')
+            params.append(after_row)
         sql = 'SELECT i.id, i.timestamp, i.data FROM interactions i WHERE ' + ' AND '.join(clauses) + ' ORDER BY i.id DESC LIMIT ?'
         params.append(limit + 1)
         async with self.connection.execute(sql, params) as cursor:

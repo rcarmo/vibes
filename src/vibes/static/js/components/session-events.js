@@ -2,7 +2,7 @@
 const scoped = new Set([
     'session_model_changed', 'new_post', 'new_reply', 'agent_response', 'interaction_updated',
     'agent_status', 'agent_draft', 'agent_draft_delta', 'agent_thought',
-    'agent_thought_delta', 'agent_request', 'agent_request_timeout',
+    'agent_thought_delta', 'agent_request', 'agent_request_timeout', 'agent_request_closed',
 ]);
 
 export function eventMatchesSession(type, data, sessionId) {

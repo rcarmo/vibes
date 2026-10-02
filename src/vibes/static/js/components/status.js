@@ -1,6 +1,8 @@
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 import { disclosureTriangle } from './disclosure-triangle.js';
+import { agentRequestDetails } from './agent-request-details.js';
+import { copyPermissionText } from './permission-clipboard.js';
 
 const RATE_LIMIT_RE = /429|rate.?limit|too many requests|requests per minute|tokens per minute|rpm|tpm/i;
 
@@ -200,7 +202,7 @@ export function AgentStatus({
         `;
     };
 
-    const pendingTitle = pendingRequest?.tool_call?.title;
+    const pendingTitle = pendingRequest ? agentRequestDetails(pendingRequest).title : null;
     const pendingMessage = pendingTitle ? `Awaiting approval: ${pendingTitle}` : 'Awaiting approval';
 
     return html`
@@ -246,28 +248,33 @@ export function AgentStatus({
 }
 
 export function AgentRequestModal({ request, onRespond }) {
+    const [answer, setAnswer] = useState('');
+    const [responseError, setResponseError] = useState('');
+    const [copyState, setCopyState] = useState('');
+    const dialogRef = useRef(null);
+    const currentRequest = useRef(request?.request_id);
+    currentRequest.current = request?.request_id;
+    useEffect(() => {
+        setAnswer(''); setResponseError(''); setCopyState('');
+        const dialog = dialogRef.current;
+        if (!dialog || !request) return;
+        const previous = document.activeElement;
+        // Focus the dialog, never an approval button: Enter must not approve by default.
+        dialog.focus({ preventScroll: true });
+        return () => { if (previous?.isConnected && dialog.contains(document.activeElement)) previous.focus?.({ preventScroll: true }); };
+    }, [request?.request_id]);
     if (!request) return null;
 
-    const { request_id, tool_call, options } = request;
-    const title = tool_call?.title || 'Agent Request';
-
-    const rawInput = tool_call?.rawInput || {};
-    const command = rawInput.command || (rawInput.commands && rawInput.commands[0]) || null;
-    const diff = rawInput.diff || null;
-    const fileName = rawInput.fileName || rawInput.path || null;
-    const explanation = tool_call?.description || rawInput.description || rawInput.explanation || null;
-    const locations = Array.isArray(tool_call?.locations) ? tool_call.locations : [];
-    const locationPaths = locations
-        .map((loc) => loc?.path)
-        .filter((path) => Boolean(path));
-    const uniquePaths = Array.from(new Set([fileName, ...locationPaths].filter(Boolean)));
+    const { request_id, options } = request;
+    const { title, command, diff, explanation, paths: uniquePaths, fields, warnings, technical } = agentRequestDetails(request);
 
     const handleResponse = async (outcome) => {
         try {
-            await respondToAgentRequest(request_id, outcome);
-            onRespond();
+            await respondToAgentRequest(request_id, outcome, outcome === 'freeform' ? answer : undefined);
+            onRespond(request_id);
         } catch (e) {
             console.error('Failed to respond to agent request:', e);
+            setResponseError(String(e.message || e));
         }
     };
 
@@ -275,30 +282,51 @@ export function AgentRequestModal({ request, onRespond }) {
         try {
             await addToWhitelist(title, `Auto-approved: ${title}`);
             await respondToAgentRequest(request_id, 'approved');
-            onRespond();
+            onRespond(request_id);
         } catch (e) {
             console.error('Failed to add to whitelist:', e);
         }
     };
 
     const hasOptions = options && options.length > 0;
+    const permission = Boolean(technical);
+    const orderedOptions = permission && hasOptions
+        ? [...options].sort((a, b) => Number(a.kind !== 'reject_once') - Number(b.kind !== 'reject_once'))
+        : options;
+    const copyCommand = async () => {
+        try {
+            const ok = await copyPermissionText(command, dialogRef.current);
+            if (currentRequest.current === request_id) setCopyState(ok ? 'Copied' : 'Copy unavailable — select text');
+        } catch { if (currentRequest.current === request_id) setCopyState('Copy unavailable — select text'); }
+    };
+    const trapFocus = (event) => {
+        if (event.key !== 'Tab') return;
+        const controls = [...dialogRef.current.querySelectorAll('button:not(:disabled), summary, textarea, a[href], [tabindex="0"]')].filter(el => el.getClientRects().length);
+        if (!controls.length) { event.preventDefault(); return; }
+        const first = controls[0], last = controls.at(-1), active = document.activeElement;
+        if (event.shiftKey && (active === first || active === dialogRef.current)) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (active === last || active === dialogRef.current)) { event.preventDefault(); first.focus(); }
+    };
 
     return html`
-        <div class="agent-request-modal">
-            <div class="agent-request-content">
+        <div class="agent-request-modal permission-review" onKeyDown=${trapFocus}>
+            <div class="agent-request-content" ref=${dialogRef} role="dialog" aria-modal="true" aria-labelledby="agent-request-heading" tabindex="-1">
                 <div class="agent-request-header">
                     <div class="agent-request-icon">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
                         </svg>
                     </div>
-                    <div class="agent-request-title">${title}</div>
+                    <div class="agent-request-heading-group">
+                        <div class="agent-request-eyebrow">${permission ? 'Permission request' : 'Agent question'}</div>
+                        <h2 id="agent-request-heading" class="agent-request-title">${title}</h2>
+                    </div>
                 </div>
-                ${(explanation || command || diff || uniquePaths.length > 0) && html`
-                    <div class="agent-request-body">
+                <div class="agent-request-body" tabindex="0" aria-label="Request details">
                         ${explanation && html`
                             <div class="agent-request-description">${explanation}</div>
                         `}
+                        ${warnings.map(warning => html`<div class="agent-request-warning">${warning}</div>`)}
                         ${uniquePaths.length > 0 && html`
                             <div class="agent-request-files">
                                 <div class="agent-request-subtitle">Files</div>
@@ -308,21 +336,43 @@ export function AgentRequestModal({ request, onRespond }) {
                             </div>
                         `}
                         ${command && html`
-                            <pre class="agent-request-command">${command}</pre>
+                            <section class="agent-request-command-section" aria-label="Exact command">
+                                <div class="agent-request-section-header">
+                                    <span class="agent-request-subtitle">Command</span>
+                                    <button type="button" class="agent-request-copy" aria-label="Copy command" onClick=${copyCommand}>Copy</button>
+                                </div>
+                                <pre class="agent-request-command" data-testid="permission-command">${command}</pre>
+                                <div class="agent-request-command-note">Exact command · visual wrapping only${copyState && html`<span role="status">${copyState}</span>`}</div>
+                            </section>
                         `}
+                        ${fields.map(field => html`<div class="agent-request-files" key=${field.label}>
+                            <div class="agent-request-subtitle">${field.label}</div>
+                            <pre class="agent-request-command">${field.value}</pre>
+                        </div>`)}
+                        ${technical && html`<details class="agent-request-diff agent-request-technical">
+                            <summary>Technical details</summary>
+                            <pre>${technical}</pre>
+                        </details>`}
                         ${diff && html`
                             <details class="agent-request-diff">
                                 <summary>Proposed diff</summary>
                                 <pre>${diff}</pre>
                             </details>
                         `}
-                    </div>
-                `}
-                <div class="agent-request-actions">
+                    ${request.allow_freeform && html`
+                        <label class="agent-request-answer">Answer<textarea data-testid="agent-freeform-answer" maxlength="8000" value=${answer} onInput=${e => setAnswer(e.target.value)} /></label>
+                    `}
+                    ${responseError && html`<p class="agent-request-error" role="alert">${responseError}</p>`}
+                </div>
+                <footer class="agent-request-footer">
+                    ${permission && html`<p class="agent-request-scope">Review the full request before allowing it.${options?.some(opt => opt.optionId === 'allow' && opt.kind === 'allow_once') ? ' Allow once applies only to this request.' : ''}</p>`}
+                    <div class=${`agent-request-actions${permission ? ' permission-actions' : ''}`}>
+                    ${request.allow_freeform && html`<button type="button" class="agent-request-btn primary" disabled=${!answer.trim()} onClick=${() => handleResponse('freeform')}>Submit answer</button>`}
                     ${hasOptions ? (
-                        options.map((opt) => html`
+                        orderedOptions.map((opt) => html`
                             <button
                                 key=${opt.optionId || opt.id || String(opt)}
+                                type="button"
                                 class="agent-request-btn ${opt.kind === 'allow_once' || opt.kind === 'allow_always' ? 'primary' : ''}"
                                 onClick=${() => handleResponse(opt.optionId || opt.id || opt)}
                             >
@@ -340,7 +390,8 @@ export function AgentRequestModal({ request, onRespond }) {
                             Always Allow This
                         </button>
                     `}
-                </div>
+                    </div>
+                </footer>
             </div>
         </div>
     `;
