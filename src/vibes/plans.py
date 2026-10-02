@@ -148,7 +148,7 @@ class PlanStore:
         return {'session_id': session_id, 'markdown': row['markdown'] or '', 'revision': row['revision'] or 0, 'updated_at': row['updated_at']}
 
     async def apply(self, session_id, payload, *, owner_check=None):
-        async with self.db._plan_lock:
+        async with self.db._plan_lock, self.db.transaction():
             snapshot = await self.get(session_id)
             markdown = apply_plan_action(snapshot['markdown'], payload)
             if owner_check:
@@ -171,7 +171,6 @@ class PlanStore:
                 RETURNING markdown,revision,updated_at
             ''', (markdown, session_id, expected, expected)) as cursor:
                 saved = await cursor.fetchone()
-            await self.db._connection.commit()
             if saved is None:
                 raise PlanConflict('Plan changed or session is archived; reload before saving')
             return {'session_id': session_id, **dict(saved)}

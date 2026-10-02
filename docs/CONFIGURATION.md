@@ -15,11 +15,11 @@ See [installation](INSTALLATION.md) for setup, upgrades and network protection. 
 | `VIBES_ACP_AGENT` | `vibe-acp` | Installed ACP command, e.g. `copilot --acp` or `opencode acp`; agent authentication is separate |
 | `VIBES_AGENT_NAME` | `<hostname>` | Agent display name |
 | `VIBES_PERMISSION_TIMEOUT` | `30` | Seconds before permission request times out |
-| `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve all agent permission requests |
+| `VIBES_PERMISSION_AUTO_APPROVE` | `false` | Auto-approve legacy ACP/Pi requests; ignored by Copilot FFI |
 | `VIBES_DISCONNECT_TIMEOUT` | `300` | Seconds to wait before restarting agent on disconnect |
 | `VIBES_ACP_DEBUG` | `false` | Enable verbose ACP wire logging |
 | `VIBES_ACP_THROTTLE_RPS` | `0` | Max ACP messages per second (0 = no throttling) |
-| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp` or `pi`) for the `default` agent id |
+| `VIBES_DEFAULT_AGENT` | `acp` | Default agent mode (`acp`, `pi` or optional `copilot-ffi`) for the `default` agent id |
 | `VIBES_PI_AGENT` | `pi --mode rpc --no-session --append-system-prompt <vibes prompt> -e <package>/extensions/pi-vibes-tools.ts` | Pi RPC command to spawn when Pi mode is enabled (default resolves to the packaged extension path and includes the Vibes prompt) |
 | `VIBES_PI_ENABLED` | `false` | Enable Pi RPC agent (auto-enabled when `VIBES_DEFAULT_AGENT=pi`) |
 | `VIBES_PI_RESTART_ON_DISCONNECT` | `false` | Restart Pi agent when all SSE clients disconnect |
@@ -43,6 +43,24 @@ The terminal shell is also environment-only: `VIBES_SHELL` overrides the shell t
 For Pi mode details, see [docs/PI_MODE.md](PI_MODE.md).
 
 Boolean values accept: `1`, `true`, `yes` (case-insensitive).
+
+## Copilot FFI settings
+
+Install the optional dependency and explicitly provision its runtime before selecting `copilot-ffi`; see [operation](COPILOT_FFI.md) and [direct SDK architecture](COPILOT_FFI_ARCHITECTURE.md). Existing ACP/Pi defaults are unchanged.
+
+| Variable | Default | Description |
+|---|---|---|
+| `VIBES_COPILOT_MODEL` | unset | Initial model for a new native conversation; existing journals retain their model |
+| `VIBES_COPILOT_STATE_DIR` | `.vibes/copilot` | Native session/config state; back up separately from SQLite |
+| `VIBES_COPILOT_USE_LOGGED_IN_USER` | `false` | Deliberately permit SDK discovery of an existing sign-in |
+| `VIBES_COPILOT_START_TIMEOUT` | `30` | Positive native startup/session-setup timeout, seconds |
+| `VIBES_COPILOT_EVENT_TIMEOUT` | `300` | Positive per-event idle deadline, seconds |
+| `COPILOT_SKIP_CLI_DOWNLOAD` | required `1` | SDK variable preventing implicit runtime downloads |
+| `COPILOT_CLI_PATH` | SDK resolver | Optional provisioned runtime entrypoint; FFI loads the adjacent native library rather than executing it |
+
+Operator-owned JSON-only settings are `copilot_available_tools` (exact source-qualified selectors), `copilot_skill_directories` (directory paths), and `copilot_mcp_servers` (explicit server configuration with non-wildcard tool lists). These cannot be changed by browser requests. The default exposes only Vibes plan and attachment tools. See the FFI guide for a coding-tool configuration and platform-specific tool names.
+
+FFI requires a loopback bind; `VIBES_PI_ENABLED` is disabled when FFI is selected. `VIBES_PERMISSION_TIMEOUT` remains active and must be positive. Permission whitelists, blanket auto-approval and disconnect-driven agent restarts do not apply to FFI. Authentication and model availability are separate from native readiness.
 
 ## Permission whitelist
 

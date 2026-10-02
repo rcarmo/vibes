@@ -1,5 +1,6 @@
 // Adapted from Piclaw plan-sidebar web/index.ts, Copyright (c) 2026 Rui Carmo.
 // MIT: ../vendor/licenses/PICLAW-MIT.txt. Native session API + revision guards.
+import { parseTimestamp } from './timestamps.js';
 const STORAGE_OPEN = "piclaw:plan-sidebar:open";
 const STORAGE_WIDTH = "piclaw:plan-sidebar:width";
 const DEFAULT_CHAT_JID = "default";
@@ -683,7 +684,7 @@ function clampWidth(value) {
 
 function formatTime(value) {
   if (!value) return "";
-  try { return new Date(value).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); }
+  try { return parseTimestamp(value)?.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) || String(value); }
   catch { return String(value); }
 }
 

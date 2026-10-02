@@ -222,7 +222,8 @@ export async function setAgentTurnPanelExpanded(turnId, panel, expanded) {
 /**
  * Upload media file
  */
-export async function uploadMedia(file, { signal, onProgress } = {}) {
+export async function uploadMedia(file, { signal, onProgress, sessionId = 'default' } = {}) {
+    const uploadUrl = API_BASE + '/media/upload?session_id=' + encodeURIComponent(sessionId);
     if (signal || onProgress) {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
@@ -232,7 +233,7 @@ export async function uploadMedia(file, { signal, onProgress } = {}) {
                 if (error) reject(error); else resolve(value);
             };
             if (signal?.aborted) { reject(new DOMException('Upload cancelled', 'AbortError')); return; }
-            xhr.open('POST', API_BASE + '/media/upload');
+            xhr.open('POST', uploadUrl);
             xhr.upload.onprogress = e => {
                 if (e.lengthComputable) onProgress?.(Math.round(e.loaded / e.total * 100));
             };
@@ -253,7 +254,7 @@ export async function uploadMedia(file, { signal, onProgress } = {}) {
     const formData = new FormData();
     formData.append('file', file);
     
-    const response = await fetch(API_BASE + '/media/upload', {
+    const response = await fetch(uploadUrl, {
         method: 'POST',
         body: formData,
     });
@@ -269,11 +270,11 @@ export async function uploadMedia(file, { signal, onProgress } = {}) {
 /**
  * Respond to an agent request (permission, choice)
  */
-export async function respondToAgentRequest(requestId, outcome) {
+export async function respondToAgentRequest(requestId, outcome, answer) {
     const response = await fetch(API_BASE + '/agent/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ request_id: requestId, outcome }),
+        body: JSON.stringify({ request_id: requestId, outcome, ...(answer !== undefined ? { answer } : {}) }),
     });
     
     if (!response.ok) {
@@ -527,6 +528,10 @@ export class SSEClient {
         
         this.eventSource.addEventListener('agent_request', (e) => {
             this.onEvent('agent_request', JSON.parse(e.data));
+        });
+
+        this.eventSource.addEventListener('agent_request_closed', (e) => {
+            this.onEvent('agent_request_closed', JSON.parse(e.data));
         });
 
         this.eventSource.addEventListener('agent_request_timeout', (e) => {

@@ -13,12 +13,12 @@ test('SSE transport forwards session and queue notifications with intact payload
         client.connect();
         const source = client.eventSource;
         for (const type of ['plan_updated', 'sessions_changed', 'session_model_changed', 'agent_queue_reordered',
-            'agent_followup_queued', 'agent_followup_consumed', 'agent_followup_removed', 'agent_steer_queued']) {
+            'agent_followup_queued', 'agent_followup_consumed', 'agent_followup_removed', 'agent_steer_queued', 'agent_request_closed']) {
             const data = { session_id: 'other', ids: [2, 1] };
             source.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }));
             expect(received.at(-1)).toEqual({ type, data });
         }
-        expect(received).toHaveLength(8);
+        expect(received).toHaveLength(9);
         client.disconnect();
         expect(source.closed).toBe(true);
         expect(client.eventSource).toBe(null);

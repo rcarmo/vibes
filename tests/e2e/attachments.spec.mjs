@@ -18,11 +18,11 @@ test('failed send retains attachments and retry reuses completed upload', async 
     let uploads = 0;
     let sends = 0;
     let payload;
-    await page.route('**/media/upload', async route => {
+    await page.route(/\/media\/upload(?:\?|$)/, async route => {
         uploads++;
         await route.fulfill({ status: 201, contentType: 'application/json', body: JSON.stringify({ id: 123 }) });
     });
-    await page.route('**/agent/default/message', async route => {
+    await page.route(/\/agent\/default\/message(?:\?|$)/, async route => {
         sends++;
         payload = route.request().postDataJSON();
         await route.fulfill({ status: sends === 1 ? 503 : 200, contentType: 'application/json', body: JSON.stringify(sends === 1 ? { error: 'Temporary send failure' } : { status: 'queued' }) });
@@ -42,11 +42,11 @@ test('failed send retains attachments and retry reuses completed upload', async 
 
 test('upload cancellation keeps draft and prevents send', async ({ page }) => {
     let sends = 0;
-    await page.route('**/media/upload', async route => {
+    await page.route(/\/media\/upload(?:\?|$)/, async route => {
         await new Promise(resolve => setTimeout(resolve, 1500));
         await route.fulfill({ status: 201, contentType: 'application/json', body: '{"id":321}' }).catch(() => {});
     });
-    await page.route('**/agent/default/message', async route => { sends++; await route.fulfill({ body: '{}' }); });
+    await page.route(/\/agent\/default\/message(?:\?|$)/, async route => { sends++; await route.fulfill({ body: '{}' }); });
     await page.goto('/');
     await page.locator('input[type=file][hidden]').setInputFiles({ name: 'slow.txt', mimeType: 'text/plain', buffer: Buffer.from('data') });
     await page.getByTitle('Send (Enter); steer with Ctrl/Cmd+Enter', { exact: true }).click();

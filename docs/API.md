@@ -4,7 +4,7 @@
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/health` | Health check |
+| GET | `/health` | HTTP liveness plus selected backend readiness; FFI includes active/failed chat counts |
 
 ## Timeline & Posts
 
@@ -22,7 +22,7 @@
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/media/upload` | Upload media file |
+| POST | `/media/upload?session_id={id}` | Upload media file into an existing non-archived conversation; defaults to `default` |
 | GET | `/media/{id}` | Get media file |
 | GET | `/media/{id}/thumbnail` | Get media thumbnail |
 | GET | `/media/{id}/info` | Get media metadata |
@@ -66,6 +66,21 @@
 | POST | `/agent/whitelist` | Add pattern to whitelist |
 | DELETE | `/agent/whitelist` | Remove pattern from whitelist |
 
+## FFI conversations and requests
+
+With `VIBES_DEFAULT_AGENT=copilot-ffi`, existing routes use the native SDK without an ACP/Pi fallback. Different chats run concurrently; each chat executes one turn at a time. Include `session_id` on messages and status/queue queries. A follow-up is queued only behind its own chat's turn.
+
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/sessions/{id}/model-state` | Authoritative current model/reasoning, or explicit unavailable/busy state |
+| GET | `/sessions/{id}/models` | Bounded display catalogue; no raw provider configuration |
+| POST | `/sessions/{id}/model` | Change `model_id`, `provider: copilot` and/or `thinking_level`; unavailable/unconfirmed changes return 409 |
+| POST | `/agent/{id}/abort` | Cancel an exact `session_id` + `turn_id`; stale/mismatched ownership returns 409 |
+
+`POST /agent/respond` accepts `request_id`, an offered `outcome`, and optional `answer` when `outcome` is `freeform`. FFI permission outcomes are `allow`/`deny`, with Allow once semantics; questions can offer `choice-N` or `freeform`. Expired, cancelled or already-used requests return 409. Do not infer IDs or issue a second approval after an ambiguous response.
+
+`GET /agents/status?session_id={id}` includes that chat's active turns and pending requests for reconnect recovery. `agent_request_closed` carries the request/chat/turn IDs and reason; it closes that request rather than signalling completion of the whole turn. `agent_draft` snapshots and expanded `agent_draft_delta` messages are separate streams; clients must not append both.
+
 ## Session Plan
 
 | Method | Endpoint | Description |
@@ -100,6 +115,7 @@ See [shared Plan](PLAN.md) for the sidebar, Pi `vibes_plan`, ACP `plan`, and con
 | `agent_status` | Agent status update (thinking, tool calls) |
 | `agent_draft` | Agent draft text update |
 | `agent_request` | Agent permission request |
-| `agent_request_timeout` | Permission request timed out |
+| `agent_request_timeout` | Legacy permission timeout/turn cancellation |
+| `agent_request_closed` | Exact FFI request resolved or expired; does not end the whole turn |
 | `interaction_updated` | Post/reply metadata updated |
 | `interaction_deleted` | Post/reply deleted |

@@ -28,9 +28,13 @@ def test_attachment_file_boundaries(tmp_path):
     assert name == 'chart.png' and mime == 'image/png' and data == png()
     assert thumbnail and meta['width'] == 16 and meta['height'] == 12
     assert attachments.read_attachment_file(tmp_path, 'chart.png', kind='file')[1] == 'application/octet-stream'
-    (tmp_path / 'link').symlink_to(image)
-    os.mkfifo(tmp_path / 'fifo')
-    for path in ['../chart.png', '/etc/passwd', 'link', 'fifo']:
+    denied_paths = ['../chart.png', '/etc/passwd']
+    if os.name == 'posix':
+        (tmp_path / 'link').symlink_to(image)
+        os.mkfifo(tmp_path / 'fifo')
+        denied_paths += ['link', 'fifo']
+    # Windows junction/device/ADS coverage is in test_confined_files.py.
+    for path in denied_paths:
         with pytest.raises((ValueError, OSError)):
             attachments.read_attachment_file(tmp_path, path)
     with pytest.raises(ValueError):

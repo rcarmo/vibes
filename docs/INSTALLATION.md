@@ -2,7 +2,7 @@
 
 These instructions are for `main`. The [Go branch][go] has its own build and deployment instructions; an old Go binary, container image or release tag is not a Python installation.
 
-Python 3.12 on Linux is the tested installation path. Package metadata permits Python 3.10 and later, but that is not a claim that every interpreter/platform combination has been tested. The PTY terminal and descriptor-confined workspace reader require POSIX facilities; native Windows is not the verified server path. A browser on Windows, macOS, iOS or Android can connect to a server running elsewhere.
+Python 3.12 is tested locally on Linux and Windows. Package metadata permits Python 3.10 and later, but not every interpreter/platform combination has been tested. Windows supports HTTP UI/workspace operations, confined output attachments and native CPU/RAM/process metrics. The PTY terminal stays disabled and legacy descriptor-relative MCP workspace tools require POSIX. See [Windows host support](WINDOWS.md) for scope, tests and remaining hosted-CI gates. A browser on Windows, macOS, iOS or Android can also connect to a server running elsewhere.
 
 You need Git to install from this repository. Install and authenticate an ACP agent or Pi separately, under the account that will run Vibes. Check that its executable is on that account's `PATH`. Vibes does not install agents, choose their provider credentials or grant API access.
 
@@ -58,9 +58,15 @@ For repeatable local settings, create `.vibes/settings.json` in the workspace:
 
 Environment variables take precedence. See [configuration][config] for `.env`, XDG fallback settings, permission controls and Pi options. Keep credentials out of version control; use the agent's credential store or your service environment.
 
+## Optional direct Copilot SDK backend
+
+The [`copilot-ffi` guide](COPILOT_FFI.md) covers Python 3.11+, the pinned `.[copilot]` extra, explicit native runtime provisioning and account setup. Vibes embeds the Rust runtime through the official Python SDK; it does not start a Copilot CLI/ACP subprocess for this backend. [The architecture guide](COPILOT_FFI_ARCHITECTURE.md) describes that transport and its shared-process limits.
+
+After installing the extra, run `python -m copilot download-runtime --in-process`, then set `COPILOT_SKIP_CLI_DOWNLOAD=1` and `VIBES_DEFAULT_AGENT=copilot-ffi`. Configure a model available to your account; Vibes does not supply credentials or a subscription. Preserve the SQLite database and the separate native state directory for session recovery.
+
 ## Remote access and service operation
 
-There is no built-in login. Keep the default loopback bind and put an authenticated HTTPS reverse proxy in front of it for remote access. Allow long-lived SSE and WebSocket connections, and disable response buffering for SSE. Configure both the public page and API under the same origin. Cross-origin checks do not stop non-browser clients.
+There is no built-in login. Keep the default loopback bind and put an authenticated HTTPS reverse proxy in front of it for remote access. The experimental FFI backend additionally enforces loopback configuration/Host/peer checks; a proxy deployment needs its own reviewed identity and forwarding setup. Allow long-lived SSE and WebSocket connections, and disable response buffering for SSE. Configure both the public page and API under the same origin. Cross-origin checks do not stop non-browser clients.
 
 A private tailnet restricts reachability, but every permitted client can operate the server. The file editor can write workspace files; agents and the optional terminal run as the service account. Do not run as root or treat conversation selection as a sandbox.
 

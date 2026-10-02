@@ -107,6 +107,11 @@ async def test_acp_session_creation_includes_descriptor(db, monkeypatch, already
 
 @pytest.mark.asyncio
 async def test_workspace_read_registration_is_explicit(db, tmp_path):
+    import os
+    if os.name != 'posix':
+        with pytest.raises(ValueError, match='require POSIX'):
+            MessagesMCP(MessageTools(db._connection, workspace_access=True), workspace_root=tmp_path)
+        return
     (tmp_path / 'note.txt').write_text('workspace reference')
     server = MessagesMCP(MessageTools(db._connection, workspace_access=True), workspace_root=tmp_path)
     result = await server.handle({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/call', 'params': {'name': 'workspace_read', 'arguments': {'path': 'note.txt'}}})

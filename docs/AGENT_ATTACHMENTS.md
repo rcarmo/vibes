@@ -6,6 +6,7 @@ turn; the final answer does not have to repeat the image or contain base64.
 
 ## Tool entry points
 
+* Copilot FFI: `vibes_attach_file`, registered directly as a Python SDK custom tool. Arguments are `path`, optional `name` and `kind`; MIME type is inferred/validated. The handler captures the calling chat/turn, so concurrent chats cannot choose each other's output destination.
 * Pi: `vibes_attach_file`, provided by the bundled extension.
 * ACP: `attach_file`, provided by the session's Vibes stdio MCP server. It is
   available even with message-history access disabled; the attachment-only server
@@ -57,6 +58,10 @@ The existing model-generated image/file blocks and Markdown data-URI handling
 remain compatible, but the attachment tools are the preferred path. They keep
 binary data out of model text and return a useful failure when delivery cannot
 be completed.
+
+## Copilot FFI input files
+
+Output delivery is distinct from model input. FFI composer uploads carry upload-time conversation ownership and explicit selected media IDs. Verified images become SDK blobs; UTF-8 and bounded DOCX/PPTX/XLSX text become selections. PDF and unsupported formats fail before admission. See [FFI input limits and retention](COPILOT_FFI.md#input-and-output-files). No general-purpose recursive directory upload is implied.
 
 ## Differences from Piclaw
 

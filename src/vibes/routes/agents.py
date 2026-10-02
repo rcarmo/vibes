@@ -10,6 +10,7 @@ from ..db import get_db
 from .. import agent_attachments
 from ..config import get_config
 from .. import acp_client
+from ..copilot_host import backend as copilot_backend
 from ..opengraph import queue_link_preview_fetch
 from ..acp_client import (
     send_message_multimodal as send_acp_message_multimodal,
@@ -121,7 +122,7 @@ def _register_turn_preview(turn_id: str, thread_id: int, agent_id: str) -> None:
         "thought": "",
         "expanded": {"draft": False, "thought": False},
     }
-    while len(_turn_previews) > _MAX_TURN_PREVIEWS:
+    while get_config().default_agent.lower() != 'copilot-ffi' and len(_turn_previews) > _MAX_TURN_PREVIEWS:
         oldest = next(iter(_turn_previews))
         _turn_previews.pop(oldest, None)
 
@@ -212,6 +213,14 @@ async def _handle_agent_request(request_data):
 
 set_acp_request_callback(_handle_agent_request)
 set_pi_request_callback(_handle_agent_request)
+copilot_backend.request_callback = _handle_agent_request
+
+
+async def _handle_ffi_request_closed(payload):
+    await broadcast_event('agent_request_closed', payload)
+
+
+copilot_backend.request_closed_callback = _handle_ffi_request_closed
 
 
 # Set up whitelist checker
@@ -236,6 +245,12 @@ async def list_agents(request: web.Request) -> web.Response:
     pi_model = await _resolve_pi_model(config)
     agent_avatar = resolve_avatar_url("agent", config.agent_avatar)
 
+    if default_mode == 'copilot-ffi':
+        state = copilot_backend.status()
+        return web.json_response({'agents': [{'id': 'default', 'name': config.agent_name,
+            'description': 'Copilot native FFI', 'model': config.copilot_model,
+            'status': 'running' if state['ready'] else 'stopped', 'actions': [],
+            'reported_capabilities': {'loadSession': True}, 'backend_status': state}], 'user': None})
     if default_mode == "pi":
         agents.append({
             "id": "default",
@@ -338,8 +353,12 @@ async def get_agent_status(request: web.Request) -> web.Response:
         steers = [item for item in steers if owners[item.get('thread_id')] == session_id]
         pi_busy = pi_busy and bool(active_turns)
         acp_busy = acp_busy and bool(active_turns)
+    ffi_busy = _ffi_busy(session_id)
     return web.json_response({
-        "busy": pi_busy or acp_busy,
+        'copilot_busy': ffi_busy,
+        **({'pending_requests': copilot_backend.pending_requests(session_id)}
+           if get_config().default_agent.lower() == 'copilot-ffi' else {}),
+        "busy": pi_busy or acp_busy or ffi_busy,
         "pi_busy": pi_busy,
         "acp_busy": acp_busy,
         "active_turns": active_turns,
@@ -452,7 +471,11 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     agent_mode = _resolve_agent_mode(queued["agent_id"])
-    active_turn = await _get_active_turn_for_agent(queued["agent_id"])
+    queued_session = None
+    if agent_mode == 'copilot-ffi':
+        queued_root = await (await get_db()).get_interaction(queued['thread_id'])
+        queued_session = queued_root['data'].get('session_id', 'default') if queued_root else None
+    active_turn = await _get_active_turn_for_agent(queued["agent_id"], **({'session_id': queued_session} if queued_session else {}))
     target_turn_id = active_turn.get("turn_id") if active_turn else None
     if active_turn:
         database = await get_db()
@@ -559,6 +582,8 @@ async def _resolve_pi_model(config) -> str | None:
 def _resolve_agent_mode(agent_id: str) -> str:
     config = get_config()
     default_mode = config.default_agent.lower()
+    if default_mode == 'copilot-ffi':
+        return default_mode  # Do not let explicit legacy IDs launch a fallback.
     if agent_id == "default":
         return default_mode
     if agent_id in ("pi", "acp"):
@@ -566,7 +591,7 @@ def _resolve_agent_mode(agent_id: str) -> str:
     return default_mode
 
 
-async def _get_active_turn_for_agent(agent_id: str) -> dict | None:
+async def _get_active_turn_for_agent(agent_id: str, session_id=None) -> dict | None:
     """Return the most recently started active turn for an agent."""
     try:
         db = await get_db()
@@ -575,6 +600,13 @@ async def _get_active_turn_for_agent(agent_id: str) -> dict | None:
         return None
 
     matching = [turn for turn in turns if turn.get("agent_id") == agent_id]
+    if session_id is not None:
+        scoped = []
+        for turn in matching:
+            root = await db.get_interaction(turn['thread_id'])
+            if root and root['data'].get('session_id', 'default') == session_id:
+                scoped.append(turn)
+        matching = scoped
     if not matching:
         return None
     matching.sort(key=lambda turn: str(turn.get("started_at") or ""), reverse=True)
@@ -582,6 +614,8 @@ async def _get_active_turn_for_agent(agent_id: str) -> dict | None:
 
 
 def _is_agent_busy(agent_mode: str) -> bool:
+    if agent_mode == 'copilot-ffi':
+        return copilot_backend.busy()
     if agent_mode == "pi":
         return is_pi_busy()
     try:
@@ -622,15 +656,86 @@ async def _dispatch_pi_thread(content, thread_id, status_callback):
 
 
 _agent_dispatch_lock = asyncio.Lock()
+_ffi_admission_locks = {}
+_ffi_dispatch_locks = {}
+_ffi_tasks = {}
+_ffi_threads = {}
+_ffi_closing = False
 
 
-async def process_agent_response(thread_id: int, content: str, agent_id: str):
-    """The process owns one shared ACP/Pi runtime: never overlap worker turns."""
-    async with _agent_dispatch_lock:
-        return await _process_agent_response_locked(thread_id, content, agent_id)
+def _ffi_lock(registry, chat_id):
+    return registry.setdefault(chat_id, asyncio.Lock())
 
 
-async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str):
+def _ffi_busy(chat_id=None):
+    if chat_id is None:
+        return bool(_ffi_tasks) or copilot_backend.busy()
+    return chat_id in _ffi_tasks or copilot_backend.busy(chat_id)
+
+
+def start_ffi_dispatch():
+    global _ffi_closing
+    _ffi_closing = False
+
+
+def close_ffi_admission():
+    global _ffi_closing
+    _ffi_closing = True
+
+
+async def stop_ffi_dispatch():
+    close_ffi_admission()
+    tasks = list(_ffi_tasks.values())
+    for task in tasks:
+        task.cancel()
+    await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
+    if _ffi_closing or chat_id in _ffi_tasks:
+        raise RuntimeError('Conversation dispatch unavailable')
+
+    async def run():
+        try:
+            prompt, inputs = content, media_ids
+            while not _ffi_closing:
+                advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs)
+                # Serialize queue admission against completion/promotion for this chat.
+                async with _ffi_lock(_ffi_admission_locks, chat_id):
+                    if not advance or _ffi_closing:
+                        break
+                    item = consume_next_followup(thread_id, agent_id)
+                    if not item:
+                        break
+                    row = await (await get_db()).get_interaction(item['message_id'])
+                    prompt, inputs = item['content'], (row or {}).get('data', {}).get('media_ids', [])
+                    await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error('Conversation dispatch failed (%s)', type(exc).__name__)
+        finally:
+            if _ffi_tasks.get(chat_id) is asyncio.current_task():
+                _ffi_tasks.pop(chat_id, None)
+                _ffi_threads.pop(chat_id, None)
+
+    task = asyncio.create_task(run(), name='vibes-ffi-' + chat_id)
+    _ffi_tasks[chat_id], _ffi_threads[chat_id] = task, thread_id
+
+
+async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None):
+    """ACP/Pi share a lock; FFI turns serialize only within their own chat."""
+    lock = _agent_dispatch_lock
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        root = await (await get_db()).get_interaction(thread_id)
+        chat_id = root['data'].get('session_id', 'default') if root else 'default'
+        lock = _ffi_lock(_ffi_dispatch_locks, chat_id)
+    async with lock:
+        return await _process_agent_response_locked(thread_id, content, agent_id,
+            **({'media_ids': media_ids} if media_ids is not None else {}))
+
+
+async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None):
     """Background task to get agent response and broadcast it."""
     import random
     import string
@@ -647,6 +752,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
     latest_draft_text = ""
     latest_thought_text = ""
     turn_completed = False
+    dispatch_next = False
     _register_turn_preview(turn_id, thread_id, agent_id)
 
     # Persist turn start in DB for crash recovery
@@ -674,7 +780,8 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
 
     attachment_context = {'mode': _resolve_agent_mode(agent_id), 'agent_id': agent_id,
                           'session_id': chat_session_id, 'thread_id': thread_id, 'turn_id': turn_id, 'receipts': {}}
-    agent_attachments.active = attachment_context
+    if attachment_context['mode'] != 'copilot-ffi':
+        agent_attachments.active = attachment_context
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
@@ -766,7 +873,11 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         })
         
         agent_mode = _resolve_agent_mode(agent_id)
-        if agent_mode == "pi":
+        if agent_mode == 'copilot-ffi':
+            from ..sessions import SessionStore
+            response = await copilot_backend.send(content, thread_id, status_callback,
+                chat_id=chat_session_id, store=SessionStore(database), media_ids=media_ids, attachment_context=attachment_context)
+        elif agent_mode == "pi":
             response = await _dispatch_pi_thread(content, thread_id, status_callback)
         else:
             response = await _dispatch_acp_thread(content, thread_id, status_callback)
@@ -861,7 +972,8 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         await _persist_and_broadcast_status({"type": "done"})
         turn_completed = True
         
-        next_followup = consume_next_followup(thread_id, agent_id)
+        dispatch_next = not response.get('cancelled')
+        next_followup = None if agent_mode == 'copilot-ffi' else consume_next_followup(thread_id, agent_id)
         if next_followup:
             logger.info(
                 "Dispatching queued follow-up %s for thread %s (%s)",
@@ -873,7 +985,11 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
             enqueue(process_agent_response, thread_id, next_followup["content"], agent_id)
         
     except Exception as e:
-        logger.error(f"Error processing agent response: {e}", exc_info=True)
+        if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+            logger.error('Copilot turn failed (%s); private runtime diagnostics may contain input data', type(e).__name__)
+            e = RuntimeError('Copilot turn failed or ended without confirmed idle. Check backend readiness before retrying.')
+        else:
+            logger.error(f"Error processing agent response: {e}", exc_info=True)
         turn_completed = True
         
         # Broadcast error status
@@ -917,6 +1033,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 })
             except Exception:
                 pass
+    return dispatch_next
 
 
 async def _store_media_block(db, block: dict) -> int | None:
@@ -973,6 +1090,9 @@ async def _store_media_block(db, block: dict) -> int | None:
 
 async def get_agent_context(request: web.Request) -> web.Response:
     """GET /agent/context — return only usage reported for the selected agent chat."""
+    if _resolve_agent_mode('default') == 'copilot-ffi':
+        return web.json_response({'tokens': None, 'contextWindow': None, 'percent': None,
+                                  'source': 'copilot-ffi', 'available': False})
     if _resolve_agent_mode('default') == 'acp':
         return web.json_response(acp_client.get_session_usage(request.query.get('session_id', 'default')))
     null_resp = {"tokens": None, "contextWindow": None, "percent": None}
@@ -1026,6 +1146,8 @@ def _format_model_label(model) -> str | None:
 async def get_agent_models(request: web.Request) -> web.Response:
     """GET /agent/models — return available models and current selection."""
     empty = {"current": None, "models": []}
+    if _resolve_agent_mode('default') == 'copilot-ffi':
+        return web.json_response({**empty, 'current': get_config().copilot_model, 'available': False})
     if not is_pi_running():
         return web.json_response(empty)
     try:
@@ -1069,13 +1191,14 @@ async def abort_turn(request: web.Request) -> web.Response:
                                          for key in ('session_id', 'turn_id')):
         return web.json_response({'error': 'session_id and turn_id are required'}, status=400)
     mode = _resolve_agent_mode(request.match_info['agent_id'])
-    owner = (pi_client._state.current_request_task if mode == 'pi' else acp_client._state.cancel_event)
+    owner = (copilot_backend.active_for(data['session_id']) if mode == 'copilot-ffi' else
+             pi_client._state.current_request_task if mode == 'pi' else acp_client._state.cancel_event)
     database = await get_db()
     session_id = data['session_id']
     session = await SessionStore(database).get(session_id)
     if not session or session['archived']:
         return web.json_response({'error': 'Session unavailable'}, status=404)
-    turn = await _get_active_turn_for_agent(request.match_info['agent_id'])
+    turn = await _get_active_turn_for_agent(request.match_info['agent_id'], **({'session_id': session_id} if mode == 'copilot-ffi' else {}))
     if not turn or turn['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
     root = await database.get_interaction(turn['thread_id'])
@@ -1083,10 +1206,11 @@ async def abort_turn(request: web.Request) -> web.Response:
         return web.json_response({'error': 'Turn belongs to another session'}, status=409)
     # Re-check after DB awaits; runtime helpers additionally validate ownership
     # and signal without yielding, so a stale click cannot abort a promoted turn.
-    current = await _get_active_turn_for_agent(request.match_info['agent_id'])
+    current = await _get_active_turn_for_agent(request.match_info['agent_id'], **({'session_id': session_id} if mode == 'copilot-ffi' else {}))
     if not current or current['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
-    accepted = await (pi_client.abort_chat_turn(session_id, owner) if mode == 'pi'
+    accepted = await (copilot_backend.abort(session_id, owner) if mode == 'copilot-ffi' else
+                      pi_client.abort_chat_turn(session_id, owner) if mode == 'pi'
                       else acp_client.abort_chat_turn(session_id, owner))
     if not accepted:
         return web.json_response({'error': 'Active runtime ownership could not be confirmed'}, status=409)
@@ -1102,9 +1226,27 @@ async def send_message(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         return web.json_response({"error": "Invalid JSON"}, status=400)
 
-    if "content" not in data:
+    if not isinstance(data, dict) or "content" not in data:
         return web.json_response({"error": "Missing 'content' field"}, status=400)
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        session_id = data.get('session_id', 'default')
+        if not isinstance(session_id, str) or not session_id:
+            return web.json_response({'error': 'Invalid session_id'}, status=400)
+        async with _ffi_lock(_ffi_admission_locks, session_id):
+            if _ffi_closing:
+                return web.json_response({'error': 'Server shutting down'}, status=503)
+            return await _send_message(request, data)
+    return await _send_message(request, data)
 
+
+async def _send_message(request, data):
+    agent_id = request.match_info['agent_id']
+
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        if not isinstance(data['content'], str) or not data['content'].strip():
+            return web.json_response({'error': 'Nonempty text required'}, status=400)
+        if data['content'].lstrip().startswith('/'):
+            return web.json_response({'error': 'Slash commands are not implemented for Copilot FFI; use natural-language skills and the Cancel button'}, status=409)
     thread_id = data.get("thread_id")
     requested_mode = str(data.get("mode") or "").strip().lower() or None
     if requested_mode not in {None, "auto", "queue", "steer"}:
@@ -1115,6 +1257,12 @@ async def send_message(request: web.Request) -> web.Response:
     session_id = data.get('session_id', 'default')
     if not isinstance(session_id, str) or not session_id:
         return web.json_response({'error': 'Invalid session_id'}, status=400)
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        from ..copilot_media import validate_media
+        try:
+            await validate_media(db, data.get('media_ids', []), session_id)
+        except (ValueError, OSError):
+            return web.json_response({'error': 'Attachment invalid, unsupported or outside this conversation'}, status=400)
     compact_action = data.get('intent') == 'compact'
     if compact_action:
         command = acp_client.get_session_usage(session_id).get('compactCommand')
@@ -1130,7 +1278,7 @@ async def send_message(request: web.Request) -> web.Response:
             return web.json_response({'error': 'Session unavailable'}, status=404)
         if data['content'].lstrip().startswith('/') and not compact_action:
             return web.json_response({'error': 'Session-specific commands are not enabled yet'}, status=409)
-    if _agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id)):
+    if _resolve_agent_mode(agent_id) != 'copilot-ffi' and (_agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id))):
         active = await _get_active_turn_for_agent(agent_id)
         active_root = await db.get_interaction(active['thread_id']) if active else None
         active_session = active_root['data'].get('session_id', 'default') if active_root else None
@@ -1209,10 +1357,14 @@ async def send_message(request: web.Request) -> web.Response:
         # Not a built-in command — fall through to forward to agent
 
     agent_mode = _resolve_agent_mode(agent_id)
-    busy = _is_agent_busy(agent_mode)
+    busy = _ffi_busy(session_id) if agent_mode == 'copilot-ffi' else _is_agent_busy(agent_mode)
+    # Model inspection is not a turn; don't strand a message in the follow-up
+    # queue merely because this chat's control API briefly owns the lane lock.
+    if agent_mode == 'copilot-ffi':
+        busy = session_id in _ffi_tasks
     submit_mode = requested_mode or "auto"
-    active_turn = await _get_active_turn_for_agent(agent_id) if busy else None
-    inflight_thread = active_turn.get("thread_id") if active_turn else None
+    active_turn = await _get_active_turn_for_agent(agent_id, **({'session_id': session_id} if agent_mode == 'copilot-ffi' else {})) if busy else None
+    inflight_thread = active_turn.get("thread_id") if active_turn else (_ffi_threads.get(session_id) if agent_mode == 'copilot-ffi' else None)
 
     if busy and inflight_thread:
         await db.set_interaction_thread_id(msg_id, inflight_thread)
@@ -1290,7 +1442,10 @@ async def send_message(request: web.Request) -> web.Response:
         }, status=201)
 
     # Queue agent response processing in background
-    enqueue(process_agent_response, thread_id, data["content"], agent_id)
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []))
+    else:
+        enqueue(process_agent_response, thread_id, data["content"], agent_id)
     
     return web.json_response({
         "user_message": user_interaction,
@@ -1335,6 +1490,9 @@ async def respond_to_agent_request(request: web.Request) -> web.Response:
     if request_id is None:
         return web.json_response({"error": "Missing request_id"}, status=400)
     
+    if _resolve_agent_mode('default') == 'copilot-ffi':
+        success = copilot_backend.respond(request_id, outcome, data.get('answer'))
+        return web.json_response({'status': 'ok'} if success else {'error': 'Request expired or invalid'}, status=200 if success else 409)
     success = respond_to_acp_request(request_id, outcome)
     if not success:
         success = respond_to_pi_request(request_id, outcome)
@@ -1413,6 +1571,9 @@ async def get_agent_commands(request: web.Request) -> web.Response:
     # Non-default chats currently reject generic slash commands. Do not offer
     # actions that the send route cannot execute (turn abort has its own route).
     if session_id != 'default':
+        return web.json_response({'commands': []})
+
+    if _resolve_agent_mode('default') == 'copilot-ffi':
         return web.json_response({'commands': []})
 
     # Base commands that are always available

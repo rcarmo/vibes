@@ -28,7 +28,9 @@ For [Pi][pi], use its RPC adapter instead:
 VIBES_DEFAULT_AGENT=pi ~/.venvs/vibes/bin/vibes
 ```
 
-See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, and [Pi mode][pimode] for adapter settings.
+An optional, local-preview **Copilot FFI backend** embeds the native runtime without a CLI process. See [Copilot FFI](docs/COPILOT_FFI.md) for provisioning, safety boundaries and current gaps, and [the direct SDK architecture](docs/COPILOT_FFI_ARCHITECTURE.md) for how it works. Existing ACP/Pi defaults are unchanged.
+
+See the [installation guide][install] for source installs, upgrades, service operation and troubleshooting, [Windows host support](docs/WINDOWS.md) for platform limits and resource counters, and [Pi mode][pimode] for adapter settings.
 
 ## Working in the browser
 
@@ -43,6 +45,8 @@ The right-hand [Plan drawer](docs/PLAN.md) shares its persistent checklist with 
 Model and thinking controls depend on the selected adapter. Context occupancy and cost appear only when the agent reports usable values. For ACP, the context gauge offers compaction only when the agent advertises a no-argument `compact` command. Missing telemetry is not treated as zero.
 
 Conversations have separate stored timelines and agent-session bindings, but they share a server account and workspace. They are not security sandboxes. ACP text attachments can be read through the optional scoped messages tool; image and binary attachments have metadata-only retrieval through that tool, not guaranteed native model input. See the [agent file-access contract][files] for the exact boundary.
+
+See [drafts, timestamps and permission review](docs/BROWSER_REVIEW.md) for streaming behavior, UTC time labels, exact command copying and approval-dialog controls.
 
 ## Keep it private
 

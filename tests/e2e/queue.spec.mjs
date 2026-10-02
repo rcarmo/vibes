@@ -38,12 +38,18 @@ test('active queued item steering submits its durable ID once', async ({ page })
     let requests = [];
     await page.addInitScript(() => { window.EventSource = class extends EventTarget { constructor(){ super(); window.testEventSource=this; } close(){} }; });
     await page.route('**/agent/queue?*', route => route.fulfill({ json: { items: [{ row_id: -7, content: 'Active queued', agent_id: 'default', thread_id: 1 }], pending_steers: [] } }));
-    await page.route('**/agent/queue-steer', async route => { requests.push(route.request().postDataJSON()); await new Promise(resolve=>setTimeout(resolve,30)); await route.fulfill({ json: { status: 'ok' } }); });
+    await page.route('**/agents/status?*', route => route.fulfill({ json: {busy:true,active_turns:[{turn_id:'turn-1',thread_id:1,agent_id:'default',last_status:{type:'thinking',title:'Thinking'}}]} }));
+    await page.route('**/agent/queue-steer', async route => { requests.push(route.request().postDataJSON()); await route.fulfill({ json: { status: 'ok' } }); });
     await page.goto('/');
     await page.evaluate(() => window.testEventSource.dispatchEvent(new MessageEvent('agent_status', { data: JSON.stringify({ session_id: 'default', turn_id: 'turn-1', type: 'thinking', title: 'Thinking' }) })));
     const steer = page.getByRole('button', { name: /Promote queued item to steering/ });
     await expect(steer).toBeEnabled();
-    await steer.click(); await steer.click({ force: true });
+    await steer.click();
+    await expect.poll(() => requests.length).toBe(1);
+    // Queue snapshot deliberately remains stale after acknowledgement. A second
+    // activation must still be single-use, not depend on browser click timing.
+    await expect(steer).toBeVisible();
+    await steer.click({ force: true });
     await expect.poll(() => requests.length).toBe(1);
     expect(requests[0]).toEqual({ row_id: -7 });
 });

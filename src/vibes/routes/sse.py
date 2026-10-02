@@ -92,6 +92,9 @@ def _schedule_restart_if_needed() -> None:
         return
 
     config = get_config()
+    if config.default_agent.lower() == 'copilot-ffi':
+        # A browser subscription is not the owner of the native runtime.
+        return
     delay_s = getattr(config, "disconnect_timeout", None)
     if delay_s is None:
         delay_s = getattr(config, "agent_restart_on_disconnect_s", 0)

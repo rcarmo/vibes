@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import shutil
 from urllib.error import URLError
 from urllib.request import urlopen
 
@@ -22,7 +23,24 @@ def main():
         assert (package / relative).is_file(), relative
     subprocess.run([sys.executable, "-I", "-m", "vibes.messages_mcp", "--help"],
                    check=True, stdout=subprocess.PIPE)
-    with tempfile.TemporaryDirectory(prefix="vibes-installed-") as directory:
+    # Windows scanner/SQLite handles can linger briefly after process exit.
+    # Keep cleanup bounded and fail if the owned fixture cannot be removed.
+    from contextlib import contextmanager
+    @contextmanager
+    def fixture_directory():
+        directory = tempfile.mkdtemp(prefix="vibes-installed-")
+        try:
+            yield directory
+        finally:
+            for attempt in range(20):
+                try:
+                    shutil.rmtree(directory)
+                    break
+                except PermissionError:
+                    if attempt == 19:
+                        raise
+                    time.sleep(0.1)
+    with fixture_directory() as directory:
         with socket.socket() as sock:
             sock.bind(("127.0.0.1", 0))
             port = sock.getsockname()[1]

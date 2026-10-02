@@ -8,11 +8,9 @@ import hashlib
 import io
 import json
 import mimetypes
-import os
 import re
 from pathlib import Path
 import secrets
-import stat
 
 from PIL import Image
 
@@ -48,41 +46,15 @@ def read_attachment_file(root, path, name=None, content_type=None, kind=None, ma
         raise ValueError('max_bytes must be between 1 and 10485760')
     if kind not in (None, 'image', 'file'):
         raise ValueError('kind must be image or file')
-    root = Path(root).resolve(strict=True)
-    path = path.removeprefix('@')
-    if Path(path).is_absolute():
-        try:
-            path = str(Path(path).relative_to(root))
-        except ValueError:
-            raise ValueError('Attachment must be inside the workspace') from None
-    parts = path.split('/')
-    if any(part in ('', '.', '..') for part in parts):
-        raise ValueError('Invalid workspace path')
+    from .confined_files import relative_parts, read_bytes
+    root = Path(root).absolute()
+    parts = relative_parts(root, path)
     filename = name or parts[-1]
     if not isinstance(filename, str) or not filename or len(filename) > 255 or any(ord(c) < 32 or c in '/\\' for c in filename):
         raise ValueError('Invalid attachment name')
     if content_type is not None and (not isinstance(content_type, str) or len(content_type) > 100 or '/' not in content_type or any(c.isspace() for c in content_type)):
         raise ValueError('Invalid MIME type')
-    fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-    try:
-        for index, part in enumerate(parts):
-            flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
-            if index < len(parts) - 1:
-                flags |= os.O_DIRECTORY
-            child = os.open(part, flags, dir_fd=fd)
-            os.close(fd)
-            fd = child
-        info = os.fstat(fd)
-        if not stat.S_ISREG(info.st_mode):
-            raise ValueError('Only regular files can be attached')
-        if info.st_size > max_bytes:
-            raise ValueError('Attachment exceeds size limit')
-        with os.fdopen(os.dup(fd), 'rb') as file:
-            data = file.read(max_bytes + 1)
-        if len(data) > max_bytes:
-            raise ValueError('Attachment exceeds size limit')
-    finally:
-        os.close(fd)
+    _, data = read_bytes(root, path, max_bytes)
     mime = content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
     metadata = {'size': len(data), 'source': 'agent-attachment'}
     # Sniff and validate raster images; do not label arbitrary bytes as images.
@@ -128,10 +100,16 @@ async def referenced_media(content, session_id):
     return result
 
 
-async def publish_file(params, mode, session_id=None, *, expected=None):
+async def publish_file(params, mode, session_id=None, *, expected=None, owner_check=None):
     from .routes.sse import broadcast_event
-    context = active
-    if not context or context['mode'] != mode or session_id is not None and context['session_id'] != session_id:
+    # FFI tools carry a captured per-turn context plus a live ownership check.
+    # Legacy Pi/ACP retain their single-active-context behavior.
+    context = expected if owner_check is not None else active
+    def is_current():
+        return bool(owner_check()) if owner_check is not None else active is context
+    if not is_current():
+        raise PermissionError('Agent turn ended')
+    if not context or context.get('cancelled') or context['mode'] != mode or session_id is not None and context['session_id'] != session_id:
         raise PermissionError('No matching active agent turn')
     if expected is not None and context is not expected:
         raise PermissionError('Agent turn changed')
@@ -143,7 +121,7 @@ async def publish_file(params, mode, session_id=None, *, expected=None):
         raise ValueError('Unsupported attachment fields')
     fingerprint = hashlib.sha256(json.dumps(params, sort_keys=True).encode()).hexdigest()
     async with publish_lock:
-        if active is not context:
+        if not is_current() or context.get('cancelled'):
             raise PermissionError('Agent turn ended')
         if len(context['receipts']) >= 100 and request_id not in context['receipts']:
             raise ValueError('Attachment limit reached for this turn')
@@ -154,12 +132,12 @@ async def publish_file(params, mode, session_id=None, *, expected=None):
             return existing[1]
         filename, mime, data, thumbnail, metadata = await asyncio.to_thread(
             read_attachment_file, Path.cwd(), **{key: value for key, value in params.items() if key != 'request_id'})
-        if active is not context:
+        if not is_current() or context.get('cancelled'):
             raise PermissionError('Agent turn ended before attachment was stored')
         database = await get_db()
         media_id = await database.create_media(filename, mime, data, thumbnail, metadata)
         try:
-            if active is not context:
+            if not is_current() or context.get('cancelled'):
                 raise PermissionError('Agent turn ended before delivery')
             row = {'type': 'agent_response', 'content': '', 'agent_id': context['agent_id'],
                    'thread_id': context['thread_id'], 'session_id': context['session_id'],

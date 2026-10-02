@@ -1,5 +1,6 @@
 import asyncio
 import importlib
+import os
 
 import pytest
 from aiohttp import web, WSServerHandshakeError
@@ -8,6 +9,8 @@ TerminalAdapter = importlib.import_module("vibes.routes.terminal").TerminalAdapt
 
 
 async def client_for(aiohttp_client, tmp_path, enabled=True):
+    if enabled and os.name != 'posix':
+        pytest.skip('Live PTY transport is POSIX-only; disabled Windows route tested separately')
     adapter = TerminalAdapter(str(tmp_path), enabled=enabled, grace=0.05)
     app = web.Application()
     app.router.add_get('/terminal/session', adapter.info)
@@ -23,7 +26,7 @@ async def test_disabled_and_origin(aiohttp_client, tmp_path):
     client, adapter, headers = await client_for(aiohttp_client, tmp_path, False)
     assert await (await client.get('/terminal/session')).json() == {"enabled": False}
     assert (await client.post('/terminal/handoff', headers=headers)).status == 404
-    assert not adapter.service.sessions
+    assert adapter.service is None or not adapter.service.sessions
 
 
 @pytest.mark.asyncio
@@ -123,6 +126,8 @@ async def test_deployed_client_metadata_ping_and_exit(aiohttp_client, tmp_path):
 
 @pytest.mark.asyncio
 async def test_setup_routes_resolves_terminal_shell(monkeypatch):
+    if os.name != 'posix':
+        pytest.skip('POSIX shell selection; Windows service is disabled')
     module = importlib.import_module("vibes.routes.terminal")
     monkeypatch.delenv("VIBES_SHELL", raising=False)
     monkeypatch.setenv("SHELL", "/bin/bash")
