@@ -574,7 +574,7 @@ class CopilotBackend:
                     row = {}
                     for key in fields:
                         value = raw.get(key)
-                        if isinstance(value, str) and len(value) <= 512 and not any(ord(char) < 32 for char in value):
+                        if key not in {'allowDuringAgentExecution', 'enabled', 'userInvocable'} and isinstance(value, str) and len(value) <= 512 and not any(ord(char) < 32 for char in value):
                             row[key] = value
                         elif type(value) is bool and key in {'allowDuringAgentExecution', 'enabled', 'userInvocable'}:
                             row[key] = value
