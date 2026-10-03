@@ -28,6 +28,9 @@
 .compose-session-popup .compose-model-popup-item-popout { display: inline-flex; }
 /* Tab close is directly actionable in Vibes, including inactive tabs. */
 .tab-close { opacity: 1; pointer-events: auto; }
+html[data-theme] {
+    --accent-soft: color-mix(in srgb, var(--accent-color) 10%, transparent);
+}
 html[data-theme="monokai"] {
     color-scheme: dark;
     --bg-primary: #272822;
