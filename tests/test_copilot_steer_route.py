@@ -17,7 +17,7 @@ async def test_unsupported_ffi_steer_is_rejected_before_persistence(monkeypatch)
 async def test_unsupported_queued_ffi_steer_preserves_item(monkeypatch):
     from vibes.routes import agents
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda agent: 'copilot-ffi')
-    monkeypatch.setattr(agents, 'find_followup', lambda row: {'agent_id': 'default', 'thread_id': 1, 'row_id': row})
+    monkeypatch.setattr(agents, 'list_followups', lambda: [{'agent_id': 'default', 'thread_id': 1, 'row_id': 1}])
     def unexpected_remove(*args):
         raise AssertionError('Unsupported steering must not remove queue item')
     monkeypatch.setattr(agents, 'remove_followup', unexpected_remove)
