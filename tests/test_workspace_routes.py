@@ -806,3 +806,19 @@ async def test_raw_active_documents_are_download_only(workspace_test_client, wor
         assert response.headers['Content-Disposition'] == 'attachment'
         assert response.headers['X-Content-Type-Options'] == 'nosniff'
         assert "sandbox" in response.headers['Content-Security-Policy']
+
+@pytest.mark.asyncio
+async def test_preview_revision_uses_bounded_snapshot_not_full_file_hash(workspace_test_client, workspace_dir, monkeypatch):
+    from vibes.routes import workspace
+    import hashlib
+    def forbidden_hash(path):
+        raise AssertionError('Preview must not hash the whole file')
+    monkeypatch.setattr(workspace, '_file_revision', forbidden_hash)
+    (workspace_dir / 'large-preview.txt').write_bytes(b'a' * 1000)
+    response = await workspace_test_client.get('/workspace/file?path=large-preview.txt&max=256')
+    data = await response.json()
+    assert data['truncated'] is True and data['revision'] is None
+    (workspace_dir / 'small-preview.txt').write_text('complete snapshot', encoding='utf-8')
+    response = await workspace_test_client.get('/workspace/file?path=small-preview.txt&mode=edit')
+    data = await response.json()
+    assert data['revision'] == hashlib.sha256(data['text'].encode('utf-8')).hexdigest()

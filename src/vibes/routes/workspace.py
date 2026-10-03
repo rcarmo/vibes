@@ -391,7 +391,6 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         "path": rel_path,
         "size": stat.st_size,
         "mtime": _format_mtime(target),
-        "revision": _file_revision(target),
         "content_type": content_type,
     }
 
@@ -423,6 +422,7 @@ async def get_workspace_file(request: web.Request) -> web.Response:
             "truncated": truncated,
             "lossless": lossless,
             "editable": not truncated and lossless,
+            "revision": hashlib.sha256(data).hexdigest() if not truncated and lossless else None,
         })
 
     return web.json_response({
