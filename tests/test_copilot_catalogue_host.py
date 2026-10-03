@@ -90,3 +90,49 @@ def test_passive_diagnostics_rejects_replaced_runtime_client():
     assert host.diagnostics('selected')['state'] == 'not-started'
     lane.client = host.runtime.client
     assert host.diagnostics('selected')['state'] == 'ready'
+
+
+@pytest.mark.asyncio
+async def test_tool_diagnostics_existing_session_only_and_safe_metadata():
+    host = CopilotHost()
+    assert (await host.tool_diagnostics('absent'))['state'] == 'unavailable'
+    assert host.lanes == {}
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'tools': [
+        {'name': 'read', 'description': 'private', 'inputSchema': {'secret': 'private'}},
+        {'name': 'searchable', 'deferLoading': True},
+        {'name': 'bad\nname'},
+    ]}))
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=read)))
+    result = await host.tool_diagnostics('selected')
+    assert result['tools'] == [{'name': 'read', 'state': 'offered'}, {'name': 'searchable', 'state': 'deferred'}]
+    assert 'private' not in str(result)
+    read.assert_awaited_once_with(timeout=10)
+    read.reset_mock()
+    await lane.turn_lock.acquire()
+    try:
+        assert (await host.tool_diagnostics('selected'))['state'] == 'unavailable'
+        read.assert_not_awaited()
+    finally:
+        lane.turn_lock.release()
+    read.return_value = SimpleNamespace(to_dict=lambda: {'tools': None})
+    assert (await host.tool_diagnostics('selected'))['state'] == 'uninitialised'
+    read.side_effect = RuntimeError('private failure')
+    assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
+    assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_tool_diagnostics_cancellation_releases_lane():
+    import asyncio
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(side_effect=asyncio.CancelledError)
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=read)))
+    with pytest.raises(asyncio.CancelledError):
+        await host.tool_diagnostics('selected')
+    assert not lane.turn_lock.locked()

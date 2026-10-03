@@ -82,6 +82,41 @@ class CopilotHost:
         return {'state': state, 'session_bound': chat_id in lane.sessions,
                 'capabilities_verified': False}
 
+    async def tool_diagnostics(self, chat_id):
+        """Read metadata only from an already acquired, idle native session."""
+        lane = self.lanes.get(chat_id)
+        if lane is None or self.diagnostics(chat_id)['state'] != 'ready':
+            return {'state': 'unavailable', 'tools': []}
+        if chat_id not in lane.sessions:
+            return {'state': 'unavailable', 'tools': []}
+        async with lane.turn_lock:
+            if self.diagnostics(chat_id)['state'] == 'unavailable':
+                return {'state': 'unavailable', 'tools': []}
+            session = lane.sessions.get(chat_id)
+            if session is None or lane.client is not self.runtime.client:
+                return {'state': 'unavailable', 'tools': []}
+            try:
+                metadata = await session.rpc.tools.get_current_metadata(timeout=10)
+                data = metadata.to_dict()
+                tools = data.get('tools')
+                if tools is None:
+                    return {'state': 'uninitialised', 'tools': []}
+                if not isinstance(tools, list):
+                    raise ValueError('Invalid tool metadata')
+                from .diagnostics import _labels
+                entries = []
+                for tool in tools[:64]:
+                    if not isinstance(tool, dict):
+                        continue
+                    names = _labels([tool.get('name')], 1)
+                    deferred = tool.get('deferLoading', False)
+                    if names and type(deferred) is bool:
+                        entries.append({'name': names[0], 'state': 'deferred' if deferred else 'offered'})
+                return {'state': 'reported', 'tools': entries,
+                        'truncated': len(tools) > 64}
+            except Exception:
+                return {'state': 'unavailable', 'tools': []}
+
     def lane(self, chat_id):
         if not isinstance(chat_id, str) or not chat_id:
             raise ValueError("Conversation identity required")
