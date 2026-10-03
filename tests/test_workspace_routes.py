@@ -712,3 +712,19 @@ async def test_editor_save_rejects_incomplete_source(workspace_test_client, work
         'path': 'large.txt', 'content': 'partial preview', 'editor_snapshot': True,
     })
     assert response.status == 400
+
+@pytest.mark.asyncio
+async def test_revision_detects_same_size_metadata_preserving_change(workspace_test_client, workspace_dir):
+    import os
+    target = workspace_dir / 'same-size.txt'
+    target.write_text('before', encoding='utf-8')
+    stat = target.stat()
+    response = await workspace_test_client.get('/workspace/file?path=same-size.txt')
+    revision = (await response.json())['revision']
+    target.write_text('after!', encoding='utf-8')
+    os.utime(target, ns=(stat.st_atime_ns, stat.st_mtime_ns))
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'same-size.txt', 'content': 'stale', 'expected_revision': revision,
+    })
+    assert response.status == 409
+    assert target.read_text() == 'after!'

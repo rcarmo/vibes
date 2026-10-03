@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import mimetypes
 from datetime import datetime, timezone
@@ -18,6 +19,15 @@ try:
     from watchfiles import awatch
 except ImportError:  # pragma: no cover - fallback path for constrained installs
     awatch = None
+
+def _file_revision(target: Path) -> str:
+    """Content revision; unlike mtime/size it detects metadata-preserving edits."""
+    digest = hashlib.sha256()
+    with target.open('rb') as source:
+        for block in iter(lambda: source.read(65536), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
 
 DEFAULT_TREE_DEPTH = 1
 MAX_TREE_DEPTH = 20
@@ -380,7 +390,7 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         "path": rel_path,
         "size": stat.st_size,
         "mtime": _format_mtime(target),
-        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
+        "revision": _file_revision(target),
         "content_type": content_type,
     }
 
@@ -462,7 +472,7 @@ async def update_workspace_file(request: web.Request) -> web.Response:
         if not isinstance(expected_revision, str):
             return web.json_response({"error": "Invalid expected_revision"}, status=400)
         current = target.stat() if target.exists() else None
-        revision = f"{current.st_mtime_ns}:{current.st_size}" if current else None
+        revision = _file_revision(target) if current else None
         if revision != expected_revision:
             return web.json_response({"error": "File changed since it was opened. Refresh before saving."}, status=409)
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -473,7 +483,7 @@ async def update_workspace_file(request: web.Request) -> web.Response:
         "path": _to_workspace_relative(target),
         "size": stat.st_size,
         "mtime": _format_mtime(target),
-        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
+        "revision": _file_revision(target),
     })
 
 
