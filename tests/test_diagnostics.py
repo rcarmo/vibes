@@ -44,3 +44,32 @@ def test_memory_diagnostics_export_only_safe_known_fields():
     assert 'do-not-export' not in str(result)
     config.memory_diagnostics = [{'path': 'safe.md', 'status': 'missing'}] * 20
     assert len(backend_diagnostics(config)['memory']['diagnostics']) == 16
+
+
+def test_diagnostics_http_is_read_only_and_not_cacheable():
+    import asyncio
+    import json
+    from unittest.mock import MagicMock, patch
+    from vibes import app
+
+    config = SimpleNamespace(
+        default_agent='copilot-ffi',
+        copilot_skill_directories=['skills'],
+        copilot_available_tools=['read'],
+        copilot_mcp_servers={'local': {'env': {'TOKEN': 'private-token'}, 'args': ['private-argument']}},
+        memory_paths=['notes.md'],
+        memory_diagnostics=[{'path': 'notes.md', 'status': 'missing', 'error': 'private-error'}],
+    )
+    backend = MagicMock()
+    with patch.object(app, 'get_config', return_value=config), \
+         patch('vibes.copilot_host.backend', backend):
+        response = asyncio.run(app.diagnostics_handler(MagicMock()))
+    assert response.status == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert response.content_type == 'application/json'
+    payload = json.loads(response.text)
+    assert payload['execution_verified'] is False
+    assert payload['tools'] == [{'name': 'read', 'state': 'configured'}]
+    assert payload['memory']['diagnostics'] == [{'path': 'notes.md', 'status': 'missing'}]
+    assert 'private-' not in response.text
+    assert backend.mock_calls == []
