@@ -170,3 +170,18 @@ def test_lossy_event_types():
     assert "agent_thought_delta" in sse._LOSSY_EVENT_TYPES
     assert "new_post" not in sse._LOSSY_EVENT_TYPES
     assert "agent_response" not in sse._LOSSY_EVENT_TYPES
+
+@pytest.mark.asyncio
+async def test_workspace_hidden_preferences_are_per_client():
+    from vibes.routes import workspace
+    hidden, visible = asyncio.Queue(), asyncio.Queue()
+    sse._clients.update([hidden, visible])
+    sse._workspace_client_ids.update({hidden: 'hidden-client', visible: 'visible-client'})
+    workspace._workspace_subscriptions.update({'hidden-client': False, 'visible-client': True})
+    try:
+        await sse.broadcast_event('workspace_update', {'updates': [{'root': {'name': '.', 'children': [{'name': '.secret'}, {'name': 'normal.txt'}]}}]})
+        assert '.secret' not in await hidden.get()
+        assert '.secret' in await visible.get()
+    finally:
+        sse._workspace_client_ids.clear()
+        workspace._workspace_subscriptions.clear()

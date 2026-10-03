@@ -22,6 +22,16 @@ async def start_agent() -> None:
 
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
+_workspace_client_ids: dict[asyncio.Queue, str] = {}
+
+
+def _without_hidden_nodes(value):
+    if isinstance(value, list):
+        return [_without_hidden_nodes(item) for item in value
+                if not isinstance(item, dict) or not str(item.get('name', '')).startswith('.') or item.get('name') == '.']
+    if isinstance(value, dict):
+        return {key: _without_hidden_nodes(item) for key, item in value.items()}
+    return value
 _restart_task: asyncio.Task | None = None
 _LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_draft_delta", "agent_thought", "agent_thought_delta"}
 
@@ -31,6 +41,11 @@ async def broadcast_event(event_type: str, data: Any) -> None:
     message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
     lossy = event_type in _LOSSY_EVENT_TYPES
     for queue in _clients:
+        message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+        if event_type == 'workspace_update' and queue in _workspace_client_ids:
+            from .workspace import _workspace_subscriptions
+            if not _workspace_subscriptions.get(_workspace_client_ids[queue], False):
+                message = f"event: {event_type}\ndata: {json.dumps(_without_hidden_nodes(data))}\n\n"
         if lossy and queue.qsize() >= queue.maxsize:
             # Drop low-priority stream noise first; keep critical timeline events.
             continue
@@ -121,6 +136,8 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     # Create client queue
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _clients.add(queue)
+    if request.query.get('workspace_subscription'):
+        _workspace_client_ids[queue] = request.query['workspace_subscription']
     _schedule_restart_if_needed()
     
     try:
@@ -143,6 +160,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
         pass
     finally:
         _clients.discard(queue)
+        _workspace_client_ids.pop(queue, None)
         subscription = request.query.get('workspace_subscription')
         if subscription:
             from .workspace import release_workspace_subscription
