@@ -136,3 +136,25 @@ async def test_tool_diagnostics_cancellation_releases_lane():
     with pytest.raises(asyncio.CancelledError):
         await host.tool_diagnostics('selected')
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['session', 'client', 'closing', 'lane'])
+async def test_tool_diagnostics_discards_metadata_after_identity_change(change):
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    async def read(**kwargs):
+        if change == 'session':
+            lane.sessions['selected'] = object()
+        elif change == 'client':
+            host.runtime.client = lane.client = object()
+        elif change == 'closing':
+            host.closing = True
+        else:
+            del host.lanes['selected']
+        return SimpleNamespace(to_dict=lambda: {'tools': [{'name': 'stale'}]})
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=read)))
+    assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
+    assert not lane.turn_lock.locked()

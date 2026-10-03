@@ -95,8 +95,13 @@ class CopilotHost:
             session = lane.sessions.get(chat_id)
             if session is None or lane.client is not self.runtime.client:
                 return {'state': 'unavailable', 'tools': []}
+            client = lane.client
             try:
                 metadata = await session.rpc.tools.get_current_metadata(timeout=10)
+                if (self.lanes.get(chat_id) is not lane or lane.sessions.get(chat_id) is not session
+                        or lane.client is not client or self.runtime.client is not client
+                        or self.diagnostics(chat_id)['state'] == 'unavailable'):
+                    return {'state': 'unavailable', 'tools': []}
                 data = metadata.to_dict()
                 tools = data.get('tools')
                 if tools is None:
