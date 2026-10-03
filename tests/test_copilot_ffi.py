@@ -359,3 +359,14 @@ async def test_compaction_cancellation_is_native_and_chat_scoped(setup):
     assert await backend.cancel_compaction('chat-b') is False
     assert await backend.cancel_compaction('chat-a') == {'aborted': True}
     history.abort_manual_compaction.assert_awaited_once_with(timeout=10)
+
+@pytest.mark.asyncio
+async def test_lane_shutdown_cancels_compaction_without_stopping_shared_client():
+    from vibes.copilot_host import ConversationLane
+    host = SimpleNamespace(client=SimpleNamespace(stop=AsyncMock()), runtime=SimpleNamespace(sdk=None))
+    lane = ConversationLane(host, 'chat')
+    lane.compacting_sessions.add('chat')
+    lane.cancel_compaction = AsyncMock(return_value={'aborted': True})
+    await lane.stop()
+    lane.cancel_compaction.assert_awaited_once_with('chat')
+    host.client.stop.assert_not_awaited()
