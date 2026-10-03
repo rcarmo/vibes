@@ -74,6 +74,12 @@ export function AgentStatus({
     const hasThought = Boolean(thoughtInfo.text) || thoughtInfo.totalLines > 0;
     const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
 
+    const [toolClock, setToolClock] = useState(Date.now());
+    useEffect(() => {
+        if (!status?.started_at || ['completed', 'failed', 'ended'].includes(status?.status)) return;
+        const timer = setInterval(() => setToolClock(Date.now()), 1000);
+        return () => clearInterval(timer);
+    }, [status?.tool_call_id, status?.started_at, status?.status]);
     const [expandedPanels, setExpandedPanels] = useState(new Set());
     const panelBodies = useRef(new Map());
     const [overflowingPanels, setOverflowingPanels] = useState({});
@@ -237,7 +243,7 @@ export function AgentStatus({
                 panelKey: 'thought',
             })}
             ${status?.output && html`<div class="thinking-panel">
-                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}</button>
+                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}${status.started_at ? ` · ${Math.max(0, Math.floor((toolClock - status.started_at * 1000) / 1000))}s` : ''}</button>
                 <pre class="thinking-panel-body" style=${expandedPanels.has('output') ? '' : 'max-height:9em;overflow:auto'}>${status.output}</pre>
             </div>`}
             ${status && html`
