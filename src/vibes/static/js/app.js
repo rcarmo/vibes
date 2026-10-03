@@ -1065,6 +1065,32 @@ function App() {
         }
     }, [editorTabs]);
 
+    useEffect(() => {
+        let disposed = false;
+        const refreshOpenFiles = async () => {
+            for (const snapshot of editorTabs) {
+                if (snapshot.loading || snapshot.saving) continue;
+                try {
+                    const data = await getWorkspaceFile(snapshot.id, 5_000_000, 'edit');
+                    if (disposed || data.revision === snapshot.revision) continue;
+                    setEditorTabs(prev => prev.map(tab => {
+                        if (tab.id !== snapshot.id || tab.revision !== snapshot.revision || tab.saving) return tab;
+                        if (tab.dirty) return { ...tab, saveError: 'File changed externally. Your draft is preserved; refresh before saving.' };
+                        if (data.kind !== 'text' || data.truncated || data.lossless === false || data.editable === false) {
+                            return { ...tab, error: 'Changed file is not a complete, lossless text preview.' };
+                        }
+                        return { ...tab, content: data.text || '', savedContent: data.text || '', revision: data.revision, dirty: false, error: null };
+                    }));
+                } catch (err) {
+                    if (!disposed) setEditorTabs(prev => prev.map(tab => tab.id === snapshot.id && tab.revision === snapshot.revision
+                        ? { ...tab, saveError: err?.message || 'External file refresh failed' } : tab));
+                }
+            }
+        };
+        window.addEventListener('workspace-update', refreshOpenFiles);
+        return () => { disposed = true; window.removeEventListener('workspace-update', refreshOpenFiles); };
+    }, [editorTabs]);
+
     const closeEditorTab = useCallback((tabId) => {
         if (!tabId) return;
         const tabs = editorTabs;

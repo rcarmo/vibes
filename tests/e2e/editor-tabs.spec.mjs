@@ -388,3 +388,30 @@ test('save completion preserves text typed while the request is pending', async 
     await expect(editor).toContainText('newer unsaved edit');
     await expect(page.locator('.editor-pane')).toContainText('Unsaved changes');
 });
+
+test('external refresh updates a clean tab but preserves a dirty draft', async ({ page }) => {
+    let revision = 'initial';
+    let text = 'initial content';
+    await page.route(/\/workspace\/file\?/, async route => {
+        if (route.request().method() !== 'GET') return route.continue();
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({
+            kind: 'text', text, revision, truncated: false, lossless: true, editable: true,
+        }) });
+    });
+    await waitForApp(page);
+    await openFileInEditor(page, 'README.md');
+    const editor = page.locator('.editor-pane .cm-content');
+    await expect(editor).toContainText('initial content');
+    revision = 'external-1'; text = 'fresh external content';
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('workspace-update')));
+    await expect(editor).toContainText('fresh external content');
+    await editor.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.insertText('\nlocal draft');
+    await expect(page.locator('.editor-pane')).toContainText('Unsaved changes');
+    revision = 'external-2'; text = 'replacement from disk';
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('workspace-update')));
+    await expect(page.locator('.editor-pane')).toContainText('File changed externally');
+    await expect(editor).toContainText('local draft');
+    await expect(editor).not.toContainText('replacement from disk');
+});
