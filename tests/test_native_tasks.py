@@ -8,3 +8,8 @@ def test_native_tasks_are_not_chats_and_errors_are_private():
     assert normalise_task_event('session.idle', {'toolCallId': 'task-1'}) is None
     assert normalise_task_event('subagent.completed', {'toolCallId': ''}) is None
     assert 'duration_ms' not in normalise_task_event('subagent.started', {'toolCallId': 'x', 'duration': float('nan')})
+
+
+def test_native_duration_uses_sdk_duration_ms_units():
+    result = normalise_task_event('subagent.completed', {'toolCallId': 'x', 'durationMs': 1250})
+    assert result['duration_ms'] == 1250

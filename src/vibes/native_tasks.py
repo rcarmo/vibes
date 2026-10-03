@@ -14,7 +14,7 @@ def normalise_task_event(kind, data):
     if isinstance(name, str) and len(name) <= 256 and not any(ord(char) < 32 for char in name):
         result['name'] = name
     for source, target in [('duration', 'duration_ms'), ('totalTokens', 'total_tokens'), ('totalToolCalls', 'total_tool_calls')]:
-        value = data.get(source, data.get({'totalTokens': 'total_tokens', 'totalToolCalls': 'total_tool_calls'}.get(source, source)))
+        value = data.get('durationMs', data.get('duration')) if source == 'duration' else data.get(source, data.get({'totalTokens': 'total_tokens', 'totalToolCalls': 'total_tool_calls'}[source]))
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and 0 <= value <= 10**12:
             result[target] = value
     # Raw error/provider fields are private diagnostics, not public task labels.
