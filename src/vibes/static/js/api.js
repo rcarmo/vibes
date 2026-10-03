@@ -20,6 +20,11 @@ async function request(url, options = {}, includeEtag = false) {
         const error = await response.json().catch(() => ({ error: 'Unknown error' }));
         const failure = new Error(error.error || `HTTP ${response.status}`);
         failure.status = response.status;
+        if (error?.admitted === false) {
+            failure.admitted = false;
+            failure.storedMessageId = error.user_message?.id ?? null;
+            failure.threadId = error.thread_id ?? null;
+        }
         throw failure;
     }
     

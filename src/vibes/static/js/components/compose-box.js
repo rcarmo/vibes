@@ -780,7 +780,9 @@ export function ComposeBox({
             onPost?.();
         } catch (error) {
             console.error('Failed to post:', error);
-            setSubmitError(error?.message || 'Failed to send message.');
+            setSubmitError(error?.admitted === false && error?.storedMessageId != null
+                ? `Message ${error.storedMessageId} was stored but not admitted to the agent. Your draft is retained; sending again creates another message.`
+                : error?.message || 'Failed to send message.');
         } finally {
             setUploadProgress(null);
             uploadController.current = null;

@@ -21,3 +21,16 @@ test('session APIs carry explicit identities and escape path segments', async ()
         expect(requests[4].options.method).toBe('DELETE');
     } finally { globalThis.fetch = original; }
 });
+
+test('rejected admission preserves stored identity without implying retry safety', async () => {
+    const original = globalThis.fetch;
+    globalThis.fetch = async () => ({ ok: false, status: 503, json: async () => ({ error: 'Unavailable', admitted: false, user_message: { id: 42 }, thread_id: 7 }) });
+    try {
+        let failure;
+        try { await sendAgentMessage('default', 'hello'); } catch (error) { failure = error; }
+        expect(failure.status).toBe(503);
+        expect(failure.admitted).toBe(false);
+        expect(failure.storedMessageId).toBe(42);
+        expect(failure.threadId).toBe(7);
+    } finally { globalThis.fetch = original; }
+});
