@@ -236,6 +236,10 @@ export function AgentStatus({
                 titleClass: 'thought',
                 panelKey: 'thought',
             })}
+            ${status?.output && html`<div class="thinking-panel">
+                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}</button>
+                <pre class="thinking-panel-body" style=${expandedPanels.has('output') ? '' : 'max-height:9em;overflow:auto'}>${status.output}</pre>
+            </div>`}
             ${status && html`
                 <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}${status?.type === 'error' ? ' agent-status-error' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                     ${turnColor && statusIndicator === 'dot' && html`<span class=${dotClass} aria-hidden="true"></span>`}

@@ -1115,6 +1115,10 @@ ${Wt.map((ye,tt)=>{let kn=wo[tt]?.name||`image-${tt+1}`;return`- attachment:${ye
             ${le&&$n({panelTitle:"Planning",text:ce.text,totalLines:ce.totalLines,panelKey:"plan"})}
             ${Ge&&$n({panelTitle:"Draft",text:Te.text,totalLines:Te.totalLines,maxLines:9,titleClass:"thought",panelKey:"draft"})}
             ${Qe&&$n({panelTitle:"Thoughts",text:he.text,totalLines:he.totalLines,maxLines:9,titleClass:"thought",panelKey:"thought"})}
+            ${n?.output&&De`<div class="thinking-panel">
+                <button type="button" class="thinking-panel-header" aria-expanded=${pe.has("output")} onClick=${()=>toggleThinking("output")}>Output${n.output_truncated?" (truncated)":""}</button>
+                <pre class="thinking-panel-body" style=${pe.has("output")?"":"max-height:9em;overflow:auto"}>${n.output}</pre>
+            </div>`}
             ${n&&De`
                 <div class=${`agent-status${vt?" agent-status-last-activity":""}${n?.type==="error"?" agent-status-error":""}`} style=${J?`--turn-color: ${J};`:""}>
                     ${J&&_t==="dot"&&De`<span class=${Xt} aria-hidden="true"></span>`}
@@ -2455,4 +2459,4 @@ Replace this reviewed revision with your draft?`))return;let Et=await tce(ye.id,
         </div>
     `}SQt(De`<${NDn} />`,document.getElementById("app"));if(!new URLSearchParams(window.location.search).has("popout"))rzt();
 
-//# debugId=A070359A0B6E77B764756E2164756E21
+//# debugId=220504D16498C29B64756E2164756E21
