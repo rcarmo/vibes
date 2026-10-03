@@ -103,7 +103,9 @@ class CopilotHost:
                         or self.diagnostics(chat_id)['state'] == 'unavailable'):
                     return {'state': 'unavailable', 'tools': []}
                 data = metadata.to_dict()
-                tools = data.get('tools')
+                if not isinstance(data, dict) or 'tools' not in data:
+                    raise ValueError('Missing tool metadata')
+                tools = data['tools']
                 if tools is None:
                     return {'state': 'uninitialised', 'tools': []}
                 if not isinstance(tools, list):

@@ -158,3 +158,33 @@ async def test_tool_diagnostics_discards_metadata_after_identity_change(change):
     lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=read)))
     assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('data', [{}, [], {'tools': 'invalid'}, {'tools': True}])
+async def test_tool_diagnostics_malformed_is_not_uninitialised(data):
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(
+        get_current_metadata=AsyncMock(return_value=SimpleNamespace(to_dict=lambda: data)))))
+    assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
+    assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_tool_diagnostics_bounds_and_typed_deferred_flags():
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    tools = [{'name': 'bad', 'deferLoading': 'false'}, {'name': 'x' * 513}, {'name': True}] + [
+        {'name': f'tool-{index}', 'deferLoading': False} for index in range(70)]
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(
+        get_current_metadata=AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'tools': tools})))))
+    result = await host.tool_diagnostics('selected')
+    assert result['truncated'] is True
+    assert len(result['tools']) == 61
+    assert all(entry['state'] == 'offered' for entry in result['tools'])
+    assert result['tools'][-1]['name'] == 'tool-60'
