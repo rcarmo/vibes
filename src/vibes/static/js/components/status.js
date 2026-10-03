@@ -243,6 +243,7 @@ export function AgentStatus({
                 titleClass: 'thought',
                 panelKey: 'thought',
             })}
+            ${status?.tool_calls_truncated && html`<div class="editor-status" role="status">Earlier tool calls omitted from this bounded activity snapshot.</div>`}
             ${toolOutputPanels(status).map(call => html`<div class="thinking-panel" key=${call.panelKey}>
                 <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has(call.panelKey)} onClick=${() => toggleThinking(call.panelKey)}>Output${call.title ? `: ${call.title}` : ''}${call.output_truncated ? ' (truncated)' : ''}${call.started_at ? ` · ${Math.max(0, Math.floor(((call.ended_at ? call.ended_at * 1000 : toolClock) - call.started_at * 1000) / 1000))}s` : ''}</button>
                 <pre class="thinking-panel-body" style=${expandedPanels.has(call.panelKey) ? '' : 'max-height:9em;overflow:auto'}>${call.output}</pre>

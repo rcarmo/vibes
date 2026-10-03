@@ -1115,6 +1115,7 @@ ${Wt.map((ye,tt)=>{let kn=vo[tt]?.name||`image-${tt+1}`;return`- attachment:${ye
             ${le&&ai({panelTitle:"Planning",text:ce.text,totalLines:ce.totalLines,panelKey:"plan"})}
             ${Ge&&ai({panelTitle:"Draft",text:Te.text,totalLines:Te.totalLines,maxLines:9,titleClass:"thought",panelKey:"draft"})}
             ${Qe&&ai({panelTitle:"Thoughts",text:he.text,totalLines:he.totalLines,maxLines:9,titleClass:"thought",panelKey:"thought"})}
+            ${n?.tool_calls_truncated&&De`<div class="editor-status" role="status">Earlier tool calls omitted from this bounded activity snapshot.</div>`}
             ${Rqt(n).map((fr)=>De`<div class="thinking-panel" key=${fr.panelKey}>
                 <button type="button" class="thinking-panel-header" aria-expanded=${re.has(fr.panelKey)} onClick=${()=>toggleThinking(fr.panelKey)}>Output${fr.title?`: ${fr.title}`:""}${fr.output_truncated?" (truncated)":""}${fr.started_at?` · ${Math.max(0,Math.floor(((fr.ended_at?fr.ended_at*1000:pe)-fr.started_at*1000)/1000))}s`:""}</button>
                 <pre class="thinking-panel-body" style=${re.has(fr.panelKey)?"":"max-height:9em;overflow:auto"}>${fr.output}</pre>
@@ -2459,4 +2460,4 @@ Replace this reviewed revision with your draft?`))return;let Et=await tce(ye.id,
         </div>
     `}QQt(De`<${HDn} />`,document.getElementById("app"));if(!new URLSearchParams(window.location.search).has("popout"))izt();
 
-//# debugId=5F32DF91B4CBD4A264756E2164756E21
+//# debugId=2425C2E133691B1064756E2164756E21
