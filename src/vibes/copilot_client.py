@@ -353,7 +353,7 @@ class CopilotBackend:
                        working_directory=str(Path.cwd()), streaming=True,
                        include_sub_agent_streaming_events=False,
                        skill_directories=config.copilot_skill_directories,
-                       system_message={'mode': 'append', 'content': 'You are running in Vibes. Use vibes_attach_file to deliver generated files and plan for the shared plan. Do not invent successful tool results. ' + getattr(config, 'prompt', '')},
+                       system_message={'mode': 'append', 'content': 'You are running in Vibes. Use vibes_attach_file to deliver generated files and plan for the shared plan. Use messages for msg:ID references, ordered row ranges, earlier current-chat text and referenced attachments; preserve returned row/session/sender provenance. Missing IDs are not permission to access another chat, and truncated results are not complete history. Use open_file only to request browser-acknowledged viewing; unacknowledged is not opened. Do not invent successful tool results. ' + getattr(config, 'prompt', '')},
                        remote_session=self.sdk.RemoteSessionMode.OFF)
         binding = await store.backend_binding(chat_id, BACKEND)
         if not binding:
