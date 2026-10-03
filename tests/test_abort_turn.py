@@ -175,3 +175,23 @@ async def test_followup_admission_failure_restores_same_item(db, monkeypatch, ra
         assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.await_args_list)
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_action_root_guard_uses_real_database_identity(db, monkeypatch):
+    import importlib
+    from aiohttp.test_utils import make_mocked_request
+    agents = importlib.import_module('vibes.routes.agents')
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
+    monkeypatch.setattr(agents, 'prompt_from_action', lambda *args: 'action prompt')
+    admission = Mock(return_value=True)
+    monkeypatch.setattr(agents, 'enqueue', admission)
+    root = await db.create_interaction({'type': 'user', 'content': 'root'})
+    await db.set_interaction_thread_id(root, root)
+    reply = await db.create_interaction({'type': 'user', 'content': 'reply', 'thread_id': root})
+    for identity, expected in [(root, 200), (reply, 400), (reply + 100, 404)]:
+        request = make_mocked_request('POST', '/agent/default/action/test', match_info={'agent_id': 'default', 'action_id': 'test'})
+        request.json = AsyncMock(return_value={'thread_id': identity})
+        assert (await agents.trigger_action(request)).status == expected
+    admission.assert_called_once_with(agents.process_agent_response, root, 'action prompt', 'default')
