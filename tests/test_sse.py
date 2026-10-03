@@ -185,3 +185,12 @@ async def test_workspace_hidden_preferences_are_per_client():
     finally:
         sse._workspace_client_ids.clear()
         workspace._workspace_subscriptions.clear()
+
+
+def test_workspace_filter_removes_hidden_path_updates_without_mutating_source():
+    source = {'updates': [{'path': '.private/file.md', 'root': {'name': 'file.md'}}, {'path': 'notes', 'root': {'name': 'notes', 'children': [{'name': '.secret'}, {'name': 'public.md'}]}}]}
+    filtered = sse._without_hidden_nodes(source)
+    assert len(filtered['updates']) == 1
+    assert filtered['updates'][0]['root']['children'] == [{'name': 'public.md'}]
+    assert len(source['updates']) == 2
+    assert len(source['updates'][1]['root']['children']) == 2
