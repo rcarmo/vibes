@@ -932,3 +932,14 @@ async def test_predefined_action_reports_actual_worker_admission(mock_deps, admi
     else:
         assert body['admitted'] is False
         assert 'private-action-detail' not in response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('body', [[], None, {'thread_id': True}, {'thread_id': '1'}, {'thread_id': 0}, {'thread_id': -1}])
+async def test_action_rejects_invalid_admission_body(mock_deps, body):
+    request = make_mocked_request('POST', '/agent/default/action/test', match_info={'agent_id': 'default', 'action_id': 'test'})
+    request.json = AsyncMock(return_value=body)
+    with patch.object(agents_mod, 'prompt_from_action', return_value='action prompt'):
+        response = await agents_mod.trigger_action(request)
+    assert response.status == 400
+    mock_deps['enqueue'].assert_not_called()

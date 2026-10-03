@@ -1489,12 +1489,14 @@ async def trigger_action(request: web.Request) -> web.Response:
     except json.JSONDecodeError:
         data = {}
 
+    if not isinstance(data, dict):
+        return web.json_response({'error': 'Expected JSON object'}, status=400)
     prompt = prompt_from_action(action_id, data.get("params"))
     if not prompt:
         return web.json_response({"error": "Unknown action"}, status=404)
     thread_id = data.get("thread_id")
-    if not thread_id:
-        return web.json_response({"error": "Missing thread_id"}, status=400)
+    if type(thread_id) is not int or thread_id < 1:
+        return web.json_response({"error": "Invalid thread_id"}, status=400)
     try:
         admitted = enqueue(process_agent_response, thread_id, prompt, agent_id)
     except Exception:
