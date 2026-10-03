@@ -907,3 +907,19 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps):
     assert payload['admitted'] is False
     assert payload['user_message']['data']['content'] == 'Keep my message'
     mock_deps['enqueue'].assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('admitted', [False, True])
+async def test_predefined_action_reports_actual_worker_admission(mock_deps, admitted):
+    mock_deps['enqueue'].return_value = admitted
+    request = make_mocked_request('POST', '/agent/default/action/test', match_info={'agent_id': 'default', 'action_id': 'test'})
+    request.json = AsyncMock(return_value={'thread_id': 1})
+    with patch.object(agents_mod, 'prompt_from_action', return_value='action prompt'):
+        response = await agents_mod.trigger_action(request)
+    assert response.status == (200 if admitted else 503)
+    body = json.loads(response.body)
+    if admitted:
+        assert body['status'] == 'queued'
+    else:
+        assert body['admitted'] is False
