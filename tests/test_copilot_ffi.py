@@ -370,3 +370,15 @@ async def test_lane_shutdown_cancels_compaction_without_stopping_shared_client()
     await lane.stop()
     lane.cancel_compaction.assert_awaited_once_with('chat')
     host.client.stop.assert_not_awaited()
+
+@pytest.mark.asyncio
+async def test_failed_native_compaction_clears_state_and_releases_lane(setup, monkeypatch):
+    backend, *_ = setup
+    history = SimpleNamespace(compact=AsyncMock(side_effect=RuntimeError('native failure')))
+    session = SimpleNamespace(rpc=SimpleNamespace(history=history))
+    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    with pytest.raises(RuntimeError, match='native failure'):
+        await backend.compact('chat', object())
+    assert not backend.compacting_sessions
+    assert not backend.turn_lock.locked()
+    assert await backend.cancel_compaction('chat') is False
