@@ -1057,5 +1057,5 @@ async def _handle_tint(args: str) -> SlashCommandResult:
     await broadcast_event("ui_theme", {"tint": color})
     return SlashCommandResult(
         status="success",
-        message=f"UI tint set to `{color}`.",
+        message=f"Tint set to `{color}`.",
     )

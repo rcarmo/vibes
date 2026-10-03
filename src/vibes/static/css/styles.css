@@ -217,6 +217,10 @@ html[data-theme="default"] {
 }
 
 html[data-tint] {
+    --accent-color: var(--tint-color, #4f7cac);
+    --accent-hover: color-mix(in srgb, var(--accent-color) 85%, black);
+    --accent-soft: var(--accent-color);
+    --bg-primary: color-mix(in srgb, var(--tint-color, #4f7cac) 6%, white);
 }
 
 html[data-tint]::after {
