@@ -94,3 +94,19 @@ async def test_nondefault_does_not_advertise_unsupported_slash_commands(client, 
         assert response.status == 200
         assert (await response.json())['commands'] == []
         inspect.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_ffi_catalogue_is_discovery_not_executable_commands(client, monkeypatch):
+    from unittest.mock import AsyncMock
+    from vibes.routes import agents
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'copilot-ffi')
+    discovery = AsyncMock(return_value={'available': True, 'commands': [{'name': 'native'}], 'skills': []})
+    monkeypatch.setattr(agents.copilot_backend, 'command_catalogue', discovery)
+    response = await client.get('/agent/commands')
+    assert response.status == 200
+    body = await response.json()
+    assert body['commands'] == []
+    assert body['native_execution_supported'] is False
+    assert body['native_catalogue']['commands'] == [{'name': 'native'}]
+    assert discovery.await_args.args[0] == 'default'

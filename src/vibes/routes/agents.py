@@ -1575,6 +1575,11 @@ async def get_agent_commands(request: web.Request) -> web.Response:
     if not await SessionStore(await get_db()).get(session_id):
         return web.json_response({'error': 'Session not found'}, status=404)
 
+    if _resolve_agent_mode('default') == 'copilot-ffi':
+        catalogue = await copilot_backend.command_catalogue(session_id, SessionStore(await get_db()))
+        return web.json_response({'commands': [], 'authoritative': True,
+                                  'native_catalogue': catalogue, 'native_execution_supported': False})
+
     # Non-default chats currently reject generic slash commands. Do not offer
     # actions that the send route cannot execute (turn abort has its own route).
     if session_id != 'default':
@@ -1583,9 +1588,6 @@ async def get_agent_commands(request: web.Request) -> web.Response:
             {'name': '/tint', 'description': 'Show or set the global appearance tint'},
         ]
         return web.json_response({'commands': commands, 'authoritative': True})
-
-    if _resolve_agent_mode('default') == 'copilot-ffi':
-        return web.json_response({'commands': [], 'authoritative': True})
 
     # Base commands that are always available
     commands = [
