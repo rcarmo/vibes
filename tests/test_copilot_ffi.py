@@ -264,6 +264,7 @@ async def test_tool_completion_keeps_name_and_does_not_claim_success(setup, monk
         for kind, data in [('tool.execution_start', {'toolCallId':'x','toolName':'fixture'}),
                            ('tool.execution_partial_result', {'toolCallId':'x','partialOutput':'<' + 'a' * 17000}),
                            ('tool.execution_progress', {'toolCallId':'x','progressMessage':'working'}),
+                           ('assistant.usage', {'inputTokens':123, 'outputTokens':45, 'cacheReadTokens':True, 'private':'secret'}),
                            ('tool.execution_complete', {'toolCallId':'x','success':False}), ('session.idle', {})]:
             session.handler(SimpleNamespace(type=kind, data=data))
     session.send = send
@@ -271,6 +272,10 @@ async def test_tool_completion_keeps_name_and_does_not_claim_success(setup, monk
     callback = AsyncMock()
     await backend.send('test',1,callback,chat_id='chat',store=store)
     assert callback.await_args_list[-1].args[0] == {'type':'tool_status','tool_call_id':'x','title':'fixture','status':'failed'}
+    usage = next(call.args[0] for call in callback.await_args_list if call.args[0].get('type') == 'usage')
+    assert usage['usage'] == {'input_tokens':123, 'output_tokens':45}
+    assert usage['context_occupancy'] is None
+    assert 'private' not in usage
     output = next(call.args[0] for call in callback.await_args_list if call.args[0].get('type') == 'tool_output')
     assert output['tool_call_id'] == 'x'
     assert len(output['content']) == 16000 and output['content_truncated'] is True
