@@ -87,10 +87,12 @@ async def test_stream_and_binding(setup, monkeypatch):
         seen.append(data)
     result = await backend.send('hello', 1, callback, chat_id='chat', store=store)
     assert result['text'] == 'Hello world'
-    assert ''.join(x['delta'] for x in seen) == 'Hello world'
-    assert [x['text'] for x in seen] == ['Hello ', 'Hello world']
-    assert all(x['mode'] == 'replace' for x in seen)
-    assert [x['delta_reset'] for x in seen] == [True, False]
+    chunks = [x for x in seen if x['type'] == 'message_chunk']
+    assert ''.join(x['delta'] for x in chunks) == 'Hello world'
+    assert [x['text'] for x in chunks] == ['Hello ', 'Hello world']
+    assert all(x['mode'] == 'replace' for x in chunks)
+    assert [x['delta_reset'] for x in chunks] == [True, False]
+    assert seen[0] == {'type': 'writing', 'title': 'Writing response'}
     opts = client.create_session.call_args.kwargs
     assert opts['remote_session'] == 'off'
     assert opts['available_tools'] == ['custom:vibes_attach_file','custom:plan','custom:open_file','custom:messages']
