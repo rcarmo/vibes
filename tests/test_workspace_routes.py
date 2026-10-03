@@ -766,3 +766,33 @@ async def test_disconnect_releases_only_its_workspace_subscription(workspace_tes
     assert 'a' not in workspace._workspace_subscriptions
     await workspace.release_workspace_subscription('b')
     assert workspace._workspace_visible is False
+
+@pytest.mark.asyncio
+async def test_file_view_http_confines_path_and_requires_owned_ack(workspace_test_client, workspace_dir, monkeypatch):
+    from vibes.routes import workspace
+    from vibes import agent_attachments as owner
+    monkeypatch.setattr(owner, 'active', {'mode': 'acp', 'session_id': 'default', 'turn_id': 'file-view'})
+    headers = {'Authorization': 'Bearer ' + owner.acp_token('default')}
+    (workspace_dir / 'view.txt').write_text('view me', encoding='utf-8')
+    events = []
+    async def publish(kind, data):
+        events.append(data)
+    monkeypatch.setattr(workspace, 'broadcast_event', publish)
+    client = workspace_test_client
+    response = await client.post('/internal/agent-tools/open-file', headers=headers, json={'path': '../outside.txt'})
+    assert response.status == 403
+    response = await client.post('/internal/agent-tools/open-file', headers=headers, json={'path': 'missing.txt'})
+    assert response.status == 400
+    request = asyncio.create_task(client.post('/internal/agent-tools/open-file', headers=headers, json={'path': 'view.txt'}))
+    for _ in range(100):
+        if events:
+            break
+        await asyncio.sleep(0.001)
+    request_id = events[0]['request_id']
+    response = await client.post(f'/workspace/view-requests/{request_id}/ack', json={'session_id': 'wrong', 'status': 'opened'})
+    assert response.status == 404
+    response = await client.post(f'/workspace/view-requests/{request_id}/ack', json={'session_id': 'default', 'status': 'opened'})
+    assert response.status == 200
+    response = await request
+    assert (await response.json())['status'] == 'opened'
+    assert not workspace._file_views.pending

@@ -1104,7 +1104,7 @@ function App() {
                 // Acknowledgement follows browser rendering, not merely event receipt.
                 await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
                 const pane = document.querySelector('.editor-pane');
-                if (data.session_id === selectedSessionRef.current && pane && !pane.querySelector('.editor-error') && pane.querySelector('.cm-content')) status = 'opened';
+                if (data.session_id === selectedSessionRef.current && pane && !pane.querySelector('.editor-error') && pane.querySelector('.cm-content') && document.querySelector('.tab-item.active')?.textContent?.includes(data.path.split('/').pop())) status = 'opened';
             } catch (_) { /* Rejection is explicit; no unconfirmed success. */ }
             await fetch(`/workspace/view-requests/${encodeURIComponent(data.request_id)}/ack`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
