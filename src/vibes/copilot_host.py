@@ -89,6 +89,9 @@ class CopilotHost:
         lane = self.lanes.get(chat_id)
         return lane.active if lane else None
 
+    async def command_catalogue(self, chat_id, store):
+        return await self.lane(chat_id).command_catalogue(chat_id, store)
+
     def status(self):
         return {
             **self.runtime.status(),
