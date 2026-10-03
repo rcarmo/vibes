@@ -450,7 +450,7 @@ export function ComposeBox({
         getAgentCommands(sessionId)
             .then((data) => {
                 if (!disposed && Array.isArray(data?.commands)) {
-                    if (sessionId !== 'default') { setSlashCommands(data.commands); return; }
+                    if (sessionId !== 'default' || data.authoritative === true) { setSlashCommands(data.commands); return; }
                     const existing = new Set(SLASH_COMMANDS.map(c => c.name));
                     const merged = [...SLASH_COMMANDS];
                     for (const cmd of data.commands) {

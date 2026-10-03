@@ -1574,7 +1574,7 @@ async def get_agent_commands(request: web.Request) -> web.Response:
         return web.json_response({'commands': []})
 
     if _resolve_agent_mode('default') == 'copilot-ffi':
-        return web.json_response({'commands': []})
+        return web.json_response({'commands': [], 'authoritative': True})
 
     # Base commands that are always available
     commands = [
