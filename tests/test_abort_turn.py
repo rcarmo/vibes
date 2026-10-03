@@ -117,7 +117,11 @@ async def test_acp_abort_owns_exact_request_and_session():
 
 
 @pytest.mark.asyncio
-async def test_cancelled_pi_turn_does_not_consume_queued_followup(db, monkeypatch):
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+@pytest.mark.parametrize('cancelled', [True, False])
+async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode, cancelled):
+    from vibes import agent_attachments
+    monkeypatch.setattr(agent_attachments, 'referenced_media', AsyncMock(return_value=[]))
     from vibes import followups
     import importlib
     agents = importlib.import_module('vibes.routes.agents')
@@ -126,15 +130,19 @@ async def test_cancelled_pi_turn_does_not_consume_queued_followup(db, monkeypatc
     followups.reset_state()
     item = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='keep queued')
     async def dispatch(*args, **kwargs):
-        return {'text': '', 'content': [], 'cancelled': True, 'cancel_reason': 'abort'}
-    monkeypatch.setattr(agents, '_dispatch_pi_thread', dispatch)
-    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
+        return {'text': 'response', 'content': [], 'cancelled': cancelled, 'cancel_reason': 'abort' if cancelled else None}
+    monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', dispatch)
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
     monkeypatch.setattr(agents, 'broadcast_event', AsyncMock())
     enqueue = Mock()
     monkeypatch.setattr(agents, 'enqueue', enqueue)
     try:
         await agents.process_agent_response(root, 'abort', 'default')
-        assert [row['row_id'] for row in followups.list_followups()] == [item['row_id']]
-        enqueue.assert_not_called()
+        if cancelled:
+            assert [row['row_id'] for row in followups.list_followups()] == [item['row_id']]
+            enqueue.assert_not_called()
+        else:
+            assert followups.list_followups() == []
+            enqueue.assert_called_once_with(agents.process_agent_response, root, 'keep queued', 'default')
     finally:
         followups.reset_state()
