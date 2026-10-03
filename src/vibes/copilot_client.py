@@ -581,9 +581,12 @@ class CopilotBackend:
                     if row.get('name'):
                         rows.append(row)
                 return rows
-            return {'available': True, 'native_session_id': session.session_id, 'commands': public_entries(listing.commands, ('name', 'description', 'kind', 'allowDuringAgentExecution'), 128),
-                    'skills': public_entries(skills.skills, ('name', 'description', 'enabled', 'userInvocable', 'commandName'), 128),
-                    'truncated': len(listing.commands) > 128 or len(skills.skills) > 128}
+            try:
+                return {'available': True, 'native_session_id': session.session_id, 'commands': public_entries(listing.commands, ('name', 'description', 'kind', 'allowDuringAgentExecution'), 128),
+                        'skills': public_entries(skills.skills, ('name', 'description', 'enabled', 'userInvocable', 'commandName'), 128),
+                        'truncated': len(listing.commands) > 128 or len(skills.skills) > 128}
+            except Exception:
+                return {'available': False, 'commands': [], 'skills': []}
 
     async def models(self, chat_id, store):
         if self.turn_lock.locked():

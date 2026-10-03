@@ -560,3 +560,14 @@ async def test_persisted_catalogue_resumes_confirmed_session_without_pending_rep
     assert client.resume_session.await_args.kwargs['continue_pending_work'] is False
     client.create_session.assert_not_awaited()
     store.bind_backend.assert_not_awaited()
+
+@pytest.mark.asyncio
+async def test_malformed_native_catalogue_is_unavailable_and_releases_lock(setup, monkeypatch):
+    backend, *_ = setup
+    malformed = SimpleNamespace(to_dict=Mock(side_effect=ValueError('private decoder detail')))
+    session = SimpleNamespace(session_id='native', rpc=SimpleNamespace(
+        commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=[malformed]))),
+        skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=[])))))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
+    assert await backend.command_catalogue('chat', object()) == {'available': False, 'commands': [], 'skills': []}
+    assert not backend.turn_lock.locked()
