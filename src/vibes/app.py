@@ -36,6 +36,11 @@ async def health_check(request: web.Request) -> web.Response:
     return web.json_response(result)
 
 
+async def diagnostics_handler(request: web.Request) -> web.Response:
+    from .diagnostics import backend_diagnostics
+    return web.json_response(backend_diagnostics(get_config()), headers={'Cache-Control': 'no-store'})
+
+
 async def manifest_handler(request: web.Request) -> web.Response:
     """Dynamic PWA manifest — uses agent name/avatar when configured."""
     config = get_config()
@@ -171,6 +176,7 @@ def create_app() -> web.Application:
     
     # Health check
     app.router.add_get("/health", health_check)
+    app.router.add_get('/diagnostics/backend', diagnostics_handler)
     
     # API routes
     posts.setup_routes(app)
