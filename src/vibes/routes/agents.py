@@ -703,6 +703,19 @@ async def stop_ffi_dispatch():
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def _queued_source_data(db, item: dict, chat_id: str, thread_id: int) -> dict:
+    """Resolve attachments only from the queued item's owning conversation."""
+    row = await db.get_interaction(item['message_id'])
+    if row is None:
+        raise RuntimeError('Queued follow-up source message unavailable')
+    data = row.get('data', {})
+    if data.get('session_id', 'default') != chat_id:
+        raise RuntimeError('Queued follow-up source chat mismatch')
+    if (data.get('thread_id') or row.get('id')) != thread_id:
+        raise RuntimeError('Queued follow-up source thread mismatch')
+    return data
+
+
 def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
     if _ffi_closing or chat_id in _ffi_tasks:
         raise RuntimeError('Conversation dispatch unavailable')
@@ -720,15 +733,8 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
                     if not item:
                         break
                     try:
-                        row = await (await get_db()).get_interaction(item['message_id'])
-                        if row is None:
-                            raise RuntimeError('Queued follow-up source message unavailable')
-                        if row.get('data', {}).get('session_id', 'default') != chat_id:
-                            raise RuntimeError('Queued follow-up source chat mismatch')
-                        source_thread = row.get('data', {}).get('thread_id') or row.get('id')
-                        if source_thread != thread_id:
-                            raise RuntimeError('Queued follow-up source thread mismatch')
-                        prompt, inputs = item['content'], row.get('data', {}).get('media_ids', [])
+                        source_data = await _queued_source_data(await get_db(), item, chat_id, thread_id)
+                        prompt, inputs = item['content'], source_data.get('media_ids', [])
                         await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
                     except BaseException:
                         restore_followup(item, steer=item.get('mode') == 'steer')
@@ -1009,14 +1015,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 next_followup.get("mode", "queue"),
             )
             try:
-                source = await db.get_interaction(next_followup['message_id'])
-                if source is None:
-                    raise ValueError('Queued source message unavailable')
-                source_data = source.get('data', {})
-                if source_data.get('session_id', 'default') != chat_session_id:
-                    raise ValueError('Queued source chat mismatch')
-                if (source_data.get('thread_id') or source.get('id')) != thread_id:
-                    raise ValueError('Queued source thread mismatch')
+                source_data = await _queued_source_data(db, next_followup, chat_session_id, thread_id)
                 if enqueue(process_agent_response, thread_id, next_followup["content"], agent_id,
                            media_ids=source_data.get('media_ids')) is False:
                     raise RuntimeError('Follow-up worker admission rejected')
