@@ -412,3 +412,28 @@ async def test_busy_command_discovery_never_calls_native_session(setup, monkeypa
         result = await backend.command_catalogue('chat', object())
     assert result == {'available': False, 'busy': True, 'commands': [], 'skills': []}
     session.assert_not_awaited()
+
+@pytest.mark.asyncio
+async def test_messages_session_reference_cannot_expand_ffi_scope(setup, monkeypatch, tmp_path):
+    from vibes.db import Database
+    from vibes import db as db_module
+    backend, *_ = setup
+    backend.sdk = SimpleNamespace(Tool=lambda **kw: SimpleNamespace(**kw), ToolResult=lambda **kw: SimpleNamespace(**kw))
+    monkeypatch.setattr(backend, '_owner', lambda chat, session: True)
+    db = Database(tmp_path / 'references.db')
+    await db.connect()
+    try:
+        from vibes.sessions import SessionStore
+        own = await SessionStore(db).create('Own')
+        other = await SessionStore(db).create('Private')
+        async def get_db():
+            return db
+        monkeypatch.setattr(db_module, 'get_db', get_db)
+        tool = next(tool for tool in backend._tools(own['id']) if tool.name == 'messages')
+        assert 'resolve_session' in tool.parameters['properties']['action']['enum']
+        for target, expected in [(own['id'], 'Own'), (other['id'], None)]:
+            result = await tool.handler(SimpleNamespace(arguments={'action': 'resolve_session', 'reference': f'@session:{target}'}, session_id='sdk'))
+            payload = __import__('json').loads(result.text_result_for_llm)
+            assert (payload['session']['name'] if payload['session'] else None) == expected
+    finally:
+        await db.close()
