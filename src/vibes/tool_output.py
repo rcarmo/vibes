@@ -31,7 +31,8 @@ class ToolOutputState:
                 else:
                     combined = content if event.get('replace_output') else state['output'] + content
                     state['output'] = combined[-self.limit:]
-                    state['output_truncated'] |= len(combined) > self.limit or bool(event.get('content_truncated'))
+                    truncated = len(combined) > self.limit or bool(event.get('content_truncated'))
+                    state['output_truncated'] = truncated if event.get('replace_output') else state['output_truncated'] or truncated
         if event.get('type') == 'tool_status' and event.get('status') in {'completed', 'failed', 'ended'}:
             state.setdefault('ended_at', time.time())
         return {**event, **state, 'tool_calls': self.snapshot(), 'tool_calls_truncated': self.calls_truncated}

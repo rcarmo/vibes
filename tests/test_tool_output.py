@@ -91,3 +91,14 @@ def test_final_output_replaces_partial_text_without_duplication():
     result = state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'abcde', 'replace_output': True})
     assert result['output'] == 'abcde'
     assert result['output_truncated'] is False
+
+
+def test_authoritative_final_output_resets_only_obsolete_truncation():
+    state = ToolOutputState(limit=5)
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'abcdef'})
+    assert state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': '', 'replace_output': False})['output_truncated']
+    result = state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'done', 'replace_output': True})
+    assert result['output'] == 'done'
+    assert result['output_truncated'] is False
+    result = state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'final', 'replace_output': True, 'content_truncated': True})
+    assert result['output_truncated'] is True
