@@ -161,6 +161,41 @@ class CopilotHost:
             except Exception:
                 return {'state': 'unavailable', 'servers': []}
 
+    async def skill_diagnostics(self, chat_id):
+        """Inspect reported skill flags without loading contents or invoking skills."""
+        lane = self.lanes.get(chat_id)
+        if lane is None or self.diagnostics(chat_id)['state'] != 'ready':
+            return {'state': 'unavailable', 'skills': []}
+        async with lane.turn_lock:
+            session = lane.sessions.get(chat_id)
+            client = lane.client
+            if session is None or client is not self.runtime.client or self.diagnostics(chat_id)['state'] == 'unavailable':
+                return {'state': 'unavailable', 'skills': []}
+            try:
+                async with asyncio.timeout(_DIAGNOSTICS_TIMEOUT):
+                    metadata = await session.rpc.skills.list(timeout=_DIAGNOSTICS_TIMEOUT)
+                if (self.lanes.get(chat_id) is not lane or lane.sessions.get(chat_id) is not session
+                        or lane.client is not client or self.runtime.client is not client
+                        or self.diagnostics(chat_id)['state'] == 'unavailable'):
+                    return {'state': 'unavailable', 'skills': []}
+                data = metadata.to_dict()
+                if not isinstance(data, dict) or not isinstance(data.get('skills'), list):
+                    raise ValueError('Invalid skill metadata')
+                from .diagnostics import _labels
+                skills = []
+                for server in data['skills'][:32]:
+                    if not isinstance(server, dict):
+                        continue
+                    names = _labels([server.get('name')], 1)
+                    enabled = server.get('enabled')
+                    invocable = server.get('userInvocable')
+                    if names and type(enabled) is bool and type(invocable) is bool:
+                        skills.append({'name': names[0], 'state': 'enabled' if enabled else 'disabled',
+                                       'user_invocable': invocable})
+                return {'state': 'reported', 'skills': skills, 'truncated': len(data['skills']) > 32}
+            except Exception:
+                return {'state': 'unavailable', 'skills': []}
+
     def lane(self, chat_id):
         if not isinstance(chat_id, str) or not chat_id:
             raise ValueError("Conversation identity required")

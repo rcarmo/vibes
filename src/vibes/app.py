@@ -52,6 +52,7 @@ async def diagnostics_handler(request: web.Request) -> web.Response:
             from .copilot_host import backend
             result['runtime_tools'] = await backend.tool_diagnostics(session_id)
             result['runtime_mcp'] = await backend.mcp_diagnostics(session_id)
+            result['runtime_skills'] = await backend.skill_diagnostics(session_id)
             # The metadata await may overlap shutdown or runtime replacement.
             result['runtime'] = backend.diagnostics(session_id)
     return web.json_response(result, headers={'Cache-Control': 'no-store'})

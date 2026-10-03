@@ -303,3 +303,27 @@ async def test_mcp_diagnostics_bounds_and_timeout():
         assert await host.mcp_diagnostics('selected') == {'state': 'unavailable', 'servers': []}
     assert cancelled
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_skill_diagnostics_reports_flags_not_contents():
+    host = CopilotHost()
+    assert await host.skill_diagnostics('absent') == {'state': 'unavailable', 'skills': []}
+    assert host.lanes == {}
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'skills': [
+        {'name': 'review', 'enabled': True, 'userInvocable': True, 'path': '/private', 'description': 'private contents'},
+        {'name': 'disabled', 'enabled': False, 'userInvocable': False},
+        {'name': 'bad', 'enabled': 'true', 'userInvocable': True},
+    ]}))
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(skills=SimpleNamespace(list=read)))
+    result = await host.skill_diagnostics('selected')
+    assert result['skills'] == [
+        {'name': 'review', 'state': 'enabled', 'user_invocable': True},
+        {'name': 'disabled', 'state': 'disabled', 'user_invocable': False},
+    ]
+    assert 'private' not in str(result)
+    read.assert_awaited_once_with(timeout=10)
+    assert not lane.turn_lock.locked()
