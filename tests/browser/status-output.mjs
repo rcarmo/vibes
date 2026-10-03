@@ -1,7 +1,9 @@
-import { chromium } from '@playwright/test';
+import { chromium, webkit } from '@playwright/test';
 const root = process.cwd() + '/src/vibes/static';
 const server = Bun.serve({port:0, async fetch(req) { const path = new URL(req.url).pathname; if(path==='/') return new Response('<div id="root"></div>',{headers:{'Content-Type':'text/html'}}); const file=Bun.file(root+path); return new Response(file); }});
-const browser=await chromium.launch({headless:true});
+const engine = process.argv[2] || 'chromium';
+if (!['chromium', 'webkit'].includes(engine)) throw Error('Expected chromium or webkit');
+const browser=await ({chromium, webkit})[engine].launch({headless:true});
 try {
  const page=await browser.newPage(); const errors=[]; page.on('pageerror', error=>errors.push(error.message)); await page.goto(`http://127.0.0.1:${server.port}`);
  await page.evaluate(async()=>{
