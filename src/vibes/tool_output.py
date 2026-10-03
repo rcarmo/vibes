@@ -10,12 +10,16 @@ class ToolOutputState:
     def update(self, event):
         call_id = event.get('tool_call_id')
         if not isinstance(call_id, str) or not call_id:
-            return event
+            return {**event, 'tool_calls': self.snapshot()} if self.calls else event
         if call_id not in self.calls:
             if len(self.calls) >= 256:
                 return event
             self.calls[call_id] = {'output': '', 'started_at': time.time(), 'output_truncated': False}
         state = self.calls[call_id]
+        for field in ('title', 'status'):
+            value = event.get(field)
+            if isinstance(value, str):
+                state[field] = value[:256]
         if event.get('type') == 'tool_output':
             content = event.get('content', '')
             if isinstance(content, str):
@@ -27,4 +31,15 @@ class ToolOutputState:
                     state['output_truncated'] |= len(combined) > self.limit or bool(event.get('content_truncated'))
         if event.get('type') == 'tool_status' and event.get('status') in {'completed', 'failed', 'ended'}:
             state.setdefault('ended_at', time.time())
-        return {**event, **state}
+        return {**event, **state, 'tool_calls': self.snapshot()}
+
+    def snapshot(self):
+        # Keep aggregate reconnect payload below 64 KiB of output text.
+        remaining = 64000
+        rows = []
+        for call_id, state in reversed(list(self.calls.items())):
+            output = state['output'][-min(remaining, self.limit):] if remaining else ''
+            remaining -= len(output)
+            rows.append({**state, 'tool_call_id': call_id, 'output': output,
+                         'output_truncated': state['output_truncated'] or len(output) < len(state['output'])})
+        return list(reversed(rows))

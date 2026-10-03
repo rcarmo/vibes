@@ -31,3 +31,17 @@ def test_interleaved_tools_keep_output_and_progress_separate():
     other = state.update({'type': 'tool_status', 'tool_call_id': 'b', 'status': 'failed'})
     assert other['output'] == 'beta'
     assert 'progress_message' not in other
+
+
+def test_reconnect_snapshot_retains_multiple_calls_with_aggregate_bound():
+    state = ToolOutputState(limit=16000)
+    for i in range(6):
+        state.update({'type': 'tool_call', 'tool_call_id': str(i), 'title': f'tool-{i}', 'status': 'running'})
+        state.update({'type': 'tool_output', 'tool_call_id': str(i), 'content': 'x' * 16000})
+        state.update({'type': 'tool_status', 'tool_call_id': str(i), 'status': 'completed'})
+    snapshot = state.update({'type': 'writing', 'title': 'Writing response'})['tool_calls']
+    assert len(snapshot) == 6
+    assert sum(len(row['output']) for row in snapshot) <= 64000
+    assert all(row['status'] == 'completed' for row in snapshot)
+    assert snapshot[0]['output_truncated'] is True
+    assert snapshot[-1]['title'] == 'tool-5'
