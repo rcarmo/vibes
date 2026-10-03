@@ -1091,6 +1091,27 @@ function App() {
         return () => { disposed = true; window.removeEventListener('workspace-update', refreshOpenFiles); };
     }, [editorTabs]);
 
+    useEffect(() => {
+        const viewRequested = async event => {
+            const data = event.detail;
+            if (!data || data.session_id !== selectedSessionRef.current) return;
+            let status = 'rejected';
+            try {
+                const preview = await getWorkspaceFile(data.path, 5_000_000, 'edit');
+                if (preview.kind !== 'text' || data.session_id !== selectedSessionRef.current) throw new Error('Cannot open requested file');
+                setWorkspaceOpen(true);
+                await openEditor(data.path);
+                status = 'opened';
+            } catch (_) { /* Rejection is explicit; no unconfirmed success. */ }
+            await fetch(`/workspace/view-requests/${encodeURIComponent(data.request_id)}/ack`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ session_id: data.session_id, status }),
+            });
+        };
+        window.addEventListener('workspace-view-request', viewRequested);
+        return () => window.removeEventListener('workspace-view-request', viewRequested);
+    }, [openEditor]);
+
     const reloadEditorTab = useCallback(async () => {
         const tab = editorTabs.find(item => item.id === activeEditorTabId);
         if (!tab || tab.saving) return;
@@ -2242,6 +2263,10 @@ function App() {
             return;
         }
 
+        if (eventType === 'workspace_view_request') {
+            window.dispatchEvent(new CustomEvent('workspace-view-request', { detail: data }));
+            return;
+        }
         if (eventType === 'workspace_update') {
             if (typeof window !== 'undefined') {
                 window.dispatchEvent(new CustomEvent('workspace-update', { detail: data }));

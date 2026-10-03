@@ -849,7 +849,54 @@ async def download_workspace_folder(request: web.Request) -> web.StreamResponse:
     )
 
 
+from ..file_view_requests import FileViewRequests
+_file_views = FileViewRequests()
+
+
+async def request_file_view(request):
+    from .. import agent_attachments
+    from .pi_tools import _loopback
+    if not _loopback(request) or request.headers.get('Origin'):
+        return web.json_response({'error': 'Local tool connection required'}, status=403)
+    try:
+        mode, session = agent_attachments.resolve_token(request.headers.get('Authorization', '').removeprefix('Bearer '))
+        owner = agent_attachments.active
+        def check():
+            if not owner or agent_attachments.active is not owner or owner['mode'] != mode or (session is not None and session != owner['session_id']):
+                raise PermissionError('No matching active turn')
+        check()
+        payload = await request.json()
+        if not isinstance(payload, dict) or set(payload) != {'path'} or not isinstance(payload['path'], str):
+            raise ValueError('Expected a workspace path')
+        target = _resolve_workspace_path(payload['path'])
+        if not target.is_file():
+            raise ValueError('Workspace file does not exist')
+        result = await _file_views.request(owner['session_id'], _to_workspace_relative(target), check, broadcast_event)
+        return web.json_response(result)
+    except (PermissionError, web.HTTPForbidden):
+        return web.json_response({'error': 'Forbidden file-view request'}, status=403)
+    except (ValueError, TypeError) as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+
+
+async def acknowledge_file_view(request):
+    try:
+        payload = await request.json()
+        if not isinstance(payload, dict) or set(payload) != {'session_id', 'status'}:
+            raise ValueError('Expected session_id and status')
+        _file_views.acknowledge(request.match_info['id'], payload['session_id'], payload['status'])
+        return web.json_response({'ok': True})
+    except PermissionError:
+        return web.json_response({'error': 'Expired turn'}, status=403)
+    except LookupError as exc:
+        return web.json_response({'error': str(exc)}, status=404)
+    except (ValueError, TypeError) as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+
+
 def setup_routes(app: web.Application) -> None:
+    app.router.add_post('/internal/agent-tools/open-file', request_file_view)
+    app.router.add_post('/workspace/view-requests/{id}/ack', acknowledge_file_view)
     app.router.add_get("/workspace/tree", get_workspace_tree)
     app.router.add_get("/workspace/file", get_workspace_file)
     app.router.add_put("/workspace/file", update_workspace_file)
