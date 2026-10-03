@@ -1019,7 +1019,7 @@ async def _handle_theme(args: str) -> SlashCommandResult:
             message=f"Unknown theme `{args}`. Use `/theme list` for options.",
         )
 
-    await broadcast_event("ui_theme", {"theme": theme})
+    await broadcast_event("ui_theme", {"theme": theme, "tint": None})
     return SlashCommandResult(
         status="success",
         message=f"Theme set to `{theme}`.",
@@ -1054,7 +1054,7 @@ async def _handle_tint(args: str) -> SlashCommandResult:
             )
         color = hex_color
 
-    await broadcast_event("ui_theme", {"tint": color})
+    await broadcast_event("ui_theme", {"theme": "default", "tint": color})
     return SlashCommandResult(
         status="success",
         message=f"Tint set to `{color}`.",
