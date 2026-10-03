@@ -1009,9 +1009,18 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 next_followup.get("mode", "queue"),
             )
             try:
-                if enqueue(process_agent_response, thread_id, next_followup["content"], agent_id) is False:
+                source = await db.get_interaction(next_followup['message_id'])
+                if source is None:
+                    raise ValueError('Queued source message unavailable')
+                source_data = source.get('data', {})
+                if source_data.get('session_id', 'default') != chat_session_id:
+                    raise ValueError('Queued source chat mismatch')
+                if (source_data.get('thread_id') or source.get('id')) != thread_id:
+                    raise ValueError('Queued source thread mismatch')
+                if enqueue(process_agent_response, thread_id, next_followup["content"], agent_id,
+                           media_ids=source_data.get('media_ids')) is False:
                     raise RuntimeError('Follow-up worker admission rejected')
-            except Exception:
+            except BaseException:
                 restore_followup(next_followup, steer=next_followup.get('mode') == 'steer')
                 raise
             await broadcast_event("agent_followup_consumed", _serialize_followup_event(next_followup))

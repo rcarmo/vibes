@@ -143,7 +143,7 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
             enqueue.assert_not_called()
         else:
             assert followups.list_followups() == []
-            enqueue.assert_called_once_with(agents.process_agent_response, root, 'keep queued', 'default')
+            enqueue.assert_called_once_with(agents.process_agent_response, root, 'keep queued', 'default', media_ids=None)
     finally:
         followups.reset_state()
 
@@ -195,3 +195,27 @@ async def test_action_root_guard_uses_real_database_identity(db, monkeypatch):
         request.json = AsyncMock(return_value={'thread_id': identity})
         assert (await agents.trigger_action(request)).status == expected
     admission.assert_called_once_with(agents.process_agent_response, root, 'action prompt', 'default')
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+async def test_followup_worker_admission_preserves_source_attachments(mode, db, monkeypatch):
+    monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
+    from vibes import followups
+    from unittest.mock import Mock
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
+    source = await db.create_interaction({'type': 'user', 'thread_id': root, 'content': 'next', 'media_ids': [17, 23]})
+    followups.reset_state()
+    followups.queue_followup(thread_id=root, agent_id='default', message_id=source, content='next')
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
+    monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', AsyncMock(return_value={'text': 'done', 'content': []}))
+    monkeypatch.setattr(agents, 'broadcast_event', AsyncMock())
+    admission = Mock(return_value=True)
+    monkeypatch.setattr(agents, 'enqueue', admission)
+    try:
+        await agents.process_agent_response(root, 'run', 'default')
+        admission.assert_called_once_with(agents.process_agent_response, root, 'next', 'default', media_ids=[17, 23])
+        assert followups.list_followups() == []
+    finally:
+        followups.reset_state()
