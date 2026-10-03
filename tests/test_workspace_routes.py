@@ -796,3 +796,13 @@ async def test_file_view_http_confines_path_and_requires_owned_ack(workspace_tes
     response = await request
     assert (await response.json())['status'] == 'opened'
     assert not workspace._file_views.pending
+
+@pytest.mark.asyncio
+async def test_raw_active_documents_are_download_only(workspace_test_client, workspace_dir):
+    for name, content in [('active.html', '<script>document.cookie</script>'), ('active.svg', '<svg onload="alert(1)"/>')]:
+        (workspace_dir / name).write_text(content)
+        response = await workspace_test_client.get('/workspace/raw?path=' + name)
+        assert response.status == 200
+        assert response.headers['Content-Disposition'] == 'attachment'
+        assert response.headers['X-Content-Type-Options'] == 'nosniff'
+        assert "sandbox" in response.headers['Content-Security-Policy']

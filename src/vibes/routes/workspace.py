@@ -747,7 +747,11 @@ async def get_workspace_raw(request: web.Request) -> web.StreamResponse:
     target = _resolve_workspace_path(path_value)
     if not target.exists() or target.is_dir():
         return web.json_response({"error": "Path not found"}, status=404)
-    return web.FileResponse(target)
+    content_type = mimetypes.guess_type(str(target))[0] or 'application/octet-stream'
+    headers = {'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "sandbox; default-src 'none'"}
+    if content_type in {'text/html', 'application/xhtml+xml', 'image/svg+xml'} or content_type == 'application/octet-stream':
+        headers['Content-Disposition'] = 'attachment'
+    return web.FileResponse(target, headers=headers)
 
 
 async def attach_workspace_file(request: web.Request) -> web.Response:
