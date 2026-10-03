@@ -576,9 +576,9 @@ class CopilotBackend:
                         value = raw.get(key)
                         if isinstance(value, str) and len(value) <= 512 and not any(ord(char) < 32 for char in value):
                             row[key] = value
-                        elif type(value) is bool:
+                        elif type(value) is bool and key in {'allowDuringAgentExecution', 'enabled', 'userInvocable'}:
                             row[key] = value
-                    if row.get('name'):
+                    if isinstance(row.get('name'), str) and row['name'].strip():
                         rows.append(row)
                 return rows
             try:

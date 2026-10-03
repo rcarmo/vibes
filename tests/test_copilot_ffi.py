@@ -571,3 +571,16 @@ async def test_malformed_native_catalogue_is_unavailable_and_releases_lock(setup
     monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     assert await backend.command_catalogue('chat', object()) == {'available': False, 'commands': [], 'skills': []}
     assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+async def test_native_catalogue_rejects_boolean_and_blank_names(setup, monkeypatch):
+    backend, *_ = setup
+    entries = [SimpleNamespace(to_dict=lambda value=value: value) for value in
+               [{'name': True}, {'name': '   '}, {'name': 'valid', 'description': True, 'enabled': True}]]
+    session = SimpleNamespace(session_id='native', rpc=SimpleNamespace(
+        commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=entries))),
+        skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=entries)))))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
+    result = await backend.command_catalogue('chat', object())
+    assert result['commands'] == [{'name': 'valid'}]
+    assert result['skills'] == [{'name': 'valid', 'enabled': True}]
