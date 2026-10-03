@@ -21,3 +21,26 @@ def test_diagnostic_labels_are_bounded_and_display_safe():
     assert result['tools'] == [{'name': 'safe', 'state': 'configured'}]
     assert result['mcp'] == [{'name': 'safe', 'state': 'configured'}]
     assert result['memory']['sources'] == ['safe']
+
+
+def test_memory_diagnostics_export_only_safe_known_fields():
+    config = SimpleNamespace(default_agent='pi', memory_diagnostics=[
+        {'path': 'notes/missing.md', 'status': 'missing', 'secret': 'do-not-export'},
+        {'path': 'notes/large.md', 'status': 'over-budget'},
+        {'path': 'notes/binary.md', 'status': 'invalid-utf8'},
+        {'path': 'bad\npath.md', 'status': 'missing'},
+        {'path': 'x' * 513, 'status': 'missing'},
+        {'path': True, 'status': 'missing'},
+        {'path': 'safe.md', 'status': ['missing']},
+        {'path': 'safe.md', 'status': 'private runtime error'},
+        'private',
+    ])
+    result = backend_diagnostics(config)
+    assert result['memory']['diagnostics'] == [
+        {'path': 'notes/missing.md', 'status': 'missing'},
+        {'path': 'notes/large.md', 'status': 'over-budget'},
+        {'path': 'notes/binary.md', 'status': 'invalid-utf8'},
+    ]
+    assert 'do-not-export' not in str(result)
+    config.memory_diagnostics = [{'path': 'safe.md', 'status': 'missing'}] * 20
+    assert len(backend_diagnostics(config)['memory']['diagnostics']) == 16

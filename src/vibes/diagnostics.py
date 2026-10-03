@@ -7,6 +7,18 @@ def _labels(values, limit):
             and not any(ord(char) < 32 or ord(char) == 127 for char in value)]
 
 
+def _memory_diagnostics(entries):
+    result = []
+    for entry in entries[:16]:
+        if not isinstance(entry, dict):
+            continue
+        paths = _labels([entry.get('path')], 1)
+        status = entry.get('status')
+        if paths and isinstance(status, str) and status in {'missing', 'over-budget', 'invalid-utf8'}:
+            result.append({'path': paths[0], 'status': status})
+    return result
+
+
 def backend_diagnostics(config):
     mode = config.default_agent.lower()
     result = {'backend': mode, 'selection': 'startup-only', 'execution_verified': False}
@@ -15,5 +27,5 @@ def backend_diagnostics(config):
         result['skills'] = [{'source': str(path), 'state': 'configured'} for path in _labels(getattr(config, 'copilot_skill_directories', []), 16)]
         result['tools'] = [{'name': str(name), 'state': 'configured'} for name in _labels(getattr(config, 'copilot_available_tools', []), 64)]
         result['mcp'] = [{'name': str(name), 'state': 'configured'} for name in _labels(list(getattr(config, 'copilot_mcp_servers', {})), 32)]
-    result['memory'] = {'sources': _labels(list(getattr(config, 'memory_paths', [])), 16), 'diagnostics': list(getattr(config, 'memory_diagnostics', []))[:16]}
+    result['memory'] = {'sources': _labels(list(getattr(config, 'memory_paths', [])), 16), 'diagnostics': _memory_diagnostics(list(getattr(config, 'memory_diagnostics', [])))}
     return result
