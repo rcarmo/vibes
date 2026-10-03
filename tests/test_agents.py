@@ -896,9 +896,10 @@ async def test_compact_action_validates_capability_before_dispatch(advertised, b
 
 
 @pytest.mark.asyncio
-async def test_send_message_worker_rejection_reports_not_admitted(mock_deps):
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mode):
     mock_deps['enqueue'].return_value = False
-    with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent='pi')):
+    with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent=mode)):
         with patch.object(agents_mod, 'is_pi_busy', return_value=False):
             request = _make_send_request('Keep my message')
             response = await agents_mod.send_message(request)
@@ -907,6 +908,7 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps):
     assert payload['admitted'] is False
     assert payload['user_message']['data']['content'] == 'Keep my message'
     mock_deps['enqueue'].assert_called_once()
+    assert [call.args[0] for call in mock_deps['broadcast'].await_args_list] == ['new_post']
 
 
 @pytest.mark.asyncio
