@@ -704,7 +704,7 @@ async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps):
     with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
          patch.object(agents_mod, '_is_agent_busy', return_value=False):
         response = await agents_mod.steer_queue_item(req)
-    data = json.loads(response.text)
+    data = json.loads(response.body)
     assert data['item']['emulated'] is True
     assert data['item']['row_id'] == item['row_id']
 
@@ -893,3 +893,17 @@ async def test_compact_action_validates_capability_before_dispatch(advertised, b
     else:
         db.create_interaction.assert_not_awaited()
         enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_send_message_worker_rejection_reports_not_admitted(mock_deps):
+    mock_deps['enqueue'].return_value = False
+    with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent='pi')):
+        with patch.object(agents_mod, 'is_pi_busy', return_value=False):
+            request = _make_send_request('Keep my message')
+            response = await agents_mod.send_message(request)
+    assert response.status == 503
+    payload = json.loads(response.body)
+    assert payload['admitted'] is False
+    assert payload['user_message']['data']['content'] == 'Keep my message'
+    mock_deps['enqueue'].assert_called_once()

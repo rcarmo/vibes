@@ -1461,7 +1461,10 @@ async def _send_message(request, data):
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
         _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []))
     else:
-        enqueue(process_agent_response, thread_id, data["content"], agent_id)
+        if enqueue(process_agent_response, thread_id, data["content"], agent_id) is False:
+            return web.json_response({'error': 'Agent worker admission unavailable',
+                                      'user_message': user_interaction, 'thread_id': thread_id,
+                                      'admitted': False}, status=503)
     
     return web.json_response({
         "user_message": user_interaction,
