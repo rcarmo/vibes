@@ -154,3 +154,26 @@ async def test_stop_processes_pending():
     # Wait for worker to pick up the task
     await asyncio.sleep(0.2)
     assert "drained" in results
+
+
+@pytest.mark.asyncio
+async def test_shutdown_drains_admitted_work_and_closes_new_admission():
+    entered = asyncio.Event()
+    release = asyncio.Event()
+    completed = []
+    async def first():
+        entered.set()
+        await release.wait()
+        completed.append('first')
+    async def second():
+        completed.append('second')
+    await tasks.start_task_queue(num_workers=1)
+    assert tasks.enqueue(first)
+    assert tasks.enqueue(second)
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    stopping = asyncio.create_task(tasks.stop_task_queue())
+    await asyncio.sleep(0)
+    assert tasks.enqueue(second) is False
+    release.set()
+    await asyncio.wait_for(stopping, timeout=2)
+    assert completed == ['first', 'second']

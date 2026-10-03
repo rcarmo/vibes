@@ -17,7 +17,7 @@ async def _worker(worker_id: int):
     global _task_queue
     logger.info(f"Task worker {worker_id} started")
     
-    while _running:
+    while _running or (_task_queue is not None and not _task_queue.empty()):
         try:
             # Wait for a task with timeout to allow clean shutdown
             try:
