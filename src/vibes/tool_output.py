@@ -13,7 +13,7 @@ class ToolOutputState:
             return {**event, 'tool_calls': self.snapshot()} if self.calls else event
         if call_id not in self.calls:
             if len(self.calls) >= 256:
-                return event
+                return {**event, 'tool_calls': self.snapshot(), 'tool_calls_truncated': True}
             self.calls[call_id] = {'output': '', 'started_at': time.time(), 'output_truncated': False}
         state = self.calls[call_id]
         for field in ('title', 'status'):

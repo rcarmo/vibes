@@ -54,3 +54,13 @@ def test_reconnect_budget_includes_progress_messages():
     rows = state.snapshot()
     assert sum(len(row['output']) + len(row['progress_message']) for row in rows) <= 64000
     assert any(row['progress_truncated'] for row in rows)
+
+
+def test_call_count_limit_retains_snapshot_and_reports_omission():
+    state = ToolOutputState(limit=1)
+    for i in range(256):
+        state.update({'type': 'tool_call', 'tool_call_id': str(i)})
+    result = state.update({'type': 'tool_call', 'tool_call_id': 'overflow'})
+    assert len(result['tool_calls']) == 256
+    assert result['tool_calls_truncated'] is True
+    assert 'overflow' not in state.calls
