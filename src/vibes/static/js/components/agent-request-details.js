@@ -30,7 +30,7 @@ export function agentRequestDetails(request) {
         const kindTitles = { read: 'Read file', write: 'Write file', shell: 'Run command', url: 'Access URL' };
         title = kindTitles[input.kind] || (name ? `Run ${name}` : 'Tool permission');
         explanation = firstText(input.intention, input.toolDescription, input.description);
-        if (name === 'vibes_plan') {
+        if (name === 'plan') {
             title = args.action === 'read' ? 'Read conversation plan' : 'Update conversation plan';
             explanation = args.action === 'read' ? 'Read the shared plan for this conversation.' : 'Change the shared plan for this conversation.';
         } else if (name === 'vibes_attach_file') {
@@ -38,7 +38,7 @@ export function agentRequestDetails(request) {
             explanation = 'Publish this workspace file in the current conversation.';
         }
         const omit = new Set(['path', 'filePath', 'command', 'diff']);
-        if (name === 'vibes_plan') omit.add('action');
+        if (name === 'plan') omit.add('action');
         fields = Object.entries(args).filter(([key]) => !omit.has(key)).map(([key, value]) => ({ label: key, value: pretty(value) }));
         if (text(input.serverName)) fields.unshift({ label: 'MCP server', value: input.serverName });
         if (text(input.url)) fields.unshift({ label: 'URL', value: input.url });

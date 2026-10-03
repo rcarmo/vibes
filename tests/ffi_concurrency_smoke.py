@@ -73,7 +73,7 @@ async def main():
         await asyncio.wait_for(concurrent.wait(), 20)
         tools = [
             ("ask_user", {"question": "Question for " + label, "allow_freeform": True}),
-            ("vibes_plan", {"action": "read"}),
+            ("plan", {"action": "read"}),
             ("vibes_attach_file", {"path": label + ".txt"}),
         ]
         response = web.StreamResponse(headers={"Content-Type": "text/event-stream"})

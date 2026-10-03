@@ -308,7 +308,7 @@ class CopilotBackend:
 
         return [self.sdk.Tool(name='vibes_attach_file', description='Attach a regular workspace file to the current conversation. No destination override.', handler=attach,
                     parameters={'type': 'object', 'properties': {'path': {'type': 'string'}, 'name': {'type': 'string'}, 'kind': {'type': 'string', 'enum': ['image', 'file']}}, 'required': ['path'], 'additionalProperties': False}),
-                self.sdk.Tool(name='vibes_plan', description='Read/write the current conversation plan. Writes require expected_revision from a read.', handler=plan,
+                self.sdk.Tool(name='plan', description='Read/write the current conversation plan. Writes require expected_revision from a read.', handler=plan,
                     parameters={'type': 'object', 'properties': {'action': {'type': 'string', 'enum': ['read', 'write']}, 'markdown': {'type': 'string'}, 'expected_revision': {'type': 'integer'}}, 'required': ['action'], 'additionalProperties': False})]
 
     async def _session(self, chat_id, store):
@@ -319,11 +319,11 @@ class CopilotBackend:
         options = dict(on_permission_request=self._permission, on_user_input_request=self._question,
                        enable_skills=bool(config.copilot_skill_directories),
                        mcp_servers=getattr(config, 'copilot_mcp_servers', {}),
-                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:vibes_plan', *config.copilot_available_tools],
+                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:plan', *config.copilot_available_tools],
                        working_directory=str(Path.cwd()), streaming=True,
                        include_sub_agent_streaming_events=False,
                        skill_directories=config.copilot_skill_directories,
-                       system_message={'mode': 'append', 'content': 'You are running in Vibes. Use vibes_attach_file to deliver generated files and vibes_plan for the shared plan. Do not invent successful tool results. ' + getattr(config, 'prompt', '')},
+                       system_message={'mode': 'append', 'content': 'You are running in Vibes. Use vibes_attach_file to deliver generated files and plan for the shared plan. Do not invent successful tool results. ' + getattr(config, 'prompt', '')},
                        remote_session=self.sdk.RemoteSessionMode.OFF)
         binding = await store.backend_binding(chat_id, BACKEND)
         if not binding:

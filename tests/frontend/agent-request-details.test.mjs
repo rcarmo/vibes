@@ -4,7 +4,7 @@ import { agentRequestDetails } from '../../src/vibes/static/js/components/agent-
 const native = rawInput => ({tool_call:{title:'Copilot tool permission',description:JSON.stringify(rawInput),rawInput}});
 
 test('native plan read is an action, not a JSON description',()=>{
- const raw={kind:'custom-tool',toolName:'vibes_plan',toolDescription:'Read/write the plan',args:{action:'read'},toolCallId:'synthetic'};
+ const raw={kind:'custom-tool',toolName:'plan',toolDescription:'Read/write the plan',args:{action:'read'},toolCallId:'synthetic'};
  const result=agentRequestDetails(native(raw));
  expect(result.title).toBe('Read conversation plan');
  expect(result.explanation).toBe('Read the shared plan for this conversation.');
@@ -12,7 +12,7 @@ test('native plan read is an action, not a JSON description',()=>{
  expect(JSON.parse(result.technical)).toEqual(raw);
 });
 test('plan write preserves proposed content and revision',()=>{
- const result=agentRequestDetails(native({kind:'custom-tool',toolName:'vibes_plan',args:{action:'write',markdown:'- [ ] Review',expected_revision:3}}));
+ const result=agentRequestDetails(native({kind:'custom-tool',toolName:'plan',args:{action:'write',markdown:'- [ ] Review',expected_revision:3}}));
  expect(result.title).toBe('Update conversation plan');
  expect(result.fields).toEqual([{label:'markdown',value:'- [ ] Review'},{label:'expected_revision',value:'3'}]);
 });

@@ -509,7 +509,7 @@ export function installPlanSidebar() {
 
   function buildPlanSubmissionPrompt(markdown) {
     return [
-      "Use the shared session Plan tool checklist as the working plan (vibes_plan in Pi, plan over MCP). Read the latest revision before changing it.",
+      "Use the shared session Plan tool checklist as the working plan (plan in Pi, plan over MCP). Read the latest revision before changing it.",
       "",
       "- Continue with the next relevant item.",
       "- Update the plan as work changes or completes.",

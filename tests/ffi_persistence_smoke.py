@@ -95,7 +95,7 @@ async def main():
                         "allow_freeform": True,
                     },
                 ),
-                ("vibes_plan", {"action": "read"}),
+                ("plan", {"action": "read"}),
                 ("vibes_attach_file", {"path": "synthetic-output.txt"}),
                 ("fixture-echo", {"text": "mcp-marker"}),
             ]

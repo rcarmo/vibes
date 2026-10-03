@@ -19,7 +19,7 @@ test('Pi Plan serializes action fields only when provider materializes unused op
     try {
         const { default: register } = await import('data:text/javascript;base64,' + Buffer.from(javascript).toString('base64'));
         register({ registerTool: tool => tools.push(tool) });
-        const tool = tools.find(tool => tool.name === 'vibes_plan');
+        const tool = tools.find(tool => tool.name === 'plan');
         expect(tool).toBeDefined();
         const empty = { markdown: '', plan: [], patches: [], edits: [] };
         await tool.execute('read', { action: 'read', ...empty });

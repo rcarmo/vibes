@@ -2,7 +2,7 @@ import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 export default function (pi: ExtensionAPI) {
   pi.registerTool({
-    name: "vibes_plan",
+    name: "plan",
     label: "Session Plan",
     description: "Read or update the current session's persistent Plan sidebar. Actions read/write/update/patch/edit share the browser's revision-safe store. Read first; mutations require expected_revision from the latest read. Never choose a session. At most one item is in_progress; max 128 KiB. Patch indexes are 1-based; use index OR a unique match. Edit anchors must occur exactly once.",
     parameters: Type.Object({
