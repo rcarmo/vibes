@@ -8,6 +8,8 @@ import asyncio
 
 from .copilot_client import CopilotBackend
 
+_DIAGNOSTICS_TIMEOUT = 10
+
 
 class ConversationLane(CopilotBackend):
     def __init__(self, host, chat_id):
@@ -97,7 +99,8 @@ class CopilotHost:
                 return {'state': 'unavailable', 'tools': []}
             client = lane.client
             try:
-                metadata = await session.rpc.tools.get_current_metadata(timeout=10)
+                async with asyncio.timeout(_DIAGNOSTICS_TIMEOUT):
+                    metadata = await session.rpc.tools.get_current_metadata(timeout=_DIAGNOSTICS_TIMEOUT)
                 if (self.lanes.get(chat_id) is not lane or lane.sessions.get(chat_id) is not session
                         or lane.client is not client or self.runtime.client is not client
                         or self.diagnostics(chat_id)['state'] == 'unavailable'):

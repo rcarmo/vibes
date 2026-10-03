@@ -188,3 +188,25 @@ async def test_tool_diagnostics_bounds_and_typed_deferred_flags():
     assert len(result['tools']) == 61
     assert all(entry['state'] == 'offered' for entry in result['tools'])
     assert result['tools'][-1]['name'] == 'tool-60'
+
+
+@pytest.mark.asyncio
+async def test_tool_diagnostics_enforces_timeout_and_releases_lane():
+    import asyncio
+    from unittest.mock import patch
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    cancelled = False
+    async def stalled(**kwargs):
+        nonlocal cancelled
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled = True
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=stalled)))
+    with patch('vibes.copilot_host._DIAGNOSTICS_TIMEOUT', 0.01):
+        assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
+    assert cancelled
+    assert not lane.turn_lock.locked()
