@@ -11,7 +11,13 @@
     "timeoutMs": 60000
   },
   "session": {
-    "open": "/"
+    "create": {
+      "method": "POST",
+      "path": "/sessions",
+      "body": { "name": "{name}" },
+      "idField": "session.id"
+    },
+    "open": "/?session_id={id}"
   },
   "auth": {
     "mode": "none"

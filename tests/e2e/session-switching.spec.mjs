@@ -1230,3 +1230,12 @@ test('timeline completion between pointer down and up preserves picker activatio
     }
     await expect(page.getByRole('option', { name: 'test/afterx', exact: true })).toBeVisible();
 });
+
+test('full page load honours the session_id URL parameter', async ({ page }) => {
+    const response = await page.request.post('/sessions', { data: { name: 'URL-selected session' } });
+    expect(response.ok()).toBeTruthy();
+    const session = (await response.json()).session;
+    await page.goto(`/?session_id=${encodeURIComponent(session.id)}`);
+    await expect.poll(() => page.evaluate(() => globalThis.__vibesCurrentSession)).toBe(session.id);
+    await expect(page.getByTestId('session-switcher')).toContainText(session.id);
+});

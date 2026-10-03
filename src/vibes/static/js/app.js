@@ -704,8 +704,8 @@ function App() {
         fetch('/terminal/session').then(r => r.json()).then(s => setTerminalEnabled(!!s.enabled)).catch(() => {});
     }, []);
     const [posts, setPosts] = useState(null);
-    const [selectedSession, setSelectedSession] = useState('default');
-    const selectedSessionRef = useRef('default');
+    const [selectedSession, setSelectedSession] = useState(() => new URLSearchParams(window.location.search).get('session_id') || 'default');
+    const selectedSessionRef = useRef(selectedSession);
     useEffect(() => {
         globalThis.__vibesCurrentSession = selectedSession;
         window.dispatchEvent(new CustomEvent('vibes:session-changed', { detail: { session_id: selectedSession } }));
