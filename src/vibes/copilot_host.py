@@ -127,6 +127,40 @@ class CopilotHost:
             except Exception:
                 return {'state': 'unavailable', 'tools': []}
 
+    async def mcp_diagnostics(self, chat_id):
+        """Inspect existing MCP connection state, never connect or list tools."""
+        lane = self.lanes.get(chat_id)
+        if lane is None or self.diagnostics(chat_id)['state'] != 'ready':
+            return {'state': 'unavailable', 'servers': []}
+        async with lane.turn_lock:
+            session = lane.sessions.get(chat_id)
+            client = lane.client
+            if session is None or client is not self.runtime.client or self.diagnostics(chat_id)['state'] == 'unavailable':
+                return {'state': 'unavailable', 'servers': []}
+            try:
+                async with asyncio.timeout(_DIAGNOSTICS_TIMEOUT):
+                    metadata = await session.rpc.mcp.list(timeout=_DIAGNOSTICS_TIMEOUT)
+                if (self.lanes.get(chat_id) is not lane or lane.sessions.get(chat_id) is not session
+                        or lane.client is not client or self.runtime.client is not client
+                        or self.diagnostics(chat_id)['state'] == 'unavailable'):
+                    return {'state': 'unavailable', 'servers': []}
+                data = metadata.to_dict()
+                if not isinstance(data, dict) or not isinstance(data.get('servers'), list):
+                    raise ValueError('Invalid MCP metadata')
+                from .diagnostics import _labels
+                servers = []
+                states = {'connected', 'failed', 'needs-auth', 'pending', 'disabled', 'stopped', 'not_configured'}
+                for server in data['servers'][:32]:
+                    if not isinstance(server, dict):
+                        continue
+                    names = _labels([server.get('name')], 1)
+                    state = server.get('status')
+                    if names and isinstance(state, str) and state in states:
+                        servers.append({'name': names[0], 'state': state})
+                return {'state': 'reported', 'servers': servers, 'truncated': len(data['servers']) > 32}
+            except Exception:
+                return {'state': 'unavailable', 'servers': []}
+
     def lane(self, chat_id):
         if not isinstance(chat_id, str) or not chat_id:
             raise ValueError("Conversation identity required")

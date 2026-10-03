@@ -210,3 +210,54 @@ async def test_tool_diagnostics_enforces_timeout_and_releases_lane():
         assert await host.tool_diagnostics('selected') == {'state': 'unavailable', 'tools': []}
     assert cancelled
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_mcp_diagnostics_safe_existing_connection_states():
+    host = CopilotHost()
+    assert await host.mcp_diagnostics('absent') == {'state': 'unavailable', 'servers': []}
+    assert host.lanes == {}
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'servers': [
+        {'name': 'local', 'status': 'connected', 'error': 'private', 'serverMetadata': {'secret': 'private'}},
+        {'name': 'broken', 'status': 'failed', 'error': 'private'},
+        {'name': 'bad\nname', 'status': 'connected'},
+        {'name': 'unknown', 'status': 'private-state'},
+    ], 'host': {'private': 'secret'}}))
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(mcp=SimpleNamespace(list=read)))
+    result = await host.mcp_diagnostics('selected')
+    assert result['servers'] == [{'name': 'local', 'state': 'connected'}, {'name': 'broken', 'state': 'failed'}]
+    assert 'private' not in str(result)
+    read.assert_awaited_once_with(timeout=10)
+    read.reset_mock()
+    await lane.turn_lock.acquire()
+    try:
+        assert (await host.mcp_diagnostics('selected'))['state'] == 'unavailable'
+        read.assert_not_awaited()
+    finally:
+        lane.turn_lock.release()
+    read.side_effect = RuntimeError('private failure')
+    assert await host.mcp_diagnostics('selected') == {'state': 'unavailable', 'servers': []}
+    assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_mcp_diagnostics_discards_stale_and_propagates_cancel():
+    import asyncio
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    async def stale(**kwargs):
+        host.closing = True
+        return SimpleNamespace(to_dict=lambda: {'servers': [{'name': 'stale', 'status': 'connected'}]})
+    read = AsyncMock(side_effect=stale)
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(mcp=SimpleNamespace(list=read)))
+    assert await host.mcp_diagnostics('selected') == {'state': 'unavailable', 'servers': []}
+    host.closing = False
+    read.side_effect = asyncio.CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await host.mcp_diagnostics('selected')
+    assert not lane.turn_lock.locked()
