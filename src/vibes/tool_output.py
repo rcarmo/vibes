@@ -25,4 +25,6 @@ class ToolOutputState:
                     combined = state['output'] + content
                     state['output'] = combined[-self.limit:]
                     state['output_truncated'] |= len(combined) > self.limit or bool(event.get('content_truncated'))
+        if event.get('type') == 'tool_status' and event.get('status') in {'completed', 'failed', 'ended'}:
+            state.setdefault('ended_at', time.time())
         return {**event, **state}

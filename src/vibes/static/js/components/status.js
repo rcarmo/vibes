@@ -243,7 +243,7 @@ export function AgentStatus({
                 panelKey: 'thought',
             })}
             ${status?.output && html`<div class="thinking-panel">
-                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}${status.started_at ? ` · ${Math.max(0, Math.floor((toolClock - status.started_at * 1000) / 1000))}s` : ''}</button>
+                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}${status.started_at ? ` · ${Math.max(0, Math.floor(((status.ended_at ? status.ended_at * 1000 : toolClock) - status.started_at * 1000) / 1000))}s` : ''}</button>
                 <pre class="thinking-panel-body" style=${expandedPanels.has('output') ? '' : 'max-height:9em;overflow:auto'}>${status.output}</pre>
             </div>`}
             ${status && html`

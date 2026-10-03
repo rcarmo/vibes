@@ -1116,7 +1116,7 @@ ${Wt.map((ye,tt)=>{let kn=vo[tt]?.name||`image-${tt+1}`;return`- attachment:${ye
             ${Ge&&ai({panelTitle:"Draft",text:Te.text,totalLines:Te.totalLines,maxLines:9,titleClass:"thought",panelKey:"draft"})}
             ${Qe&&ai({panelTitle:"Thoughts",text:he.text,totalLines:he.totalLines,maxLines:9,titleClass:"thought",panelKey:"thought"})}
             ${n?.output&&De`<div class="thinking-panel">
-                <button type="button" class="thinking-panel-header" aria-expanded=${re.has("output")} onClick=${()=>toggleThinking("output")}>Output${n.output_truncated?" (truncated)":""}${n.started_at?` · ${Math.max(0,Math.floor((pe-n.started_at*1000)/1000))}s`:""}</button>
+                <button type="button" class="thinking-panel-header" aria-expanded=${re.has("output")} onClick=${()=>toggleThinking("output")}>Output${n.output_truncated?" (truncated)":""}${n.started_at?` · ${Math.max(0,Math.floor(((n.ended_at?n.ended_at*1000:pe)-n.started_at*1000)/1000))}s`:""}</button>
                 <pre class="thinking-panel-body" style=${re.has("output")?"":"max-height:9em;overflow:auto"}>${n.output}</pre>
             </div>`}
             ${n&&De`
@@ -2459,4 +2459,4 @@ Replace this reviewed revision with your draft?`))return;let Et=await tce(ye.id,
         </div>
     `}SQt(De`<${NDn} />`,document.getElementById("app"));if(!new URLSearchParams(window.location.search).has("popout"))rzt();
 
-//# debugId=922215C497FABE7264756E2164756E21
+//# debugId=4EC34C96F727D9C264756E2164756E21
