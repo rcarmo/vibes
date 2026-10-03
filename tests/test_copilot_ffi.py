@@ -332,7 +332,7 @@ async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeyp
     commands = SimpleNamespace(commands=[SimpleNamespace(to_dict=lambda: {'name': 'native', 'kind': 'builtin', 'privateToken': 'secret', 'description': 'bad\nlabel'})])
     skills = SimpleNamespace(skills=[SimpleNamespace(to_dict=lambda: {'name': 'loaded', 'enabled': True})])
     session = SimpleNamespace(rpc=SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(return_value=commands)), skills=SimpleNamespace(list=AsyncMock(return_value=skills))))
-    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     result = await backend.command_catalogue('chat', object())
     assert result['available'] is True
     assert result['commands'][0] == {'name': 'native', 'kind': 'builtin'}
@@ -346,7 +346,7 @@ async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeyp
 async def test_compaction_uses_native_history_without_reset(setup, monkeypatch):
     backend, *_ = setup
     session = SimpleNamespace(rpc=SimpleNamespace(history=SimpleNamespace(compact=AsyncMock(return_value=SimpleNamespace(success=True, messages_removed=2, tokens_removed=0, context_window=None)))))
-    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     result = await backend.compact('chat', object())
     assert result == {'success': True, 'messages_removed': 2, 'tokens_removed': 0, 'context_window': None}
     session.rpc.history.compact.assert_awaited_once_with(timeout=120)
@@ -380,7 +380,7 @@ async def test_failed_native_compaction_clears_state_and_releases_lane(setup, mo
     backend, *_ = setup
     history = SimpleNamespace(compact=AsyncMock(side_effect=RuntimeError('native failure')))
     session = SimpleNamespace(rpc=SimpleNamespace(history=history))
-    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     with pytest.raises(RuntimeError, match='native failure'):
         await backend.compact('chat', object())
     assert not backend.compacting_sessions
@@ -396,7 +396,7 @@ async def test_cancelled_compaction_task_releases_lane(setup, monkeypatch):
         entered.set()
         await asyncio.Event().wait()
     session = SimpleNamespace(rpc=SimpleNamespace(history=SimpleNamespace(compact=compact)))
-    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     task = asyncio.create_task(backend.compact('chat', object()))
     await entered.wait()
     assert backend.compacting_sessions == {'chat'}
@@ -410,7 +410,7 @@ async def test_cancelled_compaction_task_releases_lane(setup, monkeypatch):
 async def test_busy_command_discovery_never_calls_native_session(setup, monkeypatch):
     backend, *_ = setup
     session = AsyncMock()
-    monkeypatch.setattr(backend, '_session', session)
+    monkeypatch.setattr(backend, '_ready_session', session)
     async with backend.turn_lock:
         result = await backend.command_catalogue('chat', object())
     assert result == {'available': False, 'busy': True, 'commands': [], 'skills': []}
@@ -449,7 +449,7 @@ async def test_native_catalogue_caps_both_sources_and_drops_invalid_names(setup,
     session = SimpleNamespace(rpc=SimpleNamespace(
         commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=entries))),
         skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=entries)))))
-    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     result = await backend.command_catalogue('chat', object())
     assert result['truncated'] is True
     assert len(result['commands']) == len(result['skills']) == 127
@@ -458,7 +458,7 @@ async def test_native_catalogue_caps_both_sources_and_drops_invalid_names(setup,
 @pytest.mark.asyncio
 async def test_native_catalogue_session_failure_is_unavailable_and_releases_lane(setup, monkeypatch):
     backend, *_ = setup
-    monkeypatch.setattr(backend, '_session', AsyncMock(side_effect=RuntimeError('private startup diagnostic')))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(side_effect=RuntimeError('private startup diagnostic')))
     result = await backend.command_catalogue('chat', object())
     assert result == {'available': False, 'commands': [], 'skills': []}
     assert not backend.turn_lock.locked()
@@ -471,7 +471,7 @@ async def test_native_catalogue_cancellation_propagates_and_releases_lane(setup,
     async def acquire(*args):
         entered.set()
         await asyncio.Event().wait()
-    monkeypatch.setattr(backend, '_session', acquire)
+    monkeypatch.setattr(backend, '_ready_session', acquire)
     discovery = asyncio.create_task(backend.command_catalogue('chat', object()))
     await asyncio.wait_for(entered.wait(), timeout=1)
     discovery.cancel()

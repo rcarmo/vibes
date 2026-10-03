@@ -562,7 +562,7 @@ class CopilotBackend:
         async with self.turn_lock:
             try:
                 from copilot.generated.rpc import SessionCommandsListRequest
-                session = await self._session(chat_id, store)
+                session = await self._ready_session(chat_id, store)
                 listing = await session.rpc.commands.list(SessionCommandsListRequest(include_builtins=True, include_client_commands=False, include_skills=True), timeout=10)
                 skills = await session.rpc.skills.list(timeout=10)
             except Exception:
