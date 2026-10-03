@@ -515,3 +515,18 @@ async def test_invalid_queued_media_never_reaches_native_send(setup, monkeypatch
     store.bind_backend.assert_not_awaited()
     assert not backend.turn_lock.locked()
     assert backend.active is None
+
+@pytest.mark.asyncio
+async def test_fresh_catalogue_starts_native_runtime_without_persisting_empty_session(setup):
+    backend, client, session, factory, ffi = setup
+    async def list_commands(*args, **kwargs):
+        client.start.assert_awaited_once()
+        return SimpleNamespace(commands=[])
+    session.rpc = SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(side_effect=list_commands)),
+                                  skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=[]))))
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value=None), bind_backend=AsyncMock())
+    result = await backend.command_catalogue('chat', store)
+    assert result['available'] is True
+    client.create_session.assert_awaited_once()
+    store.bind_backend.assert_not_awaited()
+    assert not backend.turn_lock.locked()
