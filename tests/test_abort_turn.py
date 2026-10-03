@@ -146,3 +146,26 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
             enqueue.assert_called_once_with(agents.process_agent_response, root, 'keep queued', 'default')
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_followup_admission_failure_restores_same_item(db, monkeypatch):
+    import importlib
+    from vibes import followups, agent_attachments
+    agents = importlib.import_module('vibes.routes.agents')
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(agent_attachments, 'referenced_media', AsyncMock(return_value=[]))
+    root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
+    followups.reset_state()
+    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='retry')
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
+    monkeypatch.setattr(agents, '_dispatch_pi_thread', AsyncMock(return_value={'text': 'done', 'content': [], 'cancelled': False}))
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    monkeypatch.setattr(agents, 'enqueue', Mock(side_effect=RuntimeError('worker unavailable')))
+    try:
+        await agents.process_agent_response(root, 'run', 'default')
+        assert followups.list_followups() == [item]
+        assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.await_args_list)
+    finally:
+        followups.reset_state()

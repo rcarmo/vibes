@@ -984,8 +984,12 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 thread_id,
                 next_followup.get("mode", "queue"),
             )
+            try:
+                enqueue(process_agent_response, thread_id, next_followup["content"], agent_id)
+            except Exception:
+                restore_followup(next_followup)
+                raise
             await broadcast_event("agent_followup_consumed", _serialize_followup_event(next_followup))
-            enqueue(process_agent_response, thread_id, next_followup["content"], agent_id)
         
     except Exception as e:
         if _resolve_agent_mode(agent_id) == 'copilot-ffi':
