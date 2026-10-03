@@ -957,3 +957,52 @@ async def test_action_requires_existing_root_before_admission(mock_deps, reply):
         response = await agents_mod.trigger_action(request)
     assert response.status == (400 if reply else 404)
     mock_deps['enqueue'].assert_not_called()
+
+@pytest.mark.asyncio
+async def test_status_reconnect_reads_persisted_tools_and_scopes_chat(tmp_path):
+    from vibes.routes import agents
+    from vibes.db import Database
+    from vibes.sessions import SessionStore
+    from vibes.tool_output import ToolOutputState
+
+    path = str(tmp_path / 'status-reconnect.db')
+    db = Database(path)
+    await db.connect()
+    selected = await SessionStore(db).create('Selected')
+    other = await SessionStore(db).create('Other')
+    root = await db.create_interaction({'role': 'user', 'content': 'work', 'session_id': selected['id']})
+    foreign = await db.create_interaction({'role': 'user', 'content': 'private', 'session_id': other['id']})
+    await db.begin_turn('selected-turn', root, 'pi')
+    await db.begin_turn('foreign-turn', foreign, 'pi')
+    state = ToolOutputState()
+    state.update({'type': 'tool', 'tool_call_id': 'a', 'tool_name': 'read'})
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': '<literal>'})
+    state.update({'type': 'tool_status', 'tool_call_id': 'a', 'status': 'completed'})
+    state.update({'type': 'tool', 'tool_call_id': 'b', 'tool_name': 'shell'})
+    snapshot = state.update({'type': 'tool_output', 'tool_call_id': 'b', 'content': 'still working'})
+    await db.update_turn_status('selected-turn', snapshot)
+    await db.update_turn_status('foreign-turn', {'output': 'private'})
+    await db.close()
+    reopened = Database(path)
+    await reopened.connect()
+    try:
+        request = MagicMock()
+        request.query = {'session_id': selected['id']}
+        with patch.object(agents, 'get_db', AsyncMock(return_value=reopened)), \
+             patch('vibes.pi_client.is_busy', return_value=False), \
+             patch.object(agents, '_ffi_busy', return_value=False):
+            response = await agents.get_agent_status(request)
+        payload = json.loads(response.text)
+        assert response.status == 200
+        assert len(payload['active_turns']) == 1
+        turn = payload['active_turns'][0]
+        assert turn['turn_id'] == 'selected-turn'
+        assert turn['session_id'] == selected['id']
+        calls = turn['last_status']['tool_calls']
+        assert [call['tool_call_id'] for call in calls] == ['a', 'b']
+        assert calls[0]['output'] == '<literal>'
+        assert calls[0]['ended_at'] is not None
+        assert calls[1]['output'] == 'still working'
+        assert 'private' not in response.text
+    finally:
+        await reopened.close()
