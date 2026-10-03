@@ -288,3 +288,28 @@ def test_production_diagnostics_routes_with_configured_auth_over_http():
                 assert host.lanes == {}
                 assert host.runtime.client is None
     asyncio.run(exercise())
+
+
+def test_pi_acp_scoped_capability_inspection_is_explicitly_unavailable():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+
+    for agent in ('pi', 'acp'):
+        request = MagicMock()
+        request.query = {'session_id': 'selected'}
+        native = MagicMock()
+        with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent=agent)), \
+             patch('vibes.db.get_db', AsyncMock()), \
+             patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+             patch('vibes.copilot_host.backend', native):
+            response = asyncio.run(app.diagnostics_handler(request))
+        payload = json.loads(response.text)
+        assert payload['session_id'] == 'selected'
+        assert payload['runtime'] == {'state': 'unavailable', 'capabilities_verified': False}
+        for key, collection in [('runtime_tools', 'tools'), ('runtime_mcp', 'servers'), ('runtime_skills', 'skills')]:
+            assert payload[key] == {'state': 'unavailable', collection: []}
+        assert payload['execution_verified'] is False
+        assert response.headers['Cache-Control'] == 'no-store'
+        assert native.mock_calls == []

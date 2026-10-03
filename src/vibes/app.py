@@ -61,6 +61,12 @@ async def diagnostics_handler(request: web.Request) -> web.Response:
                     or result['runtime']['state'] == 'unavailable'):
                 for key, collection in [('runtime_tools', 'tools'), ('runtime_mcp', 'servers'), ('runtime_skills', 'skills')]:
                     result[key] = {'state': 'unavailable', collection: []}
+        else:
+            # Pi/ACP do not expose passive per-chat capability inspection.
+            # Never infer availability from process-global state or start a session.
+            result['runtime'] = {'state': 'unavailable', 'capabilities_verified': False}
+            for key, collection in [('runtime_tools', 'tools'), ('runtime_mcp', 'servers'), ('runtime_skills', 'skills')]:
+                result[key] = {'state': 'unavailable', collection: []}
     return web.json_response(result, headers={'Cache-Control': 'no-store'})
 
 
