@@ -903,7 +903,7 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mod
     if raises:
         mock_deps['enqueue'].side_effect = RuntimeError('private-worker-detail')
     with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent=mode)):
-        with patch.object(agents_mod, '_is_agent_busy', return_value=False):
+        with patch.object(agents_mod, 'is_pi_busy', return_value=False):
             request = _make_send_request('Keep my message')
             response = await agents_mod.send_message(request)
     assert response.status == 503
