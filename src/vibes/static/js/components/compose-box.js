@@ -403,7 +403,7 @@ export function ComposeBox({
         }
         return { ...group, providers: Array.from(providers, ([label, models]) => ({ label, models })) };
     });
-    const [slashCommands, setSlashCommands] = useState(sessionId === 'default' ? SLASH_COMMANDS : []);
+    const [slashCommands, setSlashCommands] = useState([]);
     const textareaRef = useRef(null);
     // File identity survives failed sends; weak keys release discarded drafts.
     const uploadedFiles = useRef(new WeakMap());
@@ -444,8 +444,9 @@ export function ComposeBox({
         historyDraftRef.current = '';
     }, [sessionId]);
 
-    // Fetch commands for this session without consuming another Pi stream.
+    // Never advertise another chat's catalogue while discovery is pending.
     useEffect(() => {
+        setSlashCommands([]);
         let disposed = false;
         getAgentCommands(sessionId)
             .then((data) => {
