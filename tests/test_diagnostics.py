@@ -63,7 +63,9 @@ def test_diagnostics_http_is_read_only_and_not_cacheable():
     backend = MagicMock()
     with patch.object(app, 'get_config', return_value=config), \
          patch('vibes.copilot_host.backend', backend):
-        response = asyncio.run(app.diagnostics_handler(MagicMock()))
+        request = MagicMock()
+        request.query = {}
+        response = asyncio.run(app.diagnostics_handler(request))
     assert response.status == 200
     assert response.headers['Cache-Control'] == 'no-store'
     assert response.content_type == 'application/json'
@@ -73,3 +75,30 @@ def test_diagnostics_http_is_read_only_and_not_cacheable():
     assert payload['memory']['diagnostics'] == [{'path': 'notes.md', 'status': 'missing'}]
     assert 'private-' not in response.text
     assert backend.mock_calls == []
+
+
+def test_scoped_diagnostics_validates_chat_without_native_start():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+    from vibes.copilot_host import CopilotHost
+
+    host = CopilotHost()
+    request = MagicMock()
+    request.query = {'session_id': 'selected'}
+    with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent='copilot-ffi')), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+         patch('vibes.copilot_host.backend', host):
+        response = asyncio.run(app.diagnostics_handler(request))
+    assert response.status == 200
+    assert json.loads(response.text)['runtime']['state'] == 'not-started'
+    assert host.lanes == {}
+    assert host.runtime.client is None
+    with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent='copilot-ffi')), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value=None)):
+        response = asyncio.run(app.diagnostics_handler(request))
+    assert response.status == 404
+    assert response.headers['Cache-Control'] == 'no-store'

@@ -38,7 +38,20 @@ async def health_check(request: web.Request) -> web.Response:
 
 async def diagnostics_handler(request: web.Request) -> web.Response:
     from .diagnostics import backend_diagnostics
-    return web.json_response(backend_diagnostics(get_config()), headers={'Cache-Control': 'no-store'})
+    config = get_config()
+    result = backend_diagnostics(config)
+    session_id = request.query.get('session_id')
+    if session_id is not None:
+        from .db import get_db
+        from .sessions import SessionStore
+        if not await SessionStore(await get_db()).get(session_id):
+            return web.json_response({'error': 'Session not found'}, status=404,
+                                     headers={'Cache-Control': 'no-store'})
+        result['session_id'] = session_id
+        if config.default_agent.lower() == 'copilot-ffi':
+            from .copilot_host import backend
+            result['runtime'] = backend.diagnostics(session_id)
+    return web.json_response(result, headers={'Cache-Control': 'no-store'})
 
 
 async def manifest_handler(request: web.Request) -> web.Response:

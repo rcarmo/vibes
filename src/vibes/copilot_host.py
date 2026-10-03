@@ -69,6 +69,17 @@ class CopilotHost:
     def client(self, value):
         self.runtime.client = value
 
+    def diagnostics(self, chat_id):
+        """Passive lane lifecycle inspection; never acquire/create a session."""
+        lane = self.lanes.get(chat_id)
+        if lane is None:
+            return {'state': 'not-started', 'session_bound': False, 'capabilities_verified': False}
+        state = ('unavailable' if self.closing or lane.closing or lane.poisoned
+                 else 'busy' if lane.turn_lock.locked()
+                 else 'ready' if lane.client is not None else 'not-started')
+        return {'state': state, 'session_bound': chat_id in lane.sessions,
+                'capabilities_verified': False}
+
     def lane(self, chat_id):
         if not isinstance(chat_id, str) or not chat_id:
             raise ValueError("Conversation identity required")
