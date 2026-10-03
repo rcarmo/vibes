@@ -262,3 +262,38 @@ async def test_followup_source_rejection_preserves_queue_before_admission(mode, 
         assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.call_args_list)
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+@pytest.mark.parametrize('cancel', [False, True])
+async def test_consumed_notification_failure_does_not_restore_admitted_followup(mode, cancel, db, monkeypatch):
+    from unittest.mock import Mock
+    from vibes import followups
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
+    root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
+    followups.reset_state()
+    followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='next')
+    later = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='later')
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
+    monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', AsyncMock(return_value={'text': 'done', 'content': []}))
+    async def broadcast(event, payload):
+        if event == 'agent_followup_consumed':
+            if cancel:
+                raise asyncio.CancelledError()
+            raise RuntimeError('notification unavailable')
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    admission = Mock(return_value=True)
+    monkeypatch.setattr(agents, 'enqueue', admission)
+    try:
+        if cancel:
+            with pytest.raises(asyncio.CancelledError):
+                await agents.process_agent_response(root, 'run', 'default')
+        else:
+            await agents.process_agent_response(root, 'run', 'default')
+        admission.assert_called_once_with(agents.process_agent_response, root, 'next', 'default', media_ids=None)
+        assert [row['row_id'] for row in followups.list_followups()] == [later['row_id']]
+        assert followups.list_pending_steers() == []
+    finally:
+        followups.reset_state()
