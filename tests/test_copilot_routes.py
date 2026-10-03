@@ -175,3 +175,25 @@ async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, 
         process.assert_awaited_once()
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_ffi_missing_followup_source_is_preserved_not_dispatched(db, config, monkeypatch):
+    from vibes import followups
+    followups.reset_state()
+    agents._ffi_closing = False
+    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value=None)})()
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    process = AsyncMock(return_value=True)
+    monkeypatch.setattr(agents, 'process_agent_response', process)
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    try:
+        agents._enqueue_ffi('missing-source-chat', 1, 'first', 'default', [])
+        await agents._ffi_tasks['missing-source-chat']
+        assert followups.list_followups() == [item]
+        process.assert_awaited_once()
+        broadcast.assert_not_awaited()
+    finally:
+        followups.reset_state()
