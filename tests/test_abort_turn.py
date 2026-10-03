@@ -150,7 +150,8 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('raises', [True, False])
-async def test_followup_admission_failure_restores_same_item(db, monkeypatch, raises):
+@pytest.mark.parametrize('steer', [True, False])
+async def test_followup_admission_failure_restores_same_item(db, monkeypatch, raises, steer):
     import importlib
     from vibes import followups, agent_attachments
     agents = importlib.import_module('vibes.routes.agents')
@@ -158,7 +159,9 @@ async def test_followup_admission_failure_restores_same_item(db, monkeypatch, ra
     monkeypatch.setattr(agent_attachments, 'referenced_media', AsyncMock(return_value=[]))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
     followups.reset_state()
-    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='retry')
+    add = followups.defer_steer if steer else followups.queue_followup
+    item = add(thread_id=root, agent_id='default', message_id=root, content='retry')
+    later = add(thread_id=root, agent_id='default', message_id=root, content='later')
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
     monkeypatch.setattr(agents, '_dispatch_pi_thread', AsyncMock(return_value={'text': 'done', 'content': [], 'cancelled': False}))
     broadcast = AsyncMock()
@@ -167,7 +170,8 @@ async def test_followup_admission_failure_restores_same_item(db, monkeypatch, ra
     monkeypatch.setattr(agents, 'enqueue', admission)
     try:
         await agents.process_agent_response(root, 'run', 'default')
-        assert followups.list_followups() == [item]
+        remaining = followups.list_pending_steers() if steer else followups.list_followups()
+        assert remaining == [item, later]
         assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.await_args_list)
     finally:
         followups.reset_state()

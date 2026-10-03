@@ -136,7 +136,7 @@ def restore_followup(item: dict, *, steer: bool = False) -> dict:
     if steer:
         restored.mode = 'steer'
         restored.emulated = True
-        _state.pending_steers.append(restored)
+        _state.pending_steers.appendleft(restored)
     else:
         _state.queued.insert(0, restored)
     return restored.as_dict()

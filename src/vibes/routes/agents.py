@@ -988,7 +988,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                 if enqueue(process_agent_response, thread_id, next_followup["content"], agent_id) is False:
                     raise RuntimeError('Follow-up worker admission rejected')
             except Exception:
-                restore_followup(next_followup)
+                restore_followup(next_followup, steer=next_followup.get('mode') == 'steer')
                 raise
             await broadcast_event("agent_followup_consumed", _serialize_followup_event(next_followup))
         
