@@ -113,6 +113,8 @@ class TestWorkspaceFileRoutes:
         assert data["kind"] == "text"
         assert data["text"] == "hello workspace"
         assert data["truncated"] is False
+        assert data["lossless"] is True
+        assert data["editable"] is True
 
         resp = await client.get("/workspace/file?path=big.txt&max=256")
         assert resp.status == 200
@@ -120,6 +122,13 @@ class TestWorkspaceFileRoutes:
         assert data["kind"] == "text"
         assert data["truncated"] is True
         assert len(data["text"]) == 256
+        assert data["editable"] is False
+
+        (workspace_dir / "lossy.txt").write_bytes(b"hello\xffworld")
+        resp = await client.get("/workspace/file?path=lossy.txt")
+        data = await resp.json()
+        assert data["lossless"] is False
+        assert data["editable"] is False
 
         resp = await client.get("/workspace/file?path=dir")
         assert resp.status == 400

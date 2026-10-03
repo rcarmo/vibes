@@ -1038,7 +1038,7 @@ function App() {
         });
         try {
             const data = await getWorkspaceFile(path, 5_000_000, 'edit');
-            if (data?.kind === 'text') {
+            if (data?.kind === 'text' && !data.truncated && data.lossless !== false && data.editable !== false) {
                 setEditorTabs((prev) => prev.map((tab) => (
                     tab.id === path
                         ? {
@@ -1054,7 +1054,7 @@ function App() {
                 )));
             } else {
                 setEditorTabs((prev) => prev.map((tab) => (
-                    tab.id === path ? { ...tab, content: '', savedContent: '', loading: false, error: 'File is not a text file' } : tab
+                    tab.id === path ? { ...tab, content: '', savedContent: '', loading: false, error: data?.kind === 'text' ? 'Preview is incomplete or not lossless UTF-8. Download the full file instead.' : 'File is not a text file' } : tab
                 )));
             }
         } catch (err) {
@@ -1102,7 +1102,7 @@ function App() {
             const savedAt = Date.now();
             setEditorTabs((prev) => prev.map((tab) => (
                 tab.id === path
-                    ? { ...tab, content, savedContent: content, dirty: false, saving: false, saveError: null, savedAt }
+                    ? { ...tab, savedContent: content, dirty: tab.content !== content, saving: false, saveError: null, savedAt }
                     : tab
             )));
         } catch (err) {

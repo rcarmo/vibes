@@ -395,12 +395,19 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         truncated = len(data) > max_bytes
         if truncated:
             data = data[:max_bytes]
-        text = data.decode("utf-8", errors="replace")
+        try:
+            text = data.decode("utf-8")
+            lossless = True
+        except UnicodeDecodeError:
+            text = data.decode("utf-8", errors="replace")
+            lossless = False
         return web.json_response({
             **base,
             "kind": "text",
             "text": text,
             "truncated": truncated,
+            "lossless": lossless,
+            "editable": not truncated and lossless,
         })
 
     return web.json_response({
