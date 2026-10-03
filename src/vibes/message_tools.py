@@ -144,7 +144,7 @@ class MessageTools:
             content = str(data.get('content', ''))
             bounded = content[:min(4000, remaining)]
             messages.append({'row_id': row['id'], 'timestamp': row['timestamp'],
-                'type': data.get('type'), 'thread_id': data.get('thread_id'),
+                'type': data.get('type'), 'sender': data.get('sender'), 'session_id': data.get('session_id', 'default'), 'thread_id': data.get('thread_id'),
                 'content': bounded, 'content_truncated': len(bounded) < len(content),
                 'media_ids': media_ids,
                 'attachment_references': [f'attachment:{i}' for i in media_ids]})

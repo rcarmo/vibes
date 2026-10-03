@@ -287,3 +287,26 @@ async def test_messages_tool_rejects_scope_overrides_and_mutations(setup, monkey
     for args in [{'action': 'delete', 'row_ids': [1]}, {'action': 'get', 'row_ids': [1], 'session_id': 'chat-b'}]:
         with pytest.raises(ValueError):
             await tool.handler(SimpleNamespace(arguments=args, session_id='sdk'))
+
+@pytest.mark.asyncio
+async def test_ffi_messages_returns_only_current_chat_provenance(setup, monkeypatch, db):
+    import importlib
+    db_module = importlib.import_module('vibes.db')
+    backend, *_ = setup
+    owner = object()
+    monkeypatch.setattr(backend, '_owner', lambda chat, session: owner)
+    backend.sdk = SimpleNamespace(Tool=lambda **kw: SimpleNamespace(**kw), ToolResult=lambda **kw: SimpleNamespace(**kw))
+    from vibes.sessions import SessionStore
+    a = await SessionStore(db).create('chat-a')
+    b = await SessionStore(db).create('chat-b')
+    first = await db.create_interaction({'sender':'me', 'type':'user', 'content':'visible request', 'session_id':a['id']})
+    private = await db.create_interaction({'sender':'bot', 'type':'agent', 'content':'private other chat', 'session_id':b['id']})
+    async def get_db():
+        return db
+    monkeypatch.setattr(db_module, 'get_db', get_db)
+    tool = next(tool for tool in backend._tools(a['id']) if tool.name == 'messages')
+    result = await tool.handler(SimpleNamespace(arguments={'action': 'get', 'row_ids': [first, private]}, session_id='sdk'))
+    payload = __import__('json').loads(result.text_result_for_llm)
+    assert [row['row_id'] for row in payload['messages']] == [first]
+    assert payload['missing_row_ids'] == [private]
+    assert payload['messages'][0]['sender'] == 'me'
