@@ -261,3 +261,45 @@ async def test_mcp_diagnostics_discards_stale_and_propagates_cancel():
     with pytest.raises(asyncio.CancelledError):
         await host.mcp_diagnostics('selected')
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('data', [{}, [], {'servers': None}, {'servers': 'invalid'}])
+async def test_mcp_diagnostics_rejects_malformed_metadata(data):
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(mcp=SimpleNamespace(
+        list=AsyncMock(return_value=SimpleNamespace(to_dict=lambda: data)))))
+    assert await host.mcp_diagnostics('selected') == {'state': 'unavailable', 'servers': []}
+    assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_mcp_diagnostics_bounds_and_timeout():
+    import asyncio
+    from unittest.mock import patch
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'servers': [
+        {'name': f'server-{index}', 'status': 'connected', 'error': 'private'} for index in range(40)]}))
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(mcp=SimpleNamespace(list=read)))
+    result = await host.mcp_diagnostics('selected')
+    assert len(result['servers']) == 32
+    assert result['truncated'] is True
+    assert 'private' not in str(result)
+    cancelled = False
+    async def stalled(**kwargs):
+        nonlocal cancelled
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled = True
+    read.side_effect = stalled
+    with patch('vibes.copilot_host._DIAGNOSTICS_TIMEOUT', 0.01):
+        assert await host.mcp_diagnostics('selected') == {'state': 'unavailable', 'servers': []}
+    assert cancelled
+    assert not lane.turn_lock.locked()
