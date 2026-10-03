@@ -222,12 +222,16 @@ async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, c
 
 
 @pytest.mark.asyncio
-async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, config, monkeypatch):
+@pytest.mark.parametrize('root_source', [False, True])
+async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, config, monkeypatch, root_source):
     from vibes import followups
     followups.reset_state()
     agents._ffi_closing = False
-    followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
-    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'own-success', 'thread_id': 1, 'media_ids': [42]}})})()
+    followups.queue_followup(thread_id=1, agent_id='default', message_id=1 if root_source else 99, content='queued')
+    source = {'id': 1 if root_source else 99, 'data': {'session_id': 'own-success', 'media_ids': [42]}}
+    if not root_source:
+        source['data']['thread_id'] = 1
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value=source)})()
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
     process = AsyncMock(side_effect=[True, False])
     monkeypatch.setattr(agents, 'process_agent_response', process)
