@@ -130,7 +130,7 @@ def _default_pi_agent_command() -> str:
     extension_path = Path(__file__).parent / "extensions" / "pi-vibes-tools.ts"
     quoted_extension = shlex.quote(str(extension_path))
     return (
-        "pi --mode rpc --no-session "
+        "pi --mode rpc "
         f"-e {quoted_extension}"
     )
 
