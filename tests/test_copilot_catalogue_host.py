@@ -57,3 +57,26 @@ def test_passive_diagnostics_does_not_report_stale_client_ready():
     host.runtime.poisoned = False
     host.runtime.closing = True
     assert host.diagnostics('selected')['state'] == 'unavailable'
+
+
+@pytest.mark.asyncio
+async def test_passive_diagnostics_busy_state_is_lane_scoped():
+    host = CopilotHost()
+    host.runtime.client = object()
+    selected = host.lane('selected')
+    other = host.lane('other')
+    selected.client = other.client = host.runtime.client
+    await other.turn_lock.acquire()
+    try:
+        assert host.diagnostics('selected')['state'] == 'ready'
+        assert host.diagnostics('other')['state'] == 'busy'
+        await selected.turn_lock.acquire()
+        try:
+            assert host.diagnostics('selected')['state'] == 'busy'
+            selected.closing = True
+            assert host.diagnostics('selected')['state'] == 'unavailable'
+        finally:
+            selected.turn_lock.release()
+        assert set(host.lanes) == {'selected', 'other'}
+    finally:
+        other.turn_lock.release()
