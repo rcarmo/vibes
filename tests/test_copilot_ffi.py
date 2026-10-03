@@ -531,3 +531,18 @@ async def test_fresh_catalogue_starts_native_runtime_without_persisting_empty_se
     client.create_session.assert_awaited_once()
     store.bind_backend.assert_not_awaited()
     assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+async def test_catalogue_native_startup_failure_is_unavailable_without_fallback(setup):
+    backend, client, session, factory, ffi = setup
+    client.start.side_effect = RuntimeError('private native startup detail')
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value=None), bind_backend=AsyncMock())
+    result = await backend.command_catalogue('chat', store)
+    assert result == {'available': False, 'commands': [], 'skills': []}
+    client.create_session.assert_not_awaited()
+    client.resume_session.assert_not_awaited()
+    store.bind_backend.assert_not_awaited()
+    client.stop.assert_awaited_once()
+    assert backend.status()['ready'] is False
+    assert not backend.turn_lock.locked()
+    assert 'private' not in repr(result)
