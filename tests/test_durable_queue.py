@@ -73,3 +73,27 @@ async def test_independent_connections_cannot_claim_same_pending_item(tmp_path):
         await a.admitted(item, 'chat')
         assert await b.claim('chat') is None
         assert (await b.list('chat'))[0]['state'] == 'admitted'
+
+
+@pytest.mark.asyncio
+async def test_explicit_recovery_after_database_reopen_preserves_pending_work(tmp_path):
+    path = tmp_path / 'restart.db'
+    async with aiosqlite.connect(path) as connection:
+        queue = DurableQueue(connection)
+        await queue.initialise()
+        claimed = await queue.enqueue('chat', {'text': 'ambiguous'})
+        pending = await queue.enqueue('chat', {'text': 'not dispatched'})
+        assert (await queue.claim('chat'))['id'] == claimed
+    async with aiosqlite.connect(path) as connection:
+        queue = DurableQueue(connection)
+        await queue.initialise()
+        assert [row['state'] for row in await queue.list('chat')] == ['claimed', 'pending']
+        await queue.recover_after_restart()
+        await queue.recover_after_restart()  # Exclusive startup recovery is idempotent.
+        rows = await queue.list('chat')
+        assert [row['state'] for row in rows] == ['uncertain', 'pending']
+        assert (await queue.claim('chat'))['id'] == pending
+        await queue.admitted(pending, 'chat')
+        assert await queue.claim('chat') is None
+        with pytest.raises(ValueError):
+            await queue.admitted(claimed, 'chat')
