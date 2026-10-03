@@ -1,4 +1,4 @@
-import { toolOutputPanels } from './tool-output-panels.js';
+import { toolOutputPanels, hasRunningTool } from './tool-output-panels.js';
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 import { disclosureTriangle } from './disclosure-triangle.js';
@@ -77,10 +77,10 @@ export function AgentStatus({
 
     const [toolClock, setToolClock] = useState(Date.now());
     useEffect(() => {
-        if (!status?.started_at || ['completed', 'failed', 'ended'].includes(status?.status)) return;
+        if (!hasRunningTool(status)) return;
         const timer = setInterval(() => setToolClock(Date.now()), 1000);
         return () => clearInterval(timer);
-    }, [status?.tool_call_id, status?.started_at, status?.status]);
+    }, [status]);
     const [expandedPanels, setExpandedPanels] = useState(new Set());
     const panelBodies = useRef(new Map());
     const [overflowingPanels, setOverflowingPanels] = useState({});
