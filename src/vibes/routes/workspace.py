@@ -380,6 +380,7 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         "path": rel_path,
         "size": stat.st_size,
         "mtime": _format_mtime(target),
+        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
         "content_type": content_type,
     }
 
@@ -440,6 +441,14 @@ async def update_workspace_file(request: web.Request) -> web.Response:
     if target.is_dir():
         return web.json_response({"error": "Path is a directory"}, status=400)
 
+    expected_revision = data.get("expected_revision")
+    if expected_revision is not None:
+        if not isinstance(expected_revision, str):
+            return web.json_response({"error": "Invalid expected_revision"}, status=400)
+        current = target.stat() if target.exists() else None
+        revision = f"{current.st_mtime_ns}:{current.st_size}" if current else None
+        if revision != expected_revision:
+            return web.json_response({"error": "File changed since it was opened. Refresh before saving."}, status=409)
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(content_str, encoding="utf-8")
 
@@ -448,6 +457,7 @@ async def update_workspace_file(request: web.Request) -> web.Response:
         "path": _to_workspace_relative(target),
         "size": stat.st_size,
         "mtime": _format_mtime(target),
+        "revision": f"{stat.st_mtime_ns}:{stat.st_size}",
     })
 
 

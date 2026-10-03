@@ -344,10 +344,10 @@ export async function getWorkspaceFile(path, maxBytes = 20_000, mode = null) {
 /**
  * Update workspace file contents.
  */
-export async function updateWorkspaceFile(path, content) {
+export async function updateWorkspaceFile(path, content, expectedRevision = undefined) {
     return request('/workspace/file', {
         method: 'PUT',
-        body: JSON.stringify({ path, content }),
+        body: JSON.stringify({ path, content, expected_revision: expectedRevision }),
     });
 }
 

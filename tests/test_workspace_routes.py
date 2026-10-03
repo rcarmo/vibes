@@ -662,3 +662,24 @@ class TestMoveWorkspaceEntry:
         client = workspace_test_client
         resp = await client.post("/workspace/move", json={"path": "ghost.txt", "target": "."})
         assert resp.status == 404
+
+@pytest.mark.asyncio
+async def test_conditional_save_rejects_external_change(workspace_test_client, workspace_dir):
+    target = workspace_dir / 'revision.txt'
+    target.write_text('original', encoding='utf-8')
+    response = await workspace_test_client.get('/workspace/file?path=revision.txt')
+    revision = (await response.json())['revision']
+    target.write_text('external update', encoding='utf-8')
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'revision.txt', 'content': 'stale draft', 'expected_revision': revision,
+    })
+    assert response.status == 409
+    assert target.read_text() == 'external update'
+    response = await workspace_test_client.get('/workspace/file?path=revision.txt')
+    revision = (await response.json())['revision']
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'revision.txt', 'content': 'fresh draft', 'expected_revision': revision,
+    })
+    assert response.status == 200
+    assert (await response.json())['revision'] != revision
+    assert target.read_text() == 'fresh draft'

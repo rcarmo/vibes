@@ -1045,6 +1045,7 @@ function App() {
                             ...tab,
                             content: data.text || '',
                             savedContent: data.text || '',
+                            revision: data.revision,
                             loading: false,
                             error: null,
                             dirty: false,
@@ -1098,11 +1099,12 @@ function App() {
             tab.id === path ? { ...tab, saving: true, saveError: null } : tab
         )));
         try {
-            await updateWorkspaceFile(path, content);
+            const tabAtSave = editorTabs.find(tab => tab.id === path);
+            const result = await updateWorkspaceFile(path, content, tabAtSave?.revision);
             const savedAt = Date.now();
             setEditorTabs((prev) => prev.map((tab) => (
                 tab.id === path
-                    ? { ...tab, savedContent: content, dirty: tab.content !== content, saving: false, saveError: null, savedAt }
+                    ? { ...tab, savedContent: content, revision: result.revision, dirty: tab.content !== content, saving: false, saveError: null, savedAt }
                     : tab
             )));
         } catch (err) {
@@ -1110,7 +1112,7 @@ function App() {
                 tab.id === path ? { ...tab, saving: false, saveError: err?.message || 'Save failed' } : tab
             )));
         }
-    }, [activeEditorTabId]);
+    }, [activeEditorTabId, editorTabs]);
 
     const handleEditorChange = useCallback((nextContent, nextDirty) => {
         const path = activeEditorTabId;
