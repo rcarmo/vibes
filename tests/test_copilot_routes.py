@@ -138,3 +138,17 @@ async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch
     finally:
         followups.reset_state()
         agents._ffi_tasks.clear()
+
+
+@pytest.mark.asyncio
+async def test_native_predefined_action_never_uses_generic_worker(aiohttp_client, db, config, monkeypatch):
+    from unittest.mock import Mock
+    enqueue = Mock()
+    monkeypatch.setattr(agents, 'enqueue', enqueue)
+    app = web.Application()
+    agents.setup_routes(app)
+    client = await aiohttp_client(app)
+    response = await client.post('/agent/default/action/test', json={'thread_id': 1})
+    assert response.status == 409
+    assert (await response.json())['admitted'] is False
+    enqueue.assert_not_called()

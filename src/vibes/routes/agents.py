@@ -1476,6 +1476,8 @@ async def trigger_action(request: web.Request) -> web.Response:
     """Trigger a predefined agent action."""
     agent_id = request.match_info["agent_id"]
     action_id = request.match_info["action_id"]
+    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        return web.json_response({'error': 'Predefined actions unsupported by native dispatch', 'admitted': False}, status=409)
     
     try:
         data = await request.json()
