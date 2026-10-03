@@ -160,6 +160,9 @@ class CopilotHost:
             attachment_context=attachment_context,
         )
 
+    async def compact(self, chat_id, store):
+        return await self.lane(chat_id).compact(chat_id, store)
+
     async def models(self, chat_id, store):
         return await self.lane(chat_id).models(chat_id, store)
 

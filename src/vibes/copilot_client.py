@@ -517,6 +517,16 @@ class CopilotBackend:
                 if inputs:
                     inputs.close()
 
+    async def compact(self, chat_id, store):
+        """Native idle-session compaction; never substitute session reset/replay."""
+        if self.turn_lock.locked():
+            raise RuntimeError('Wait for the active turn before compacting')
+        async with self.turn_lock:
+            session = await self._session(chat_id, store)
+            result = await session.rpc.history.compact(timeout=120)
+            return {'success': result.success is True, 'messages_removed': result.messages_removed,
+                    'tokens_removed': result.tokens_removed, 'context_window': result.context_window.to_dict() if result.context_window else None}
+
     async def command_catalogue(self, chat_id, store):
         """Native discovery only; this does not imply bridge execution support."""
         from copilot.generated.rpc import SessionCommandsListRequest

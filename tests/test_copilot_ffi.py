@@ -337,3 +337,15 @@ async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeyp
     assert result['skills'][0]['name'] == 'loaded'
     session.rpc.commands.list.side_effect = RuntimeError('provider private details')
     assert await backend.command_catalogue('chat', object()) == {'available': False, 'commands': [], 'skills': []}
+
+@pytest.mark.asyncio
+async def test_compaction_uses_native_history_without_reset(setup, monkeypatch):
+    backend, *_ = setup
+    session = SimpleNamespace(rpc=SimpleNamespace(history=SimpleNamespace(compact=AsyncMock(return_value=SimpleNamespace(success=True, messages_removed=2, tokens_removed=0, context_window=None)))))
+    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    result = await backend.compact('chat', object())
+    assert result == {'success': True, 'messages_removed': 2, 'tokens_removed': 0, 'context_window': None}
+    session.rpc.history.compact.assert_awaited_once_with(timeout=120)
+    async with backend.turn_lock:
+        with pytest.raises(RuntimeError, match='active turn'):
+            await backend.compact('chat', object())
