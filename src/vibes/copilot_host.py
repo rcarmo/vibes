@@ -30,6 +30,11 @@ class ConversationLane(CopilotBackend):
     async def stop(self, *, permanent=False):
         # A lane must never stop the shared native client.
         self.closing = True
+        for chat_id in list(self.compacting_sessions):
+            try:
+                await self.cancel_compaction(chat_id)
+            except Exception:
+                self.poisoned = True
         if self.active:
             try:
                 await self.abort(self.chat_id, self.active)
