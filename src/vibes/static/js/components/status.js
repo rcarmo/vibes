@@ -1,3 +1,4 @@
+import { toolOutputPanels } from './tool-output-panels.js';
 import { html, useEffect, useRef, useState } from '../vendor/preact-htm.js';
 import { addToWhitelist, respondToAgentRequest } from '../api.js';
 import { disclosureTriangle } from './disclosure-triangle.js';
@@ -242,10 +243,10 @@ export function AgentStatus({
                 titleClass: 'thought',
                 panelKey: 'thought',
             })}
-            ${status?.output && html`<div class="thinking-panel">
-                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has('output')} onClick=${() => toggleThinking('output')}>Output${status.output_truncated ? ' (truncated)' : ''}${status.started_at ? ` · ${Math.max(0, Math.floor(((status.ended_at ? status.ended_at * 1000 : toolClock) - status.started_at * 1000) / 1000))}s` : ''}</button>
-                <pre class="thinking-panel-body" style=${expandedPanels.has('output') ? '' : 'max-height:9em;overflow:auto'}>${status.output}</pre>
-            </div>`}
+            ${toolOutputPanels(status).map(call => html`<div class="thinking-panel" key=${call.panelKey}>
+                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has(call.panelKey)} onClick=${() => toggleThinking(call.panelKey)}>Output${call.title ? `: ${call.title}` : ''}${call.output_truncated ? ' (truncated)' : ''}${call.started_at ? ` · ${Math.max(0, Math.floor(((call.ended_at ? call.ended_at * 1000 : toolClock) - call.started_at * 1000) / 1000))}s` : ''}</button>
+                <pre class="thinking-panel-body" style=${expandedPanels.has(call.panelKey) ? '' : 'max-height:9em;overflow:auto'}>${call.output}</pre>
+            </div>`)}
             ${status && html`
                 <div class=${`agent-status${isLastActivity ? ' agent-status-last-activity' : ''}${status?.type === 'error' ? ' agent-status-error' : ''}`} style=${turnColor ? `--turn-color: ${turnColor};` : ''}>
                     ${turnColor && statusIndicator === 'dot' && html`<span class=${dotClass} aria-hidden="true"></span>`}
