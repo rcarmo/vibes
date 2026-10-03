@@ -152,3 +152,26 @@ async def test_native_predefined_action_never_uses_generic_worker(aiohttp_client
     assert response.status == 409
     assert (await response.json())['admitted'] is False
     enqueue.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, config, monkeypatch):
+    import asyncio
+    from vibes import followups
+    followups.reset_state()
+    agents._ffi_closing = False
+    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=1, content='queued')
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {}})})()
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    process = AsyncMock(return_value=True)
+    monkeypatch.setattr(agents, 'process_agent_response', process)
+    monkeypatch.setattr(agents, 'broadcast_event', AsyncMock(side_effect=asyncio.CancelledError()))
+    try:
+        agents._enqueue_ffi('notify-chat', 1, 'first', 'default', [])
+        task = agents._ffi_tasks['notify-chat']
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        assert followups.list_followups() == [item]
+        process.assert_awaited_once()
+    finally:
+        followups.reset_state()

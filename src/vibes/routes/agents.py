@@ -709,10 +709,10 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
                     try:
                         row = await (await get_db()).get_interaction(item['message_id'])
                         prompt, inputs = item['content'], (row or {}).get('data', {}).get('media_ids', [])
+                        await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
                     except BaseException:
                         restore_followup(item, steer=item.get('mode') == 'steer')
                         raise
-                    await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
         except asyncio.CancelledError:
             raise
         except Exception as exc:
