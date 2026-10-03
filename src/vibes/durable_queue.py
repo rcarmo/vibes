@@ -9,6 +9,10 @@ class DurableQueue:
 
     async def initialise(self):
         await self.connection.execute('CREATE TABLE IF NOT EXISTS queued_work (id TEXT PRIMARY KEY, chat_id TEXT NOT NULL, payload TEXT NOT NULL, state TEXT NOT NULL, ordinal INTEGER NOT NULL)')
+        await self.connection.commit()
+
+    async def recover_after_restart(self):
+        """Call once under exclusive startup ownership, before any dispatcher runs."""
         await self.connection.execute("UPDATE queued_work SET state='uncertain' WHERE state='claimed'")
         await self.connection.commit()
 
