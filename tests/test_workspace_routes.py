@@ -755,3 +755,14 @@ async def test_workspace_subscriptions_do_not_stop_other_browser(workspace_test_
     assert workspace._workspace_subscriptions == {'browser-b': True}
     await client.post('/workspace/visibility', json={'visible': False, 'subscription_id': 'browser-b'})
     assert workspace._workspace_visible is False
+
+@pytest.mark.asyncio
+async def test_disconnect_releases_only_its_workspace_subscription(workspace_test_client):
+    from vibes.routes import workspace
+    await workspace_test_client.post('/workspace/visibility', json={'visible': True, 'subscription_id': 'a'})
+    await workspace_test_client.post('/workspace/visibility', json={'visible': True, 'subscription_id': 'b'})
+    await workspace.release_workspace_subscription('a')
+    assert workspace._workspace_visible is True
+    assert 'a' not in workspace._workspace_subscriptions
+    await workspace.release_workspace_subscription('b')
+    assert workspace._workspace_visible is False

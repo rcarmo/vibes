@@ -143,6 +143,10 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
         pass
     finally:
         _clients.discard(queue)
+        subscription = request.query.get('workspace_subscription')
+        if subscription:
+            from .workspace import release_workspace_subscription
+            await release_workspace_subscription(subscription)
         _schedule_restart_if_needed()
     
     return response

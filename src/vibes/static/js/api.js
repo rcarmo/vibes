@@ -479,7 +479,7 @@ export class SSEClient {
             this.eventSource.close();
         }
         
-        this.eventSource = new EventSource(API_BASE + '/sse/stream');
+        this.eventSource = new EventSource(API_BASE + '/sse/stream?workspace_subscription=' + encodeURIComponent(workspaceSubscriptionId));
         
         this.eventSource.onopen = () => {
             this.connecting = false;
@@ -488,6 +488,7 @@ export class SSEClient {
             this.cooldownUntil = 0;
             this.status = 'connected';
             this.onStatusChange('connected');
+            window.dispatchEvent(new CustomEvent('workspace-reconnected'));
         };
         
         this.eventSource.onerror = () => {

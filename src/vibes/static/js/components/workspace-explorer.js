@@ -500,12 +500,14 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
         if (media.addEventListener) media.addEventListener('change', onVisibilityChange);
         else if (media.addListener) media.addListener(onVisibilityChange);
         document.addEventListener('visibilitychange', onVisibilityChange);
+        window.addEventListener('workspace-reconnected', onVisibilityChange);
 
         return () => {
             clearInterval(timer);
             if (media.removeEventListener) media.removeEventListener('change', onVisibilityChange);
             else if (media.removeListener) media.removeListener(onVisibilityChange);
             document.removeEventListener('visibilitychange', onVisibilityChange);
+            window.removeEventListener('workspace-reconnected', onVisibilityChange);
             if (visibilityTimerRef.current) clearTimeout(visibilityTimerRef.current);
             setWorkspaceVisibility(false, showHiddenRef.current).catch(() => {});
         };

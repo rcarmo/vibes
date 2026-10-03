@@ -801,6 +801,11 @@ async def set_workspace_visibility_handler(request: web.Request) -> web.Response
     return web.json_response({"ok": True, "visible": visible, "show_hidden": show_hidden})
 
 
+async def release_workspace_subscription(subscription: str) -> None:
+    _workspace_subscriptions.pop(subscription, None)
+    await _set_workspace_visibility(bool(_workspace_subscriptions), any(_workspace_subscriptions.values()))
+
+
 async def shutdown_workspace_manager() -> None:
     _workspace_subscriptions.clear()
     await _set_workspace_visibility(False, _workspace_show_hidden)
