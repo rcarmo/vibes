@@ -327,3 +327,43 @@ async def test_skill_diagnostics_reports_flags_not_contents():
     assert 'private' not in str(result)
     read.assert_awaited_once_with(timeout=10)
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('data', [{}, [], {'skills': None}, {'skills': 'invalid'}])
+async def test_skill_diagnostics_rejects_malformed_metadata(data):
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(skills=SimpleNamespace(
+        list=AsyncMock(return_value=SimpleNamespace(to_dict=lambda: data)))))
+    assert await host.skill_diagnostics('selected') == {'state': 'unavailable', 'skills': []}
+    assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_skill_diagnostics_bounds_freshness_and_cancellation():
+    import asyncio
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    read = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'skills': [
+        {'name': f'skill-{index}', 'enabled': True, 'userInvocable': False, 'path': '/private'} for index in range(40)]}))
+    session = SimpleNamespace(rpc=SimpleNamespace(skills=SimpleNamespace(list=read)))
+    lane.sessions['selected'] = session
+    result = await host.skill_diagnostics('selected')
+    assert len(result['skills']) == 32
+    assert result['truncated'] is True
+    assert 'private' not in str(result)
+    async def stale(**kwargs):
+        lane.sessions['selected'] = object()
+        return SimpleNamespace(to_dict=lambda: {'skills': []})
+    read.side_effect = stale
+    assert await host.skill_diagnostics('selected') == {'state': 'unavailable', 'skills': []}
+    lane.sessions['selected'] = session
+    read.side_effect = asyncio.CancelledError
+    with pytest.raises(asyncio.CancelledError):
+        await host.skill_diagnostics('selected')
+    assert not lane.turn_lock.locked()
