@@ -696,3 +696,19 @@ async def test_editor_mode_rejects_incomplete_or_lossy_snapshots(workspace_test_
     response = await workspace_test_client.get('/workspace/file?path=complete.txt&mode=edit')
     assert response.status == 200
     assert (await response.json())['editable'] is True
+
+@pytest.mark.asyncio
+async def test_editor_save_rejects_incomplete_source(workspace_test_client, workspace_dir):
+    for name, content, status in [('large.txt', b'a' * 500001, 413), ('lossy.txt', b'bad\xfftext', 415)]:
+        target = workspace_dir / name
+        target.write_bytes(content)
+        revision = f'{target.stat().st_mtime_ns}:{target.stat().st_size}'
+        response = await workspace_test_client.put('/workspace/file', json={
+            'path': name, 'content': 'partial preview', 'expected_revision': revision, 'editor_snapshot': True,
+        })
+        assert response.status == status
+        assert target.read_bytes() == content
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'large.txt', 'content': 'partial preview', 'editor_snapshot': True,
+    })
+    assert response.status == 400

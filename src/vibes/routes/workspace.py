@@ -445,6 +445,19 @@ async def update_workspace_file(request: web.Request) -> web.Response:
         return web.json_response({"error": "Path is a directory"}, status=400)
 
     expected_revision = data.get("expected_revision")
+    if data.get("editor_snapshot"):
+        if not isinstance(expected_revision, str):
+            return web.json_response({"error": "Editor save requires a complete snapshot revision"}, status=400)
+        if not target.exists():
+            return web.json_response({"error": "Editor source file no longer exists"}, status=409)
+        with target.open('rb') as source:
+            snapshot = source.read(MAX_PREVIEW_BYTES + 1)
+        if len(snapshot) > MAX_PREVIEW_BYTES:
+            return web.json_response({"error": "Editor source snapshot is incomplete"}, status=413)
+        try:
+            snapshot.decode('utf-8')
+        except UnicodeDecodeError:
+            return web.json_response({"error": "Editor source snapshot is not lossless UTF-8"}, status=415)
     if expected_revision is not None:
         if not isinstance(expected_revision, str):
             return web.json_response({"error": "Invalid expected_revision"}, status=400)
