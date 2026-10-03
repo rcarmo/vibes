@@ -893,12 +893,17 @@ function App() {
     useEffect(() => {
         let disposed = false;
         let refreshing = false;
+        let busyRetry;
         const refreshModel = async () => {
             const generation = modelGeneration.current;
             try {
                 const state = await getSessionModelState(selectedSession);
                 if (disposed || selectedSession !== selectedSessionRef.current || generation !== modelGeneration.current) return;
-                if (state.busy === true) return;
+                if (state.busy === true && state.source !== 'confirmed-binding') {
+                    clearTimeout(busyRetry);
+                    busyRetry = setTimeout(refreshModel, 500);
+                    return;
+                }
                 const model = state.available ? state.model : null;
                 setActiveModel(model ? [model.provider, model.id || model.name].filter(Boolean).join('/') : null);
                 setActiveThinkingLevel(state.available ? state.thinking_level : null);
@@ -920,7 +925,7 @@ function App() {
         };
         refreshInspection();
         const timer = setInterval(refreshInspection, 15000);
-        return () => { disposed = true; clearInterval(timer); };
+        return () => { disposed = true; clearInterval(timer); clearTimeout(busyRetry); };
     }, [selectedSession]);
     const queueRefreshGeneration = useRef(0);
     const refreshSelectedQueue = async () => {

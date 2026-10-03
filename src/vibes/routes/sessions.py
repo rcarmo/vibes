@@ -48,6 +48,13 @@ async def session_model_state(request):
         except Exception:
             return web.json_response({**unavailable, 'busy': backend.busy(session_id)})
     if is_busy():
+        binding = await store.backend_binding(session_id, 'pi')
+        label = (binding or {}).get('model')
+        if isinstance(label, str) and '/' in label:
+            provider, model_id = label.split('/', 1)
+            model = sanitize_model({'provider': provider, 'id': model_id})
+            if model:
+                return web.json_response({'session_id': session_id, 'available': True, 'busy': True, 'model': model, 'thinking_level': (binding or {}).get('thinking_level'), 'source': 'confirmed-binding'})
         return web.json_response({**unavailable, 'busy': True})
     try:
         response = await inspect_model_state(session_id)

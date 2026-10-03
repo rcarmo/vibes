@@ -250,13 +250,25 @@ async def _send_command(payload: dict) -> None:
     await _state.agent_writer.drain()
 
 
+async def _select_idle_chat(chat_id):
+    """Caller holds request_lock; inspection never borrows another chat."""
+    if _state.session_selector.active == chat_id and not _state.session_selector.uncertain:
+        return
+    from .db import get_db
+    from .sessions import SessionStore
+    store = SessionStore(await get_db())
+    binding = await store.backend_binding(chat_id, 'pi')
+    path = await _state.session_selector.select(chat_id, send_rpc_command, persisted_path=binding['conversation_id'] if binding else None)
+    if path:
+        await store.bind_backend(chat_id, 'pi', path)
+
+
 async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_level=None):
     """Change only a confirmed active idle chat, under the stream ownership lock."""
     if _state.request_lock.locked() or not is_pi_running():
         raise RuntimeError('Pi is unavailable or busy')
     async with _state.request_lock:
-        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
-            raise RuntimeError('Selected chat is not the active Pi conversation')
+        await _select_idle_chat(chat_id)
         if thinking_level is not None:
             if provider is not None or model_id is not None:
                 raise ValueError('Change either model or thinking level')
@@ -283,8 +295,7 @@ async def inspect_model_catalog(chat_id='default'):
     if _state.request_lock.locked() or not is_pi_running():
         return None
     async with _state.request_lock:
-        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
-            return None
+        await _select_idle_chat(chat_id)
         models = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
         if not models or not models.get('success'):
             return None
@@ -301,8 +312,7 @@ async def inspect_model_state(chat_id='default'):
     if _state.request_lock.locked() or not is_pi_running():
         return None
     async with _state.request_lock:
-        if _state.session_selector.uncertain or _state.session_selector.active != chat_id:
-            return None
+        await _select_idle_chat(chat_id)
         return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
 
 
