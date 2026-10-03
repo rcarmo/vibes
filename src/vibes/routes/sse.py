@@ -28,7 +28,9 @@ _workspace_client_ids: dict[asyncio.Queue, str] = {}
 def _without_hidden_nodes(value):
     if isinstance(value, list):
         return [_without_hidden_nodes(item) for item in value
-                if not isinstance(item, dict) or not str(item.get('name', '')).startswith('.') or item.get('name') == '.']
+                if not isinstance(item, dict) or (
+                    (not str(item.get('name', '')).startswith('.') or item.get('name') == '.')
+                    and not any(part.startswith('.') and part not in {'.', '..'} for part in str(item.get('path', '')).split('/')))]
     if isinstance(value, dict):
         return {key: _without_hidden_nodes(item) for key, item in value.items()}
     return value
@@ -162,7 +164,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
         _clients.discard(queue)
         _workspace_client_ids.pop(queue, None)
         subscription = request.query.get('workspace_subscription')
-        if subscription:
+        if subscription and subscription not in _workspace_client_ids.values():
             from .workspace import release_workspace_subscription
             await release_workspace_subscription(subscription)
         _schedule_restart_if_needed()
