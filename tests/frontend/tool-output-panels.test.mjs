@@ -32,3 +32,10 @@ test('fully omitted text keeps its call panel and truncation provenance', () => 
     ] });
     expect(panels.map(call => call.panelKey)).toEqual(['output:old-output', 'output:old-progress']);
 });
+
+test('output-free native tasks retain their actual lifecycle state', () => {
+    const panels = toolOutputPanels({ tool_calls: [{ tool_call_id: 'native-task:t', output: '', title: 'Research', status: 'failed' }] });
+    expect(panels).toHaveLength(1);
+    expect(panels[0].status).toBe('failed');
+    expect(panels[0].output).toBe('');
+});

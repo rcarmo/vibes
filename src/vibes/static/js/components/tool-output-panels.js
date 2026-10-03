@@ -8,6 +8,7 @@ export function toolOutputPanels(status) {
     return calls.filter(call => call && (
         (typeof call.output === 'string' && call.output.length) ||
         (typeof call.progress_message === 'string' && call.progress_message.length) ||
-        call.output_truncated === true || call.progress_truncated === true))
+        call.output_truncated === true || call.progress_truncated === true ||
+        (typeof call.tool_call_id === 'string' && call.tool_call_id.startsWith('native-task:'))))
         .map(call => ({ ...call, panelKey: `output:${call.tool_call_id || 'current'}` }));
 }

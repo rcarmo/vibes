@@ -245,7 +245,8 @@ export function AgentStatus({
             })}
             ${status?.tool_calls_truncated && html`<div class="editor-status" role="status">Earlier tool calls omitted from this bounded activity snapshot.</div>`}
             ${toolOutputPanels(status).map(call => html`<div class="thinking-panel" key=${call.panelKey}>
-                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has(call.panelKey)} onClick=${() => toggleThinking(call.panelKey)}>Output${call.title ? `: ${call.title}` : ''}${call.output_truncated ? ' (truncated)' : ''}${call.started_at ? ` · ${Math.max(0, Math.floor(((call.ended_at ? call.ended_at * 1000 : toolClock) - call.started_at * 1000) / 1000))}s` : ''}</button>
+                <button type="button" class="thinking-panel-header" aria-expanded=${expandedPanels.has(call.panelKey)} onClick=${() => toggleThinking(call.panelKey)}>${call.tool_call_id?.startsWith('native-task:') ? 'Native task' : 'Output'}${call.title ? `: ${call.title}` : ''}${call.output_truncated ? ' (truncated)' : ''}${call.started_at ? ` · ${Math.max(0, Math.floor(((call.ended_at ? call.ended_at * 1000 : toolClock) - call.started_at * 1000) / 1000))}s` : ''}</button>
+                ${call.tool_call_id?.startsWith('native-task:') && html`<div class="thinking-panel-body">State: ${['running', 'completed', 'failed', 'ended'].includes(call.status) ? call.status : 'unknown'}</div>`}
                 ${!call.output && call.output_truncated && html`<div class="thinking-panel-body">Output omitted from this bounded snapshot.</div>`}
                 ${!call.progress_message && call.progress_truncated && html`<div class="thinking-panel-body">Progress omitted from this bounded snapshot.</div>`}
                 ${call.progress_message && html`<div class="thinking-panel-body">Progress${call.progress_truncated ? ' (truncated)' : ''}: ${call.progress_message}</div>`}
