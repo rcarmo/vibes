@@ -1062,3 +1062,30 @@ async def test_queue_steer_cancel_before_admission_restores_identity():
         broadcast.assert_not_awaited()
     finally:
         reset_state()
+
+@pytest.mark.asyncio
+async def test_cancelled_steering_preserves_reorder_during_validation():
+    import asyncio
+    from vibes.routes import agents
+    from vibes import followups
+
+    followups.reset_state()
+    followups.queue_followup(thread_id=42, agent_id='pi', message_id=8, content='first')
+    item = followups.queue_followup(thread_id=42, agent_id='pi', message_id=9, content='middle')
+    followups.queue_followup(thread_id=42, agent_id='pi', message_id=10, content='last')
+    async def lookup(*args, **kwargs):
+        followups.reorder_followup(item['row_id'], 'down')
+        return {'thread_id': 42}
+    request = MagicMock()
+    request.json = AsyncMock(return_value={'row_id': item['row_id']})
+    try:
+        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
+             patch.object(agents, '_is_agent_busy', return_value=True), \
+             patch.object(agents, '_get_active_turn_for_agent', side_effect=lookup), \
+             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
+             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)):
+            with pytest.raises(asyncio.CancelledError):
+                await agents.steer_queue_item(request)
+        assert [entry['message_id'] for entry in followups.list_followups()] == [8, 10, 9]
+    finally:
+        followups.reset_state()

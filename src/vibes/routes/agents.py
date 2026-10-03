@@ -490,6 +490,14 @@ async def steer_queue_item(request: web.Request) -> web.Response:
     actual_steer = False
     emulated = agent_mode != "pi"
 
+    # Ownership checks above await I/O; the queue may have been reordered or
+    # removed meanwhile. Capture the current position without yielding before
+    # removal so cancellation restores the user's latest ordering.
+    current_queue = list_followups()
+    queue_position = next((index for index, item in enumerate(current_queue)
+                           if item['row_id'] == row_id), None)
+    if queue_position is None:
+        return web.json_response({"error": "Queue item not found"}, status=404)
     removed = remove_followup(row_id)
     if not removed:
         return web.json_response({"error": "Queue item not found"}, status=404)
