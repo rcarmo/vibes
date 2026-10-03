@@ -43,3 +43,17 @@ def test_passive_diagnostics_never_creates_lane_or_exposes_other_chat():
     assert result == {'state': 'unavailable', 'session_bound': True, 'capabilities_verified': False}
     assert 'private' not in str(result)
     assert 'foreign' not in str(result)
+
+
+def test_passive_diagnostics_does_not_report_stale_client_ready():
+    host = CopilotHost()
+    lane = host.lane('selected')
+    lane.client = object()
+    assert host.diagnostics('selected')['state'] == 'not-started'
+    host.runtime.client = lane.client
+    assert host.diagnostics('selected')['state'] == 'ready'
+    host.runtime.poisoned = True
+    assert host.diagnostics('selected')['state'] == 'unavailable'
+    host.runtime.poisoned = False
+    host.runtime.closing = True
+    assert host.diagnostics('selected')['state'] == 'unavailable'

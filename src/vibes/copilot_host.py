@@ -74,9 +74,11 @@ class CopilotHost:
         lane = self.lanes.get(chat_id)
         if lane is None:
             return {'state': 'not-started', 'session_bound': False, 'capabilities_verified': False}
-        state = ('unavailable' if self.closing or lane.closing or lane.poisoned
+        state = ('unavailable' if self.closing or self.runtime.closing or self.runtime.poisoned
+                 or lane.closing or lane.poisoned
                  else 'busy' if lane.turn_lock.locked()
-                 else 'ready' if lane.client is not None else 'not-started')
+                 else 'ready' if lane.client is not None and self.runtime.client is not None
+                 else 'not-started')
         return {'state': state, 'session_bound': chat_id in lane.sessions,
                 'capabilities_verified': False}
 
