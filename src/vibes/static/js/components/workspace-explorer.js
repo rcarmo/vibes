@@ -462,9 +462,8 @@ export function WorkspaceExplorer({ onFileSelect, onFolderSelect, visible = true
 
     const updateVisibility = useRef(() => {
         if (typeof window === 'undefined') return;
-        const media = window.matchMedia('(min-width: 1024px) and (orientation: landscape)');
         const shouldBeActive = activeRef.current ?? visibleRef.current;
-        const visible = media.matches && document.visibilityState !== 'hidden' && shouldBeActive;
+        const visible = document.visibilityState !== 'hidden' && shouldBeActive;
         setWorkspaceVisibility(visible, showHiddenRef.current).catch(() => {});
     }).current;
 

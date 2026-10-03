@@ -427,10 +427,12 @@ export async function moveWorkspaceEntry(path, target) {
 /**
  * Toggle workspace visibility state.
  */
+const workspaceSubscriptionId = globalThis.crypto?.randomUUID?.() || `workspace-${Date.now()}-${Math.random()}`;
+
 export async function setWorkspaceVisibility(visible, showHidden = false) {
     return request('/workspace/visibility', {
         method: 'POST',
-        body: JSON.stringify({ visible: Boolean(visible), show_hidden: Boolean(showHidden) }),
+        body: JSON.stringify({ visible: Boolean(visible), show_hidden: Boolean(showHidden), subscription_id: workspaceSubscriptionId }),
     });
 }
 

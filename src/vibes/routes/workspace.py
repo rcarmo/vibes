@@ -43,6 +43,7 @@ EXCLUDE_DIRS = {
     "node_modules", ".git", "dist", "build", "output", ".cache", ".venv", "tmp", "coverage",
 }
 
+_workspace_subscriptions: dict[str, bool] = {}
 _workspace_visible = False
 _workspace_show_hidden = False
 _workspace_last_signature: str | None = None
@@ -789,11 +790,19 @@ async def set_workspace_visibility_handler(request: web.Request) -> web.Response
 
     visible = bool((data or {}).get("visible", False))
     show_hidden = bool((data or {}).get("show_hidden", False))
-    await _set_workspace_visibility(visible, show_hidden)
+    subscription = data.get('subscription_id', 'legacy')
+    if not isinstance(subscription, str) or not subscription or len(subscription) > 128:
+        return web.json_response({'error': 'Invalid subscription_id'}, status=400)
+    if visible:
+        _workspace_subscriptions[subscription] = show_hidden
+    else:
+        _workspace_subscriptions.pop(subscription, None)
+    await _set_workspace_visibility(bool(_workspace_subscriptions), any(_workspace_subscriptions.values()))
     return web.json_response({"ok": True, "visible": visible, "show_hidden": show_hidden})
 
 
 async def shutdown_workspace_manager() -> None:
+    _workspace_subscriptions.clear()
     await _set_workspace_visibility(False, _workspace_show_hidden)
 
 

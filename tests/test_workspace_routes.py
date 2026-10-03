@@ -743,3 +743,15 @@ async def test_save_copy_never_overwrites_existing_file(workspace_test_client, w
     })
     assert response.status == 200
     assert (workspace_dir / 'new-copy.txt').read_text() == 'draft'
+
+@pytest.mark.asyncio
+async def test_workspace_subscriptions_do_not_stop_other_browser(workspace_test_client):
+    from vibes.routes import workspace
+    client = workspace_test_client
+    await client.post('/workspace/visibility', json={'visible': True, 'subscription_id': 'browser-a'})
+    await client.post('/workspace/visibility', json={'visible': True, 'subscription_id': 'browser-b', 'show_hidden': True})
+    await client.post('/workspace/visibility', json={'visible': False, 'subscription_id': 'browser-a'})
+    assert workspace._workspace_visible is True
+    assert workspace._workspace_subscriptions == {'browser-b': True}
+    await client.post('/workspace/visibility', json={'visible': False, 'subscription_id': 'browser-b'})
+    assert workspace._workspace_visible is False
