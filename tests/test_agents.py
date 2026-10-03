@@ -897,8 +897,11 @@ async def test_compact_action_validates_capability_before_dispatch(advertised, b
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('mode', ['pi', 'acp'])
-async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mode):
+@pytest.mark.parametrize('raises', [False, True])
+async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mode, raises):
     mock_deps['enqueue'].return_value = False
+    if raises:
+        mock_deps['enqueue'].side_effect = RuntimeError('private-worker-detail')
     with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent=mode)):
         with patch.object(agents_mod, 'is_pi_busy', return_value=False):
             request = _make_send_request('Keep my message')
@@ -906,6 +909,7 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mod
     assert response.status == 503
     payload = json.loads(response.body)
     assert payload['admitted'] is False
+    assert 'private-worker-detail' not in response.text
     assert payload['user_message']['data']['content'] == 'Keep my message'
     mock_deps['enqueue'].assert_called_once()
     assert [call.args[0] for call in mock_deps['broadcast'].await_args_list] == ['new_post']
