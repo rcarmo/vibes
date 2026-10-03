@@ -306,7 +306,17 @@ class CopilotBackend:
             await broadcast_event('plan_updated', result)
             return self.sdk.ToolResult(text_result_for_llm=json.dumps(result))
 
-        return [self.sdk.Tool(name='vibes_attach_file', description='Attach a regular workspace file to the current conversation. No destination override.', handler=attach,
+        async def open_file(invocation):
+            still_owned()
+            from .routes.workspace import _resolve_workspace_path, _to_workspace_relative, _file_views
+            from .routes.sse import broadcast_event
+            target = _resolve_workspace_path(invocation.arguments.get('path', ''))
+            if not target.is_file():
+                raise ValueError('Workspace file does not exist')
+            result = await _file_views.request(chat_id, _to_workspace_relative(target), still_owned, broadcast_event)
+            return self.sdk.ToolResult(text_result_for_llm=json.dumps(result), result_type='success' if result['status'] == 'opened' else 'failure')
+
+        return [self.sdk.Tool(name='open_file', handler=open_file, description='Request browser-acknowledged workspace text-file viewing.', parameters={'type': 'object', 'required': ['path'], 'additionalProperties': False, 'properties': {'path': {'type': 'string'}}}), self.sdk.Tool(name='vibes_attach_file', description='Attach a regular workspace file to the current conversation. No destination override.', handler=attach,
                     parameters={'type': 'object', 'properties': {'path': {'type': 'string'}, 'name': {'type': 'string'}, 'kind': {'type': 'string', 'enum': ['image', 'file']}}, 'required': ['path'], 'additionalProperties': False}),
                 self.sdk.Tool(name='plan', description='Read/write the current conversation plan. Writes require expected_revision from a read.', handler=plan,
                     parameters={'type': 'object', 'properties': {'action': {'type': 'string', 'enum': ['read', 'write']}, 'markdown': {'type': 'string'}, 'expected_revision': {'type': 'integer'}}, 'required': ['action'], 'additionalProperties': False})]
@@ -319,7 +329,7 @@ class CopilotBackend:
         options = dict(on_permission_request=self._permission, on_user_input_request=self._question,
                        enable_skills=bool(config.copilot_skill_directories),
                        mcp_servers=getattr(config, 'copilot_mcp_servers', {}),
-                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:plan', *config.copilot_available_tools],
+                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:plan', 'custom:open_file', *config.copilot_available_tools],
                        working_directory=str(Path.cwd()), streaming=True,
                        include_sub_agent_streaming_events=False,
                        skill_directories=config.copilot_skill_directories,

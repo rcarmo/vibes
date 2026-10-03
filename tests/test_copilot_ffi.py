@@ -93,7 +93,7 @@ async def test_stream_and_binding(setup, monkeypatch):
     assert [x['delta_reset'] for x in seen] == [True, False]
     opts = client.create_session.call_args.kwargs
     assert opts['remote_session'] == 'off'
-    assert opts['available_tools'] == ['custom:vibes_attach_file','custom:plan']
+    assert opts['available_tools'] == ['custom:vibes_attach_file','custom:plan','custom:open_file']
     store.bind_backend.assert_awaited_once()
     assert backend.active is None and session.handler is None
 
