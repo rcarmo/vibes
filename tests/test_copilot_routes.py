@@ -99,3 +99,33 @@ async def test_model_route_does_not_invoke_pi(aiohttp_client, db, config, monkey
     client=await aiohttp_client(app)
     assert (await client.post('/sessions/default/model',json={'model_id':'test'})).status == 409
     assert (await (await client.get('/sessions/default/model-state')).json())['available'] is False
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('cancelled', [False, True])
+async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch, cancelled):
+    import asyncio
+    from vibes import followups
+    followups.reset_state()
+    agents._ffi_tasks.clear()
+    agents._ffi_closing = False
+    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=1, content='queued')
+    failure = asyncio.CancelledError() if cancelled else RuntimeError('lookup unavailable')
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(side_effect=failure)})()
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(agents, 'process_agent_response', AsyncMock(return_value=True))
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    try:
+        agents._enqueue_ffi('chat', 1, 'first', 'default', [])
+        task = agents._ffi_tasks['chat']
+        if cancelled:
+            with pytest.raises(asyncio.CancelledError):
+                await task
+        else:
+            await task
+        assert followups.list_followups() == [item]
+        broadcast.assert_not_awaited()
+    finally:
+        followups.reset_state()
+        agents._ffi_tasks.clear()
