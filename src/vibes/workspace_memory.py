@@ -4,7 +4,7 @@ from pathlib import Path
 
 def load_workspace_memory(root, paths, *, max_bytes=24000):
     root = Path(root).resolve()
-    if not isinstance(paths, list) or len(paths) > 16 or not 1 <= max_bytes <= 64000:
+    if not isinstance(paths, list) or any(not isinstance(path, str) for path in paths) or len(paths) > 16 or type(max_bytes) is not int or not 1 <= max_bytes <= 64000:
         raise ValueError('Invalid memory bounds')
     remaining = max_bytes
     sources, diagnostics = [], []
