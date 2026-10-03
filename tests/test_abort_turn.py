@@ -149,7 +149,8 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
 
 
 @pytest.mark.asyncio
-async def test_followup_admission_failure_restores_same_item(db, monkeypatch):
+@pytest.mark.parametrize('raises', [True, False])
+async def test_followup_admission_failure_restores_same_item(db, monkeypatch, raises):
     import importlib
     from vibes import followups, agent_attachments
     agents = importlib.import_module('vibes.routes.agents')
@@ -162,7 +163,8 @@ async def test_followup_admission_failure_restores_same_item(db, monkeypatch):
     monkeypatch.setattr(agents, '_dispatch_pi_thread', AsyncMock(return_value={'text': 'done', 'content': [], 'cancelled': False}))
     broadcast = AsyncMock()
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
-    monkeypatch.setattr(agents, 'enqueue', Mock(side_effect=RuntimeError('worker unavailable')))
+    admission = Mock(side_effect=RuntimeError('worker unavailable')) if raises else Mock(return_value=False)
+    monkeypatch.setattr(agents, 'enqueue', admission)
     try:
         await agents.process_agent_response(root, 'run', 'default')
         assert followups.list_followups() == [item]
