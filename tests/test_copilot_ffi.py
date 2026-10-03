@@ -546,3 +546,17 @@ async def test_catalogue_native_startup_failure_is_unavailable_without_fallback(
     assert backend.status()['ready'] is False
     assert not backend.turn_lock.locked()
     assert 'private' not in repr(result)
+
+@pytest.mark.asyncio
+async def test_persisted_catalogue_resumes_confirmed_session_without_pending_replay(setup):
+    backend, client, session, factory, ffi = setup
+    session.session_id = 'confirmed-native'
+    session.rpc = SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=[]))),
+                                  skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=[]))))
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value={'conversation_id': 'confirmed-native'}), bind_backend=AsyncMock())
+    result = await backend.command_catalogue('chat', store)
+    assert result['native_session_id'] == 'confirmed-native'
+    assert client.resume_session.await_args.args == ('confirmed-native',)
+    assert client.resume_session.await_args.kwargs['continue_pending_work'] is False
+    client.create_session.assert_not_awaited()
+    store.bind_backend.assert_not_awaited()
