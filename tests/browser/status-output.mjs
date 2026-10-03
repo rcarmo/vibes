@@ -23,6 +23,18 @@ try {
  });
  await page.waitForTimeout(150);
  if(await buttons.count()!==2 || await buttons.first().getAttribute('aria-expanded')!=='false') throw Error('snapshot reconstruction failed');
+ await page.evaluate(()=>{
+  window.calls=[
+   {tool_call_id:'progress',output:'',progress_message:'Working',progress_truncated:true},
+   {tool_call_id:'omitted',output:'',output_truncated:true,progress_message:'',progress_truncated:true},
+   {tool_call_id:'native-task:t',title:'Research',output:'',status:'failed'}
+  ]; window.paint();
+ });
+ await page.waitForTimeout(150);
+ if(await buttons.count()!==3) throw Error('progress/omitted/task panels missing');
+ for(const text of ['Progress (truncated): Working','Output omitted from this bounded snapshot.','Progress omitted from this bounded snapshot.','State: failed']) {
+  if(!await page.getByText(text,{exact:true}).count()) throw Error(`missing rendered label: ${text}`);
+ }
  if(errors.length) throw Error(`browser errors: ${errors.join('; ')}`);
  console.log('PASS: rendered collection, streaming timer, independent disclosures, escaping, omission notice, snapshot remount, no JS errors');
 } finally { await browser.close(); server.stop(); }
