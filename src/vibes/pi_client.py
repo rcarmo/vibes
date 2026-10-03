@@ -353,7 +353,7 @@ async def send_rpc_command(payload: dict, timeout: float = 10.0) -> dict | None:
         raise RuntimeError(f"Pi agent timed out responding to {cmd_type}")
 
 
-async def send_rpc_fire_and_forget(payload: dict) -> bool:
+async def send_rpc_fire_and_forget(payload: dict, *, raise_on_send_error: bool = False) -> bool:
     """Send an RPC command without waiting for a response.
 
     Used for commands that affect an in-progress turn (steer, abort)
@@ -367,6 +367,8 @@ async def send_rpc_fire_and_forget(payload: dict) -> bool:
         return True
     except Exception as e:
         logger.warning("Pi RPC: failed to send %s: %s", payload.get("type"), e)
+        if raise_on_send_error:
+            raise
         return False
 
 

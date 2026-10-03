@@ -123,6 +123,9 @@ async def on_startup(app: web.Application) -> None:
     config = get_config()
     await init_db(config.db_path)
     logger.info(f"Database initialized at {config.db_path}")
+    from .followup_store import FollowupStore
+    await FollowupStore(await get_db()).recover()
+    # Pending work is retained for explicit dispatch; ambiguous work is never replayed.
     # Conservative retention: only explicitly marked unreferenced uploads.
     removed_uploads = await (await get_db()).cleanup_abandoned_uploads()
     if removed_uploads:

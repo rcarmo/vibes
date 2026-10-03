@@ -13,8 +13,9 @@ def config(monkeypatch):
     c = get_config()
     monkeypatch.setattr(c, 'default_agent', 'copilot-ffi')
     monkeypatch.setattr(c, 'pi_enabled', False)
-    # Older suite modules deliberately reload vibes.* during collection.
-    # Patch the exact module references under test, not another Config singleton.
+    # Each route fixture represents a running dispatcher, independent of
+    # shutdown-state tests in other modules.
+    monkeypatch.setattr(agents, '_ffi_closing', False)
     monkeypatch.setattr(agents, 'get_config', lambda: c)
     monkeypatch.setattr(sessions, 'get_config', lambda: c)
     return c
@@ -115,12 +116,13 @@ async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch
     followups.reset_state()
     agents._ffi_tasks.clear()
     agents._ffi_closing = False
-    add = followups.defer_steer if steer else followups.queue_followup
-    item = add(thread_id=1, agent_id='default', message_id=1, content='queued')
-    later = add(thread_id=1, agent_id='default', message_id=2, content='later')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=1, content='queued', steer=steer)
+    later = await store.enqueue(thread_id=1, agent_id='default', message_id=2, content='later', steer=steer)
     failure = asyncio.CancelledError() if cancelled else RuntimeError('lookup unavailable')
-    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(side_effect=failure)})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', AsyncMock(side_effect=failure))
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     monkeypatch.setattr(agents, 'process_agent_response', AsyncMock(return_value=True))
     broadcast = AsyncMock()
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
@@ -132,8 +134,9 @@ async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch
                 await task
         else:
             await task
-        remaining = followups.list_pending_steers() if steer else followups.list_followups()
-        assert remaining == [item, later]
+        remaining = await store.list(thread_id=1, agent_id='default')
+        assert [row['row_id'] for row in remaining] == [item['row_id'], later['row_id']]
+        assert all(row['state'] == 'pending' and row['mode'] == ('steer' if steer else 'queue') for row in remaining)
         broadcast.assert_not_awaited()
     finally:
         followups.reset_state()
@@ -158,11 +161,13 @@ async def test_native_predefined_action_never_uses_generic_worker(aiohttp_client
 async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, config, monkeypatch):
     import asyncio
     from vibes import followups
-    followups.reset_state()
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
     agents._ffi_closing = False
-    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=1, content='queued')
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=1, content='queued')
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'notify-chat', 'thread_id': 1}})})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', fake_db.get_interaction)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     process = AsyncMock(return_value=True)
     monkeypatch.setattr(agents, 'process_agent_response', process)
     monkeypatch.setattr(agents, 'broadcast_event', AsyncMock(side_effect=asyncio.CancelledError()))
@@ -171,20 +176,23 @@ async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, 
         task = agents._ffi_tasks['notify-chat']
         with pytest.raises(asyncio.CancelledError):
             await task
-        assert followups.list_followups() == [item]
+        rows = await store.list()
+        assert [(row['row_id'], row['state']) for row in rows] == [(item['row_id'], 'pending')]
         process.assert_awaited_once()
     finally:
-        followups.reset_state()
+        agents._ffi_tasks.clear()
 
 
 @pytest.mark.asyncio
 async def test_ffi_missing_followup_source_is_preserved_not_dispatched(db, config, monkeypatch):
     from vibes import followups
-    followups.reset_state()
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
     agents._ffi_closing = False
-    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=99, content='queued')
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value=None)})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', fake_db.get_interaction)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     process = AsyncMock(return_value=True)
     monkeypatch.setattr(agents, 'process_agent_response', process)
     broadcast = AsyncMock()
@@ -192,21 +200,24 @@ async def test_ffi_missing_followup_source_is_preserved_not_dispatched(db, confi
     try:
         agents._enqueue_ffi('missing-source-chat', 1, 'first', 'default', [])
         await agents._ffi_tasks['missing-source-chat']
-        assert followups.list_followups() == [item]
+        rows = await store.list()
+        assert [(row['row_id'], row['state']) for row in rows] == [(item['row_id'], 'pending')]
         process.assert_awaited_once()
         broadcast.assert_not_awaited()
     finally:
-        followups.reset_state()
+        agents._ffi_tasks.clear()
 
 
 @pytest.mark.asyncio
 async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, config, monkeypatch):
     from vibes import followups
-    followups.reset_state()
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
     agents._ffi_closing = False
-    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=99, content='queued')
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'foreign', 'media_ids': [42]}})})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', fake_db.get_interaction)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     process = AsyncMock(return_value=True)
     monkeypatch.setattr(agents, 'process_agent_response', process)
     broadcast = AsyncMock()
@@ -214,25 +225,28 @@ async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, c
     try:
         agents._enqueue_ffi('own', 1, 'first', 'default', [])
         await agents._ffi_tasks['own']
-        assert followups.list_followups() == [item]
+        rows = await store.list()
+        assert [(row['row_id'], row['state']) for row in rows] == [(item['row_id'], 'pending')]
         process.assert_awaited_once_with(1, 'first', 'default', media_ids=[])
         broadcast.assert_not_awaited()
     finally:
-        followups.reset_state()
+        agents._ffi_tasks.clear()
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('root_source', [False, True])
 async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, config, monkeypatch, root_source):
     from vibes import followups
-    followups.reset_state()
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
     agents._ffi_closing = False
-    followups.queue_followup(thread_id=1, agent_id='default', message_id=1 if root_source else 99, content='queued')
+    await store.enqueue(thread_id=1, agent_id='default', message_id=1 if root_source else 99, content='queued')
     source = {'id': 1 if root_source else 99, 'data': {'session_id': 'own-success', 'media_ids': [42]}}
     if not root_source:
         source['data']['thread_id'] = 1
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value=source)})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', fake_db.get_interaction)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     process = AsyncMock(side_effect=[True, False])
     monkeypatch.setattr(agents, 'process_agent_response', process)
     broadcast = AsyncMock()
@@ -240,24 +254,28 @@ async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, 
     try:
         agents._enqueue_ffi('own-success', 1, 'first', 'default', [])
         await agents._ffi_tasks['own-success']
-        assert followups.list_followups() == []
+        rows = await store.list()
+        assert len(rows) == 1 and rows[0]['state'] == 'uncertain'
+        assert await store.claim(1, 'default') is None
         assert process.await_count == 2
         assert process.await_args_list[1].args == (1, 'queued', 'default')
         assert process.await_args_list[1].kwargs == {'media_ids': [42]}
         broadcast.assert_awaited_once()
         assert broadcast.await_args.args[0] == 'agent_followup_consumed'
     finally:
-        followups.reset_state()
+        agents._ffi_tasks.clear()
 
 
 @pytest.mark.asyncio
 async def test_ffi_same_chat_foreign_thread_source_is_not_promoted(db, config, monkeypatch):
     from vibes import followups
-    followups.reset_state()
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
     agents._ffi_closing = False
-    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=99, content='queued')
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'id': 99, 'data': {'session_id': 'thread-check', 'thread_id': 2}})})()
-    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    monkeypatch.setattr(db, 'get_interaction', fake_db.get_interaction)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     process = AsyncMock(return_value=True)
     monkeypatch.setattr(agents, 'process_agent_response', process)
     broadcast = AsyncMock()
@@ -265,8 +283,9 @@ async def test_ffi_same_chat_foreign_thread_source_is_not_promoted(db, config, m
     try:
         agents._enqueue_ffi('thread-check', 1, 'first', 'default', [])
         await agents._ffi_tasks['thread-check']
-        assert followups.list_followups() == [item]
+        rows = await store.list()
+        assert [(row['row_id'], row['state']) for row in rows] == [(item['row_id'], 'pending')]
         process.assert_awaited_once()
         broadcast.assert_not_awaited()
     finally:
-        followups.reset_state()
+        agents._ffi_tasks.clear()

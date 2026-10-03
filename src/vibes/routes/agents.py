@@ -31,16 +31,6 @@ from ..pi_client import (
 )
 from ..slash_commands import parse_command, execute_command
 from ..tasks import enqueue
-from ..followups import (
-    consume_next_followup,
-    defer_steer,
-    list_followups,
-    list_pending_steers,
-    queue_followup,
-    remove_followup,
-    restore_followup,
-    reorder_followup,
-)
 from .sse import broadcast_event
 
 _DATA_URI_MARKDOWN_IMAGE_RE = re.compile(
@@ -334,8 +324,10 @@ async def get_agent_status(request: web.Request) -> web.Response:
             turn["has_draft"] = bool(preview.get("draft"))
             turn["has_thought"] = bool(preview.get("thought"))
 
-    queued = list_followups()
-    steers = list_pending_steers()
+    from ..followup_store import FollowupStore
+    rows = [row for row in await FollowupStore(db).list() if row['state'] == 'pending']
+    queued = [row for row in rows if row['mode'] == 'queue']
+    steers = [row for row in rows if row['mode'] == 'steer']
     session_id = request.query.get('session_id')
     if session_id is not None:
         from ..sessions import SessionStore
@@ -394,8 +386,11 @@ async def get_agent_queue(request: web.Request) -> web.Response:
     except (TypeError, ValueError):
         return web.json_response({"error": "Invalid thread_id"}, status=400)
 
-    items = list_followups(agent_id=agent_id, thread_id=thread_id)
-    steers = list_pending_steers(agent_id=agent_id, thread_id=thread_id)
+    from ..followup_store import FollowupStore
+    rows = await FollowupStore(await get_db()).list(agent_id=agent_id, thread_id=thread_id)
+    items = [row for row in rows if row['state'] == 'pending' and row['mode'] == 'queue']
+    steers = [row for row in rows if row['state'] == 'pending' and row['mode'] == 'steer']
+    uncertain = [row for row in rows if row['state'] == 'uncertain']
     session_id = request.query.get('session_id')
     if session_id is not None:
         from ..sessions import SessionStore
@@ -403,14 +398,27 @@ async def get_agent_queue(request: web.Request) -> web.Response:
         if not await SessionStore(database).get(session_id):
             return web.json_response({'error': 'Session not found'}, status=404)
         owners = {}
-        for item in items + steers:
+        for item in items + steers + uncertain:
             root_id = item.get('thread_id')
             if root_id not in owners:
                 root = await database.get_interaction(root_id)
                 owners[root_id] = root['data'].get('session_id', 'default') if root else None
         items = [item for item in items if owners[item.get('thread_id')] == session_id]
         steers = [item for item in steers if owners[item.get('thread_id')] == session_id]
-    return web.json_response({"items": items, "pending_steers": steers})
+        uncertain = [item for item in uncertain if owners[item.get('thread_id')] == session_id]
+    return web.json_response({"items": items, "pending_steers": steers, "uncertain": uncertain})
+
+
+async def _persisted_queue_target(row_id, data):
+    from ..followup_store import FollowupStore
+    db = await get_db()
+    store = FollowupStore(db)
+    item = next((row for row in await store.list() if row["row_id"] == row_id), None)
+    if item is not None and data.get("session_id") is not None:
+        root = await db.get_interaction(item["thread_id"])
+        if root is None or root["data"].get("session_id", "default") != data["session_id"]:
+            item = None
+    return store, item
 
 
 async def reorder_queue_item(request: web.Request) -> web.Response:
@@ -419,12 +427,13 @@ async def reorder_queue_item(request: web.Request) -> web.Response:
         row_id = data.get('row_id')
         if type(row_id) is not int or row_id == 0:
             raise ValueError('Invalid row_id')
-        found = reorder_followup(row_id, data.get('direction'))
+        store, item = await _persisted_queue_target(row_id, data)
+        found = item is not None and await store.reorder(row_id, data.get("direction"), thread_id=item["thread_id"], agent_id=item["agent_id"])
     except (ValueError, TypeError, AttributeError):
         return web.json_response({'error': 'Invalid reorder request'}, status=400)
     if not found:
         return web.json_response({'error': 'Queue item not found'}, status=404)
-    items = list_followups()
+    items = [row for row in await store.list(thread_id=item["thread_id"], agent_id=item["agent_id"]) if row["state"] == "pending" and row["mode"] == "queue"]
     await broadcast_event('agent_queue_reordered', {'items': items})
     return web.json_response({'items': items})
 
@@ -443,13 +452,34 @@ async def remove_queue_item(request: web.Request) -> web.Response:
     except (TypeError, ValueError, AttributeError):
         return web.json_response({"error": "Invalid row_id"}, status=400)
 
-    removed = remove_followup(row_id)
+    store, item = await _persisted_queue_target(row_id, data)
+    removed = await store.remove(row_id, thread_id=item["thread_id"], agent_id=item["agent_id"]) if item else None
     if not removed:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     payload = _serialize_followup_event(removed)
     await broadcast_event("agent_followup_removed", payload)
     return web.json_response({"removed": True, "item": payload})
+
+
+async def discard_uncertain_followup(request: web.Request) -> web.Response:
+    """Explicitly discard ambiguous work without retrying it."""
+    try:
+        data = await request.json()
+    except json.JSONDecodeError:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    if (not isinstance(data, dict) or type(data.get("row_id")) is not int
+            or data["row_id"] >= 0 or not isinstance(data.get("session_id"), str)
+            or not data["session_id"].strip()):
+        return web.json_response({"error": "Invalid review identity"}, status=400)
+    store, item = await _persisted_queue_target(data["row_id"], data)
+    if not item or not await store.discard_uncertain(
+        data["row_id"], thread_id=item["thread_id"], agent_id=item["agent_id"]
+    ):
+        return web.json_response({"error": "Uncertain item not found"}, status=404)
+    payload = _serialize_followup_event(item)
+    await broadcast_event("agent_followup_removed", payload)
+    return web.json_response({"discarded": True, "item": payload})
 
 
 async def steer_queue_item(request: web.Request) -> web.Response:
@@ -466,17 +496,14 @@ async def steer_queue_item(request: web.Request) -> web.Response:
     except (TypeError, ValueError, AttributeError):
         return web.json_response({"error": "Invalid row_id"}, status=400)
 
-    queued = None
-    queue_position = 0
-    for queue_position, item in enumerate(list_followups()):
-        if item["row_id"] == row_id:
-            queued = item
-            break
+    store, queued = await _persisted_queue_target(row_id, data)
+    if queued and (queued['state'] != 'pending' or queued['mode'] != 'queue'):
+        queued = None
     if not queued:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     agent_mode = _resolve_agent_mode(queued["agent_id"])
-    queued_session = None
+    queued_session = data.get('session_id')
     if agent_mode == 'copilot-ffi':
         return web.json_response({'error': 'Native Copilot steering is not enabled; queued item was preserved'}, status=409)
     active_turn = await _get_active_turn_for_agent(queued["agent_id"], **({'session_id': queued_session} if queued_session else {}))
@@ -490,32 +517,32 @@ async def steer_queue_item(request: web.Request) -> web.Response:
     actual_steer = False
     emulated = agent_mode != "pi"
 
-    # Ownership checks above await I/O; the queue may have been reordered or
-    # removed meanwhile. Capture the current position without yielding before
-    # removal so cancellation restores the user's latest ordering.
-    current_queue = list_followups()
-    queue_position = next((index for index, item in enumerate(current_queue)
-                           if item['row_id'] == row_id), None)
-    if queue_position is None:
-        return web.json_response({"error": "Queue item not found"}, status=404)
-    removed = remove_followup(row_id)
+    removed = await store.claim_for_steer(row_id, thread_id=queued['thread_id'], agent_id=queued['agent_id'])
     if not removed:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     if agent_mode == "pi" and _is_agent_busy(agent_mode):
         try:
-            actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}))
+            actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}, raise_on_send_error=True))
         except asyncio.CancelledError:
-            restore_followup(removed, position=queue_position)
+            await store.transition_claim(removed, admitted=True)
+            await store.mark_uncertain(removed)
             raise
         except Exception:
-            actual_steer = False
+            await store.transition_claim(removed, admitted=True)
+            await store.mark_uncertain(removed)
+            raise
         emulated = not actual_steer
 
     if not actual_steer:
         emulated = True
-        steered = restore_followup(removed, steer=True)
+        await store.transition_claim(removed, defer_steer=True)
+        steered = {**removed, 'mode': 'steer', 'emulated': True}
     else:
+        await store.transition_claim(removed, admitted=True)
+        # Fire-and-forget RPC has no per-item completion receipt. Do not infer
+        # delivery from the enclosing turn or hide this item until restart.
+        await store.mark_uncertain(removed)
         steered = {
             **removed,
             "mode": "steer",
@@ -703,6 +730,23 @@ async def stop_ffi_dispatch():
     await asyncio.gather(*tasks, return_exceptions=True)
 
 
+async def _run_claimed_followup(item, *, media_ids=None):
+    """Persist ownership before worker execution; ambiguous outcomes never release."""
+    from ..followup_store import FollowupStore
+    store = FollowupStore(await get_db())
+    await store.transition_claim(item, admitted=True)
+    try:
+        confirmed = await process_agent_response(item['thread_id'], item['content'], item['agent_id'], media_ids=media_ids)
+    except BaseException:
+        await store.mark_uncertain(item)
+        raise
+    if confirmed:
+        await store.complete(item)
+    else:
+        await store.mark_uncertain(item)
+    return confirmed
+
+
 async def _queued_source_data(db, item: dict, chat_id: str, thread_id: int) -> dict:
     """Resolve attachments only from the queued item's owning conversation."""
     row = await db.get_interaction(item['message_id'])
@@ -721,32 +765,46 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
         raise RuntimeError('Conversation dispatch unavailable')
 
     async def run():
+        owner = None
+        store = None
         try:
+            from ..followup_store import FollowupStore
+            store = FollowupStore(await get_db())
             prompt, inputs = content, media_ids
+            owner = None
             while not _ffi_closing:
-                advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs)
+                if owner is None:
+                    advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs)
+                else:
+                    executing, owner = owner, None
+                    advance = await _run_claimed_followup(executing, media_ids=inputs)
                 # Serialize queue admission against completion/promotion for this chat.
                 async with _ffi_lock(_ffi_admission_locks, chat_id):
                     if not advance or _ffi_closing:
                         break
-                    item = consume_next_followup(thread_id, agent_id)
+                    item = await store.claim(thread_id, agent_id)
                     if not item:
                         break
                     try:
                         source_data = await _queued_source_data(await get_db(), item, chat_id, thread_id)
                         prompt, inputs = item['content'], source_data.get('media_ids', [])
                         await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
+                        owner = item
                     except BaseException:
-                        restore_followup(item, steer=item.get('mode') == 'steer')
+                        await store.transition_claim(item)
                         raise
         except asyncio.CancelledError:
             raise
         except Exception as exc:
             logger.error('Conversation dispatch failed (%s)', type(exc).__name__)
         finally:
-            if _ffi_tasks.get(chat_id) is asyncio.current_task():
-                _ffi_tasks.pop(chat_id, None)
-                _ffi_threads.pop(chat_id, None)
+            try:
+                if owner is not None:
+                    await store.transition_claim(owner)
+            finally:
+                if _ffi_tasks.get(chat_id) is asyncio.current_task():
+                    _ffi_tasks.pop(chat_id, None)
+                    _ffi_threads.pop(chat_id, None)
 
     task = asyncio.create_task(run(), name='vibes-ffi-' + chat_id)
     _ffi_tasks[chat_id], _ffi_threads[chat_id] = task, thread_id
@@ -1006,7 +1064,9 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         turn_completed = True
         
         dispatch_next = not response.get('cancelled')
-        next_followup = None if not dispatch_next or agent_mode == 'copilot-ffi' else consume_next_followup(thread_id, agent_id)
+        from ..followup_store import FollowupStore
+        followup_store = FollowupStore(db)
+        next_followup = None if not dispatch_next or agent_mode == 'copilot-ffi' else await followup_store.claim(thread_id, agent_id)
         if next_followup:
             logger.info(
                 "Dispatching queued follow-up %s for thread %s (%s)",
@@ -1016,11 +1076,11 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
             )
             try:
                 source_data = await _queued_source_data(db, next_followup, chat_session_id, thread_id)
-                if enqueue(process_agent_response, thread_id, next_followup["content"], agent_id,
+                if enqueue(_run_claimed_followup, next_followup,
                            media_ids=source_data.get('media_ids')) is False:
                     raise RuntimeError('Follow-up worker admission rejected')
             except BaseException:
-                restore_followup(next_followup, steer=next_followup.get('mode') == 'steer')
+                await followup_store.transition_claim(next_followup)
                 raise
             await broadcast_event("agent_followup_consumed", _serialize_followup_event(next_followup))
         
@@ -1421,15 +1481,32 @@ async def _send_message(request, data):
         effective_mode = submit_mode if submit_mode != "auto" else "queue"
 
         if effective_mode == "steer":
+            from ..followup_store import FollowupStore
+            store = FollowupStore(db)
+            queued_item = await store.enqueue(
+                thread_id=thread_id, agent_id=agent_id,
+                message_id=msg_id, content=data["content"],
+            )
+            owner = await store.claim_for_steer(
+                queued_item['row_id'], thread_id=thread_id, agent_id=agent_id,
+            )
+            if not owner:
+                return web.json_response({"error": "Steering ownership unavailable"}, status=409)
             actual_steer = False
             if agent_mode == "pi":
-                actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]}))
+                try:
+                    actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": data["content"]}, raise_on_send_error=True))
+                except BaseException:
+                    # RPC interruption cannot prove that the steer was not sent.
+                    await store.transition_claim(owner, admitted=True)
+                    await store.mark_uncertain(owner)
+                    raise
 
             if actual_steer:
+                await store.transition_claim(owner, admitted=True)
+                await store.mark_uncertain(owner)
                 steer_payload = {
-                    "thread_id": thread_id,
-                    "agent_id": agent_id,
-                    "message_id": msg_id,
+                    **_serialize_followup_event(queued_item),
                     "turn_id": active_turn.get("turn_id") if active_turn else None,
                     "actual": True,
                     "emulated": False,
@@ -1441,16 +1518,12 @@ async def _send_message(request, data):
                     "queued": "steer",
                     "steered": True,
                     "emulated": False,
-                    "status": "Sent as steering to active turn",
+                    "item": steer_payload,
+                    "status": "Steering sent; completion unverified",
                 }, status=201)
 
-            queued_item = defer_steer(
-                thread_id=thread_id,
-                agent_id=agent_id,
-                message_id=msg_id,
-                content=data["content"],
-                emulated=True,
-            )
+            await store.transition_claim(owner, defer_steer=True)
+            queued_item = {**queued_item, 'mode': 'steer', 'emulated': True}
             steer_payload = {
                 **_serialize_followup_event(queued_item),
                 "turn_id": active_turn.get("turn_id") if active_turn else None,
@@ -1468,12 +1541,12 @@ async def _send_message(request, data):
                 "status": "Steering queued for the next turn",
             }, status=201)
 
-        queued_item = queue_followup(
+        from ..followup_store import FollowupStore
+        queued_item = await FollowupStore(db).enqueue(
             thread_id=thread_id,
             agent_id=agent_id,
             message_id=msg_id,
             content=data["content"],
-            mode="queue",
         )
         queued_payload = _serialize_followup_event(queued_item)
         await broadcast_event("agent_followup_queued", queued_payload)
@@ -1713,6 +1786,7 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post("/agent/{agent_id}/abort", abort_turn)
     app.router.add_post("/agent/{agent_id}/action/{action_id}", trigger_action)
     app.router.add_post("/agent/queue-remove", remove_queue_item)
+    app.router.add_post("/agent/queue-discard-uncertain", discard_uncertain_followup)
     app.router.add_post("/agent/queue-reorder", reorder_queue_item)
     app.router.add_post("/agent/queue-steer", steer_queue_item)
     app.router.add_post("/agent/respond", respond_to_agent_request)

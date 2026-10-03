@@ -2,25 +2,14 @@
 
 import importlib
 import json
-import sys
-from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from aiohttp.test_utils import make_mocked_request
 
-SRC_PATH = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_PATH) in sys.path:
-    sys.path.remove(str(SRC_PATH))
-sys.path.insert(0, str(SRC_PATH))
-
-for module_name in list(sys.modules.keys()):
-    if module_name == "vibes" or module_name.startswith("vibes."):
-        sys.modules.pop(module_name, None)
-
-agents_mod = importlib.import_module("vibes.routes.agents")
-followups_mod = importlib.import_module("vibes.followups")
+from vibes.routes import agents as agents_mod
+from vibes import followups as followups_mod
 
 
 # ── _resolve_agent_mode ──────────────────────────────────
@@ -314,33 +303,35 @@ async def test_send_message_normal_path(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_send_message_busy_defaults_to_queue(mock_deps):
+async def test_send_message_busy_defaults_to_queue(mock_deps, db, monkeypatch):
     """Busy submissions should default to queued follow-up behavior."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
-        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
-        fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+        root = await db.create_interaction({"type": "user", "content": "root"})
+        monkeypatch.setattr(agents_mod, "get_db", AsyncMock(return_value=db))
+        fake_turn = {"turn_id": "turn-1", "thread_id": root, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
-             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
+             patch.object(db, "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
             req = _make_send_request("focus on tests")
             resp = await agents_mod.send_message(req)
             assert resp.status == 201
             body = json.loads(resp.body)
             assert body["queued"] == "followup"
-            assert body["thread_id"] == 42
+            assert body["thread_id"] == root
             assert "queued" in body["status"].lower()
             mock_deps["enqueue"].assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_send_message_explicit_pi_steer_when_busy(mock_deps):
+async def test_send_message_explicit_pi_steer_when_busy(mock_deps, db, monkeypatch):
     """Explicit steer mode uses real Pi steering when available."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "pi"
-        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
-        fake_turn = {"turn_id": "turn-1", "thread_id": 42, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+        root = await db.create_interaction({"type": "user", "content": "root"})
+        monkeypatch.setattr(agents_mod, "get_db", AsyncMock(return_value=db))
+        fake_turn = {"turn_id": "turn-1", "thread_id": root, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "is_pi_busy", return_value=True), \
-             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]), \
+             patch.object(db, "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]), \
              patch.object(agents_mod, "send_pi_rpc_fire_and_forget",
                           new_callable=AsyncMock, return_value=True) as mock_steer:
             req = _make_send_request("steer me", mode="steer")
@@ -348,7 +339,7 @@ async def test_send_message_explicit_pi_steer_when_busy(mock_deps):
             body = json.loads(resp.body)
             assert body["steered"] is True
             assert body["emulated"] is False
-            mock_steer.assert_called_once_with({"type": "steer", "message": "steer me"})
+            mock_steer.assert_called_once_with({"type": "steer", "message": "steer me"}, raise_on_send_error=True)
 
 
 @pytest.mark.asyncio
@@ -365,15 +356,15 @@ async def test_send_message_slash_command(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_send_message_explicit_acp_steer_is_emulated(mock_deps):
+async def test_send_message_explicit_acp_steer_is_emulated(mock_deps, db, monkeypatch):
     """ACP steer mode should queue a prioritized steer item."""
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "acp"
-        mock_deps["db"]._interactions[42] = {"id": 42, "data": {"session_id": "default"}}
-        mock_deps["db"]._interactions[7] = {"id": 7, "data": {"session_id": "default"}}
-        fake_turn = {"turn_id": "turn-2", "thread_id": 7, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+        root = await db.create_interaction({'type': 'user', 'content': 'root'})
+        monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+        fake_turn = {"turn_id": "turn-2", "thread_id": root, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
         with patch.object(agents_mod, "_is_agent_busy", return_value=True), \
-             patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
+             patch.object(db, "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
             req = _make_send_request("hello", mode="steer")
             resp = await agents_mod.send_message(req)
         body = json.loads(resp.body)
@@ -396,28 +387,35 @@ async def test_send_message_acp_idle_enqueues_turn(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_queue_remove_route(mock_deps):
+async def test_queue_remove_route(mock_deps, db, monkeypatch):
     """Queued items can be removed via route."""
-    item = followups_mod.queue_followup(thread_id=1, agent_id="default", message_id=5, content="hello")
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=1, agent_id="default", message_id=5, content="hello")
     req = make_mocked_request("POST", "/agent/queue-remove")
     req.json = AsyncMock(return_value={"row_id": item["row_id"]})
     resp = await agents_mod.remove_queue_item(req)
     body = json.loads(resp.body)
     assert resp.status == 200
     assert body["removed"] is True
+    assert await store.list() == []
 
 
 @pytest.mark.asyncio
-async def test_queue_steer_route_emulates_for_acp(mock_deps):
+async def test_queue_steer_route_emulates_for_acp(mock_deps, db, monkeypatch):
     """Queued ACP items can be promoted into deferred steering."""
-    item = followups_mod.queue_followup(thread_id=3, agent_id="default", message_id=8, content="nudge")
-    mock_deps["db"]._interactions[3] = {"id": 3, "data": {"session_id": "default"}}
-    fake_turn = {"turn_id": "turn-3", "thread_id": 3, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    root = await db.create_interaction({'type': 'user', 'content': 'root'})
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id="default", message_id=root, content="nudge")
+    fake_turn = {"turn_id": "turn-3", "thread_id": root, "agent_id": "default", "started_at": "2026-01-01T00:00:00Z"}
     req = make_mocked_request("POST", "/agent/queue-steer")
     req.json = AsyncMock(return_value={"row_id": item["row_id"]})
     with patch.object(agents_mod, "get_config") as mc:
         mc.return_value.default_agent = "acp"
-        with patch.object(mock_deps["db"], "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
+        with patch.object(db, "get_active_turns", new_callable=AsyncMock, return_value=[fake_turn]):
             resp = await agents_mod.steer_queue_item(req)
     body = json.loads(resp.body)
     assert resp.status == 200
@@ -454,14 +452,18 @@ async def test_send_message_invalid_json():
 
 
 @pytest.mark.asyncio
-async def test_get_agent_queue_lists_items(mock_deps):
+async def test_get_agent_queue_lists_items(mock_deps, db, monkeypatch):
     """Queue endpoint returns queued follow-ups."""
-    followups_mod.queue_followup(thread_id=9, agent_id="default", message_id=12, content="later")
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    item = await FollowupStore(db).enqueue(thread_id=9, agent_id="default", message_id=12, content="later")
     req = make_mocked_request("GET", "/agent/queue")
     resp = await agents_mod.get_agent_queue(req)
     body = json.loads(resp.body)
     assert resp.status == 200
     assert len(body["items"]) == 1
+    assert body['items'][0]['row_id'] == item['row_id']
+    assert 'claim_token' not in resp.text
 
 
 # ── list_agents ───────────────────────────────────────────
@@ -683,9 +685,12 @@ async def test_get_agent_models_rpc_failure():
 
 
 @pytest.mark.asyncio
-async def test_queue_promotion_cancel_restores_identity(mock_deps):
+async def test_queue_promotion_cancel_preserves_uncertain_identity(mock_deps, db, monkeypatch):
     import asyncio
-    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='keep')
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='keep')
     req = MagicMock()
     req.json = AsyncMock(return_value={'row_id': item['row_id']})
     with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
@@ -693,12 +698,18 @@ async def test_queue_promotion_cancel_restores_identity(mock_deps):
          patch.object(agents_mod, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)):
         with pytest.raises(asyncio.CancelledError):
             await agents_mod.steer_queue_item(req)
-    assert followups_mod.list_followups()[0]['row_id'] == item['row_id']
+    rows = await store.list()
+    assert rows[0]['row_id'] == item['row_id']
+    assert rows[0]['state'] == 'uncertain'
+    assert await store.claim(1, 'default') is None
 
 
 @pytest.mark.asyncio
-async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps):
-    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='keep')
+async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps, db, monkeypatch):
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='keep')
     req = MagicMock()
     req.json = AsyncMock(return_value={'row_id': item['row_id']})
     with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
@@ -710,11 +721,15 @@ async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_concurrent_queue_promotion_sends_once(mock_deps):
+async def test_concurrent_queue_promotion_sends_once(mock_deps, db, monkeypatch):
     import asyncio
-    item = followups_mod.queue_followup(thread_id=1, agent_id='default', message_id=8, content='once')
+    from vibes.followup_store import FollowupStore
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='once')
     entered, release = asyncio.Event(), asyncio.Event()
-    async def send(_):
+    async def send(_, **kwargs):
+        assert kwargs == {'raise_on_send_error': True}
         entered.set()
         await release.wait()
         return True
@@ -733,6 +748,10 @@ async def test_concurrent_queue_promotion_sends_once(mock_deps):
         assert second.status == 404
         assert response.status == 200
         assert sender.await_count == 1
+        rows = await store.list()
+        assert rows[0]['row_id'] == item['row_id']
+        assert rows[0]['state'] == 'uncertain'
+        assert await store.claim(1, 'default') is None
 
 
 @pytest.mark.asyncio
@@ -1014,12 +1033,10 @@ async def test_queue_mutations_reject_coerced_identity(handler_name, row_id):
     from vibes.routes import agents
     request = MagicMock()
     request.json = AsyncMock(return_value={'row_id': row_id, 'direction': 'up'})
-    with patch.object(agents, 'remove_followup') as remove, \
-         patch.object(agents, 'reorder_followup') as reorder:
+    with patch.object(agents, 'get_db', AsyncMock()) as database:
         response = await getattr(agents, handler_name)(request)
     assert response.status == 400
-    remove.assert_not_called()
-    reorder.assert_not_called()
+    database.assert_not_awaited()
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('handler_name', ['remove_queue_item', 'steer_queue_item', 'reorder_queue_item'])
@@ -1028,92 +1045,46 @@ async def test_queue_mutations_reject_nonobject_json(handler_name, body):
     from vibes.routes import agents
     request = MagicMock()
     request.json = AsyncMock(return_value=body)
-    with patch.object(agents, 'remove_followup') as remove, \
-         patch.object(agents, 'reorder_followup') as reorder:
+    with patch.object(agents, 'get_db', AsyncMock()) as database:
         response = await getattr(agents, handler_name)(request)
     assert response.status == 400
-    remove.assert_not_called()
-    reorder.assert_not_called()
+    database.assert_not_awaited()
 
 @pytest.mark.asyncio
-async def test_queue_steer_cancel_before_admission_restores_identity():
+@pytest.mark.parametrize('mutation', ['none', 'reorder', 'remove'])
+async def test_persisted_steering_validation_races(db, monkeypatch, mutation):
     import asyncio
-    from vibes.routes import agents
-    from vibes.followups import queue_followup, list_followups, reset_state
-
-    reset_state()
-    queue_followup(thread_id=42, agent_id='pi', message_id=8, content='first')
-    item = queue_followup(thread_id=42, agent_id='pi', message_id=9, content='keep me')
-    queue_followup(thread_id=42, agent_id='pi', message_id=10, content='next')
-    request = MagicMock()
-    request.json = AsyncMock(return_value={'row_id': item['row_id']})
-    try:
-        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
-             patch.object(agents, '_is_agent_busy', return_value=True), \
-             patch.object(agents, '_get_active_turn_for_agent', AsyncMock(return_value={'thread_id': 42})), \
-             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
-             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)), \
-             patch.object(agents, 'broadcast_event', AsyncMock()) as broadcast:
-            with pytest.raises(asyncio.CancelledError):
-                await agents.steer_queue_item(request)
-        assert [entry['message_id'] for entry in list_followups()] == [8, 9, 10]
-        assert list_followups()[1]['row_id'] == item['row_id']
-        assert list_followups()[1]['mode'] == 'queue'
-        broadcast.assert_not_awaited()
-    finally:
-        reset_state()
-
-@pytest.mark.asyncio
-async def test_cancelled_steering_preserves_reorder_during_validation():
-    import asyncio
-    from vibes.routes import agents
-    from vibes import followups
-
-    followups.reset_state()
-    followups.queue_followup(thread_id=42, agent_id='pi', message_id=8, content='first')
-    item = followups.queue_followup(thread_id=42, agent_id='pi', message_id=9, content='middle')
-    followups.queue_followup(thread_id=42, agent_id='pi', message_id=10, content='last')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    root = await db.create_interaction({"type": "user", "content": "root"})
+    rows = [await store.enqueue(thread_id=root, agent_id='pi', message_id=i, content=str(i)) for i in [8, 9, 10]]
+    item = rows[1]
     async def lookup(*args, **kwargs):
-        followups.reorder_followup(item['row_id'], 'down')
-        return {'thread_id': 42}
+        if mutation == 'reorder':
+            await store.reorder(item['row_id'], 'down', thread_id=root, agent_id='pi')
+        elif mutation == 'remove':
+            await store.remove(item['row_id'], thread_id=root, agent_id='pi')
+        return {'thread_id': root}
+    monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(agents_mod, '_resolve_agent_mode', lambda _: 'pi')
+    monkeypatch.setattr(agents_mod, '_is_agent_busy', lambda _: True)
+    monkeypatch.setattr(agents_mod, '_get_active_turn_for_agent', lookup)
+    send = AsyncMock(side_effect=asyncio.CancelledError())
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents_mod, 'send_pi_rpc_fire_and_forget', send)
+    monkeypatch.setattr(agents_mod, 'broadcast_event', broadcast)
     request = MagicMock()
     request.json = AsyncMock(return_value={'row_id': item['row_id']})
-    try:
-        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
-             patch.object(agents, '_is_agent_busy', return_value=True), \
-             patch.object(agents, '_get_active_turn_for_agent', side_effect=lookup), \
-             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
-             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)):
-            with pytest.raises(asyncio.CancelledError):
-                await agents.steer_queue_item(request)
-        assert [entry['message_id'] for entry in followups.list_followups()] == [8, 10, 9]
-    finally:
-        followups.reset_state()
-
-@pytest.mark.asyncio
-async def test_steering_does_not_dispatch_item_removed_during_validation():
-    from vibes.routes import agents
-    from vibes import followups
-
-    followups.reset_state()
-    item = followups.queue_followup(thread_id=42, agent_id='pi', message_id=9, content='removed prompt')
-    async def lookup(*args, **kwargs):
-        followups.remove_followup(item['row_id'])
-        return {'thread_id': 42}
-    request = MagicMock()
-    request.json = AsyncMock(return_value={'row_id': item['row_id']})
-    try:
-        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
-             patch.object(agents, '_is_agent_busy', return_value=True), \
-             patch.object(agents, '_get_active_turn_for_agent', side_effect=lookup), \
-             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
-             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock()) as send, \
-             patch.object(agents, 'broadcast_event', AsyncMock()) as broadcast:
-            response = await agents.steer_queue_item(request)
-        assert response.status == 404
+    if mutation == 'remove':
+        assert (await agents_mod.steer_queue_item(request)).status == 404
         send.assert_not_awaited()
-        broadcast.assert_not_awaited()
-        assert followups.list_followups() == []
-        assert followups.list_pending_steers() == []
-    finally:
-        followups.reset_state()
+    else:
+        with pytest.raises(asyncio.CancelledError):
+            await agents_mod.steer_queue_item(request)
+        send.assert_awaited_once()
+    listed = await store.list(thread_id=root, agent_id='pi')
+    expected = [8, 10] if mutation == 'remove' else [8, 10, 9] if mutation == 'reorder' else [8, 9, 10]
+    assert [row['message_id'] for row in listed] == expected
+    for row in listed:
+        assert row['state'] == ('uncertain' if row['row_id'] == item['row_id'] else 'pending')
+    broadcast.assert_not_awaited()

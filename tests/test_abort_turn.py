@@ -127,8 +127,9 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
     agents = importlib.import_module('vibes.routes.agents')
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     root = await db.create_interaction({'type': 'user', 'content': 'abort', 'session_id': 'default'})
-    followups.reset_state()
-    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='keep queued')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='keep queued')
     async def dispatch(*args, **kwargs):
         return {'text': 'response', 'content': [], 'cancelled': cancelled, 'cancel_reason': 'abort' if cancelled else None}
     monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', dispatch)
@@ -136,16 +137,20 @@ async def test_followup_dispatch_requires_successful_turn(db, monkeypatch, mode,
     monkeypatch.setattr(agents, 'broadcast_event', AsyncMock())
     enqueue = Mock()
     monkeypatch.setattr(agents, 'enqueue', enqueue)
-    try:
-        await agents.process_agent_response(root, 'abort', 'default')
-        if cancelled:
-            assert [row['row_id'] for row in followups.list_followups()] == [item['row_id']]
-            enqueue.assert_not_called()
-        else:
-            assert followups.list_followups() == []
-            enqueue.assert_called_once_with(agents.process_agent_response, root, 'keep queued', 'default', media_ids=None)
-    finally:
-        followups.reset_state()
+    await agents.process_agent_response(root, 'abort', 'default')
+    rows = await store.list(thread_id=root, agent_id='default')
+    assert [row['row_id'] for row in rows] == [item['row_id']]
+    if cancelled:
+        assert rows[0]['state'] == 'pending'
+        enqueue.assert_not_called()
+    else:
+        assert rows[0]['state'] == 'claimed'
+        enqueue.assert_called_once()
+        args, kwargs = enqueue.call_args
+        assert args[0] is agents._run_claimed_followup
+        assert args[1]['row_id'] == item['row_id']
+        assert args[1]['claim_token']
+        assert kwargs == {'media_ids': None}
 
 
 @pytest.mark.asyncio
@@ -158,23 +163,22 @@ async def test_followup_admission_failure_restores_same_item(db, monkeypatch, ra
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     monkeypatch.setattr(agent_attachments, 'referenced_media', AsyncMock(return_value=[]))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
-    followups.reset_state()
-    add = followups.defer_steer if steer else followups.queue_followup
-    item = add(thread_id=root, agent_id='default', message_id=root, content='retry')
-    later = add(thread_id=root, agent_id='default', message_id=root, content='later')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='retry', steer=steer)
+    later = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='later', steer=steer)
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
     monkeypatch.setattr(agents, '_dispatch_pi_thread', AsyncMock(return_value={'text': 'done', 'content': [], 'cancelled': False}))
     broadcast = AsyncMock()
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
     admission = Mock(side_effect=RuntimeError('worker unavailable')) if raises else Mock(return_value=False)
     monkeypatch.setattr(agents, 'enqueue', admission)
-    try:
-        await agents.process_agent_response(root, 'run', 'default')
-        remaining = followups.list_pending_steers() if steer else followups.list_followups()
-        assert remaining == [item, later]
-        assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.await_args_list)
-    finally:
-        followups.reset_state()
+    await agents.process_agent_response(root, 'run', 'default')
+    remaining = await store.list(thread_id=root, agent_id='default')
+    assert [row['row_id'] for row in remaining] == [item['row_id'], later['row_id']]
+    assert all(row['state'] == 'pending' for row in remaining)
+    assert all(row['mode'] == ('steer' if steer else 'queue') for row in remaining)
+    assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.await_args_list)
 
 
 @pytest.mark.asyncio
@@ -206,19 +210,24 @@ async def test_followup_worker_admission_preserves_source_attachments(mode, db, 
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
     source = await db.create_interaction({'type': 'user', 'thread_id': root, 'content': 'next', 'media_ids': [17, 23]})
-    followups.reset_state()
-    followups.queue_followup(thread_id=root, agent_id='default', message_id=source, content='next')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=source, content='next')
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
     monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', AsyncMock(return_value={'text': 'done', 'content': []}))
     monkeypatch.setattr(agents, 'broadcast_event', AsyncMock())
     admission = Mock(return_value=True)
     monkeypatch.setattr(agents, 'enqueue', admission)
-    try:
-        await agents.process_agent_response(root, 'run', 'default')
-        admission.assert_called_once_with(agents.process_agent_response, root, 'next', 'default', media_ids=[17, 23])
-        assert followups.list_followups() == []
-    finally:
-        followups.reset_state()
+    await agents.process_agent_response(root, 'run', 'default')
+    admission.assert_called_once()
+    args, kwargs = admission.call_args
+    assert args[0] is agents._run_claimed_followup
+    assert args[1]['row_id'] == item['row_id']
+    assert args[1]['message_id'] == source
+    assert kwargs == {'media_ids': [17, 23]}
+    rows = await store.list(thread_id=root, agent_id='default')
+    assert rows[0]['row_id'] == item['row_id']
+    assert rows[0]['state'] == 'claimed'
 
 
 @pytest.mark.asyncio
@@ -231,10 +240,10 @@ async def test_followup_source_rejection_preserves_queue_before_admission(mode, 
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
-    followups.reset_state()
-    add = followups.defer_steer if steer else followups.queue_followup
-    item = add(thread_id=root, agent_id='default', message_id=999, content='next')
-    later = add(thread_id=root, agent_id='default', message_id=root, content='later')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=999, content='next', steer=steer)
+    later = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='later', steer=steer)
     original_get = db.get_interaction
     async def get_source(row_id):
         if row_id != 999:
@@ -253,20 +262,16 @@ async def test_followup_source_rejection_preserves_queue_before_admission(mode, 
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
     admission = Mock(return_value=True)
     monkeypatch.setattr(agents, 'enqueue', admission)
-    try:
-        if failure == 'cancel':
-            with pytest.raises(asyncio.CancelledError):
-                await agents.process_agent_response(root, 'run', 'default')
-        else:
+    if failure == 'cancel':
+        with pytest.raises(asyncio.CancelledError):
             await agents.process_agent_response(root, 'run', 'default')
-        admission.assert_not_called()
-        listing = followups.list_pending_steers if steer else followups.list_followups
-        assert [row['row_id'] for row in listing()] == [item['row_id'], later['row_id']]
-        other = followups.list_followups if steer else followups.list_pending_steers
-        assert other() == []
-        assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.call_args_list)
-    finally:
-        followups.reset_state()
+    else:
+        await agents.process_agent_response(root, 'run', 'default')
+    admission.assert_not_called()
+    rows = await store.list(thread_id=root, agent_id='default')
+    assert [row['row_id'] for row in rows] == [item['row_id'], later['row_id']]
+    assert all(row['state'] == 'pending' and row['mode'] == ('steer' if steer else 'queue') for row in rows)
+    assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.call_args_list)
 
 
 @pytest.mark.asyncio
@@ -278,9 +283,10 @@ async def test_consumed_notification_failure_does_not_restore_admitted_followup(
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
-    followups.reset_state()
-    followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='next')
-    later = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='later')
+    from vibes.followup_store import FollowupStore
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='next')
+    later = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='later')
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
     monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', AsyncMock(return_value={'text': 'done', 'content': []}))
     async def broadcast(event, payload):
@@ -291,14 +297,15 @@ async def test_consumed_notification_failure_does_not_restore_admitted_followup(
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
     admission = Mock(return_value=True)
     monkeypatch.setattr(agents, 'enqueue', admission)
-    try:
-        if cancel:
-            with pytest.raises(asyncio.CancelledError):
-                await agents.process_agent_response(root, 'run', 'default')
-        else:
+    if cancel:
+        with pytest.raises(asyncio.CancelledError):
             await agents.process_agent_response(root, 'run', 'default')
-        admission.assert_called_once_with(agents.process_agent_response, root, 'next', 'default', media_ids=None)
-        assert [row['row_id'] for row in followups.list_followups()] == [later['row_id']]
-        assert followups.list_pending_steers() == []
-    finally:
-        followups.reset_state()
+    else:
+        await agents.process_agent_response(root, 'run', 'default')
+    admission.assert_called_once()
+    args, kwargs = admission.call_args
+    assert args[0] is agents._run_claimed_followup
+    assert args[1]['row_id'] == item['row_id']
+    assert kwargs == {'media_ids': None}
+    rows = await store.list(thread_id=root, agent_id='default')
+    assert [(row['row_id'], row['state']) for row in rows] == [(item['row_id'], 'claimed'), (later['row_id'], 'pending')]

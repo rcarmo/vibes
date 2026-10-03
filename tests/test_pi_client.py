@@ -1,23 +1,11 @@
 """Tests for pi_client helpers: state, queue, busy, fire-and-forget."""
 
 import asyncio
-import importlib
-import sys
-from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-SRC_PATH = Path(__file__).resolve().parents[1] / "src"
-if str(SRC_PATH) in sys.path:
-    sys.path.remove(str(SRC_PATH))
-sys.path.insert(0, str(SRC_PATH))
-
-for module_name in list(sys.modules.keys()):
-    if module_name == "vibes" or module_name.startswith("vibes."):
-        sys.modules.pop(module_name, None)
-
-pi = importlib.import_module("vibes.pi_client")
+from vibes import pi_client as pi
 
 
 @pytest.fixture(autouse=True)
@@ -292,3 +280,15 @@ async def test_failed_model_catalog_does_not_request_thinking_choices():
          patch.object(pi, 'send_rpc_command', new_callable=AsyncMock, return_value={'success': False}) as rpc:
         assert await pi.inspect_model_catalog('default') is None
         rpc.assert_awaited_once_with({'type': 'get_available_models'}, timeout=2.0)
+
+
+@pytest.mark.asyncio
+async def test_strict_fire_and_forget_distinguishes_no_send_from_ambiguous_failure():
+    with patch.object(pi, 'is_pi_running', return_value=False), \
+         patch.object(pi, '_send_command', new_callable=AsyncMock) as send:
+        assert await pi.send_rpc_fire_and_forget({'type': 'steer'}, raise_on_send_error=True) is False
+        send.assert_not_awaited()
+    with patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, '_send_command', new_callable=AsyncMock, side_effect=OSError('broken pipe')):
+        with pytest.raises(OSError):
+            await pi.send_rpc_fire_and_forget({'type': 'steer'}, raise_on_send_error=True)

@@ -24,8 +24,8 @@ class SessionStore:
             (int(include_archived),),
         ) as cursor:
             sessions = [{**dict(row), 'is_running': bool(row['is_running']), 'queued_count': 0} for row in await cursor.fetchall()]
-        from .followups import list_followups, list_pending_steers
-        pending = list_followups() + list_pending_steers()
+        from .followup_store import FollowupStore
+        pending = [item for item in await FollowupStore(self.db).list() if item['state'] == 'pending']
         counts = {}
         for item in pending:
             thread_id = item['thread_id']

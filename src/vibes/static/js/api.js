@@ -182,6 +182,13 @@ export async function getAgentQueue(agentId = null, threadId = null, sessionId =
     return request(query ? `/agent/queue?${query}` : '/agent/queue');
 }
 
+export async function discardUncertainFollowup(rowId, sessionId) {
+    return request('/agent/queue-discard-uncertain', {
+        method: 'POST',
+        body: JSON.stringify({ row_id: rowId, session_id: sessionId }),
+    });
+}
+
 export async function removeAgentQueueItem(rowId) {
     return request('/agent/queue-remove', {
         method: 'POST',
