@@ -125,6 +125,8 @@ export function WorkspaceEditor({
     saveError,
     savedAt,
     onReload,
+    onSaveCopy,
+    onOverwrite,
     onSave,
     onClose,
     onChange,
@@ -410,7 +412,7 @@ export function WorkspaceEditor({
             <div class="editor-body${loading || error ? ' disabled' : ''}">
                 <div class="editor-codemirror" ref=${hostRef}></div>
             </div>
-            ${saveError && html`<div class="editor-error">${saveError}${onReload && html`<button type="button" onClick=${onReload}>Reload from disk</button>`}</div>`}
+            ${saveError && html`<div class="editor-error">${saveError}${onReload && html`<button type="button" onClick=${onReload}>Reload from disk</button>`}${onSaveCopy && html`<button type="button" onClick=${onSaveCopy}>Save copy</button>`}${onOverwrite && html`<button type="button" onClick=${onOverwrite}>Review and overwrite</button>`}</div>`}
             ${!saveError && !error && html`
                 <div class="editor-status editor-status-row">
                     <span class="editor-status-text">

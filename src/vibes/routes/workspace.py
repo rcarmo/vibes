@@ -476,7 +476,14 @@ async def update_workspace_file(request: web.Request) -> web.Response:
         if revision != expected_revision:
             return web.json_response({"error": "File changed since it was opened. Refresh before saving."}, status=409)
     target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(content_str, encoding="utf-8")
+    if data.get('create_only'):
+        try:
+            with target.open('x', encoding='utf-8') as destination:
+                destination.write(content_str)
+        except FileExistsError:
+            return web.json_response({'error': 'Save copy destination already exists'}, status=409)
+    else:
+        target.write_text(content_str, encoding="utf-8")
 
     stat = target.stat()
     return web.json_response({

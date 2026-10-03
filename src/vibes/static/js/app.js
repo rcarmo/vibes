@@ -1104,6 +1104,26 @@ function App() {
         }
     }, [editorTabs, activeEditorTabId]);
 
+    const resolveEditorConflict = useCallback(async (copy) => {
+        const tab = editorTabs.find(item => item.id === activeEditorTabId);
+        if (!tab || tab.saving) return;
+        try {
+            if (copy) {
+                const destination = prompt('Save draft to a new workspace path:', `${tab.id}.copy`);
+                if (!destination) return;
+                await updateWorkspaceFile(destination, tab.content, undefined, true);
+                setEditorTabs(prev => prev.map(item => item === tab ? { ...item, saveError: `Draft copied to ${destination}; original remains unchanged.` } : item));
+                return;
+            }
+            const latest = await getWorkspaceFile(tab.id, 5_000_000, 'edit');
+            if (!confirm(`Current disk content:\n\n${latest.text}\n\nReplace this reviewed revision with your draft?`)) return;
+            const result = await updateWorkspaceFile(tab.id, tab.content, latest.revision);
+            setEditorTabs(prev => prev.map(item => item.id === tab.id ? { ...item, savedContent: tab.content, revision: result.revision, dirty: item.content !== tab.content, saveError: null, savedAt: Date.now() } : item));
+        } catch (err) {
+            setEditorTabs(prev => prev.map(item => item.id === tab.id ? { ...item, saveError: err?.message || 'Conflict resolution failed' } : item));
+        }
+    }, [editorTabs, activeEditorTabId]);
+
     const closeEditorTab = useCallback((tabId) => {
         if (!tabId) return;
         const tabs = editorTabs;
@@ -2538,6 +2558,8 @@ function App() {
                         savedAt=${activeEditorTab?.savedAt}
                         onSave=${handleEditorSave}
                 onReload=${reloadEditorTab}
+                onSaveCopy=${() => resolveEditorConflict(true)}
+                onOverwrite=${() => resolveEditorConflict(false)}
                         onClose=${closeEditor}
                         onChange=${handleEditorChange}
                         showPreview=${previewOpen}

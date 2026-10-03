@@ -728,3 +728,18 @@ async def test_revision_detects_same_size_metadata_preserving_change(workspace_t
     })
     assert response.status == 409
     assert target.read_text() == 'after!'
+
+@pytest.mark.asyncio
+async def test_save_copy_never_overwrites_existing_file(workspace_test_client, workspace_dir):
+    target = workspace_dir / 'copy.txt'
+    target.write_text('unrelated', encoding='utf-8')
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'copy.txt', 'content': 'draft', 'create_only': True,
+    })
+    assert response.status == 409
+    assert target.read_text() == 'unrelated'
+    response = await workspace_test_client.put('/workspace/file', json={
+        'path': 'new-copy.txt', 'content': 'draft', 'create_only': True,
+    })
+    assert response.status == 200
+    assert (workspace_dir / 'new-copy.txt').read_text() == 'draft'
