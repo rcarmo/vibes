@@ -9,3 +9,15 @@ def test_diagnostics_never_exports_mcp_secrets_or_execution_claims():
     assert result['mcp'] == [{'name': 'server', 'state': 'configured'}]
     assert 'private-secret' not in repr(result) and 'private-arg' not in repr(result)
     assert result['memory']['sources'] == ['note.md']
+
+
+def test_diagnostic_labels_are_bounded_and_display_safe():
+    unsafe = ['safe', 'bad\nlabel', 'x' * 513, True, '  ', 'del\x7f']
+    config = SimpleNamespace(default_agent='copilot-ffi', copilot_skill_directories=unsafe,
+                             copilot_available_tools=unsafe, copilot_mcp_servers={'safe': {}, 'bad\nname': {}},
+                             memory_paths=unsafe, memory_diagnostics=[])
+    result = backend_diagnostics(config)
+    assert result['skills'] == [{'source': 'safe', 'state': 'configured'}]
+    assert result['tools'] == [{'name': 'safe', 'state': 'configured'}]
+    assert result['mcp'] == [{'name': 'safe', 'state': 'configured'}]
+    assert result['memory']['sources'] == ['safe']
