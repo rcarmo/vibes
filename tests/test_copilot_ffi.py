@@ -440,3 +440,17 @@ async def test_messages_session_reference_cannot_expand_ffi_scope(setup, monkeyp
             assert (payload['session']['name'] if payload['session'] else None) == expected
     finally:
         await db.close()
+
+@pytest.mark.asyncio
+async def test_native_catalogue_caps_both_sources_and_drops_invalid_names(setup, monkeypatch):
+    backend, *_ = setup
+    entries = [SimpleNamespace(to_dict=lambda: {'name': 'valid', 'description': 'x' * 513}) for _ in range(130)]
+    entries[0] = SimpleNamespace(to_dict=lambda: {'name': 'bad\nname'})
+    session = SimpleNamespace(rpc=SimpleNamespace(
+        commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=entries))),
+        skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=entries)))))
+    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    result = await backend.command_catalogue('chat', object())
+    assert result['truncated'] is True
+    assert len(result['commands']) == len(result['skills']) == 127
+    assert all(row == {'name': 'valid'} for row in result['commands'] + result['skills'])
