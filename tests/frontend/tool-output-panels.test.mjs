@@ -15,3 +15,11 @@ test('completed latest call does not stop another running tool timer', async () 
     expect(hasRunningTool({ status: 'completed', tool_calls: [{ started_at: 1, status: 'running' }, { started_at: 2, ended_at: 3, status: 'completed' }] })).toBe(true);
     expect(hasRunningTool({ tool_calls: [{ started_at: 1, ended_at: 3, status: 'completed' }] })).toBe(false);
 });
+
+test('progress-only calls remain visible without fabricating output', () => {
+    const panels = toolOutputPanels({ tool_calls: [{ tool_call_id: 'p', output: '', progress_message: '<working>', progress_truncated: true }] });
+    expect(panels).toHaveLength(1);
+    expect(panels[0].output).toBe('');
+    expect(panels[0].progress_message).toBe('<working>');
+    expect(panels[0].progress_truncated).toBe(true);
+});
