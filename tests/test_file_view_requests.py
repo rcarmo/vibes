@@ -73,3 +73,20 @@ async def test_pending_view_request_limit_does_not_evict_owned_work():
     first.cancel()
     with pytest.raises(asyncio.CancelledError):
         await first
+
+
+@pytest.mark.asyncio
+async def test_publish_failure_releases_capacity_without_opened_claim():
+    from unittest.mock import AsyncMock
+    requests = FileViewRequests(limit=1)
+    publish = AsyncMock(side_effect=RuntimeError('transport unavailable'))
+    with pytest.raises(RuntimeError, match='transport unavailable'):
+        await requests.request('chat', 'file.txt', lambda: True, publish)
+    assert requests.pending == {}
+    events = []
+    async def acknowledge_publish(kind, data):
+        events.append(data)
+        requests.acknowledge(data['request_id'], 'chat', 'rejected')
+    result = await requests.request('chat', 'next.txt', lambda: True, acknowledge_publish)
+    assert result['status'] == 'rejected'
+    assert len(events) == 1
