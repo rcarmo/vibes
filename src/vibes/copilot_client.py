@@ -442,7 +442,14 @@ class CopilotBackend:
                     event = await asyncio.wait_for(events.get(), get_config().copilot_event_timeout)
                     kind = getattr(event.type, 'value', event.type)
                     data = _dict(event.data)
-                    if kind == 'assistant.intent':
+                    if kind == 'assistant.usage':
+                        usage = {}
+                        for source, destination in [('inputTokens', 'input_tokens'), ('outputTokens', 'output_tokens'), ('cacheReadTokens', 'cache_read_tokens'), ('cacheWriteTokens', 'cache_write_tokens')]:
+                            value = data.get(source, data.get(destination))
+                            if isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 10**12:
+                                usage[destination] = value
+                        await callback({'type': 'usage', 'usage': usage, 'context_occupancy': None, 'context_source': 'unavailable'})
+                    elif kind == 'assistant.intent':
                         intent = data.get('intent')
                         if _safe_label(intent):
                             await callback({'type': 'thinking', 'title': intent})
