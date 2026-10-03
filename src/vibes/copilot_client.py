@@ -443,7 +443,15 @@ class CopilotBackend:
                     event = await asyncio.wait_for(events.get(), get_config().copilot_event_timeout)
                     kind = getattr(event.type, 'value', event.type)
                     data = _dict(event.data)
-                    if kind == 'assistant.usage':
+                    if kind in {'subagent.started', 'subagent.completed', 'subagent.failed'}:
+                        from .native_tasks import normalise_task_event
+                        task = normalise_task_event(kind, data)
+                        if task is not None:
+                            await callback({'type': 'tool_call' if task['status'] == 'running' else 'tool_status',
+                                            'tool_call_id': f"native-task:{task['task_id']}",
+                                            'title': task.get('name', 'Native task'), 'status': task['status'],
+                                            'native_task': task})
+                    elif kind == 'assistant.usage':
                         usage = {}
                         for source, destination in [('inputTokens', 'input_tokens'), ('outputTokens', 'output_tokens'), ('cacheReadTokens', 'cache_read_tokens'), ('cacheWriteTokens', 'cache_write_tokens')]:
                             value = data.get(source, data.get(destination))

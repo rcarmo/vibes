@@ -85,7 +85,7 @@ async def test_stream_and_binding(setup, monkeypatch):
     seen = []
     async def callback(data):
         seen.append(data)
-    result = await backend.send('hello', 1, callback, chat_id='chat', store=store)
+    result = await backend.send('hello', 1, callback, chat_id='chat', store=store, attachment_context={'mode':'copilot-ffi','session_id':'chat','turn_id':'turn'})
     assert result['text'] == 'Hello world'
     chunks = [x for x in seen if x['type'] == 'message_chunk']
     assert ''.join(x['delta'] for x in chunks) == 'Hello world'
@@ -478,3 +478,23 @@ async def test_native_catalogue_cancellation_propagates_and_releases_lane(setup,
     with pytest.raises(asyncio.CancelledError):
         await discovery
     assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+async def test_native_task_lifecycle_reaches_activity_without_chat_or_private_fields(setup):
+    backend, client, session, factory, ffi = setup
+    events = [('subagent.started', {'toolCallId': 'task', 'agentDisplayName': 'Research'}),
+                      ('subagent.failed', {'toolCallId': 'task', 'error': 'private provider error', 'totalTokens': 12}),
+                      ('session.idle', {})]
+    callback = AsyncMock()
+    async def send(*args, **kwargs):
+        for kind, data in events:
+            session.handler(SimpleNamespace(type=kind, data=data))
+    session.send = send
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value=None), bind_backend=AsyncMock())
+    await backend.send('hello', 1, callback, chat_id='chat', store=store, attachment_context={'mode':'copilot-ffi','session_id':'chat','turn_id':'turn'})
+    rows = [call.args[0] for call in callback.await_args_list if 'native_task' in call.args[0]]
+    assert [row['status'] for row in rows] == ['running', 'failed']
+    assert all(row['tool_call_id'] == 'native-task:task' for row in rows)
+    assert rows[1]['native_task']['total_tokens'] == 12
+    assert 'private' not in repr(rows)
+    assert all('session_id' not in row['native_task'] for row in rows)
