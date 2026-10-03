@@ -1281,7 +1281,8 @@ async def _send_message(request, data):
         session = await SessionStore(db).get(session_id)
         if not session or session['archived']:
             return web.json_response({'error': 'Session unavailable'}, status=404)
-        if data['content'].lstrip().startswith('/') and not compact_action:
+        parsed = parse_command(data['content'])
+        if data['content'].lstrip().startswith('/') and not compact_action and (not parsed or parsed.name not in {'theme', 'tint'}):
             return web.json_response({'error': 'Session-specific commands are not enabled yet'}, status=409)
     if _resolve_agent_mode(agent_id) != 'copilot-ffi' and (_agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id))):
         active = await _get_active_turn_for_agent(agent_id)
@@ -1331,6 +1332,7 @@ async def _send_message(request, data):
                 "content": result.message,
                 "agent_id": agent_id,
                 "thread_id": thread_id,
+                "session_id": session_id,
             }
             response_id = await db.create_interaction(agent_response)
             response_interaction = await db.get_interaction(response_id)
@@ -1576,7 +1578,11 @@ async def get_agent_commands(request: web.Request) -> web.Response:
     # Non-default chats currently reject generic slash commands. Do not offer
     # actions that the send route cannot execute (turn abort has its own route).
     if session_id != 'default':
-        return web.json_response({'commands': []})
+        commands = [] if _resolve_agent_mode('default') == 'copilot-ffi' else [
+            {'name': '/theme', 'description': 'Show or set the global appearance theme'},
+            {'name': '/tint', 'description': 'Show or set the global appearance tint'},
+        ]
+        return web.json_response({'commands': commands, 'authoritative': True})
 
     if _resolve_agent_mode('default') == 'copilot-ffi':
         return web.json_response({'commands': [], 'authoritative': True})
