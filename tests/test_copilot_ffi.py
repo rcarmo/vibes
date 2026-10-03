@@ -93,7 +93,7 @@ async def test_stream_and_binding(setup, monkeypatch):
     assert [x['delta_reset'] for x in seen] == [True, False]
     opts = client.create_session.call_args.kwargs
     assert opts['remote_session'] == 'off'
-    assert opts['available_tools'] == ['custom:vibes_attach_file','custom:plan','custom:open_file']
+    assert opts['available_tools'] == ['custom:vibes_attach_file','custom:plan','custom:open_file','custom:messages']
     store.bind_backend.assert_awaited_once()
     assert backend.active is None and session.handler is None
 
@@ -277,3 +277,13 @@ async def test_disconnect_never_restarts_ffi(monkeypatch):
     monkeypatch.setattr(sse,'_restart_task',None)
     sse._schedule_restart_if_needed()
     assert sse._restart_task is None
+
+@pytest.mark.asyncio
+async def test_messages_tool_rejects_scope_overrides_and_mutations(setup, monkeypatch):
+    backend, client, session, factory, ffi = setup
+    backend.sdk = SimpleNamespace(Tool=lambda **kw: SimpleNamespace(**kw))
+    monkeypatch.setattr(backend, '_owner', lambda chat, session: True)
+    tool = next(tool for tool in backend._tools('chat-a') if tool.name == 'messages')
+    for args in [{'action': 'delete', 'row_ids': [1]}, {'action': 'get', 'row_ids': [1], 'session_id': 'chat-b'}]:
+        with pytest.raises(ValueError):
+            await tool.handler(SimpleNamespace(arguments=args, session_id='sdk'))

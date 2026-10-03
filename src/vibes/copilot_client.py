@@ -306,7 +306,27 @@ class CopilotBackend:
             await broadcast_event('plan_updated', result)
             return self.sdk.ToolResult(text_result_for_llm=json.dumps(result))
 
+        async def messages(invocation):
+            owner = self._owner(chat_id, invocation.session_id)
+            def still_owned():
+                if self._owner(chat_id, invocation.session_id) is not owner:
+                    raise PermissionError('Turn ownership changed')
+            still_owned()
+            from .db import get_db
+            from .message_tools import MessageTools
+            args = invocation.arguments
+            allowed = {'action', 'row_ids', 'query', 'limit', 'before_row', 'after_row', 'context_before', 'context_after', 'media_id'}
+            if not isinstance(args, dict) or set(args) - allowed or args.get('action') not in {'get', 'search', 'attachment'}:
+                raise ValueError('Expected bounded read-only message query')
+            result = await MessageTools((await get_db())._connection, session_id=chat_id).query(**args)
+            still_owned()
+            return self.sdk.ToolResult(text_result_for_llm=json.dumps(result))
+
         async def open_file(invocation):
+            owner = self._owner(chat_id, invocation.session_id)
+            def still_owned():
+                if self._owner(chat_id, invocation.session_id) is not owner:
+                    raise PermissionError('Turn ownership changed')
             still_owned()
             from .routes.workspace import _resolve_workspace_path, _to_workspace_relative, _file_views
             from .routes.sse import broadcast_event
@@ -316,7 +336,7 @@ class CopilotBackend:
             result = await _file_views.request(chat_id, _to_workspace_relative(target), still_owned, broadcast_event)
             return self.sdk.ToolResult(text_result_for_llm=json.dumps(result), result_type='success' if result['status'] == 'opened' else 'failure')
 
-        return [self.sdk.Tool(name='open_file', handler=open_file, description='Request browser-acknowledged workspace text-file viewing.', parameters={'type': 'object', 'required': ['path'], 'additionalProperties': False, 'properties': {'path': {'type': 'string'}}}), self.sdk.Tool(name='vibes_attach_file', description='Attach a regular workspace file to the current conversation. No destination override.', handler=attach,
+        return [self.sdk.Tool(name='messages', handler=messages, description='Bounded read-only retrieval/search of current-chat messages and referenced attachments. IDs do not grant access to other chats.', parameters={'type': 'object', 'additionalProperties': False, 'required': ['action'], 'properties': {'action': {'type': 'string', 'enum': ['get', 'search', 'attachment']}, 'row_ids': {'type': 'array', 'maxItems': 50, 'items': {'type': 'integer', 'minimum': 1}}, 'query': {'type': 'string', 'maxLength': 500}, 'limit': {'type': 'integer', 'minimum': 1, 'maximum': 50}, 'before_row': {'type': 'integer', 'minimum': 1}, 'after_row': {'type': 'integer', 'minimum': 1}, 'context_before': {'type': 'integer', 'minimum': 0, 'maximum': 20}, 'context_after': {'type': 'integer', 'minimum': 0, 'maximum': 20}, 'media_id': {'type': 'integer', 'minimum': 1}}}), self.sdk.Tool(name='open_file', handler=open_file, description='Request browser-acknowledged workspace text-file viewing.', parameters={'type': 'object', 'required': ['path'], 'additionalProperties': False, 'properties': {'path': {'type': 'string'}}}), self.sdk.Tool(name='vibes_attach_file', description='Attach a regular workspace file to the current conversation. No destination override.', handler=attach,
                     parameters={'type': 'object', 'properties': {'path': {'type': 'string'}, 'name': {'type': 'string'}, 'kind': {'type': 'string', 'enum': ['image', 'file']}}, 'required': ['path'], 'additionalProperties': False}),
                 self.sdk.Tool(name='plan', description='Read/write the current conversation plan. Writes require expected_revision from a read.', handler=plan,
                     parameters={'type': 'object', 'properties': {'action': {'type': 'string', 'enum': ['read', 'write']}, 'markdown': {'type': 'string'}, 'expected_revision': {'type': 'integer'}}, 'required': ['action'], 'additionalProperties': False})]
@@ -329,7 +349,7 @@ class CopilotBackend:
         options = dict(on_permission_request=self._permission, on_user_input_request=self._question,
                        enable_skills=bool(config.copilot_skill_directories),
                        mcp_servers=getattr(config, 'copilot_mcp_servers', {}),
-                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:plan', 'custom:open_file', *config.copilot_available_tools],
+                       tools=tools, available_tools=['custom:vibes_attach_file', 'custom:plan', 'custom:open_file', 'custom:messages', *config.copilot_available_tools],
                        working_directory=str(Path.cwd()), streaming=True,
                        include_sub_agent_streaming_events=False,
                        skill_directories=config.copilot_skill_directories,
