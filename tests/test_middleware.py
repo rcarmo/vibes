@@ -162,3 +162,19 @@ async def test_cross_origin_workspace_access_denied():
 
 def test_health_prefix_does_not_bypass_auth():
     assert not mw.is_public_route("/health-private")
+
+@pytest.mark.asyncio
+async def test_scoped_diagnostics_is_not_public_and_honours_auth_rejection():
+    assert not mw.is_public_route('/diagnostics/backend')
+    called = False
+    async def handler(request):
+        nonlocal called
+        called = True
+        return web.json_response({'private': 'capabilities'})
+    async def reject(request):
+        return web.Response(status=401, text='Unauthorized')
+    request = make_mocked_request('GET', '/diagnostics/backend?session_id=selected')
+    response = await mw.create_auth_middleware(authenticate=reject)(request, handler)
+    assert response.status == 401
+    assert not called
+    assert 'capabilities' not in response.text
