@@ -382,3 +382,22 @@ async def test_failed_native_compaction_clears_state_and_releases_lane(setup, mo
     assert not backend.compacting_sessions
     assert not backend.turn_lock.locked()
     assert await backend.cancel_compaction('chat') is False
+
+@pytest.mark.asyncio
+async def test_cancelled_compaction_task_releases_lane(setup, monkeypatch):
+    import asyncio
+    backend, *_ = setup
+    entered = asyncio.Event()
+    async def compact(**kwargs):
+        entered.set()
+        await asyncio.Event().wait()
+    session = SimpleNamespace(rpc=SimpleNamespace(history=SimpleNamespace(compact=compact)))
+    monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
+    task = asyncio.create_task(backend.compact('chat', object()))
+    await entered.wait()
+    assert backend.compacting_sessions == {'chat'}
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+    assert not backend.compacting_sessions
+    assert not backend.turn_lock.locked()
