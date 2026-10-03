@@ -276,3 +276,45 @@ class TestGlobalDatabase:
         
         with pytest.raises(RuntimeError, match="Database not initialized"):
             await get_db()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_transaction_rolls_back_before_waiting_writer_commits(db):
+    import asyncio
+
+    async with db.transaction() as connection:
+        await connection.execute('CREATE TABLE transaction_probe (value TEXT NOT NULL)')
+    entered = asyncio.Event()
+    waiting = asyncio.Event()
+
+    async def cancelled_writer():
+        async with db.transaction() as connection:
+            await connection.execute("INSERT INTO transaction_probe VALUES ('cancelled')")
+            entered.set()
+            await asyncio.Event().wait()
+
+    async def surviving_writer():
+        waiting.set()
+        async with db.transaction() as connection:
+            await connection.execute("INSERT INTO transaction_probe VALUES ('committed')")
+
+    first = asyncio.create_task(cancelled_writer())
+    second = None
+    try:
+        await asyncio.wait_for(entered.wait(), 2)
+        second = asyncio.create_task(surviving_writer())
+        await asyncio.wait_for(waiting.wait(), 2)
+        assert not second.done()
+        first.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await first
+        await asyncio.wait_for(second, 2)
+        async with db.transaction() as connection:
+            async with connection.execute('SELECT value FROM transaction_probe') as cursor:
+                rows = await cursor.fetchall()
+        assert [row[0] for row in rows] == ['committed']
+    finally:
+        for task in (first, second):
+            if task is not None and not task.done():
+                task.cancel()
+        await asyncio.gather(*(task for task in (first, second) if task is not None), return_exceptions=True)
