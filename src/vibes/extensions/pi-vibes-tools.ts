@@ -41,6 +41,24 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.registerTool({
+    name: "open_file",
+    label: "View workspace file",
+    description: "Ask the browser in the current chat to open a workspace text file. Success requires browser acknowledgement; disconnected or inactive chats may remain unacknowledged.",
+    parameters: Type.Object({ path: Type.String() }),
+    async execute(_id, params, signal) {
+      const base = process.env.VIBES_PI_TOOLS_URL;
+      const token = process.env.VIBES_ATTACHMENT_TOKEN;
+      if (!base || !token) throw new Error('File viewing is not configured');
+      const response = await fetch(new URL('/internal/agent-tools/open-file', base), {
+        method: 'POST', signal, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify(params),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'File viewing failed');
+      return { content: [{ type: 'text', text: JSON.stringify(result) }], details: result };
+    },
+  });
+  pi.registerTool({
     name: "vibes_messages",
     label: "Vibes Messages",
     description: "Retrieve referenced Vibes messages by row ID or search message text in the current Vibes session. Use this whenever the prompt contains a Messages section or msg:<id> reference.",

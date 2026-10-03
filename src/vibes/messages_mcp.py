@@ -60,6 +60,9 @@ class MessagesMCP(AsyncMCPServer):
                 raise ValueError('Attachment endpoint must be the local Vibes service')
             self.register_tool('attach_file', self.attach_file, description=ATTACH_DESCRIPTION, input_schema=ATTACH_SCHEMA,
                                annotations={'readOnlyHint': False, 'destructiveHint': False})
+            self.register_tool('open_file', self.open_file,
+                description='Request browser-acknowledged viewing of a current-chat workspace text file. Inactive/disconnected browsers do not imply success.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['path'], 'properties': {'path': {'type': 'string'}}})
             self.register_tool('plan', self.plan,
                 description='Read/update the shared current-session Plan sidebar (max128KiB). Read first; mutations require expected_revision. update uses plan:[{step,status:pending|in_progress|completed}]. patch uses patches:[{operation:add|update|remove,index:1-based OR match:unique,step?,status?,position:start|end}]. edit uses edits:[{operation:replace|delete|insert_before|insert_after|append|prepend,oldText?,newText?,text?,anchorText?}], exact anchors only. At most one in-progress item; destination is bound to the active turn.',
                 input_schema={'type': 'object', 'additionalProperties': False, 'required': ['action'], 'properties': {
@@ -87,6 +90,15 @@ class MessagesMCP(AsyncMCPServer):
             self.register_tool('messages', self.messages,
                 description=TOOL['description'], input_schema=TOOL['inputSchema'],
                 annotations=TOOL['annotations'])
+
+    async def open_file(self, path):
+        url = self.attachment_url.removesuffix('/attach-file') + '/open-file'
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.post(url, json={'path': path}, headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'File viewing failed'))
+                return result
 
     async def plan(self, action, expected_revision=None, markdown=None, plan=None, patches=None, edits=None):
         fields = {'read': set(), 'write': {'markdown'}, 'update': {'plan'}, 'patch': {'patches'}, 'edit': {'edits'}}

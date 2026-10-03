@@ -1101,7 +1101,10 @@ function App() {
                 if (preview.kind !== 'text' || data.session_id !== selectedSessionRef.current) throw new Error('Cannot open requested file');
                 setWorkspaceOpen(true);
                 await openEditor(data.path);
-                status = 'opened';
+                // Acknowledgement follows browser rendering, not merely event receipt.
+                await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+                const pane = document.querySelector('.editor-pane');
+                if (data.session_id === selectedSessionRef.current && pane && !pane.querySelector('.editor-error') && pane.querySelector('.cm-content')) status = 'opened';
             } catch (_) { /* Rejection is explicit; no unconfirmed success. */ }
             await fetch(`/workspace/view-requests/${encodeURIComponent(data.request_id)}/ack`, {
                 method: 'POST', headers: { 'Content-Type': 'application/json' },
