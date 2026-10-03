@@ -1,11 +1,12 @@
 import { chromium, webkit } from '@playwright/test';
 const root = process.cwd() + '/src/vibes/static';
 let reads = 0;
+let wrongSession = false;
 const server = Bun.serve({ port: 0, async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === '/diagnostics/backend') {
         reads++;
-        return Response.json({ session_id: url.searchParams.get('session_id'), execution_verified: false, tools: [{ name: '<img src=x onerror=alert(1)>', state: 'configured' }] });
+        return Response.json({ session_id: wrongSession ? 'foreign' : url.searchParams.get('session_id'), execution_verified: false, tools: [{ name: '<img src=x onerror=alert(1)>', state: 'configured' }] });
     }
     return new Response(Bun.file(root + (url.pathname === '/' ? '/diagnostics.html' : url.pathname.replace('/static', ''))));
 } });
@@ -22,5 +23,9 @@ try {
     await page.locator('#session').fill('other');
     if (await page.locator('#result').innerText()) throw Error('Stale snapshot after chat change');
     if (reads !== 1) throw Error('Chat change triggered inspection');
-    console.log(`${engine}: on-demand diagnostics and safe text passed`);
+    wrongSession = true;
+    await page.getByRole('button', { name: 'Refresh diagnostics' }).click();
+    await page.waitForFunction(() => document.querySelector('#state').textContent.startsWith('Inspection unavailable.'));
+    if (await page.locator('#result').innerText()) throw Error('Wrong-chat snapshot rendered');
+    console.log(`${engine}: on-demand diagnostics, safe text and response ownership passed`);
 } finally { await browser.close(); server.stop(true); }

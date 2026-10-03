@@ -27,6 +27,7 @@ form.addEventListener('submit', async event => {
         if (!response.ok) throw new Error('Inspection unavailable');
         const data = await response.json();
         if (request !== generation || chat !== session.value.trim()) return;
+        if (!data || data.session_id !== chat) throw new Error('Inspection identity mismatch');
         result.textContent = JSON.stringify(data, null, 2);
         state.textContent = 'Snapshot received. Execution remains unverified.';
     } catch (error) {
