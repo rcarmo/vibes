@@ -86,6 +86,7 @@ class CopilotBackend:
         self.turn_lock = asyncio.Lock()
         self.sessions = {}
         self.model_state = {}
+        self.compacting_sessions = set()
         self.active = None
         self.pending = {}
         self.request_callback = None
@@ -523,9 +524,20 @@ class CopilotBackend:
             raise RuntimeError('Wait for the active turn before compacting')
         async with self.turn_lock:
             session = await self._session(chat_id, store)
-            result = await session.rpc.history.compact(timeout=120)
-            return {'success': result.success is True, 'messages_removed': result.messages_removed,
-                    'tokens_removed': result.tokens_removed, 'context_window': result.context_window.to_dict() if result.context_window else None}
+            self.compacting_sessions.add(chat_id)
+            try:
+                result = await session.rpc.history.compact(timeout=120)
+                return {'success': result.success is True, 'messages_removed': result.messages_removed,
+                        'tokens_removed': result.tokens_removed, 'context_window': result.context_window.to_dict() if result.context_window else None}
+            finally:
+                self.compacting_sessions.discard(chat_id)
+
+    async def cancel_compaction(self, chat_id):
+        session = self.sessions.get(chat_id)
+        if chat_id not in self.compacting_sessions or not session:
+            return False
+        result = await session.rpc.history.abort_manual_compaction(timeout=10)
+        return result.to_dict()
 
     async def command_catalogue(self, chat_id, store):
         """Native discovery only; this does not imply bridge execution support."""

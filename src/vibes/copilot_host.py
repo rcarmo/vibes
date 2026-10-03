@@ -163,6 +163,10 @@ class CopilotHost:
     async def compact(self, chat_id, store):
         return await self.lane(chat_id).compact(chat_id, store)
 
+    async def cancel_compaction(self, chat_id):
+        lane = self.lanes.get(chat_id)
+        return await lane.cancel_compaction(chat_id) if lane else False
+
     async def models(self, chat_id, store):
         return await self.lane(chat_id).models(chat_id, store)
 

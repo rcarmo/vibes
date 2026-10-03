@@ -349,3 +349,13 @@ async def test_compaction_uses_native_history_without_reset(setup, monkeypatch):
     async with backend.turn_lock:
         with pytest.raises(RuntimeError, match='active turn'):
             await backend.compact('chat', object())
+
+@pytest.mark.asyncio
+async def test_compaction_cancellation_is_native_and_chat_scoped(setup):
+    backend, *_ = setup
+    history = SimpleNamespace(abort_manual_compaction=AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'aborted': True})))
+    backend.sessions['chat-a'] = SimpleNamespace(rpc=SimpleNamespace(history=history))
+    backend.compacting_sessions.add('chat-a')
+    assert await backend.cancel_compaction('chat-b') is False
+    assert await backend.cancel_compaction('chat-a') == {'aborted': True}
+    history.abort_manual_compaction.assert_awaited_once_with(timeout=10)
