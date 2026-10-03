@@ -326,13 +326,15 @@ async def test_ffi_messages_returns_only_current_chat_provenance(setup, monkeypa
 @pytest.mark.asyncio
 async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeypatch):
     backend, *_ = setup
-    commands = SimpleNamespace(commands=[SimpleNamespace(to_dict=lambda: {'name': 'native', 'kind': 'builtin'})])
+    commands = SimpleNamespace(commands=[SimpleNamespace(to_dict=lambda: {'name': 'native', 'kind': 'builtin', 'privateToken': 'secret', 'description': 'bad\nlabel'})])
     skills = SimpleNamespace(skills=[SimpleNamespace(to_dict=lambda: {'name': 'loaded', 'enabled': True})])
     session = SimpleNamespace(rpc=SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(return_value=commands)), skills=SimpleNamespace(list=AsyncMock(return_value=skills))))
     monkeypatch.setattr(backend, '_session', AsyncMock(return_value=session))
     result = await backend.command_catalogue('chat', object())
     assert result['available'] is True
-    assert result['commands'][0]['name'] == 'native'
+    assert result['commands'][0] == {'name': 'native', 'kind': 'builtin'}
+    assert 'secret' not in repr(result)
+    assert result['truncated'] is False
     assert result['skills'][0]['name'] == 'loaded'
     session.rpc.commands.list.side_effect = RuntimeError('provider private details')
     assert await backend.command_catalogue('chat', object()) == {'available': False, 'commands': [], 'skills': []}

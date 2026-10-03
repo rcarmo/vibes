@@ -551,8 +551,23 @@ class CopilotBackend:
                 skills = await session.rpc.skills.list(timeout=10)
             except Exception:
                 return {'available': False, 'commands': [], 'skills': []}
-            return {'available': True, 'commands': [item.to_dict() for item in listing.commands],
-                    'skills': [item.to_dict() for item in skills.skills]}
+            def public_entries(items, fields, limit):
+                rows = []
+                for item in items[:limit]:
+                    raw = item.to_dict()
+                    row = {}
+                    for key in fields:
+                        value = raw.get(key)
+                        if isinstance(value, str) and len(value) <= 512 and not any(ord(char) < 32 for char in value):
+                            row[key] = value
+                        elif type(value) is bool:
+                            row[key] = value
+                    if row.get('name'):
+                        rows.append(row)
+                return rows
+            return {'available': True, 'commands': public_entries(listing.commands, ('name', 'description', 'kind', 'allowDuringAgentExecution'), 128),
+                    'skills': public_entries(skills.skills, ('name', 'description', 'enabled', 'userInvocable', 'commandName'), 128),
+                    'truncated': len(listing.commands) > 128 or len(skills.skills) > 128}
 
     async def models(self, chat_id, store):
         if self.turn_lock.locked():
