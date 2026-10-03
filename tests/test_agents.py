@@ -903,7 +903,7 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mod
     if raises:
         mock_deps['enqueue'].side_effect = RuntimeError('private-worker-detail')
     with patch.object(agents_mod, 'get_config', return_value=SimpleNamespace(default_agent=mode)):
-        with patch.object(agents_mod, 'is_pi_busy', return_value=False):
+        with patch.object(agents_mod, '_is_agent_busy', return_value=False):
             request = _make_send_request('Keep my message')
             response = await agents_mod.send_message(request)
     assert response.status == 503
@@ -1034,3 +1034,30 @@ async def test_queue_mutations_reject_nonobject_json(handler_name, body):
     assert response.status == 400
     remove.assert_not_called()
     reorder.assert_not_called()
+
+@pytest.mark.asyncio
+async def test_queue_steer_cancel_before_admission_restores_identity():
+    import asyncio
+    from vibes.routes import agents
+    from vibes.followups import queue_followup, list_followups, reset_state
+
+    reset_state()
+    item = queue_followup(thread_id=42, agent_id='pi', message_id=9, content='keep me')
+    queue_followup(thread_id=42, agent_id='pi', message_id=10, content='next')
+    request = MagicMock()
+    request.json = AsyncMock(return_value={'row_id': item['row_id']})
+    try:
+        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
+             patch.object(agents, '_is_agent_busy', return_value=True), \
+             patch.object(agents, '_get_active_turn_for_agent', AsyncMock(return_value={'thread_id': 42})), \
+             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
+             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock(side_effect=asyncio.CancelledError)), \
+             patch.object(agents, 'broadcast_event', AsyncMock()) as broadcast:
+            with pytest.raises(asyncio.CancelledError):
+                await agents.steer_queue_item(request)
+        assert [entry['message_id'] for entry in list_followups()] == [9, 10]
+        assert list_followups()[0]['row_id'] == item['row_id']
+        assert list_followups()[0]['mode'] == 'queue'
+        broadcast.assert_not_awaited()
+    finally:
+        reset_state()
