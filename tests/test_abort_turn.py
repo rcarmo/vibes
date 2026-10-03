@@ -224,15 +224,17 @@ async def test_followup_worker_admission_preserves_source_attachments(mode, db, 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('mode', ['pi', 'acp'])
 @pytest.mark.parametrize('failure', ['missing', 'chat', 'thread', 'cancel'])
-async def test_followup_source_rejection_preserves_queue_before_admission(mode, failure, db, monkeypatch):
+@pytest.mark.parametrize('steer', [False, True])
+async def test_followup_source_rejection_preserves_queue_before_admission(mode, failure, steer, db, monkeypatch):
     from unittest.mock import Mock
     from vibes import followups
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
     root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
     followups.reset_state()
-    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=999, content='next')
-    later = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='later')
+    add = followups.defer_steer if steer else followups.queue_followup
+    item = add(thread_id=root, agent_id='default', message_id=999, content='next')
+    later = add(thread_id=root, agent_id='default', message_id=root, content='later')
     original_get = db.get_interaction
     async def get_source(row_id):
         if row_id != 999:
@@ -258,7 +260,10 @@ async def test_followup_source_rejection_preserves_queue_before_admission(mode, 
         else:
             await agents.process_agent_response(root, 'run', 'default')
         admission.assert_not_called()
-        assert [row['row_id'] for row in followups.list_followups()] == [item['row_id'], later['row_id']]
+        listing = followups.list_pending_steers if steer else followups.list_followups
+        assert [row['row_id'] for row in listing()] == [item['row_id'], later['row_id']]
+        other = followups.list_followups if steer else followups.list_pending_steers
+        assert other() == []
         assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.call_args_list)
     finally:
         followups.reset_state()
