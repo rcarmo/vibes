@@ -137,3 +137,12 @@ async def test_session_reference_resolution_respects_trusted_scope(db):
     for reference in (None, 'default', '@session:', '@session:a b', '@session:' + 'x' * 513):
         with pytest.raises(ValueError):
             await scoped.query('resolve_session', reference=reference)
+
+
+def test_model_transcript_preserves_source_and_truncation():
+    from vibes.message_tools import format_message_result
+    result = format_message_result({'messages': [{'row_id': 7, 'sender': 'me', 'content': '<source>', 'session_id': 'chat', 'timestamp': 'now', 'content_truncated': True, 'attachment_references': ['attachment:3']}], 'has_more': True, 'next_before_row': 7})
+    assert '[7] me: <source>' in result
+    assert 'session=chat timestamp=now' in result
+    assert 'attachment:3' in result and '[content truncated]' in result
+    assert 'next_before_row=7' in result

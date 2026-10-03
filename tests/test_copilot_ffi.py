@@ -319,10 +319,9 @@ async def test_ffi_messages_returns_only_current_chat_provenance(setup, monkeypa
     monkeypatch.setattr(db_module, 'get_db', get_db)
     tool = next(tool for tool in backend._tools(a['id']) if tool.name == 'messages')
     result = await tool.handler(SimpleNamespace(arguments={'action': 'get', 'row_ids': [first, private]}, session_id='sdk'))
-    payload = __import__('json').loads(result.text_result_for_llm)
-    assert [row['row_id'] for row in payload['messages']] == [first]
-    assert payload['missing_row_ids'] == [private]
-    assert payload['messages'][0]['sender'] == 'me'
+    assert f'[{first}] me: visible request' in result.text_result_for_llm
+    assert f'[{private}]' not in result.text_result_for_llm
+    assert 'private other chat' not in result.text_result_for_llm
 
 @pytest.mark.asyncio
 async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeypatch):

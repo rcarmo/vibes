@@ -314,14 +314,14 @@ class CopilotBackend:
                     raise PermissionError('Turn ownership changed')
             still_owned()
             from .db import get_db
-            from .message_tools import MessageTools
+            from .message_tools import MessageTools, format_message_result
             args = invocation.arguments
             allowed = {'action', 'row_ids', 'query', 'limit', 'before_row', 'after_row', 'context_before', 'context_after', 'media_id'}
             if not isinstance(args, dict) or set(args) - allowed or args.get('action') not in {'get', 'search', 'attachment'}:
                 raise ValueError('Expected bounded read-only message query')
             result = await MessageTools((await get_db())._connection, session_id=chat_id).query(**args)
             still_owned()
-            return self.sdk.ToolResult(text_result_for_llm=json.dumps(result))
+            return self.sdk.ToolResult(text_result_for_llm=format_message_result(result), binary_results_for_llm=[], result_type='success')
 
         async def open_file(invocation):
             owner = self._owner(chat_id, invocation.session_id)

@@ -6,6 +6,25 @@ No database connection is opened or schema migrated by this module.
 import json
 
 
+def format_message_result(result):
+    """Bounded model-facing transcript; structured query results remain separate."""
+    if 'messages' not in result:
+        return json.dumps(result)
+    rows = result['messages']
+    lines = [f'Found {len(rows)} messages']
+    for row in rows:
+        author = row.get('sender') or row.get('type') or 'Unknown'
+        lines.append(f"[{row['row_id']}] {author}: {row['content']}")
+        lines.append(f"Source: session={row.get('session_id', 'default')} timestamp={row.get('timestamp', '')}")
+        references = row.get('attachment_references', [])
+        if references:
+            lines.append('Attachments: ' + ', '.join(references))
+        if row.get('content_truncated'):
+            lines.append('[content truncated]')
+    lines.append(f"More messages available; next_before_row={result['next_before_row']}" if result.get('has_more') else 'End of bounded results')
+    return '\n'.join(lines)
+
+
 class MessageTools:
     def __init__(self, connection, *, thread_id=None, session_id=None, workspace_access=False):
         if sum([thread_id is not None, session_id is not None, bool(workspace_access)]) != 1:
