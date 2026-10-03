@@ -1117,7 +1117,7 @@ ${Mt.map((ye,tt)=>{let xn=wo[tt]?.name||`image-${tt+1}`;return`- attachment:${ye
             ${Qe&&er({panelTitle:"Thoughts",text:he.text,totalLines:he.totalLines,maxLines:9,titleClass:"thought",panelKey:"thought"})}
             ${n?.tool_calls_truncated&&Le`<div class="editor-status" role="status">Earlier tool calls omitted from this bounded activity snapshot.</div>`}
             ${Rqt(n).map((vn)=>Le`<div class="thinking-panel" key=${vn.panelKey}>
-                <button type="button" class="thinking-panel-header" aria-expanded=${$t.has(vn.panelKey)} onClick=${()=>toggleThinking(vn.panelKey)}>${vn.tool_call_id?.startsWith("native-task:")?"Native task":"Output"}${vn.title?`: ${vn.title}`:""}${vn.output_truncated?" (truncated)":""}${vn.started_at?` · ${Math.max(0,Math.floor(((vn.ended_at?vn.ended_at*1000:pe)-vn.started_at*1000)/1000))}s`:""}</button>
+                <button type="button" class="thinking-panel-header" aria-expanded=${$t.has(vn.panelKey)} onClick=${()=>Be(vn.panelKey)}>${vn.tool_call_id?.startsWith("native-task:")?"Native task":"Output"}${vn.title?`: ${vn.title}`:""}${vn.output_truncated?" (truncated)":""}${vn.started_at?` · ${Math.max(0,Math.floor(((vn.ended_at?vn.ended_at*1000:pe)-vn.started_at*1000)/1000))}s`:""}</button>
                 ${vn.tool_call_id?.startsWith("native-task:")&&Le`<div class="thinking-panel-body">State: ${["running","completed","failed","ended"].includes(vn.status)?vn.status:"unknown"}</div>`}
                 ${!vn.output&&vn.output_truncated&&Le`<div class="thinking-panel-body">Output omitted from this bounded snapshot.</div>`}
                 ${!vn.progress_message&&vn.progress_truncated&&Le`<div class="thinking-panel-body">Progress omitted from this bounded snapshot.</div>`}
@@ -2464,4 +2464,4 @@ Replace this reviewed revision with your draft?`))return;let Et=await tce(ye.id,
         </div>
     `}SQt(Le`<${HDn} />`,document.getElementById("app"));if(!new URLSearchParams(window.location.search).has("popout"))rzt();
 
-//# debugId=31AC718BB4AA992A64756E2164756E21
+//# debugId=2B17E6660AE8CAC764756E2164756E21
