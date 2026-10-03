@@ -114,3 +114,27 @@ async def test_acp_abort_owns_exact_request_and_session():
         assert message['params']['sessionId'] == 'acp-private'
         assert state._cancelled and state._cancel_reason == 'abort'
     lock.release()
+
+
+@pytest.mark.asyncio
+async def test_cancelled_pi_turn_does_not_consume_queued_followup(db, monkeypatch):
+    from vibes import followups
+    import importlib
+    agents = importlib.import_module('vibes.routes.agents')
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    root = await db.create_interaction({'type': 'user', 'content': 'abort', 'session_id': 'default'})
+    followups.reset_state()
+    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='keep queued')
+    async def dispatch(*args, **kwargs):
+        return {'text': '', 'content': [], 'cancelled': True, 'cancel_reason': 'abort'}
+    monkeypatch.setattr(agents, '_dispatch_pi_thread', dispatch)
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: 'pi')
+    monkeypatch.setattr(agents, 'broadcast_event', AsyncMock())
+    enqueue = Mock()
+    monkeypatch.setattr(agents, 'enqueue', enqueue)
+    try:
+        await agents.process_agent_response(root, 'abort', 'default')
+        assert [row['row_id'] for row in followups.list_followups()] == [item['row_id']]
+        enqueue.assert_not_called()
+    finally:
+        followups.reset_state()

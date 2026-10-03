@@ -976,7 +976,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         turn_completed = True
         
         dispatch_next = not response.get('cancelled')
-        next_followup = None if agent_mode == 'copilot-ffi' else consume_next_followup(thread_id, agent_id)
+        next_followup = None if not dispatch_next or agent_mode == 'copilot-ffi' else consume_next_followup(thread_id, agent_id)
         if next_followup:
             logger.info(
                 "Dispatching queued follow-up %s for thread %s (%s)",
