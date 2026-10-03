@@ -33,7 +33,12 @@ async def test_route_rejects_unsupported_before_storing(aiohttp_client, db, conf
     rows = await response.json()
     assert len(rows['agents']) == 1
     assert rows['agents'][0]['backend_status']['transport'] == 'ffi'
-    assert (await (await client.get('/agent/commands')).json()) == {'commands': [], 'authoritative': True}
+    catalogue_response = await client.get('/agent/commands')
+    assert catalogue_response.status == 200
+    catalogue = await catalogue_response.json()
+    assert catalogue['commands'] == [] and catalogue['authoritative'] is True
+    assert catalogue['native_execution_supported'] is False
+    assert catalogue['native_catalogue']['available'] is False
 
 
 @pytest.mark.asyncio
