@@ -164,3 +164,34 @@ def test_scoped_http_refreshes_lifecycle_after_metadata_await():
     payload = json.loads(response.text)
     assert payload['runtime']['state'] == 'unavailable'
     assert payload['runtime_tools']['state'] == 'unavailable'
+
+
+def test_http_discards_mixed_session_capability_snapshot():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+    from vibes.copilot_host import CopilotHost
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    lane.sessions['selected'] = object()
+    async def mcp(chat_id):
+        lane.sessions[chat_id] = object()
+        return {'state': 'reported', 'servers': [{'name': 'new-session'}]}
+    request = MagicMock()
+    request.query = {'session_id': 'selected'}
+    with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent='copilot-ffi')), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+         patch('vibes.copilot_host.backend', host), \
+         patch.object(host, 'tool_diagnostics', AsyncMock(return_value={'state': 'reported', 'tools': [{'name': 'old-session'}]})), \
+         patch.object(host, 'mcp_diagnostics', side_effect=mcp), \
+         patch.object(host, 'skill_diagnostics', AsyncMock(return_value={'state': 'reported', 'skills': []})):
+        response = asyncio.run(app.diagnostics_handler(request))
+    payload = json.loads(response.text)
+    for key, collection in [('runtime_tools', 'tools'), ('runtime_mcp', 'servers'), ('runtime_skills', 'skills')]:
+        assert payload[key] == {'state': 'unavailable', collection: []}
+    assert 'old-session' not in response.text
+    assert 'new-session' not in response.text

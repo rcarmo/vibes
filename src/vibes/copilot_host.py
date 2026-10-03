@@ -71,6 +71,12 @@ class CopilotHost:
     def client(self, value):
         self.runtime.client = value
 
+    def diagnostic_identity(self, chat_id):
+        """Opaque local references for snapshot freshness, never exported."""
+        lane = self.lanes.get(chat_id)
+        return (lane, lane.sessions.get(chat_id) if lane else None,
+                lane.client if lane else None, self.runtime.client)
+
     def diagnostics(self, chat_id):
         """Passive lane lifecycle inspection; never acquire/create a session."""
         lane = self.lanes.get(chat_id)

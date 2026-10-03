@@ -50,11 +50,17 @@ async def diagnostics_handler(request: web.Request) -> web.Response:
         result['session_id'] = session_id
         if config.default_agent.lower() == 'copilot-ffi':
             from .copilot_host import backend
+            identity = backend.diagnostic_identity(session_id)
             result['runtime_tools'] = await backend.tool_diagnostics(session_id)
             result['runtime_mcp'] = await backend.mcp_diagnostics(session_id)
             result['runtime_skills'] = await backend.skill_diagnostics(session_id)
             # The metadata await may overlap shutdown or runtime replacement.
             result['runtime'] = backend.diagnostics(session_id)
+            current_identity = backend.diagnostic_identity(session_id)
+            if (any(before is not after for before, after in zip(identity, current_identity))
+                    or result['runtime']['state'] == 'unavailable'):
+                for key, collection in [('runtime_tools', 'tools'), ('runtime_mcp', 'servers'), ('runtime_skills', 'skills')]:
+                    result[key] = {'state': 'unavailable', collection: []}
     return web.json_response(result, headers={'Cache-Control': 'no-store'})
 
 
