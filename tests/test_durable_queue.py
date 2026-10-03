@@ -27,3 +27,14 @@ async def test_restart_never_replays_claimed_or_admitted_work(tmp_path):
         await queue.initialise()
         assert await queue.claim('a') is None
         assert [row['state'] for row in await queue.list('a')] == ['uncertain', 'admitted']
+
+@pytest.mark.asyncio
+async def test_concurrent_claims_do_not_duplicate_delivery(tmp_path):
+    import asyncio
+    async with aiosqlite.connect(tmp_path / 'claims.db') as connection:
+        queue = DurableQueue(connection)
+        await queue.initialise()
+        item = await queue.enqueue('chat', {'text': 'once'})
+        results = await asyncio.gather(queue.claim('chat'), queue.claim('chat'))
+        assert sum(result is not None for result in results) == 1
+        assert next(result for result in results if result)['id'] == item
