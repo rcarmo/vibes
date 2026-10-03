@@ -367,3 +367,25 @@ async def test_skill_diagnostics_bounds_freshness_and_cancellation():
     with pytest.raises(asyncio.CancelledError):
         await host.skill_diagnostics('selected')
     assert not lane.turn_lock.locked()
+
+
+@pytest.mark.asyncio
+async def test_skill_diagnostics_timeout_releases_lane():
+    import asyncio
+    from unittest.mock import patch
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    cancelled = False
+    async def stalled(**kwargs):
+        nonlocal cancelled
+        try:
+            await asyncio.Event().wait()
+        finally:
+            cancelled = True
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(skills=SimpleNamespace(list=stalled)))
+    with patch('vibes.copilot_host._DIAGNOSTICS_TIMEOUT', 0.01):
+        assert await host.skill_diagnostics('selected') == {'state': 'unavailable', 'skills': []}
+    assert cancelled
+    assert not lane.turn_lock.locked()
