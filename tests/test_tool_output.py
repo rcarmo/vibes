@@ -135,3 +135,11 @@ async def test_multi_tool_snapshot_survives_database_reopen(tmp_path):
         assert 'ended_at' not in calls[1]
     finally:
         await reopened.close()
+
+
+def test_native_task_completion_without_name_preserves_started_title():
+    state = ToolOutputState()
+    state.update({'type': 'tool_call', 'tool_call_id': 'native-task:x', 'title': 'Research', 'status': 'running'})
+    result = state.update({'type': 'tool_status', 'tool_call_id': 'native-task:x', 'status': 'completed'})
+    assert result['title'] == 'Research'
+    assert result['tool_calls'][0]['title'] == 'Research'

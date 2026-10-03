@@ -449,7 +449,9 @@ class CopilotBackend:
                         if task is not None:
                             await callback({'type': 'tool_call' if task['status'] == 'running' else 'tool_status',
                                             'tool_call_id': f"native-task:{task['task_id']}",
-                                            'title': task.get('name', 'Native task'), 'status': task['status'],
+                                            **({'title': task['name']} if 'name' in task else
+                                               {'title': 'Native task'} if task['status'] == 'running' else {}),
+                                            'status': task['status'],
                                             'native_task': task})
                     elif kind == 'assistant.usage':
                         usage = {}
