@@ -539,7 +539,7 @@ class CopilotBackend:
         if self.turn_lock.locked():
             raise RuntimeError('Wait for the active turn before compacting')
         async with self.turn_lock:
-            session = await self._session(chat_id, store)
+            session = await self._ready_session(chat_id, store)
             self.compacting_sessions.add(chat_id)
             try:
                 result = await session.rpc.history.compact(timeout=120)
