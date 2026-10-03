@@ -40,6 +40,10 @@ class ToolOutputState:
         for call_id, state in reversed(list(self.calls.items())):
             output = state['output'][-min(remaining, self.limit):] if remaining else ''
             remaining -= len(output)
+            progress = state.get('progress_message', '')[:remaining]
+            remaining -= len(progress)
             rows.append({**state, 'tool_call_id': call_id, 'output': output,
+                         'progress_message': progress,
+                         'progress_truncated': len(progress) < len(state.get('progress_message', '')),
                          'output_truncated': state['output_truncated'] or len(output) < len(state['output'])})
         return list(reversed(rows))

@@ -45,3 +45,12 @@ def test_reconnect_snapshot_retains_multiple_calls_with_aggregate_bound():
     assert all(row['status'] == 'completed' for row in snapshot)
     assert snapshot[0]['output_truncated'] is True
     assert snapshot[-1]['title'] == 'tool-5'
+
+
+def test_reconnect_budget_includes_progress_messages():
+    state = ToolOutputState(limit=16000)
+    for i in range(8):
+        state.update({'type': 'tool_output', 'tool_call_id': str(i), 'content': 'p' * 16000, 'progress': True})
+    rows = state.snapshot()
+    assert sum(len(row['output']) + len(row['progress_message']) for row in rows) <= 64000
+    assert any(row['progress_truncated'] for row in rows)
