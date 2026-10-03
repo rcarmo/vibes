@@ -454,3 +454,12 @@ async def test_native_catalogue_caps_both_sources_and_drops_invalid_names(setup,
     assert result['truncated'] is True
     assert len(result['commands']) == len(result['skills']) == 127
     assert all(row == {'name': 'valid'} for row in result['commands'] + result['skills'])
+
+@pytest.mark.asyncio
+async def test_native_catalogue_session_failure_is_unavailable_and_releases_lane(setup, monkeypatch):
+    backend, *_ = setup
+    monkeypatch.setattr(backend, '_session', AsyncMock(side_effect=RuntimeError('private startup diagnostic')))
+    result = await backend.command_catalogue('chat', object())
+    assert result == {'available': False, 'commands': [], 'skills': []}
+    assert not backend.turn_lock.locked()
+    assert 'private' not in repr(result)
