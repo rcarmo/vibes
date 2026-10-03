@@ -417,7 +417,7 @@ async def reorder_queue_item(request: web.Request) -> web.Response:
     try:
         data = await request.json()
         row_id = data.get('row_id')
-        if type(row_id) is not int:
+        if type(row_id) is not int or row_id == 0:
             raise ValueError('Invalid row_id')
         found = reorder_followup(row_id, data.get('direction'))
     except (ValueError, TypeError, AttributeError):
@@ -437,9 +437,11 @@ async def remove_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Invalid JSON"}, status=400)
 
     try:
-        row_id = int(data.get("row_id"))
-    except (TypeError, ValueError):
-        return web.json_response({"error": "Missing row_id"}, status=400)
+        row_id = data.get("row_id")
+        if type(row_id) is not int or row_id == 0:
+            raise ValueError("Invalid row_id")
+    except (TypeError, ValueError, AttributeError):
+        return web.json_response({"error": "Invalid row_id"}, status=400)
 
     removed = remove_followup(row_id)
     if not removed:
@@ -458,9 +460,11 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Invalid JSON"}, status=400)
 
     try:
-        row_id = int(data.get("row_id"))
-    except (TypeError, ValueError):
-        return web.json_response({"error": "Missing row_id"}, status=400)
+        row_id = data.get("row_id")
+        if type(row_id) is not int or row_id == 0:
+            raise ValueError("Invalid row_id")
+    except (TypeError, ValueError, AttributeError):
+        return web.json_response({"error": "Invalid row_id"}, status=400)
 
     queued = None
     for item in list_followups():

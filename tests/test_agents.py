@@ -1006,3 +1006,17 @@ async def test_status_reconnect_reads_persisted_tools_and_scopes_chat(tmp_path):
         assert 'private' not in response.text
     finally:
         await reopened.close()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('handler_name', ['remove_queue_item', 'steer_queue_item', 'reorder_queue_item'])
+@pytest.mark.parametrize('row_id', [True, False, '1', '-1', 1.5, 0, None])
+async def test_queue_mutations_reject_coerced_identity(handler_name, row_id):
+    from vibes.routes import agents
+    request = MagicMock()
+    request.json = AsyncMock(return_value={'row_id': row_id, 'direction': 'up'})
+    with patch.object(agents, 'remove_followup') as remove, \
+         patch.object(agents, 'reorder_followup') as reorder:
+        response = await getattr(agents, handler_name)(request)
+    assert response.status == 400
+    remove.assert_not_called()
+    reorder.assert_not_called()
