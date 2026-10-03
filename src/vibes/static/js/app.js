@@ -1091,6 +1091,19 @@ function App() {
         return () => { disposed = true; window.removeEventListener('workspace-update', refreshOpenFiles); };
     }, [editorTabs]);
 
+    const reloadEditorTab = useCallback(async () => {
+        const tab = editorTabs.find(item => item.id === activeEditorTabId);
+        if (!tab || tab.saving) return;
+        if (tab.dirty && !confirm('Discard your unsaved draft and reload from disk?')) return;
+        try {
+            const data = await getWorkspaceFile(tab.id, 5_000_000, 'edit');
+            if (data.kind !== 'text' || data.truncated || data.lossless === false) throw new Error('File is not a complete text snapshot');
+            setEditorTabs(prev => prev.map(item => item === tab ? { ...item, content: data.text, savedContent: data.text, revision: data.revision, dirty: false, saveError: null, error: null } : item));
+        } catch (err) {
+            setEditorTabs(prev => prev.map(item => item === tab ? { ...item, saveError: err?.message || 'Reload failed' } : item));
+        }
+    }, [editorTabs, activeEditorTabId]);
+
     const closeEditorTab = useCallback((tabId) => {
         if (!tabId) return;
         const tabs = editorTabs;
@@ -2524,6 +2537,7 @@ function App() {
                         saveError=${activeEditorTab?.saveError}
                         savedAt=${activeEditorTab?.savedAt}
                         onSave=${handleEditorSave}
+                onReload=${reloadEditorTab}
                         onClose=${closeEditor}
                         onChange=${handleEditorChange}
                         showPreview=${previewOpen}

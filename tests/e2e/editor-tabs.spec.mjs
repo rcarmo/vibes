@@ -415,3 +415,30 @@ test('external refresh updates a clean tab but preserves a dirty draft', async (
     await expect(editor).toContainText('local draft');
     await expect(editor).not.toContainText('replacement from disk');
 });
+
+test('stale save keeps draft until a confirmed reload', async ({ page }) => {
+    let current = false;
+    await page.route(/\/workspace\/file(?:\?|$)/, async route => {
+        if (route.request().method() === 'PUT') {
+            current = true;
+            return route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"File changed since it was opened"}' });
+        }
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ kind: 'text', text: current ? 'external content' : 'original content', revision: current ? 'new' : 'old', truncated: false, lossless: true, editable: true }) });
+    });
+    await waitForApp(page);
+    await openFileInEditor(page, 'README.md');
+    const editor = page.locator('.editor-pane .cm-content');
+    await editor.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.insertText('\nlocal draft');
+    await page.keyboard.press('Control+s');
+    await expect(page.locator('.editor-pane')).toContainText('File changed since');
+    await expect(editor).toContainText('local draft');
+    page.once('dialog', dialog => dialog.dismiss());
+    await page.getByRole('button', { name: 'Reload from disk' }).click();
+    await expect(editor).toContainText('local draft');
+    page.once('dialog', dialog => dialog.accept());
+    await page.getByRole('button', { name: 'Reload from disk' }).click();
+    await expect(editor).toContainText('external content');
+    await expect(editor).not.toContainText('local draft');
+});
