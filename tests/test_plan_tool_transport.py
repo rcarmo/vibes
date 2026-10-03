@@ -50,7 +50,7 @@ async def test_registered_acp_plan_calls_shared_api_without_history_read_grant(t
 def test_pi_extension_registers_plan_with_bounded_scope_free_schema():
     # Source contract complements runtime executor/HTTP checks; not live model evidence.
     text = (Path(__file__).parents[1] / 'src/vibes/extensions/pi-vibes-tools.ts').read_text()
-    plan = text.split('name: "plan",', 1)[1].split('name: "vibes_messages",', 1)[0]
+    plan = text.split('name: "plan",', 1)[1].split('name: "messages",', 1)[0]
     assert 'expected_revision' in plan
     assert 'session_id' not in plan and 'chat_jid' not in plan
     assert '/internal/agent-tools/plan' in plan

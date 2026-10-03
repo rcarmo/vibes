@@ -59,7 +59,7 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.registerTool({
-    name: "vibes_messages",
+    name: "messages",
     label: "Vibes Messages",
     description: "Retrieve referenced Vibes messages by row ID or search message text in the current Vibes session. Use this whenever the prompt contains a Messages section or msg:<id> reference.",
     parameters: Type.Object({
@@ -68,6 +68,9 @@ export default function (pi: ExtensionAPI) {
       query: Type.Optional(Type.String({ minLength: 1, maxLength: 500 })),
       limit: Type.Optional(Type.Integer({ minimum: 1, maximum: 50 })),
       before_row: Type.Optional(Type.Integer({ minimum: 1 })),
+      after_row: Type.Optional(Type.Integer({ minimum: 1 })),
+      context_before: Type.Optional(Type.Integer({ minimum: 0, maximum: 20 })),
+      context_after: Type.Optional(Type.Integer({ minimum: 0, maximum: 20 })),
     }),
     async execute(_toolCallId, params) {
       const base = process.env.VIBES_PI_TOOLS_URL;
@@ -81,7 +84,9 @@ export default function (pi: ExtensionAPI) {
         return { content: [{ type: "text", text: `Vibes message access failed (${response.status}).` }] };
       }
       const result = await response.json();
-      return { content: [{ type: "text", text: JSON.stringify(result) }], details: result };
+      const rows = result.messages || [];
+      const transcript = [`Found ${rows.length} messages`, ...rows.map(row => `[${row.row_id}] ${row.sender || row.type || 'Unknown'}: ${row.content}${row.content_truncated ? '\n[content truncated]' : ''}`), result.has_more ? `More messages available; next_before_row=${result.next_before_row}` : 'End of bounded results'].join('\n');
+      return { content: [{ type: "text", text: transcript }], details: result };
     },
   });
 
