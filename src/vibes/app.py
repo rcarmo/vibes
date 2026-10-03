@@ -143,14 +143,17 @@ async def on_cleanup(app: web.Application) -> None:
             # Finish application cleanup even when native shutdown fails.
             logger.error('Copilot native cleanup failed; process restart required')
     elif get_config().pi_enabled:
+        await stop_task_queue()
         await stop_pi_agent()
         logger.info("Pi agent stopped")
     else:
+        await stop_task_queue()
         await stop_acp_agent()
         logger.info("ACP agent stopped")
     
     await agents.stop_ffi_dispatch()
-    await stop_task_queue()
+    if get_config().default_agent.lower() == 'copilot-ffi':
+        await stop_task_queue()
     logger.info("Background task queue stopped")
 
     await workspace.shutdown_workspace_manager()
