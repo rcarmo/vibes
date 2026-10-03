@@ -10,6 +10,8 @@ const calls = [
     { tool_call_id: 'b', title: 'Retained running', output: 'in progress', started_at: Date.now() / 1000, status: 'running' },
 ];
 const snapshot = { type: 'writing', tool_calls: calls, tool_calls_truncated: true };
+let disconnectFirst;
+let disconnected = false;
 const server = Bun.serve({ port: 0, idleTimeout: 0, async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === '/') return new Response('<div id="app"></div><script type="module" src="/static/dist/app.js"></script>', { headers: { 'Content-Type': 'text/html' } });
@@ -24,7 +26,11 @@ const server = Bun.serve({ port: 0, idleTimeout: 0, async fetch(req) {
         return new Response(new ReadableStream({
             start(controller) {
                 controller.enqueue(encoder.encode('event: connected\ndata: {}\n\n'));
-                if (number === 1) timer = setTimeout(() => controller.close(), 200);
+                if (number === 1) disconnectFirst = () => {
+                    calls[1].output = 'recovered after disconnect';
+                    disconnected = true;
+                    controller.close();
+                };
                 // Next connection stays open until client cleanup.
             },
             cancel() { clearTimeout(timer); },
@@ -45,7 +51,11 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`http://127.0.0.1:${server.port}/?session_id=selected`);
     await page.waitForFunction(() => document.querySelectorAll(".thinking-panel").length === 2);
-    await page.waitForTimeout(1800);
+    await page.waitForFunction(() => document.querySelectorAll('.thinking-panel-body')[1]?.textContent === 'in progress');
+    if (!disconnectFirst) throw Error('Initial SSE connection missing');
+    disconnectFirst();
+    await page.waitForFunction(() => document.querySelectorAll('.thinking-panel-body')[1]?.textContent === 'recovered after disconnect');
+    if (!disconnected) throw Error('Disconnect was not triggered');
     if (connections < 2 || statusReads < 2) throw Error('No real transport reconnection/status refresh');
     if (await page.locator('.thinking-panel').count() !== 2) throw Error('Lost retained collection');
     await page.locator('.thinking-panel-header').first().click();
@@ -53,7 +63,7 @@ try {
     await page.waitForFunction(() => document.querySelector('.thinking-panel-header').getAttribute('aria-expanded') === 'true');
     if (await page.locator('.thinking-panel-header').nth(1).getAttribute('aria-expanded') !== 'false') throw Error('Coupled disclosures');
     await page.locator('.thinking-panel-header').nth(1).click();
-    if (!(await page.locator('.thinking-panel-body').nth(1).innerText()).includes('in progress')) throw Error('Lost running output');
+    if (!(await page.locator('.thinking-panel-body').nth(1).innerText()).includes('recovered after disconnect')) throw Error('Lost recovered running output');
     if (!(await page.locator('#app').innerText()).includes('Earlier tool calls omitted')) throw Error('Lost omission notice');
     if (errors.length) throw Error(errors.join('\n'));
     console.log(`${engine}: full app EventSource reconnect with synthetic backend passed`);
