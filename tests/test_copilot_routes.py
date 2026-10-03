@@ -219,3 +219,28 @@ async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, c
         broadcast.assert_not_awaited()
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, config, monkeypatch):
+    from vibes import followups
+    followups.reset_state()
+    agents._ffi_closing = False
+    followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'own-success', 'media_ids': [42]}})})()
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    process = AsyncMock(side_effect=[True, False])
+    monkeypatch.setattr(agents, 'process_agent_response', process)
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    try:
+        agents._enqueue_ffi('own-success', 1, 'first', 'default', [])
+        await agents._ffi_tasks['own-success']
+        assert followups.list_followups() == []
+        assert process.await_count == 2
+        assert process.await_args_list[1].args == (1, 'queued', 'default')
+        assert process.await_args_list[1].kwargs == {'media_ids': [42]}
+        broadcast.assert_awaited_once()
+        assert broadcast.await_args.args[0] == 'agent_followup_consumed'
+    finally:
+        followups.reset_state()
