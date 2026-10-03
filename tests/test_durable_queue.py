@@ -1,3 +1,4 @@
+import asyncio
 import aiosqlite
 import pytest
 from vibes.durable_queue import DurableQueue
@@ -52,3 +53,23 @@ async def test_initialisation_does_not_reclassify_live_claim(tmp_path):
         assert (await second.list('chat'))[0]['state'] == 'claimed'
         await first.admitted(item, 'chat')
         assert (await second.list('chat'))[0]['state'] == 'admitted'
+
+
+@pytest.mark.asyncio
+async def test_independent_connections_cannot_claim_same_pending_item(tmp_path):
+    path = tmp_path / 'dispatchers.db'
+    async with aiosqlite.connect(path) as first, aiosqlite.connect(path) as second:
+        a, b = DurableQueue(first), DurableQueue(second)
+        await a.initialise()
+        await b.initialise()
+        item = await a.enqueue('chat', {'text': 'once'})
+        claims = await asyncio.gather(a.claim('chat'), b.claim('chat'))
+        winners = [claim for claim in claims if claim is not None]
+        assert len(winners) == 1
+        assert winners[0]['id'] == item
+        assert (await b.list('chat'))[0]['state'] == 'claimed'
+        # A connection opening during dispatch must not perform crash recovery.
+        await b.initialise()
+        await a.admitted(item, 'chat')
+        assert await b.claim('chat') is None
+        assert (await b.list('chat'))[0]['state'] == 'admitted'
