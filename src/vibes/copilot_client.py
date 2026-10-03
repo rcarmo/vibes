@@ -442,7 +442,13 @@ class CopilotBackend:
                     event = await asyncio.wait_for(events.get(), get_config().copilot_event_timeout)
                     kind = getattr(event.type, 'value', event.type)
                     data = _dict(event.data)
-                    if kind == 'assistant.message_delta':
+                    if kind == 'assistant.intent':
+                        intent = data.get('intent')
+                        if _safe_label(intent):
+                            await callback({'type': 'thinking', 'title': intent})
+                    elif kind == 'assistant.message_delta':
+                        if not draft:
+                            await callback({'type': 'writing', 'title': 'Writing response'})
                         delta = data.get('deltaContent', data.get('delta_content', ''))
                         delta_reset = not draft
                         draft += delta
