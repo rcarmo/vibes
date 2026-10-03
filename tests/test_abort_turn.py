@@ -219,3 +219,46 @@ async def test_followup_worker_admission_preserves_source_attachments(mode, db, 
         assert followups.list_followups() == []
     finally:
         followups.reset_state()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+@pytest.mark.parametrize('failure', ['missing', 'chat', 'thread', 'cancel'])
+async def test_followup_source_rejection_preserves_queue_before_admission(mode, failure, db, monkeypatch):
+    from unittest.mock import Mock
+    from vibes import followups
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr('vibes.agent_attachments.referenced_media', AsyncMock(return_value=[]))
+    root = await db.create_interaction({'type': 'user', 'content': 'run', 'session_id': 'default'})
+    followups.reset_state()
+    item = followups.queue_followup(thread_id=root, agent_id='default', message_id=999, content='next')
+    later = followups.queue_followup(thread_id=root, agent_id='default', message_id=root, content='later')
+    original_get = db.get_interaction
+    async def get_source(row_id):
+        if row_id != 999:
+            return await original_get(row_id)
+        if failure == 'cancel':
+            raise asyncio.CancelledError()
+        if failure == 'missing':
+            return None
+        return {'id': 999, 'data': {'session_id': 'foreign' if failure == 'chat' else 'default',
+                                   'thread_id': root if failure == 'chat' else root + 100,
+                                   'media_ids': [17]}}
+    monkeypatch.setattr(db, 'get_interaction', get_source)
+    monkeypatch.setattr(agents, '_resolve_agent_mode', lambda _: mode)
+    monkeypatch.setattr(agents, '_dispatch_pi_thread' if mode == 'pi' else '_dispatch_acp_thread', AsyncMock(return_value={'text': 'done', 'content': []}))
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    admission = Mock(return_value=True)
+    monkeypatch.setattr(agents, 'enqueue', admission)
+    try:
+        if failure == 'cancel':
+            with pytest.raises(asyncio.CancelledError):
+                await agents.process_agent_response(root, 'run', 'default')
+        else:
+            await agents.process_agent_response(root, 'run', 'default')
+        admission.assert_not_called()
+        assert [row['row_id'] for row in followups.list_followups()] == [item['row_id'], later['row_id']]
+        assert not any(call.args[0] == 'agent_followup_consumed' for call in broadcast.call_args_list)
+    finally:
+        followups.reset_state()
