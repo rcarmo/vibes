@@ -102,3 +102,36 @@ def test_authoritative_final_output_resets_only_obsolete_truncation():
     assert result['output_truncated'] is False
     result = state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'final', 'replace_output': True, 'content_truncated': True})
     assert result['output_truncated'] is True
+
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_multi_tool_snapshot_survives_database_reopen(tmp_path):
+    from vibes.db import Database
+    path = tmp_path / 'reconnect.db'
+    db = Database(path)
+    await db.connect()
+    try:
+        root = await db.create_interaction({'type': 'user', 'content': 'run tools'})
+        await db.begin_turn('turn', root, 'default')
+        state = ToolOutputState()
+        state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'first'})
+        state.update({'type': 'tool_status', 'tool_call_id': 'a', 'status': 'completed'})
+        state.update({'type': 'tool_output', 'tool_call_id': 'b', 'content': 'working', 'progress': True})
+        await db.update_turn_status('turn', state.update({'type': 'writing', 'title': 'Response'}))
+    finally:
+        await db.close()
+    reopened = Database(path)
+    await reopened.connect()
+    try:
+        turns = await reopened.get_active_turns()
+        calls = turns[0]['last_status']['tool_calls']
+        assert [call['tool_call_id'] for call in calls] == ['a', 'b']
+        assert calls[0]['output'] == 'first' and calls[0]['status'] == 'completed'
+        assert calls[0]['ended_at'] >= calls[0]['started_at']
+        assert calls[1]['progress_message'] == 'working'
+        assert 'ended_at' not in calls[1]
+    finally:
+        await reopened.close()
