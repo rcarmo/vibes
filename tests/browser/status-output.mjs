@@ -17,6 +17,14 @@ try {
  await buttons.first().click(); await page.waitForTimeout(150); if(await buttons.first().getAttribute('aria-expanded')!=='true'||await buttons.nth(1).getAttribute('aria-expanded')!=='false') throw Error('disclosures coupled');
  if(await page.locator('#root img').count()) throw Error('output interpreted as markup');
  if(!await page.getByText('Earlier tool calls omitted from this bounded activity snapshot.').count()) throw Error('missing omission notice');
+ await page.evaluate(()=>{
+  window.calls[0].ended_at=window.calls[0].started_at+3;
+  window.calls[0].status='completed'; window.paint();
+ });
+ await page.waitForTimeout(150);
+ const completedLabel=await buttons.first().innerText();
+ await page.waitForTimeout(1100);
+ if(await buttons.first().innerText()!==completedLabel || !completedLabel.includes('· 3s')) throw Error('completed timer did not freeze');
  await page.evaluate(async()=>{
   clearInterval(window.stream);
   const {render}=await import('/js/vendor/preact-htm.js');
