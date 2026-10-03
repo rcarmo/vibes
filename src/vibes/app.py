@@ -50,8 +50,9 @@ async def diagnostics_handler(request: web.Request) -> web.Response:
         result['session_id'] = session_id
         if config.default_agent.lower() == 'copilot-ffi':
             from .copilot_host import backend
-            result['runtime'] = backend.diagnostics(session_id)
             result['runtime_tools'] = await backend.tool_diagnostics(session_id)
+            # The metadata await may overlap shutdown or runtime replacement.
+            result['runtime'] = backend.diagnostics(session_id)
     return web.json_response(result, headers={'Cache-Control': 'no-store'})
 
 

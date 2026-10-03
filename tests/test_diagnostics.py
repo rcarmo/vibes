@@ -137,3 +137,30 @@ def test_scoped_http_separates_configured_and_runtime_reported_tools():
     assert 'private-schema-detail' not in response.text
     metadata.assert_awaited_once_with(timeout=10)
     assert not lane.turn_lock.locked()
+
+
+def test_scoped_http_refreshes_lifecycle_after_metadata_await():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+    from vibes.copilot_host import CopilotHost
+
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    async def read(**kwargs):
+        host.closing = True
+        return SimpleNamespace(to_dict=lambda: {'tools': []})
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=read)))
+    request = MagicMock()
+    request.query = {'session_id': 'selected'}
+    with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent='copilot-ffi')), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+         patch('vibes.copilot_host.backend', host):
+        response = asyncio.run(app.diagnostics_handler(request))
+    payload = json.loads(response.text)
+    assert payload['runtime']['state'] == 'unavailable'
+    assert payload['runtime_tools']['state'] == 'unavailable'
