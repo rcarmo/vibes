@@ -195,3 +195,44 @@ def test_http_discards_mixed_session_capability_snapshot():
         assert payload[key] == {'state': 'unavailable', collection: []}
     assert 'old-session' not in response.text
     assert 'new-session' not in response.text
+
+
+def test_http_reports_tools_mcp_and_skills_from_same_existing_session():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+    from vibes.copilot_host import CopilotHost
+
+    def reader(data):
+        return AsyncMock(return_value=SimpleNamespace(to_dict=lambda: data))
+    tools = reader({'tools': [{'name': 'read', 'description': 'private'}]})
+    mcp = reader({'servers': [{'name': 'local', 'status': 'failed', 'error': 'private'}]})
+    skills = reader({'skills': [{'name': 'review', 'enabled': True, 'userInvocable': True, 'path': '/private'}]})
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    session = SimpleNamespace(rpc=SimpleNamespace(
+        tools=SimpleNamespace(get_current_metadata=tools),
+        mcp=SimpleNamespace(list=mcp), skills=SimpleNamespace(list=skills)))
+    lane.sessions['selected'] = session
+    request = MagicMock()
+    request.query = {'session_id': 'selected'}
+    with patch.object(app, 'get_config', return_value=SimpleNamespace(default_agent='copilot-ffi')), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+         patch('vibes.copilot_host.backend', host):
+        response = asyncio.run(app.diagnostics_handler(request))
+    result = json.loads(response.text)
+    assert result['runtime_tools']['tools'] == [{'name': 'read', 'state': 'offered'}]
+    assert result['runtime_mcp']['servers'] == [{'name': 'local', 'state': 'failed'}]
+    assert result['runtime_skills']['skills'] == [{'name': 'review', 'state': 'enabled', 'user_invocable': True}]
+    assert result['runtime']['state'] == 'ready'
+    assert result['execution_verified'] is False
+    assert 'private' not in response.text
+    for read in (tools, mcp, skills):
+        read.assert_awaited_once_with(timeout=10)
+    assert lane.sessions['selected'] is session
+    assert set(host.lanes) == {'selected'}
+    assert not lane.turn_lock.locked()
