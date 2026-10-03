@@ -29,7 +29,7 @@ class ToolOutputState:
                     state['progress_message'] = content[:self.limit]
                     state['progress_truncated'] = len(content) > self.limit or bool(event.get('content_truncated'))
                 else:
-                    combined = state['output'] + content
+                    combined = content if event.get('replace_output') else state['output'] + content
                     state['output'] = combined[-self.limit:]
                     state['output_truncated'] |= len(combined) > self.limit or bool(event.get('content_truncated'))
         if event.get('type') == 'tool_status' and event.get('status') in {'completed', 'failed', 'ended'}:

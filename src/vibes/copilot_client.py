@@ -482,6 +482,12 @@ class CopilotBackend:
                         else:
                             title = tool_names.pop(call_id, 'Tool') if isinstance(call_id, str) else 'Tool'
                             outcome = 'completed' if data.get('success') is True else 'failed' if data.get('success') is False else 'ended'
+                            result = data.get('result')
+                            output = result.get('content') if isinstance(result, dict) else None
+                            if isinstance(output, str):
+                                await callback({'type': 'tool_output', 'tool_call_id': call_id, 'title': title,
+                                                'content': output[-16000:], 'content_truncated': len(output) > 16000,
+                                                'replace_output': True})
                             await callback({'type': 'tool_status', 'tool_call_id': call_id, 'title': title, 'status': outcome})
                     elif kind in {'tool.execution_partial_result', 'tool.execution_progress'}:
                         call_id = data.get('toolCallId', data.get('tool_call_id', ''))

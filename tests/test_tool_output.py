@@ -83,3 +83,11 @@ def test_call_omission_marker_survives_retained_call_and_phase_updates():
         state.update({'type': 'tool_call', 'tool_call_id': str(i)})
     assert state.update({'type': 'tool_status', 'tool_call_id': '0', 'status': 'completed'})['tool_calls_truncated']
     assert state.update({'type': 'writing'})['tool_calls_truncated']
+
+
+def test_final_output_replaces_partial_text_without_duplication():
+    state = ToolOutputState(limit=5)
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'abc'})
+    result = state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'abcde', 'replace_output': True})
+    assert result['output'] == 'abcde'
+    assert result['output_truncated'] is False

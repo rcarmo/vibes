@@ -265,7 +265,7 @@ async def test_tool_completion_keeps_name_and_does_not_claim_success(setup, monk
                            ('tool.execution_partial_result', {'toolCallId':'x','partialOutput':'<' + 'a' * 17000}),
                            ('tool.execution_progress', {'toolCallId':'x','progressMessage':'working'}),
                            ('assistant.usage', {'inputTokens':123, 'outputTokens':45, 'cacheReadTokens':True, 'private':'secret'}),
-                           ('tool.execution_complete', {'toolCallId':'x','success':False}), ('session.idle', {})]:
+                           ('tool.execution_complete', {'toolCallId':'x','success':False,'result':{'content':'final text','structuredContent':{'private':'secret'}}}), ('session.idle', {})]:
             session.handler(SimpleNamespace(type=kind, data=data))
     session.send = send
     store = SimpleNamespace(backend_binding=AsyncMock(return_value=None),bind_backend=AsyncMock())
@@ -280,6 +280,9 @@ async def test_tool_completion_keeps_name_and_does_not_claim_success(setup, monk
     assert output['tool_call_id'] == 'x'
     assert len(output['content']) == 16000 and output['content_truncated'] is True
     assert any(call.args[0].get('progress') is True for call in callback.await_args_list)
+    final_output = next(call.args[0] for call in callback.await_args_list if call.args[0].get("replace_output"))
+    assert final_output["content"] == "final text"
+    assert "secret" not in repr(final_output)
 
 
 @pytest.mark.asyncio
