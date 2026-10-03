@@ -1495,7 +1495,12 @@ async def trigger_action(request: web.Request) -> web.Response:
     thread_id = data.get("thread_id")
     if not thread_id:
         return web.json_response({"error": "Missing thread_id"}, status=400)
-    if enqueue(process_agent_response, thread_id, prompt, agent_id) is False:
+    try:
+        admitted = enqueue(process_agent_response, thread_id, prompt, agent_id)
+    except Exception:
+        logger.exception('Action worker admission failed')
+        admitted = False
+    if admitted is False:
         return web.json_response({'error': 'Agent worker admission unavailable', 'admitted': False}, status=503)
     return web.json_response({
         "status": "queued",

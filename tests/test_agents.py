@@ -916,9 +916,11 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mod
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('admitted', [False, True])
-async def test_predefined_action_reports_actual_worker_admission(mock_deps, admitted):
+@pytest.mark.parametrize('admitted, raises', [(False, False), (True, False), (False, True)])
+async def test_predefined_action_reports_actual_worker_admission(mock_deps, admitted, raises):
     mock_deps['enqueue'].return_value = admitted
+    if raises:
+        mock_deps['enqueue'].side_effect = RuntimeError('private-action-detail')
     request = make_mocked_request('POST', '/agent/default/action/test', match_info={'agent_id': 'default', 'action_id': 'test'})
     request.json = AsyncMock(return_value={'thread_id': 1})
     with patch.object(agents_mod, 'prompt_from_action', return_value='action prompt'):
@@ -929,3 +931,4 @@ async def test_predefined_action_reports_actual_worker_admission(mock_deps, admi
         assert body['status'] == 'queued'
     else:
         assert body['admitted'] is False
+        assert 'private-action-detail' not in response.text
