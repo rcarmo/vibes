@@ -607,7 +607,10 @@ export function ComposeBox({
                 const result = await changeSessionModel(sessionId, { provider: model.provider, model_id: model.id });
                 emitModelState({ model: result.model ? `${result.model.provider}/${result.model.id}` : activeModel, thinking_level: result.thinking_level, supports_thinking: result.model?.reasoning === true });
                 setShowModelPopup(false);
-            } catch (error) { setSubmitError(error.message || 'Model change failed'); }
+            } catch (error) {
+                setSubmitError(error.message || 'Model change failed');
+                requestAnimationFrame(() => modelSearchRef.current?.focus());
+            }
             finally { modelMutationPending.current = false; setSwitchingModel(false); }
             return;
         }
@@ -1005,6 +1008,12 @@ export function ComposeBox({
             { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
         );
     };
+
+    useEffect(() => {
+        if (!showModelPopup) return;
+        setModelQuery('');
+        setHighlightedModel(null);
+    }, [showModelPopup, sessionId]);
 
     useEffect(() => {
         if (!showModelPopup) return;
