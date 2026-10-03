@@ -870,7 +870,7 @@ async def request_file_view(request):
                 raise PermissionError('No matching active turn')
         check()
         payload = await request.json()
-        if not isinstance(payload, dict) or set(payload) != {'path'} or not isinstance(payload['path'], str):
+        if not isinstance(payload, dict) or not {'path'} <= set(payload) <= {'path', 'target'} or not isinstance(payload['path'], str) or payload.get('target', 'tab') != 'tab':
             raise ValueError('Expected a workspace path')
         target = _resolve_workspace_path(payload['path'])
         if not target.is_file():

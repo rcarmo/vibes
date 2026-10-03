@@ -601,6 +601,9 @@ export class SSEClient {
             this.onEvent('agents_changed', JSON.parse(e.data));
         });
 
+        this.eventSource.addEventListener('workspace_view_request', (e) => {
+            this.onEvent('workspace_view_request', JSON.parse(e.data));
+        });
         this.eventSource.addEventListener('workspace_update', (e) => {
             this.onEvent('workspace_update', JSON.parse(e.data));
         });

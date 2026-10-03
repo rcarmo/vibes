@@ -44,7 +44,7 @@ export default function (pi: ExtensionAPI) {
     name: "open_file",
     label: "View workspace file",
     description: "Ask the browser in the current chat to open a workspace text file. Success requires browser acknowledgement; disconnected or inactive chats may remain unacknowledged.",
-    parameters: Type.Object({ path: Type.String() }),
+    parameters: Type.Object({ path: Type.String(), target: Type.Optional(Type.Literal('tab')) }),
     async execute(_id, params, signal) {
       const base = process.env.VIBES_PI_TOOLS_URL;
       const token = process.env.VIBES_ATTACHMENT_TOKEN;
