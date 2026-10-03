@@ -464,11 +464,16 @@ class CopilotBackend:
                                 if len(tool_names) >= 256:
                                     raise RuntimeError('Too many in-flight tools')
                                 tool_names[call_id] = title
-                            await callback({'type': 'tool_call', 'title': title, 'status': 'running'})
+                            await callback({'type': 'tool_call', 'tool_call_id': call_id, 'title': title, 'status': 'running'})
                         else:
                             title = tool_names.pop(call_id, 'Tool') if isinstance(call_id, str) else 'Tool'
                             outcome = 'completed' if data.get('success') is True else 'failed' if data.get('success') is False else 'ended'
-                            await callback({'type': 'tool_status', 'title': title, 'status': outcome})
+                            await callback({'type': 'tool_status', 'tool_call_id': call_id, 'title': title, 'status': outcome})
+                    elif kind in {'tool.execution_partial_result', 'tool.execution_progress'}:
+                        call_id = data.get('toolCallId', data.get('tool_call_id', ''))
+                        output = data.get('partialOutput', data.get('partial_output')) if kind == 'tool.execution_partial_result' else data.get('progressMessage', data.get('progress_message'))
+                        if isinstance(output, str):
+                            await callback({'type': 'tool_output', 'tool_call_id': call_id, 'title': tool_names.get(call_id, 'Tool'), 'content': output[:16000], 'content_truncated': len(output) > 16000, 'progress': kind == 'tool.execution_progress'})
                     elif kind == 'session.error':
                         raise RuntimeError('Copilot reported a session error; inspect private diagnostics')
                     elif kind == 'session.idle':

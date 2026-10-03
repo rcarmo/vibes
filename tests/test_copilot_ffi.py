@@ -266,7 +266,7 @@ async def test_tool_completion_keeps_name_and_does_not_claim_success(setup, monk
     store = SimpleNamespace(backend_binding=AsyncMock(return_value=None),bind_backend=AsyncMock())
     callback = AsyncMock()
     await backend.send('test',1,callback,chat_id='chat',store=store)
-    assert callback.await_args_list[-1].args[0] == {'type':'tool_status','title':'fixture','status':'failed'}
+    assert callback.await_args_list[-1].args[0] == {'type':'tool_status','tool_call_id':'x','title':'fixture','status':'failed'}
 
 
 @pytest.mark.asyncio
