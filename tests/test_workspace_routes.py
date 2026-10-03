@@ -768,7 +768,8 @@ async def test_disconnect_releases_only_its_workspace_subscription(workspace_tes
     assert workspace._workspace_visible is False
 
 @pytest.mark.asyncio
-async def test_file_view_http_confines_path_and_requires_owned_ack(workspace_test_client, workspace_dir, monkeypatch):
+@pytest.mark.parametrize('tab_target', [False, True])
+async def test_file_view_http_confines_path_and_requires_owned_ack(workspace_test_client, workspace_dir, monkeypatch, tab_target):
     from vibes.routes import workspace
     from vibes import agent_attachments as owner
     monkeypatch.setattr(owner, 'active', {'mode': 'acp', 'session_id': 'default', 'turn_id': 'file-view'})
@@ -783,7 +784,10 @@ async def test_file_view_http_confines_path_and_requires_owned_ack(workspace_tes
     assert response.status == 403
     response = await client.post('/internal/agent-tools/open-file', headers=headers, json={'path': 'missing.txt'})
     assert response.status == 400
-    request = asyncio.create_task(client.post('/internal/agent-tools/open-file', headers=headers, json={'path': 'view.txt'}))
+    response = await client.post('/internal/agent-tools/open-file', headers=headers, json={'path': 'view.txt', 'target': 'popout'})
+    assert response.status == 400
+    payload = {'path': 'view.txt', **({'target': 'tab'} if tab_target else {})}
+    request = asyncio.create_task(client.post('/internal/agent-tools/open-file', headers=headers, json=payload))
     for _ in range(100):
         if events:
             break
