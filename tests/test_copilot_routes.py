@@ -161,7 +161,7 @@ async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, 
     followups.reset_state()
     agents._ffi_closing = False
     item = followups.queue_followup(thread_id=1, agent_id='default', message_id=1, content='queued')
-    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'notify-chat'}})})()
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'notify-chat', 'thread_id': 1}})})()
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
     process = AsyncMock(return_value=True)
     monkeypatch.setattr(agents, 'process_agent_response', process)
@@ -227,7 +227,7 @@ async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, 
     followups.reset_state()
     agents._ffi_closing = False
     followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
-    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'own-success', 'media_ids': [42]}})})()
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'data': {'session_id': 'own-success', 'thread_id': 1, 'media_ids': [42]}})})()
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
     process = AsyncMock(side_effect=[True, False])
     monkeypatch.setattr(agents, 'process_agent_response', process)
@@ -242,5 +242,27 @@ async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, 
         assert process.await_args_list[1].kwargs == {'media_ids': [42]}
         broadcast.assert_awaited_once()
         assert broadcast.await_args.args[0] == 'agent_followup_consumed'
+    finally:
+        followups.reset_state()
+
+
+@pytest.mark.asyncio
+async def test_ffi_same_chat_foreign_thread_source_is_not_promoted(db, config, monkeypatch):
+    from vibes import followups
+    followups.reset_state()
+    agents._ffi_closing = False
+    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=99, content='queued')
+    fake_db = type('Lookup', (), {'get_interaction': AsyncMock(return_value={'id': 99, 'data': {'session_id': 'thread-check', 'thread_id': 2}})})()
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
+    process = AsyncMock(return_value=True)
+    monkeypatch.setattr(agents, 'process_agent_response', process)
+    broadcast = AsyncMock()
+    monkeypatch.setattr(agents, 'broadcast_event', broadcast)
+    try:
+        agents._enqueue_ffi('thread-check', 1, 'first', 'default', [])
+        await agents._ffi_tasks['thread-check']
+        assert followups.list_followups() == [item]
+        process.assert_awaited_once()
+        broadcast.assert_not_awaited()
     finally:
         followups.reset_state()

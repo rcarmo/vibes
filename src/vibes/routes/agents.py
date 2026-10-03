@@ -712,6 +712,9 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
                             raise RuntimeError('Queued follow-up source message unavailable')
                         if row.get('data', {}).get('session_id', 'default') != chat_id:
                             raise RuntimeError('Queued follow-up source chat mismatch')
+                        source_thread = row.get('data', {}).get('thread_id') or row.get('id')
+                        if source_thread != thread_id:
+                            raise RuntimeError('Queued follow-up source thread mismatch')
                         prompt, inputs = item['content'], row.get('data', {}).get('media_ids', [])
                         await broadcast_event('agent_followup_consumed', _serialize_followup_event(item))
                     except BaseException:
