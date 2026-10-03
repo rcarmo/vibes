@@ -1255,6 +1255,8 @@ async def _send_message(request, data):
     requested_mode = str(data.get("mode") or "").strip().lower() or None
     if requested_mode not in {None, "auto", "queue", "steer"}:
         return web.json_response({"error": "Invalid mode"}, status=400)
+    if requested_mode == 'steer' and _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        return web.json_response({'error': 'Native Copilot steering is not enabled; queue the message instead'}, status=409)
     
     # Store user message as interaction
     db = await get_db()
