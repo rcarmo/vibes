@@ -499,6 +499,18 @@ class CopilotBackend:
                 if inputs:
                     inputs.close()
 
+    async def command_catalogue(self, chat_id, store):
+        """Native discovery only; this does not imply bridge execution support."""
+        from copilot.generated.rpc import SessionCommandsListRequest
+        session = await self._session(chat_id, store)
+        try:
+            listing = await session.rpc.commands.list(SessionCommandsListRequest(include_builtins=True, include_client_commands=False, include_skills=True), timeout=10)
+            skills = await session.rpc.skills.list(timeout=10)
+        except Exception:
+            return {'available': False, 'commands': [], 'skills': []}
+        return {'available': True, 'commands': [item.to_dict() for item in listing.commands],
+                'skills': [item.to_dict() for item in skills.skills]}
+
     async def models(self, chat_id, store):
         if self.turn_lock.locked():
             return {'available': False, 'models': [], 'thinking_levels': [], 'busy': True}
