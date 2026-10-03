@@ -347,9 +347,9 @@ export function WorkspaceEditor({
         if (!savedAt) return;
         const view = viewRef.current;
         if (!view) return;
-        initialContentRef.current = view.state.doc.toString();
-        setDirty(false);
-    }, [savedAt]);
+        initialContentRef.current = savedContent ?? '';
+        updateDirty();
+    }, [savedAt, savedContent, updateDirty]);
 
     useEffect(() => {
         if (savedContent === undefined) return;

@@ -363,3 +363,28 @@ test.describe('Editor Tab UX', () => {
         expect(errors).toEqual([]);
     });
 });
+
+test('save completion preserves text typed while the request is pending', async ({ page }) => {
+    let release;
+    let submitted;
+    const held = new Promise(resolve => { release = resolve; });
+    await page.route('**/workspace/file', async route => {
+        if (route.request().method() !== 'PUT') return route.continue();
+        submitted = route.request().postDataJSON();
+        await held;
+        await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ revision: 'saved-revision' }) });
+    });
+    await waitForApp(page);
+    await openFileInEditor(page, 'README.md');
+    const editor = page.locator('.editor-pane .cm-content');
+    await editor.click();
+    await page.keyboard.press('Control+End');
+    await page.keyboard.insertText('\nfirst saved edit');
+    await expect(editor).toContainText('first saved edit');
+    await page.keyboard.press('Control+s');
+    await expect.poll(() => submitted?.content).toContain('first saved edit');
+    await page.keyboard.insertText('\nnewer unsaved edit');
+    release();
+    await expect(editor).toContainText('newer unsaved edit');
+    await expect(page.locator('.editor-pane')).toContainText('Unsaved changes');
+});
