@@ -683,3 +683,16 @@ async def test_conditional_save_rejects_external_change(workspace_test_client, w
     assert response.status == 200
     assert (await response.json())['revision'] != revision
     assert target.read_text() == 'fresh draft'
+
+@pytest.mark.asyncio
+async def test_editor_mode_rejects_incomplete_or_lossy_snapshots(workspace_test_client, workspace_dir):
+    (workspace_dir / 'oversized.txt').write_bytes(b'a' * 500001)
+    response = await workspace_test_client.get('/workspace/file?path=oversized.txt&max=5000000&mode=edit')
+    assert response.status == 413
+    (workspace_dir / 'invalid.txt').write_bytes(b'invalid\xffutf8')
+    response = await workspace_test_client.get('/workspace/file?path=invalid.txt&mode=edit')
+    assert response.status == 415
+    (workspace_dir / 'complete.txt').write_text('complete UTF-8 café', encoding='utf-8')
+    response = await workspace_test_client.get('/workspace/file?path=complete.txt&mode=edit')
+    assert response.status == 200
+    assert (await response.json())['editable'] is True

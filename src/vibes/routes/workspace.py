@@ -392,7 +392,8 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         })
 
     if _is_text_file(target, content_type):
-        data = target.read_bytes()[: max_bytes + 1]
+        with target.open('rb') as source:
+            data = source.read(max_bytes + 1)
         truncated = len(data) > max_bytes
         if truncated:
             data = data[:max_bytes]
@@ -402,6 +403,8 @@ async def get_workspace_file(request: web.Request) -> web.Response:
         except UnicodeDecodeError:
             text = data.decode("utf-8", errors="replace")
             lossless = False
+        if request.query.get('mode') == 'edit' and (truncated or not lossless):
+            return web.json_response({"error": "File is not a complete, lossless UTF-8 editor snapshot. Download it instead."}, status=413 if truncated else 415)
         return web.json_response({
             **base,
             "kind": "text",
