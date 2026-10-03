@@ -1497,6 +1497,11 @@ async def trigger_action(request: web.Request) -> web.Response:
     thread_id = data.get("thread_id")
     if type(thread_id) is not int or thread_id < 1:
         return web.json_response({"error": "Invalid thread_id"}, status=400)
+    root = await (await get_db()).get_interaction(thread_id)
+    if root is None:
+        return web.json_response({'error': 'Thread not found'}, status=404)
+    if root.get('thread_id') not in (None, thread_id) or root.get('data', {}).get('thread_id') not in (None, thread_id):
+        return web.json_response({'error': 'Expected root thread_id'}, status=400)
     try:
         admitted = enqueue(process_agent_response, thread_id, prompt, agent_id)
     except Exception:

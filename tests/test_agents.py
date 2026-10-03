@@ -918,6 +918,7 @@ async def test_send_message_worker_rejection_reports_not_admitted(mock_deps, mod
 @pytest.mark.asyncio
 @pytest.mark.parametrize('admitted, raises', [(False, False), (True, False), (False, True)])
 async def test_predefined_action_reports_actual_worker_admission(mock_deps, admitted, raises):
+    await mock_deps['db'].create_interaction({'content': 'root'})
     mock_deps['enqueue'].return_value = admitted
     if raises:
         mock_deps['enqueue'].side_effect = RuntimeError('private-action-detail')
@@ -942,4 +943,17 @@ async def test_action_rejects_invalid_admission_body(mock_deps, body):
     with patch.object(agents_mod, 'prompt_from_action', return_value='action prompt'):
         response = await agents_mod.trigger_action(request)
     assert response.status == 400
+    mock_deps['enqueue'].assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('reply', [False, True])
+async def test_action_requires_existing_root_before_admission(mock_deps, reply):
+    if reply:
+        await mock_deps['db'].create_interaction({'content': 'reply', 'thread_id': 99})
+    request = make_mocked_request('POST', '/agent/default/action/test', match_info={'agent_id': 'default', 'action_id': 'test'})
+    request.json = AsyncMock(return_value={'thread_id': 1})
+    with patch.object(agents_mod, 'prompt_from_action', return_value='action prompt'):
+        response = await agents_mod.trigger_action(request)
+    assert response.status == (400 if reply else 404)
     mock_deps['enqueue'].assert_not_called()
