@@ -1042,6 +1042,7 @@ async def test_queue_steer_cancel_before_admission_restores_identity():
     from vibes.followups import queue_followup, list_followups, reset_state
 
     reset_state()
+    queue_followup(thread_id=42, agent_id='pi', message_id=8, content='first')
     item = queue_followup(thread_id=42, agent_id='pi', message_id=9, content='keep me')
     queue_followup(thread_id=42, agent_id='pi', message_id=10, content='next')
     request = MagicMock()
@@ -1055,9 +1056,9 @@ async def test_queue_steer_cancel_before_admission_restores_identity():
              patch.object(agents, 'broadcast_event', AsyncMock()) as broadcast:
             with pytest.raises(asyncio.CancelledError):
                 await agents.steer_queue_item(request)
-        assert [entry['message_id'] for entry in list_followups()] == [9, 10]
-        assert list_followups()[0]['row_id'] == item['row_id']
-        assert list_followups()[0]['mode'] == 'queue'
+        assert [entry['message_id'] for entry in list_followups()] == [8, 9, 10]
+        assert list_followups()[1]['row_id'] == item['row_id']
+        assert list_followups()[1]['mode'] == 'queue'
         broadcast.assert_not_awaited()
     finally:
         reset_state()

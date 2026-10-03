@@ -467,7 +467,8 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Invalid row_id"}, status=400)
 
     queued = None
-    for item in list_followups():
+    queue_position = 0
+    for queue_position, item in enumerate(list_followups()):
         if item["row_id"] == row_id:
             queued = item
             break
@@ -497,7 +498,7 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         try:
             actual_steer = bool(await send_pi_rpc_fire_and_forget({"type": "steer", "message": removed["content"]}))
         except asyncio.CancelledError:
-            restore_followup(removed)
+            restore_followup(removed, position=queue_position)
             raise
         except Exception:
             actual_steer = False

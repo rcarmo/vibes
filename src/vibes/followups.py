@@ -130,7 +130,7 @@ def reorder_followup(row_id: int, direction: str) -> bool:
     return True
 
 
-def restore_followup(item: dict, *, steer: bool = False) -> dict:
+def restore_followup(item: dict, *, steer: bool = False, position: int = 0) -> dict:
     """Restore a claimed item without allocating a new public row ID."""
     restored = FollowupItem(**item)
     if steer:
@@ -138,7 +138,7 @@ def restore_followup(item: dict, *, steer: bool = False) -> dict:
         restored.emulated = True
         _state.pending_steers.appendleft(restored)
     else:
-        _state.queued.insert(0, restored)
+        _state.queued.insert(position, restored)
     return restored.as_dict()
 
 
