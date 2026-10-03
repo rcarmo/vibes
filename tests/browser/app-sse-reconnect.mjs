@@ -12,13 +12,15 @@ const calls = [
 const snapshot = { type: 'writing', tool_calls: calls, tool_calls_truncated: true };
 let disconnectFirst;
 let disconnected = false;
+let liveStream;
+let completed = false;
 const server = Bun.serve({ port: 0, idleTimeout: 0, async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname === '/') return new Response('<div id="app"></div><script type="module" src="/static/dist/app.js"></script>', { headers: { 'Content-Type': 'text/html' } });
     if (url.pathname === '/agents/status') {
         if (url.searchParams.get('session_id') !== 'selected') return new Response('wrong chat', { status: 400 });
         statusReads++;
-        return Response.json({ busy: true, active_turns: [{ turn_id: 'turn', thread_id: 1, agent_id: 'pi', last_status: snapshot }] });
+        return Response.json({ busy: !completed, active_turns: completed ? [] : [{ turn_id: 'turn', thread_id: 1, agent_id: 'pi', last_status: snapshot }] });
     }
     if (url.pathname === '/sse/stream') {
         const number = ++connections;
@@ -31,6 +33,7 @@ const server = Bun.serve({ port: 0, idleTimeout: 0, async fetch(req) {
                     disconnected = true;
                     controller.close();
                 };
+                if (number > 1) liveStream = controller;
                 // Next connection stays open until client cleanup.
             },
             cancel() { clearTimeout(timer); },
@@ -65,6 +68,13 @@ try {
     await page.locator('.thinking-panel-header').nth(1).click();
     if (!(await page.locator('.thinking-panel-body').nth(1).innerText()).includes('recovered after disconnect')) throw Error('Lost recovered running output');
     if (!(await page.locator('#app').innerText()).includes('Earlier tool calls omitted')) throw Error('Lost omission notice');
+    completed = true;
+    if (!liveStream) throw Error('Reconnected stream missing');
+    liveStream.enqueue(encoder.encode('event: agent_response\ndata: ' + JSON.stringify({
+        id: 2, type: 'agent_response', content: 'Finished',
+        data: { session_id: 'selected', thread_id: 1 },
+    }) + '\n\n'));
+    await page.waitForFunction(() => document.querySelectorAll('.thinking-panel').length === 0);
     if (errors.length) throw Error(errors.join('\n'));
     console.log(`${engine}: full app EventSource reconnect with synthetic backend passed`);
 } finally {
