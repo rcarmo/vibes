@@ -21,3 +21,16 @@ def test_memory_does_not_follow_outside_symlinks(tmp_path):
     (tmp_path / 'link.md').symlink_to(outside)
     with pytest.raises(ValueError):
         load_workspace_memory(tmp_path, ['link.md'])
+
+
+def test_config_memory_opt_in_has_source_provenance(tmp_path, monkeypatch):
+    import vibes.config as config
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / 'note.md').write_text('selected fact', encoding='utf-8')
+    monkeypatch.setattr(config, '_load_settings_file', lambda: {'memory_paths': ['note.md', 'missing.md']})
+    settings = config.Config()
+    assert 'Workspace note source: note.md' in settings.prompt
+    assert 'selected fact' in settings.prompt
+    assert settings.memory_diagnostics == [{'path': 'missing.md', 'status': 'missing'}]
+    monkeypatch.setattr(config, '_load_settings_file', lambda: {})
+    assert 'selected fact' not in config.Config().prompt
