@@ -23,3 +23,12 @@ test('progress-only calls remain visible without fabricating output', () => {
     expect(panels[0].progress_message).toBe('<working>');
     expect(panels[0].progress_truncated).toBe(true);
 });
+
+test('fully omitted text keeps its call panel and truncation provenance', () => {
+    const panels = toolOutputPanels({ tool_calls: [
+        { tool_call_id: 'old-output', output: '', output_truncated: true },
+        { tool_call_id: 'old-progress', output: '', progress_message: '', progress_truncated: true },
+        { tool_call_id: 'empty', output: '' }
+    ] });
+    expect(panels.map(call => call.panelKey)).toEqual(['output:old-output', 'output:old-progress']);
+});
