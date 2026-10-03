@@ -762,8 +762,12 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
     except Exception:
         logger.warning("Failed to persist turn start for %s", turn_id, exc_info=True)
 
+    from ..tool_output import ToolOutputState
+    tool_output_state = ToolOutputState()
+
     async def _persist_and_broadcast_status(status_data: dict) -> None:
         """Broadcast an agent_status event and persist it for polling."""
+        status_data = tool_output_state.update(status_data)
         await broadcast_event("agent_status", {
             "thread_id": thread_id,
                 "session_id": chat_session_id,
