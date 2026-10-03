@@ -6,13 +6,15 @@ class ToolOutputState:
     def __init__(self, limit=16000):
         self.limit = limit
         self.calls = {}
+        self.calls_truncated = False
 
     def update(self, event):
         call_id = event.get('tool_call_id')
         if not isinstance(call_id, str) or not call_id:
-            return {**event, 'tool_calls': self.snapshot()} if self.calls else event
+            return {**event, 'tool_calls': self.snapshot(), 'tool_calls_truncated': self.calls_truncated} if self.calls else event
         if call_id not in self.calls:
             if len(self.calls) >= 256:
+                self.calls_truncated = True
                 return {**event, 'tool_calls': self.snapshot(), 'tool_calls_truncated': True}
             self.calls[call_id] = {'output': '', 'started_at': time.time(), 'output_truncated': False}
         state = self.calls[call_id]
@@ -31,7 +33,7 @@ class ToolOutputState:
                     state['output_truncated'] |= len(combined) > self.limit or bool(event.get('content_truncated'))
         if event.get('type') == 'tool_status' and event.get('status') in {'completed', 'failed', 'ended'}:
             state.setdefault('ended_at', time.time())
-        return {**event, **state, 'tool_calls': self.snapshot()}
+        return {**event, **state, 'tool_calls': self.snapshot(), 'tool_calls_truncated': self.calls_truncated}
 
     def snapshot(self):
         # Keep aggregate reconnect payload below 64 KiB of output text.
