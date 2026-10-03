@@ -80,3 +80,13 @@ async def test_passive_diagnostics_busy_state_is_lane_scoped():
         assert set(host.lanes) == {'selected', 'other'}
     finally:
         other.turn_lock.release()
+
+
+def test_passive_diagnostics_rejects_replaced_runtime_client():
+    host = CopilotHost()
+    lane = host.lane('selected')
+    lane.client = object()
+    host.runtime.client = object()
+    assert host.diagnostics('selected')['state'] == 'not-started'
+    lane.client = host.runtime.client
+    assert host.diagnostics('selected')['state'] == 'ready'
