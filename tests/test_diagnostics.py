@@ -102,3 +102,38 @@ def test_scoped_diagnostics_validates_chat_without_native_start():
         response = asyncio.run(app.diagnostics_handler(request))
     assert response.status == 404
     assert response.headers['Cache-Control'] == 'no-store'
+
+
+def test_scoped_http_separates_configured_and_runtime_reported_tools():
+    import asyncio
+    import json
+    from unittest.mock import AsyncMock, MagicMock, patch
+    from vibes import app
+    from vibes.copilot_host import CopilotHost
+
+    host = CopilotHost()
+    host.runtime.client = object()
+    lane = host.lane('selected')
+    lane.client = host.runtime.client
+    metadata = AsyncMock(return_value=SimpleNamespace(to_dict=lambda: {'tools': [
+        {'name': 'native-read', 'description': 'private-schema-detail'},
+    ]}))
+    lane.sessions['selected'] = SimpleNamespace(rpc=SimpleNamespace(tools=SimpleNamespace(get_current_metadata=metadata)))
+    request = MagicMock()
+    request.query = {'session_id': 'selected'}
+    config = SimpleNamespace(default_agent='copilot-ffi', copilot_available_tools=['configured-only'])
+    with patch.object(app, 'get_config', return_value=config), \
+         patch('vibes.db.get_db', AsyncMock()), \
+         patch('vibes.sessions.SessionStore.get', AsyncMock(return_value={'id': 'selected'})), \
+         patch('vibes.copilot_host.backend', host):
+        response = asyncio.run(app.diagnostics_handler(request))
+    payload = json.loads(response.text)
+    assert response.status == 200
+    assert response.headers['Cache-Control'] == 'no-store'
+    assert payload['tools'] == [{'name': 'configured-only', 'state': 'configured'}]
+    assert payload['runtime_tools']['tools'] == [{'name': 'native-read', 'state': 'offered'}]
+    assert payload['execution_verified'] is False
+    assert payload['runtime']['capabilities_verified'] is False
+    assert 'private-schema-detail' not in response.text
+    metadata.assert_awaited_once_with(timeout=10)
+    assert not lane.turn_lock.locked()
