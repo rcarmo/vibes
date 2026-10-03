@@ -157,7 +157,8 @@ async def test_stop_processes_pending():
 
 
 @pytest.mark.asyncio
-async def test_shutdown_drains_admitted_work_and_closes_new_admission():
+@pytest.mark.parametrize('workers', [1, 3])
+async def test_shutdown_drains_admitted_work_and_closes_new_admission(workers):
     entered = asyncio.Event()
     release = asyncio.Event()
     completed = []
@@ -167,7 +168,7 @@ async def test_shutdown_drains_admitted_work_and_closes_new_admission():
         completed.append('first')
     async def second():
         completed.append('second')
-    await tasks.start_task_queue(num_workers=1)
+    await tasks.start_task_queue(num_workers=workers)
     assert tasks.enqueue(first)
     assert tasks.enqueue(second)
     await asyncio.wait_for(entered.wait(), timeout=1)
@@ -176,4 +177,6 @@ async def test_shutdown_drains_admitted_work_and_closes_new_admission():
     assert tasks.enqueue(second) is False
     release.set()
     await asyncio.wait_for(stopping, timeout=2)
-    assert completed == ['first', 'second']
+    assert sorted(completed) == ['first', 'second']
+    if workers == 1:
+        assert completed == ['first', 'second']

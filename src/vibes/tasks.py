@@ -63,7 +63,7 @@ async def stop_task_queue():
     _running = False
     
     # Wait for queue to drain (with timeout)
-    if _task_queue and not _task_queue.empty():
+    if _task_queue is not None:
         try:
             await asyncio.wait_for(_task_queue.join(), timeout=5.0)
         except asyncio.TimeoutError:
