@@ -401,3 +401,13 @@ async def test_cancelled_compaction_task_releases_lane(setup, monkeypatch):
         await task
     assert not backend.compacting_sessions
     assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+async def test_busy_command_discovery_never_calls_native_session(setup, monkeypatch):
+    backend, *_ = setup
+    session = AsyncMock()
+    monkeypatch.setattr(backend, '_session', session)
+    async with backend.turn_lock:
+        result = await backend.command_catalogue('chat', object())
+    assert result == {'available': False, 'busy': True, 'commands': [], 'skills': []}
+    session.assert_not_awaited()
