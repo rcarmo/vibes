@@ -87,12 +87,12 @@ async def test_acp_commands_do_not_inspect_pi(client):
 
 
 @pytest.mark.asyncio
-async def test_nondefault_does_not_advertise_unsupported_slash_commands(client, db):
+async def test_nondefault_advertises_only_supported_appearance_commands(client, db):
     session = await SessionStore(db).create('Other')
     with patch('vibes.pi_client.inspect_model_state', AsyncMock()) as inspect:
         response = await client.get('/agent/commands', params={'session_id': session['id']})
         assert response.status == 200
-        assert (await response.json())['commands'] == []
+        assert [command['name'] for command in (await response.json())['commands']] == ['/theme', '/tint']
         inspect.assert_not_awaited()
 
 
