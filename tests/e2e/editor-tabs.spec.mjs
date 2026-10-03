@@ -442,3 +442,34 @@ test('stale save keeps draft until a confirmed reload', async ({ page }) => {
     await expect(editor).toContainText('external content');
     await expect(editor).not.toContainText('local draft');
 });
+
+test('conflict copy is exclusive and overwrite uses the freshly reviewed revision', async ({ page }) => {
+    const writes = [];
+    let conflicting = false;
+    await page.route(/\/workspace\/file(?:\?|$)/, async route => {
+        if (route.request().method() === 'PUT') {
+            const body = route.request().postDataJSON(); writes.push(body);
+            if (body.create_only) return route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"Save copy destination already exists"}' });
+            if (body.expected_revision === 'reviewed') return route.fulfill({ contentType: 'application/json', body: '{"revision":"saved"}' });
+            conflicting = true;
+            return route.fulfill({ status: 409, contentType: 'application/json', body: '{"error":"File changed since it was opened"}' });
+        }
+        return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ kind: 'text', text: conflicting ? 'review this external text' : 'original', revision: conflicting ? 'reviewed' : 'old', truncated: false, lossless: true, editable: true }) });
+    });
+    await waitForApp(page);
+    await openFileInEditor(page, 'README.md');
+    const editor = page.locator('.editor-pane .cm-content');
+    await editor.click(); await page.keyboard.press('Control+End'); await page.keyboard.insertText('\nmy draft'); await page.keyboard.press('Control+s');
+    await expect(page.getByRole('button', { name: 'Save copy', exact: true })).toBeVisible();
+    page.once('dialog', dialog => dialog.accept('existing.txt'));
+    await page.getByRole('button', { name: 'Save copy', exact: true }).click();
+    await expect(page.locator('.editor-pane')).toContainText('destination already exists');
+    await expect(editor).toContainText('my draft');
+    expect(writes.at(-1).create_only).toBe(true);
+    let review;
+    page.once('dialog', dialog => { review = dialog.message(); return dialog.accept(); });
+    await page.getByRole('button', { name: 'Review and overwrite' }).click();
+    await expect(page.locator('.editor-pane')).toContainText('All changes saved');
+    expect(review).toContain('review this external text');
+    expect(writes.at(-1).expected_revision).toBe('reviewed');
+});
