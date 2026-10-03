@@ -626,3 +626,18 @@ async def test_native_catalogue_tracks_selected_session_cache(setup, monkeypatch
     else:
         assert result['native_session_id'] == 'captured-native'
     assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+async def test_fresh_compaction_starts_runtime_before_history_rpc(setup):
+    backend, client, session, *_ = setup
+    async def compact(**kwargs):
+        assert client.start.await_count == 1
+        assert kwargs == {'timeout': 120}
+        return SimpleNamespace(success=True, messages_removed=0, tokens_removed=0, context_window=None)
+    session.rpc = SimpleNamespace(history=SimpleNamespace(compact=AsyncMock(side_effect=compact)))
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value=None), bind_backend=AsyncMock())
+    result = await backend.compact('chat', store)
+    assert result['success'] is True
+    store.bind_backend.assert_not_awaited()
+    assert not backend.turn_lock.locked()
+    assert backend.compacting_sessions == set()
