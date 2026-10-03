@@ -76,11 +76,12 @@ export function AgentStatus({
     const hasDraft = Boolean(draftInfo.text) || draftInfo.totalLines > 0;
 
     const [toolClock, setToolClock] = useState(Date.now());
+    const runningTool = hasRunningTool(status);
     useEffect(() => {
-        if (!hasRunningTool(status)) return;
+        if (!runningTool) return;
         const timer = setInterval(() => setToolClock(Date.now()), 1000);
         return () => clearInterval(timer);
-    }, [status]);
+    }, [runningTool]);
     const [expandedPanels, setExpandedPanels] = useState(new Set());
     const panelBodies = useRef(new Map());
     const [overflowingPanels, setOverflowingPanels] = useState({});
