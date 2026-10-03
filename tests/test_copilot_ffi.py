@@ -463,3 +463,18 @@ async def test_native_catalogue_session_failure_is_unavailable_and_releases_lane
     assert result == {'available': False, 'commands': [], 'skills': []}
     assert not backend.turn_lock.locked()
     assert 'private' not in repr(result)
+
+@pytest.mark.asyncio
+async def test_native_catalogue_cancellation_propagates_and_releases_lane(setup, monkeypatch):
+    backend, *_ = setup
+    entered = asyncio.Event()
+    async def acquire(*args):
+        entered.set()
+        await asyncio.Event().wait()
+    monkeypatch.setattr(backend, '_session', acquire)
+    discovery = asyncio.create_task(backend.command_catalogue('chat', object()))
+    await asyncio.wait_for(entered.wait(), timeout=1)
+    discovery.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await discovery
+    assert not backend.turn_lock.locked()
