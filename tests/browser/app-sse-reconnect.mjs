@@ -68,8 +68,23 @@ try {
     await page.locator('.thinking-panel-header').nth(1).click();
     if (!(await page.locator('.thinking-panel-body').nth(1).innerText()).includes('recovered after disconnect')) throw Error('Lost recovered running output');
     if (!(await page.locator('#app').innerText()).includes('Earlier tool calls omitted')) throw Error('Lost omission notice');
-    completed = true;
     if (!liveStream) throw Error('Reconnected stream missing');
+    await page.evaluate(() => {
+        window.isolationBarrier = false;
+        window.addEventListener('workspace-update', () => { window.isolationBarrier = true; }, { once: true });
+    });
+    liveStream.enqueue(encoder.encode('event: agent_response\ndata: ' + JSON.stringify({
+        id: 99, type: 'agent_response', content: 'Foreign finished',
+        data: { session_id: 'other', thread_id: 99 },
+    }) + '\n\n'));
+    // A following selected-chat event proves the preceding completion was processed.
+    liveStream.enqueue(encoder.encode('event: workspace_update\ndata: ' + JSON.stringify({
+        session_id: 'selected', path: 'barrier.md',
+    }) + '\n\n'));
+    await page.waitForFunction(() => window.isolationBarrier);
+    if (await page.locator('.thinking-panel').count() !== 2) throw Error('Foreign completion cleared selected activity');
+    if ((await page.locator('#app').innerText()).includes('Foreign finished')) throw Error('Foreign response leaked into selected timeline');
+    completed = true;
     liveStream.enqueue(encoder.encode('event: agent_response\ndata: ' + JSON.stringify({
         id: 2, type: 'agent_response', content: 'Finished',
         data: { session_id: 'selected', thread_id: 1 },
