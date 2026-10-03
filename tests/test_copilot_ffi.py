@@ -498,3 +498,20 @@ async def test_native_task_lifecycle_reaches_activity_without_chat_or_private_fi
     assert rows[1]['native_task']['total_tokens'] == 12
     assert 'private' not in repr(rows)
     assert all('session_id' not in row['native_task'] for row in rows)
+
+@pytest.mark.asyncio
+async def test_invalid_queued_media_never_reaches_native_send(setup, monkeypatch):
+    import importlib
+    backend, client, session, factory, ffi = setup
+    session.send = AsyncMock()
+    validation = AsyncMock(side_effect=ValueError('Attachment unavailable'))
+    monkeypatch.setattr(importlib.import_module('vibes.copilot_media'), 'validate_media', validation)
+    monkeypatch.setattr(importlib.import_module('vibes.db'), 'get_db', AsyncMock(return_value=object()))
+    store = SimpleNamespace(backend_binding=AsyncMock(return_value=None), bind_backend=AsyncMock())
+    with pytest.raises(ValueError, match='Attachment unavailable'):
+        await backend.send('queued', 1, AsyncMock(), chat_id='chat', store=store, media_ids=[99],
+                           attachment_context={'mode': 'copilot-ffi', 'session_id': 'chat', 'turn_id': 'turn'})
+    session.send.assert_not_awaited()
+    store.bind_backend.assert_not_awaited()
+    assert not backend.turn_lock.locked()
+    assert backend.active is None
