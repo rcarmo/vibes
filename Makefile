@@ -37,7 +37,7 @@ format: ## Format code with ruff
 test: ## Run pytest
 	PYTHONPATH=src $(PYTHON) -m pytest
 
-test-parity: ## Run the Vibes-owned canonical parity contracts and fixture tests
+test-parity: ## Compatibility alias for shared fixtures-vibes compliance
 	bun run test:parity
 
 fixtures-vibes: ## Run the shared Classic compliance suite
