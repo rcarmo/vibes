@@ -27,5 +27,31 @@ try {
     await page.getByRole('button', { name: 'Refresh diagnostics' }).click();
     await page.waitForFunction(() => document.querySelector('#state').textContent.startsWith('Inspection unavailable.'));
     if (await page.locator('#result').innerText()) throw Error('Wrong-chat snapshot rendered');
-    console.log(`${engine}: on-demand diagnostics, safe text and response ownership passed`);
+    // Hold JSON decoding after fetch succeeds, so abort cannot hide a missing
+    // generation guard. The late result deliberately still belongs to its chat.
+    await page.evaluate(() => {
+        const originalFetch = window.fetch;
+        window.fetch = (url, options) => {
+            if (!String(url).includes('session_id=delayed')) return originalFetch(url, options);
+            window.inspectionSignal = options.signal;
+            return Promise.resolve({ ok: true, json: () => new Promise(resolve => {
+                window.releaseInspection = () => resolve({ session_id: 'delayed', tools: [{ name: 'late-tool' }] });
+            }) });
+        };
+    });
+    await page.locator('#session').fill('delayed');
+    await page.getByRole('button', { name: 'Refresh diagnostics' }).click();
+    await page.waitForFunction(() => typeof window.releaseInspection === 'function');
+    await page.locator('#session').fill('new-chat');
+    if (!await page.evaluate(() => window.inspectionSignal.aborted)) throw Error('Chat change did not abort inspection');
+    if (await page.locator('#result').innerText()) throw Error('Pending snapshot not cleared');
+    await page.evaluate(async () => {
+        window.releaseInspection();
+        // Render-cycle barrier after the released promise continuation, not a sleep.
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    if (await page.locator('#result').innerText()) throw Error('Late snapshot rendered after chat change');
+    if (await page.locator('#state').innerText() !== 'Chat changed. Refresh to inspect.') throw Error('Late response changed inspection state');
+    if (reads !== 2) throw Error('Chat edits triggered inspection');
+    console.log(`${engine}: on-demand diagnostics, safe text, response ownership and in-flight invalidation passed`);
 } finally { await browser.close(); server.stop(true); }
