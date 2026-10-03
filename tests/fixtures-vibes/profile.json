@@ -53,5 +53,8 @@
     "@cap-pwa",
     "@cap-theme-tint"
   ],
+  "tools": {
+    "openFile": "open_file"
+  },
   "skips": "skips.json"
 }
