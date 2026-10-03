@@ -473,8 +473,7 @@ async def steer_queue_item(request: web.Request) -> web.Response:
     agent_mode = _resolve_agent_mode(queued["agent_id"])
     queued_session = None
     if agent_mode == 'copilot-ffi':
-        queued_root = await (await get_db()).get_interaction(queued['thread_id'])
-        queued_session = queued_root['data'].get('session_id', 'default') if queued_root else None
+        return web.json_response({'error': 'Native Copilot steering is not enabled; queued item was preserved'}, status=409)
     active_turn = await _get_active_turn_for_agent(queued["agent_id"], **({'session_id': queued_session} if queued_session else {}))
     target_turn_id = active_turn.get("turn_id") if active_turn else None
     if active_turn:
