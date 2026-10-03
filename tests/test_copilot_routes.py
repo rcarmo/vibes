@@ -108,13 +108,16 @@ async def test_model_route_does_not_invoke_pi(aiohttp_client, db, config, monkey
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize('cancelled', [False, True])
-async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch, cancelled):
+@pytest.mark.parametrize('steer', [False, True])
+async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch, cancelled, steer):
     import asyncio
     from vibes import followups
     followups.reset_state()
     agents._ffi_tasks.clear()
     agents._ffi_closing = False
-    item = followups.queue_followup(thread_id=1, agent_id='default', message_id=1, content='queued')
+    add = followups.defer_steer if steer else followups.queue_followup
+    item = add(thread_id=1, agent_id='default', message_id=1, content='queued')
+    later = add(thread_id=1, agent_id='default', message_id=2, content='later')
     failure = asyncio.CancelledError() if cancelled else RuntimeError('lookup unavailable')
     fake_db = type('Lookup', (), {'get_interaction': AsyncMock(side_effect=failure)})()
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=fake_db))
@@ -129,7 +132,8 @@ async def test_ffi_followup_lookup_failure_restores_item(db, config, monkeypatch
                 await task
         else:
             await task
-        assert followups.list_followups() == [item]
+        remaining = followups.list_pending_steers() if steer else followups.list_followups()
+        assert remaining == [item, later]
         broadcast.assert_not_awaited()
     finally:
         followups.reset_state()
