@@ -563,8 +563,13 @@ class CopilotBackend:
             try:
                 from copilot.generated.rpc import SessionCommandsListRequest
                 session = await self._ready_session(chat_id, store)
+                captured_client = self.client
+                captured_session = self.sessions.get(chat_id)
                 listing = await session.rpc.commands.list(SessionCommandsListRequest(include_builtins=True, include_client_commands=False, include_skills=True), timeout=10)
                 skills = await session.rpc.skills.list(timeout=10)
+                if (self.closing or self.client is not captured_client
+                        or self.sessions.get(chat_id) is not captured_session):
+                    return {'available': False, 'commands': [], 'skills': []}
             except Exception:
                 return {'available': False, 'commands': [], 'skills': []}
             def public_entries(items, fields, limit):

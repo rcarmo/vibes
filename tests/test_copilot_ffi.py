@@ -584,3 +584,45 @@ async def test_native_catalogue_rejects_boolean_and_blank_names(setup, monkeypat
     result = await backend.command_catalogue('chat', object())
     assert result['commands'] == [{'name': 'valid'}]
     assert result['skills'] == [{'name': 'valid', 'enabled': True}]
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['closing', 'client'])
+async def test_native_catalogue_discards_runtime_changed_during_read(setup, monkeypatch, change):
+    backend, *_ = setup
+    async def skills(**kwargs):
+        if change == 'closing':
+            backend.closing = True
+        else:
+            backend.client = object()
+        return SimpleNamespace(skills=[])
+    session = SimpleNamespace(session_id='obsolete-native', rpc=SimpleNamespace(
+        commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=[]))),
+        skills=SimpleNamespace(list=skills)))
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
+    assert await backend.command_catalogue('chat', object()) == {'available': False, 'commands': [], 'skills': []}
+    assert not backend.turn_lock.locked()
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', ['replace', 'remove', 'foreign'])
+async def test_native_catalogue_tracks_selected_session_cache(setup, monkeypatch, change):
+    backend, *_ = setup
+    async def skills(**kwargs):
+        if change == 'replace':
+            backend.sessions['chat'] = object()
+        elif change == 'remove':
+            backend.sessions.pop('chat')
+        else:
+            backend.sessions['other-chat'] = object()
+        return SimpleNamespace(skills=[])
+    session = SimpleNamespace(session_id='captured-native', rpc=SimpleNamespace(
+        commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=[]))),
+        skills=SimpleNamespace(list=skills)))
+    backend.sessions['chat'] = session
+    monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
+    result = await backend.command_catalogue('chat', object())
+    assert result['available'] is (change == 'foreign')
+    if change != 'foreign':
+        assert 'native_session_id' not in result
+    else:
+        assert result['native_session_id'] == 'captured-native'
+    assert not backend.turn_lock.locked()
