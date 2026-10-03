@@ -143,3 +143,19 @@ def test_native_task_completion_without_name_preserves_started_title():
     result = state.update({'type': 'tool_status', 'tool_call_id': 'native-task:x', 'status': 'completed'})
     assert result['title'] == 'Research'
     assert result['tool_calls'][0]['title'] == 'Research'
+
+
+def test_native_task_snapshot_retains_only_sanitised_metrics_and_identity():
+    state = ToolOutputState()
+    state.update({'type': 'tool_call', 'tool_call_id': 'native-task:t',
+                  'native_task': {'task_id': 't', 'status': 'running', 'name': 'Research'}})
+    state.update({'type': 'tool_status', 'tool_call_id': 'native-task:t', 'status': 'completed',
+                  'native_task': {'task_id': 't', 'status': 'completed', 'duration_ms': 1200,
+                                  'total_tokens': 42, 'total_tool_calls': True, 'error': 'private'}})
+    task = state.snapshot()[0]['native_task']
+    assert task == {'kind': 'native_task', 'task_id': 't', 'status': 'completed',
+                    'name': 'Research', 'duration_ms': 1200, 'total_tokens': 42}
+    assert 'private' not in repr(state.snapshot())
+    state.update({'type': 'tool_call', 'tool_call_id': 'ordinary',
+                  'native_task': {'task_id': 't', 'status': 'running'}})
+    assert 'native_task' not in state.calls['ordinary']

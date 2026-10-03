@@ -18,6 +18,15 @@ class ToolOutputState:
                 return {**event, 'tool_calls': self.snapshot(), 'tool_calls_truncated': True}
             self.calls[call_id] = {'output': '', 'started_at': time.time(), 'output_truncated': False}
         state = self.calls[call_id]
+        task = event.get('native_task')
+        if isinstance(task, dict):
+            from .native_tasks import normalise_task_event
+            kind = {'running': 'subagent.started', 'completed': 'subagent.completed', 'failed': 'subagent.failed'}.get(task.get('status'))
+            clean = normalise_task_event(kind, {'tool_call_id': task.get('task_id'),
+                'agentName': task.get('name'), 'durationMs': task.get('duration_ms'),
+                'total_tokens': task.get('total_tokens'), 'total_tool_calls': task.get('total_tool_calls')})
+            if clean is not None and call_id == f"native-task:{clean['task_id']}":
+                state['native_task'] = {**state.get('native_task', {}), **clean}
         for field in ('title', 'status'):
             value = event.get(field)
             if isinstance(value, str):
