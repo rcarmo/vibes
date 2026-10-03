@@ -27,6 +27,7 @@ class ToolOutputState:
             if isinstance(content, str):
                 if event.get('progress'):
                     state['progress_message'] = content[:self.limit]
+                    state['progress_truncated'] = len(content) > self.limit or bool(event.get('content_truncated'))
                 else:
                     combined = state['output'] + content
                     state['output'] = combined[-self.limit:]
@@ -46,6 +47,6 @@ class ToolOutputState:
             remaining -= len(progress)
             rows.append({**state, 'tool_call_id': call_id, 'output': output,
                          'progress_message': progress,
-                         'progress_truncated': len(progress) < len(state.get('progress_message', '')),
+                         'progress_truncated': state.get('progress_truncated', False) or len(progress) < len(state.get('progress_message', '')),
                          'output_truncated': state['output_truncated'] or len(output) < len(state['output'])})
         return list(reversed(rows))

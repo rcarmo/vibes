@@ -64,3 +64,22 @@ def test_call_count_limit_retains_snapshot_and_reports_omission():
     assert len(result['tool_calls']) == 256
     assert result['tool_calls_truncated'] is True
     assert 'overflow' not in state.calls
+
+
+def test_progress_source_truncation_survives_reconnect():
+    state = ToolOutputState(limit=5)
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'short',
+                  'progress': True, 'content_truncated': True})
+    assert state.snapshot()[0]['progress_truncated'] is True
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'complete', 'progress': True})
+    assert state.snapshot()[0]['progress_truncated'] is True
+    state.update({'type': 'tool_output', 'tool_call_id': 'a', 'content': 'done', 'progress': True})
+    assert state.snapshot()[0]['progress_truncated'] is False
+
+
+def test_call_omission_marker_survives_retained_call_and_phase_updates():
+    state = ToolOutputState()
+    for i in range(257):
+        state.update({'type': 'tool_call', 'tool_call_id': str(i)})
+    assert state.update({'type': 'tool_status', 'tool_call_id': '0', 'status': 'completed'})['tool_calls_truncated']
+    assert state.update({'type': 'writing'})['tool_calls_truncated']
