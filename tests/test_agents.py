@@ -1089,3 +1089,31 @@ async def test_cancelled_steering_preserves_reorder_during_validation():
         assert [entry['message_id'] for entry in followups.list_followups()] == [8, 10, 9]
     finally:
         followups.reset_state()
+
+@pytest.mark.asyncio
+async def test_steering_does_not_dispatch_item_removed_during_validation():
+    from vibes.routes import agents
+    from vibes import followups
+
+    followups.reset_state()
+    item = followups.queue_followup(thread_id=42, agent_id='pi', message_id=9, content='removed prompt')
+    async def lookup(*args, **kwargs):
+        followups.remove_followup(item['row_id'])
+        return {'thread_id': 42}
+    request = MagicMock()
+    request.json = AsyncMock(return_value={'row_id': item['row_id']})
+    try:
+        with patch.object(agents, '_resolve_agent_mode', return_value='pi'), \
+             patch.object(agents, '_is_agent_busy', return_value=True), \
+             patch.object(agents, '_get_active_turn_for_agent', side_effect=lookup), \
+             patch.object(agents, 'get_db', AsyncMock(return_value=SimpleNamespace(get_interaction=AsyncMock(return_value={'data': {'session_id': 'default'}})))), \
+             patch.object(agents, 'send_pi_rpc_fire_and_forget', AsyncMock()) as send, \
+             patch.object(agents, 'broadcast_event', AsyncMock()) as broadcast:
+            response = await agents.steer_queue_item(request)
+        assert response.status == 404
+        send.assert_not_awaited()
+        broadcast.assert_not_awaited()
+        assert followups.list_followups() == []
+        assert followups.list_pending_steers() == []
+    finally:
+        followups.reset_state()
