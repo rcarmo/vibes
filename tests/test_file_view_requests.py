@@ -40,3 +40,36 @@ async def test_missing_browser_ack_is_not_success():
     result = await manager.request('chat', 'note.txt', lambda: None, publish, timeout=0.001)
     assert result['status'] == 'unacknowledged'
     assert not manager.pending
+
+@pytest.mark.asyncio
+async def test_rejected_and_duplicate_file_view_acknowledgements():
+    manager = FileViewRequests()
+    events = []
+    async def publish(kind, data):
+        events.append(data)
+    task = asyncio.create_task(manager.request('chat', 'a.txt', lambda: None, publish))
+    await asyncio.sleep(0)
+    request_id = events[0]['request_id']
+    with pytest.raises(ValueError):
+        manager.acknowledge(request_id, 'chat', 'pretend-success')
+    manager.acknowledge(request_id, 'chat', 'rejected')
+    with pytest.raises(LookupError):
+        manager.acknowledge(request_id, 'chat', 'opened')
+    assert (await task)['status'] == 'rejected'
+    with pytest.raises(LookupError):
+        manager.acknowledge(request_id, 'chat', 'opened')
+
+
+@pytest.mark.asyncio
+async def test_pending_view_request_limit_does_not_evict_owned_work():
+    manager = FileViewRequests(limit=1)
+    async def publish(kind, data):
+        pass
+    first = asyncio.create_task(manager.request('a', 'a.txt', lambda: None, publish))
+    await asyncio.sleep(0)
+    with pytest.raises(ValueError, match='Too many'):
+        await manager.request('b', 'b.txt', lambda: None, publish)
+    assert len(manager.pending) == 1
+    first.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await first
