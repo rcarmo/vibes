@@ -406,7 +406,7 @@ export function WorkspaceEditor({
     }, [dirty, handleToggleVim, handleToggleWhitespace]);
 
     return html`
-        <div class="editor-pane" ref=${paneRef}>
+        <div class="editor-pane" ref=${paneRef} data-editor-path=${path} data-editor-loading=${Boolean(loading)} data-editor-error=${Boolean(error)}>
             ${loading && html`<div class="editor-status">Loading…</div>`}
             ${error && html`<div class="editor-error">${error}</div>`}
             <div class="editor-body${loading || error ? ' disabled' : ''}">
