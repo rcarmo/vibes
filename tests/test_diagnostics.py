@@ -236,3 +236,55 @@ def test_http_reports_tools_mcp_and_skills_from_same_existing_session():
     assert lane.sessions['selected'] is session
     assert set(host.lanes) == {'selected'}
     assert not lane.turn_lock.locked()
+
+
+def test_production_diagnostics_routes_with_configured_auth_over_http():
+    import asyncio
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+    from unittest.mock import AsyncMock, patch
+    from vibes import app, middleware
+    from vibes.copilot_host import CopilotHost
+
+    async def exercise():
+        host = CopilotHost()
+        config = SimpleNamespace(default_agent='copilot-ffi')
+        async def authenticate(request):
+            if request.headers.get('Authorization') != 'Bearer test-only':
+                return web.json_response({'error': 'Unauthorized'}, status=401)
+            return None
+        auth = middleware.create_auth_middleware(authenticate=authenticate)
+        lookup = AsyncMock(return_value={'id': 'selected'})
+        with patch.object(app, 'get_config', return_value=config), \
+             patch.object(app, 'create_auth_middleware', return_value=auth), \
+             patch('vibes.db.get_db', AsyncMock()), \
+             patch('vibes.sessions.SessionStore.get', lookup), \
+             patch('vibes.copilot_host.backend', host):
+            application = app.create_app()
+            # Keep production routes/middleware; exclude unrelated worker/provider startup.
+            application.on_startup.clear()
+            application.on_cleanup.clear()
+            async with TestClient(TestServer(application)) as client:
+                for path in ('/diagnostics', '/diagnostics/backend?session_id=selected'):
+                    response = await client.get(path)
+                    assert response.status == 401
+                lookup.assert_not_awaited()
+                headers = {'Authorization': 'Bearer test-only'}
+                response = await client.get('/diagnostics', headers=headers)
+                assert response.status == 200
+                assert response.headers['Cache-Control'] == 'no-store'
+                assert '/static/js/diagnostics-page.js' in await response.text()
+                response = await client.get('/static/js/diagnostics-page.js')
+                assert response.status == 200
+                assert 'data.session_id !== chat' in await response.text()
+                response = await client.get('/diagnostics/backend?session_id=selected', headers=headers)
+                assert response.status == 200
+                assert response.headers['Cache-Control'] == 'no-store'
+                payload = await response.json()
+                assert payload['session_id'] == 'selected'
+                assert payload['runtime']['state'] == 'not-started'
+                assert payload['execution_verified'] is False
+                lookup.assert_awaited_once_with('selected')
+                assert host.lanes == {}
+                assert host.runtime.client is None
+    asyncio.run(exercise())
