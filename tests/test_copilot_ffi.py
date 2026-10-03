@@ -331,11 +331,12 @@ async def test_native_command_discovery_is_not_an_execution_claim(setup, monkeyp
     backend, *_ = setup
     commands = SimpleNamespace(commands=[SimpleNamespace(to_dict=lambda: {'name': 'native', 'kind': 'builtin', 'privateToken': 'secret', 'description': 'bad\nlabel'})])
     skills = SimpleNamespace(skills=[SimpleNamespace(to_dict=lambda: {'name': 'loaded', 'enabled': True})])
-    session = SimpleNamespace(rpc=SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(return_value=commands)), skills=SimpleNamespace(list=AsyncMock(return_value=skills))))
+    session = SimpleNamespace(session_id="catalogue-session", rpc=SimpleNamespace(commands=SimpleNamespace(list=AsyncMock(return_value=commands)), skills=SimpleNamespace(list=AsyncMock(return_value=skills))))
     monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))
     result = await backend.command_catalogue('chat', object())
     assert result['available'] is True
     assert result['commands'][0] == {'name': 'native', 'kind': 'builtin'}
+    assert result['native_session_id'] == 'catalogue-session'
     assert 'secret' not in repr(result)
     assert result['truncated'] is False
     assert result['skills'][0]['name'] == 'loaded'
@@ -446,7 +447,7 @@ async def test_native_catalogue_caps_both_sources_and_drops_invalid_names(setup,
     backend, *_ = setup
     entries = [SimpleNamespace(to_dict=lambda: {'name': 'valid', 'description': 'x' * 513}) for _ in range(130)]
     entries[0] = SimpleNamespace(to_dict=lambda: {'name': 'bad\nname'})
-    session = SimpleNamespace(rpc=SimpleNamespace(
+    session = SimpleNamespace(session_id="catalogue-session", rpc=SimpleNamespace(
         commands=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(commands=entries))),
         skills=SimpleNamespace(list=AsyncMock(return_value=SimpleNamespace(skills=entries)))))
     monkeypatch.setattr(backend, '_ready_session', AsyncMock(return_value=session))

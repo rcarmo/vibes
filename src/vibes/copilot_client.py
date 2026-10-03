@@ -581,7 +581,7 @@ class CopilotBackend:
                     if row.get('name'):
                         rows.append(row)
                 return rows
-            return {'available': True, 'commands': public_entries(listing.commands, ('name', 'description', 'kind', 'allowDuringAgentExecution'), 128),
+            return {'available': True, 'native_session_id': session.session_id, 'commands': public_entries(listing.commands, ('name', 'description', 'kind', 'allowDuringAgentExecution'), 128),
                     'skills': public_entries(skills.skills, ('name', 'description', 'enabled', 'userInvocable', 'commandName'), 128),
                     'truncated': len(listing.commands) > 128 or len(skills.skills) > 128}
 
