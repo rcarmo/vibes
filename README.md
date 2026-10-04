@@ -64,13 +64,13 @@ python3 -m venv .venv
 python -m pip install -e '.[dev]'
 bun install --frozen-lockfile
 make check PYTHON=.venv/bin/python
-make build-frontend lint-frontend
-bun test tests/frontend
+git submodule update --init --recursive
+make build-frontend lint-frontend test-frontend
 bun x playwright install --with-deps chromium webkit
 xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure
 ```
 
-The last command is the Linux browser test path; on a desktop with a display, omit the `xvfb-run` prefix and its display arguments. `make check` runs Python lint and tests, not the browser suite. Commit rebuilt assets under `src/vibes/static/dist/` when changing the frontend.
+The last command is the Linux browser test path; on a desktop with a display, omit the `xvfb-run` prefix and its display arguments. `make check` runs Python lint and tests, not the browser suite. `src/vibes/static` is a relative symlink to the frontend in `references/fixtures-vibes/ui/vibes`. Frontend source, bundles and browser tests are maintained in fixtures-vibes; update the submodule pin to adopt frontend changes. The local `tests/frontend/plan-tool.test.mjs` tests the backend Pi extension.
 
 [Configuration][config] and the [API reference][api] cover the server controls. The [parity notes][parity] record UI differences and verification limits, including mocked rather than live speech testing. They are not installation prerequisites.
 
