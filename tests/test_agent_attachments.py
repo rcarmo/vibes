@@ -162,3 +162,27 @@ async def test_acp_native_store_media_uses_same_publisher(tmp_path):
     assert publish.await_args.args[1:] == ('acp', acp_client._state.chat_id)
     assert result['content'][0]['type'] == 'text'
     assert '42' in result['content'][0]['text']
+
+
+def test_concurrent_attachment_owners_and_tokens_are_session_scoped(monkeypatch):
+    monkeypatch.setattr(attachments, '_active_by_session', {})
+    monkeypatch.setattr(attachments, '_pi_tokens', {})
+    a = {'mode': 'pi', 'session_id': 'a', 'turn_id': 'turn-a'}
+    b = {'mode': 'pi', 'session_id': 'b', 'turn_id': 'turn-b'}
+    attachments.set_active(a)
+    attachments.set_active(b)
+    token_a, token_b = attachments.pi_token('a'), attachments.pi_token('b')
+    assert token_a != token_b
+    assert attachments.resolve_token(token_a) == ('pi', 'a')
+    assert attachments.resolve_token(token_b) == ('pi', 'b')
+    assert attachments.active_for('a') is a
+    assert attachments.active_for('b') is b
+    replacement = dict(a, turn_id='replacement')
+    attachments.set_active(replacement)
+    attachments.clear_active(a)
+    assert attachments.active_for('a') is replacement
+    attachments.clear_active(replacement)
+    assert attachments.active_for('a') is None
+    assert attachments.active_for('b') is b
+    with pytest.raises(PermissionError):
+        attachments.resolve_token('invalid')

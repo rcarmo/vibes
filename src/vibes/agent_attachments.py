@@ -22,6 +22,8 @@ SAFE_IMAGES = {'PNG': 'image/png', 'JPEG': 'image/jpeg', 'GIF': 'image/gif', 'WE
 PI_TOKEN = secrets.token_urlsafe(32)
 _acp_tokens = {}
 active = None
+_active_by_session = {}
+_pi_tokens = {}
 publish_lock = asyncio.Lock()
 
 
@@ -30,9 +32,36 @@ def acp_token(session_id):
     return _acp_tokens.setdefault(session_id, secrets.token_urlsafe(32))
 
 
+def pi_token(session_id):
+    if session_id not in _pi_tokens:
+        _pi_tokens[session_id] = secrets.token_urlsafe(32)
+    return _pi_tokens[session_id]
+
+
+def active_for(session_id=None):
+    if session_id is None:
+        return active
+    owner = _active_by_session.get(session_id)
+    if owner is None and active and active.get('session_id') == session_id:
+        owner = active
+    return owner
+
+
+def set_active(context):
+    _active_by_session[context['session_id']] = context
+
+
+def clear_active(context):
+    if _active_by_session.get(context['session_id']) is context:
+        _active_by_session.pop(context['session_id'], None)
+
+
 def resolve_token(token):
     if secrets.compare_digest(token, PI_TOKEN):
         return 'pi', None
+    for session_id, capability in _pi_tokens.items():
+        if secrets.compare_digest(token, capability):
+            return 'pi', session_id
     for session_id, capability in _acp_tokens.items():
         if secrets.compare_digest(token, capability):
             return 'acp', session_id
@@ -104,9 +133,9 @@ async def publish_file(params, mode, session_id=None, *, expected=None, owner_ch
     from .routes.sse import broadcast_event
     # FFI tools carry a captured per-turn context plus a live ownership check.
     # Legacy Pi/ACP retain their single-active-context behavior.
-    context = expected if owner_check is not None else active
+    context = expected if owner_check is not None else active_for(session_id)
     def is_current():
-        return bool(owner_check()) if owner_check is not None else active is context
+        return bool(owner_check()) if owner_check is not None else active_for(session_id) is context
     if not is_current():
         raise PermissionError('Agent turn ended')
     if not context or context.get('cancelled') or context['mode'] != mode or session_id is not None and context['session_id'] != session_id:

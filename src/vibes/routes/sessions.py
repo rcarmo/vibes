@@ -32,6 +32,12 @@ async def list_sessions(request):
 
 
 async def session_model_state(request):
+    from .. import pi_client
+    with pi_client._runtimes.bind(request.match_info['id']):
+        return await _session_model_state(request)
+
+
+async def _session_model_state(request):
     from ..pi_client import inspect_model_state, is_busy
     store = SessionStore(await get_db())
     session_id = request.match_info['id']

@@ -864,9 +864,9 @@ async def request_file_view(request):
         return web.json_response({'error': 'Local tool connection required'}, status=403)
     try:
         mode, session = agent_attachments.resolve_token(request.headers.get('Authorization', '').removeprefix('Bearer '))
-        owner = agent_attachments.active
+        owner = agent_attachments.active_for(session)
         def check():
-            if not owner or agent_attachments.active is not owner or owner['mode'] != mode or (session is not None and session != owner['session_id']):
+            if not owner or agent_attachments.active_for(session) is not owner or owner['mode'] != mode or (session is not None and session != owner['session_id']):
                 raise PermissionError('No matching active turn')
         check()
         payload = await request.json()

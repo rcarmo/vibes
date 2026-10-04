@@ -14,7 +14,7 @@ from .db import init_db, close_db, get_db, Database
 from .middleware import create_auth_middleware, create_cors_middleware, create_security_middleware, create_loopback_middleware
 from .tasks import start_task_queue, stop_task_queue
 from .opengraph import reconcile_missing_previews
-from .acp_client import start_agent as start_acp_agent, stop_agent as stop_acp_agent
+from .acp_client import start_agent as start_acp_agent, stop_all_agents as stop_acp_agent
 from .pi_client import start_pi_agent, stop_pi_agent
 from .routes import posts, media, sse, agents, workspace, avatar, terminal, sessions
 

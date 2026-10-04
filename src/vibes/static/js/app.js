@@ -2219,7 +2219,7 @@ function App() {
 
         // Handle agent requests (permission, choices)
         if (eventType === 'agent_request') {
-            console.log('Agent request:', data);
+            if (data.session_id && data.session_id !== selectedSessionRef.current) return;
             if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                 return;
             }
@@ -2231,6 +2231,7 @@ function App() {
         }
 
         if (eventType === 'agent_request_closed') {
+            if (data.session_id && data.session_id !== selectedSessionRef.current) return;
             // Closing one request must not dismiss a newer concurrent prompt or
             // report that the whole turn stopped: the runtime can continue after denial.
             if (pendingRequestRef.current?.request_id === data.request_id) {
@@ -2242,6 +2243,7 @@ function App() {
         }
 
         if (eventType === 'agent_request_timeout') {
+            if (data.session_id && data.session_id !== selectedSessionRef.current) return;
             console.log('Agent request timeout:', data);
             if (turnId && currentTurnIdRef.current && turnId !== currentTurnIdRef.current) {
                 return;

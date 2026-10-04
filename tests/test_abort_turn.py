@@ -76,7 +76,7 @@ async def test_unconfirmed_runtime_abort_is_visible_error(client, db):
 
 @pytest.mark.asyncio
 async def test_pi_abort_owns_exact_task_and_session():
-    state = pi_client._state
+    state = pi_client._runtimes.get('private')
     task = Mock(done=Mock(return_value=False))
     writer = Mock()
     lock = asyncio.Lock()
@@ -96,7 +96,7 @@ async def test_pi_abort_owns_exact_task_and_session():
 
 @pytest.mark.asyncio
 async def test_acp_abort_owns_exact_request_and_session():
-    state = acp_client._state
+    state = acp_client._runtimes.get('private')
     owner = asyncio.Event()
     writer = Mock()
     lock = asyncio.Lock()

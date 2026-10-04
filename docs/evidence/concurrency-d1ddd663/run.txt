@@ -1,0 +1,17 @@
+
+Running 12 tests using 1 worker
+
+  ✓   1 [chromium-phone] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (3.8s)
+  ✓   2 [chromium-phone] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (4.1s)
+  ✓   3 [chromium-tablet] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (3.8s)
+  ✓   4 [chromium-tablet] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (4.9s)
+  ✓   5 [chromium-desktop] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (9.2s)
+  ✓   6 [chromium-desktop] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (15.6s)
+  ✓   7 [webkit-phone] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (12.7s)
+  ✓   8 [webkit-phone] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (10.7s)
+  ✓   9 [webkit-tablet] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (5.2s)
+  ✓  10 [webkit-tablet] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (7.7s)
+  ✓  11 [webkit-desktop] › suite/specs/chat-lifecycle.spec.ts:157:1 › @ux-chat-lifecycle-007 A running turn in one session does not leak into another (6.9s)
+  ✓  12 [webkit-desktop] › suite/specs/chat-lifecycle.spec.ts:217:1 › @ux-chat-lifecycle-009 Sessions run turns at the same time (7.5s)
+
+  12 passed (1.7m)

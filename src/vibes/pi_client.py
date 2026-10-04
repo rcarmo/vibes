@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from .config import get_config
 from .pi_sessions import PiSessionSelector
+from .session_runtime import SessionRuntimes, CurrentRuntime
 
 logger = logging.getLogger(__name__)
 
@@ -34,16 +35,21 @@ class _PiState:
         self.request_lock = asyncio.Lock()
         self.current_request_task: asyncio.Task | None = None
         self.pending_requests: dict[str, dict] = {}
-        self.request_callback = None
+        self.request_callback = _request_callback
         self.message_queue: list[str] = []
 
 
-_state = _PiState()
+_request_callback = None
+_runtimes = SessionRuntimes(_PiState)
+_state = CurrentRuntime(_runtimes)
 
 
 def set_request_callback(callback):
     """Set callback for pi extension UI requests."""
-    _state.request_callback = callback
+    global _request_callback
+    _request_callback = callback
+    for _, state in _runtimes.snapshot():
+        state.request_callback = callback
 
 
 def respond_to_request(request_id: str, outcome: str) -> bool:
@@ -263,6 +269,7 @@ async def _select_idle_chat(chat_id):
         await store.bind_backend(chat_id, 'pi', path)
 
 
+@_runtimes.scoped
 async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_level=None):
     """Change only a confirmed active idle chat, under the stream ownership lock."""
     if _state.request_lock.locked() or not is_pi_running():
@@ -290,6 +297,7 @@ async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_l
         return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
 
 
+@_runtimes.scoped
 async def inspect_model_catalog(chat_id='default'):
     """Read choices without changing contexts or consuming an active prompt stream."""
     if _state.request_lock.locked() or not is_pi_running():
@@ -307,6 +315,7 @@ async def inspect_model_catalog(chat_id='default'):
                 'thinking_levels': levels.get('data', {}).get('levels', []) if levels and levels.get('success') else []}
 
 
+@_runtimes.scoped
 async def inspect_model_state(chat_id='default'):
     """Inspect only the selected idle conversation, without switching it."""
     if _state.request_lock.locked() or not is_pi_running():
@@ -316,6 +325,7 @@ async def inspect_model_state(chat_id='default'):
         return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
 
 
+@_runtimes.scoped
 async def inspect_session_stats(chat_id='default'):
     """Never steal prompt-stream events or inspect another chat's active context."""
     if _state.request_lock.locked() or not is_pi_running():
@@ -372,6 +382,7 @@ async def send_rpc_fire_and_forget(payload: dict, *, raise_on_send_error: bool =
         return False
 
 
+@_runtimes.scoped
 async def abort_chat_turn(chat_id: str, expected_task) -> bool:
     """Cancel only the confirmed in-flight chat; never a subsequent request."""
     task = _state.current_request_task
@@ -444,8 +455,8 @@ async def start_pi_agent() -> bool:
         # The Vibes-owned Pi extension uses this loopback-only API for bounded,
         # currently-selected-session message references.
         env.setdefault("VIBES_PI_TOOLS_URL", f"http://127.0.0.1:{config.port}")
-        from .agent_attachments import PI_TOKEN
-        env['VIBES_ATTACHMENT_TOKEN'] = PI_TOKEN
+        from .agent_attachments import pi_token
+        env['VIBES_ATTACHMENT_TOKEN'] = pi_token(_runtimes.selected_chat())
         _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
             stdin=asyncio.subprocess.PIPE,
@@ -466,6 +477,13 @@ async def start_pi_agent() -> bool:
 
 
 async def stop_pi_agent() -> None:
+    """Stop every owned Pi process during application shutdown."""
+    for chat_id, _ in _runtimes.snapshot():
+        with _runtimes.bind(chat_id):
+            await _stop_current_pi_agent()
+
+
+async def _stop_current_pi_agent() -> None:
     """Stop the pi agent process."""
     async with _state.agent_lock:
         if _state.agent_proc is None:
@@ -877,6 +895,7 @@ async def _respond_extension_request(request_id: str, method: str, outcome: str 
     await _send_command(response)
 
 
+@_runtimes.scoped
 async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None, session_store=None) -> dict:
     """Send a message to the pi agent and return multimodal response."""
     # Try to acquire the lock with a short timeout — if another request

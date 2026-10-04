@@ -1,0 +1,602 @@
+{
+  "config": {
+    "argv": [
+      "/home/linuxbrew/.linuxbrew/Cellar/node@22/22.23.1/bin/node",
+      "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/node_modules/.bin/playwright",
+      "test",
+      "-c",
+      "suite/playwright.config.ts",
+      "suite/specs/chat-lifecycle.spec.ts",
+      "--grep",
+      "ux-chat-lifecycle-(007|009)"
+    ],
+    "configFile": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/playwright.config.ts",
+    "rootDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/global-setup.ts",
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium-phone",
+        "name": "chromium-phone",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium-tablet",
+        "name": "chromium-tablet",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium-desktop",
+        "name": "chromium-desktop",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit-phone",
+        "name": "webkit-phone",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit-tablet",
+        "name": "webkit-tablet",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      },
+      {
+        "outputDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "webkit-desktop",
+        "name": "webkit-desktop",
+        "testDir": "/srv/piclaw-dev/workspace/worktrees/vibes-issue-38/references/fixtures-vibes/suite/specs",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 45000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "../test-results/compliance.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.63.0",
+    "workers": 1,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "chat-lifecycle.spec.ts",
+      "file": "chat-lifecycle.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-phone",
+              "projectName": "chromium-phone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3794,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:12:40.392Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-51ab68858a4a3c7854d2",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-phone",
+              "projectName": "chromium-phone",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4137,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:12:44.527Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-adc047eea61552a8d679",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-tablet",
+              "projectName": "chromium-tablet",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 3793,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:12:49.631Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-3090fb81f610abce2d7a",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-tablet",
+              "projectName": "chromium-tablet",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 4874,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:12:53.773Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-4f61e57958e1d8f59a8c",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-desktop",
+              "projectName": "chromium-desktop",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 9227,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:12:59.810Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-c7faa458cb8a563f1b1d",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium-desktop",
+              "projectName": "chromium-desktop",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 15625,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:13:09.460Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-bf85a5cb347e453db93a",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-phone",
+              "projectName": "webkit-phone",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 12651,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:13:27.529Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-f54dc5019f77bbb2456c",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-phone",
+              "projectName": "webkit-phone",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 10683,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:13:40.926Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-b4bb42123aac1338259f",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-tablet",
+              "projectName": "webkit-tablet",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 5226,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:13:52.716Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-b8bdb9b6008a4c3784d2",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-tablet",
+              "projectName": "webkit-tablet",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7741,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:13:58.301Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-b0393c692f55c03e1273",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-007 A running turn in one session does not leak into another",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-007"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-desktop",
+              "projectName": "webkit-desktop",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 6857,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:14:07.134Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-bf8766d91a9d8b009c3c",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 157,
+          "column": 1
+        },
+        {
+          "title": "@ux-chat-lifecycle-009 Sessions run turns at the same time",
+          "ok": true,
+          "tags": [
+            "ux-chat-lifecycle-009"
+          ],
+          "tests": [
+            {
+              "timeout": 45000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "webkit-desktop",
+              "projectName": "webkit-desktop",
+              "results": [
+                {
+                  "workerIndex": 5,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 7528,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-04T19:14:14.351Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "49f0eef772dcc29dd0e4-4afbaaa02c6800d51b54",
+          "file": "chat-lifecycle.spec.ts",
+          "line": 217,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-04T19:12:39.865Z",
+    "duration": 103067.606,
+    "expected": 12,
+    "skipped": 0,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

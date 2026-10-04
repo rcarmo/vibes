@@ -690,7 +690,8 @@ async def test_queue_promotion_cancel_preserves_uncertain_identity(mock_deps, db
     from vibes.followup_store import FollowupStore
     monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
     store = FollowupStore(db)
-    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='keep')
+    root = await db.create_interaction({'type': 'user_message'})
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=8, content='keep')
     req = MagicMock()
     req.json = AsyncMock(return_value={'row_id': item['row_id']})
     with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
@@ -709,7 +710,8 @@ async def test_queue_promotion_idle_pi_is_emulated_and_keeps_id(mock_deps, db, m
     from vibes.followup_store import FollowupStore
     monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
     store = FollowupStore(db)
-    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='keep')
+    root = await db.create_interaction({'type': 'user_message'})
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=8, content='keep')
     req = MagicMock()
     req.json = AsyncMock(return_value={'row_id': item['row_id']})
     with patch.object(agents_mod, '_resolve_agent_mode', return_value='pi'), \
@@ -726,7 +728,8 @@ async def test_concurrent_queue_promotion_sends_once(mock_deps, db, monkeypatch)
     from vibes.followup_store import FollowupStore
     monkeypatch.setattr(agents_mod, 'get_db', AsyncMock(return_value=db))
     store = FollowupStore(db)
-    item = await store.enqueue(thread_id=1, agent_id='default', message_id=8, content='once')
+    root = await db.create_interaction({'type': 'user_message'})
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=8, content='once')
     entered, release = asyncio.Event(), asyncio.Event()
     async def send(_, **kwargs):
         assert kwargs == {'raise_on_send_error': True}
@@ -790,7 +793,10 @@ async def test_background_agent_dispatch_serializes_worker_turns():
             entered.set()
             await release.wait()
         running -= 1
-    with patch.object(agents_mod, '_agent_dispatch_lock', asyncio.Lock()), \
+    database = MagicMock()
+    database.get_interaction = AsyncMock(return_value={'data': {'session_id': 'default'}})
+    with patch.object(agents_mod, '_chat_dispatch_locks', {}), \
+         patch.object(agents_mod, 'get_db', AsyncMock(return_value=database)), \
          patch.object(agents_mod, '_process_agent_response_locked', AsyncMock(side_effect=run)):
         first = asyncio.create_task(agents_mod.process_agent_response(1, 'one', 'default'))
         await entered.wait()
@@ -817,18 +823,17 @@ async def test_nondefault_idle_submission_persists_session(mock_deps):
 
 
 @pytest.mark.asyncio
-async def test_cross_session_busy_submission_rejected_before_storage(mock_deps):
+async def test_other_chat_busy_does_not_reject_idle_submission(mock_deps):
     from vibes.sessions import SessionStore
     mock_deps['db']._interactions[42] = {'id': 42, 'data': {'session_id': 'default'}}
     req = _make_send_request('private')
     req.json = AsyncMock(return_value={'content': 'private', 'session_id': 'other', 'mode': 'steer'})
     with patch.object(SessionStore, 'get', AsyncMock(return_value={'id': 'other', 'archived': 0})), \
-         patch.object(agents_mod, '_is_agent_busy', return_value=True), \
-         patch.object(agents_mod, '_get_active_turn_for_agent', AsyncMock(return_value={'thread_id': 42})):
+         patch.object(agents_mod, '_is_agent_busy', return_value=False):
         response = await agents_mod.send_message(req)
-    assert response.status == 409
-    assert mock_deps['db']._counter == 0
-    mock_deps['enqueue'].assert_not_called()
+    assert response.status == 201
+    assert mock_deps['db']._counter == 1
+    mock_deps['enqueue'].assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -1088,3 +1093,35 @@ async def test_persisted_steering_validation_races(db, monkeypatch, mutation):
     for row in listed:
         assert row['state'] == ('uncertain' if row['row_id'] == item['row_id'] else 'pending')
     broadcast.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('mode', ['pi', 'acp'])
+async def test_production_dispatch_enters_two_chat_turns_simultaneously(mode):
+    import asyncio
+    from vibes import pi_client, acp_client
+    runtimes = (pi_client if mode == 'pi' else acp_client)._runtimes
+    entered = {chat: asyncio.Event() for chat in ('a', 'b')}
+    release = asyncio.Event()
+    database = MagicMock()
+    database.get_interaction = AsyncMock(side_effect=lambda thread: {'data': {'session_id': thread}})
+
+    async def run(thread, content, agent_id):
+        assert runtimes.selected_chat() == thread
+        entered[thread].set()
+        await release.wait()
+        assert runtimes.selected_chat() == thread
+        return True
+
+    with patch.object(agents_mod, 'get_db', AsyncMock(return_value=database)), \
+         patch.object(agents_mod, '_resolve_agent_mode', return_value=mode), \
+         patch.object(agents_mod, '_chat_dispatch_locks', {}), \
+         patch.object(agents_mod, '_process_agent_response_locked', side_effect=run):
+        tasks = [asyncio.create_task(agents_mod.process_agent_response(chat, 'prompt', mode))
+                 for chat in entered]
+        try:
+            await asyncio.wait_for(asyncio.gather(*(event.wait() for event in entered.values())), 1)
+            assert all(lock.locked() for lock in agents_mod._chat_dispatch_locks.values())
+        finally:
+            release.set()
+            assert await asyncio.gather(*tasks) == [True, True]

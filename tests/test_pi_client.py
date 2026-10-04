@@ -209,14 +209,16 @@ async def test_pi_dispatch_selects_chat_under_prompt_lock_and_stops_on_failure()
         raise RuntimeError('Selection failed')
     selector = MagicMock()
     selector.select = AsyncMock(side_effect=select)
-    pi._state.session_selector = selector
+    owner = pi._runtimes.get('other')
+    owner.session_selector = selector
     with patch.object(pi, 'start_pi_agent', AsyncMock()), \
          patch.object(pi, 'is_pi_running', return_value=True), \
          patch.object(pi, '_send_command', AsyncMock()) as send:
         response = await pi.send_message_multimodal('private prompt', chat_id='other')
     assert 'Selection failed' in response['text']
     send.assert_not_awaited()
-    assert not pi._state.request_lock.locked()
+    assert not owner.request_lock.locked()
+    assert owner.current_request_task is None
 
 
 @pytest.mark.asyncio
@@ -292,3 +294,38 @@ async def test_strict_fire_and_forget_distinguishes_no_send_from_ambiguous_failu
          patch.object(pi, '_send_command', new_callable=AsyncMock, side_effect=OSError('broken pipe')):
         with pytest.raises(OSError):
             await pi.send_rpc_fire_and_forget({'type': 'steer'}, raise_on_send_error=True)
+
+
+@pytest.mark.asyncio
+async def test_two_chat_prompts_hold_independent_request_owners():
+    entered = {chat: asyncio.Event() for chat in ('a', 'b')}
+    release = asyncio.Event()
+
+    async def send(command):
+        if command['type'] == 'prompt':
+            chat = command['message']
+            owner = pi._runtimes.existing(chat)
+            assert pi._state.current_request_task is asyncio.current_task()
+            assert pi._state.request_lock is owner.request_lock
+            entered[chat].set()
+            await release.wait()
+            raise RuntimeError('synthetic end')
+
+    for chat in entered:
+        pi._runtimes.get(chat).session_selector.select = AsyncMock(return_value=None)
+    with patch.object(pi, 'start_pi_agent', AsyncMock()), \
+         patch.object(pi, 'is_pi_running', return_value=True), \
+         patch.object(pi, '_send_command', side_effect=send):
+        tasks = [asyncio.create_task(pi.send_message_multimodal(chat, chat_id=chat))
+                 for chat in entered]
+        try:
+            await asyncio.wait_for(asyncio.gather(*(event.wait() for event in entered.values())), 1)
+            a, b = (pi._runtimes.existing(chat) for chat in entered)
+            assert a.request_lock.locked() and b.request_lock.locked()
+            assert a.current_request_task is not b.current_request_task
+            assert not pi._state.request_lock.locked()
+        finally:
+            release.set()
+            await asyncio.gather(*tasks)
+        assert not a.request_lock.locked() and not b.request_lock.locked()
+        assert a.current_request_task is None and b.current_request_task is None

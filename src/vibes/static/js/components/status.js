@@ -287,7 +287,7 @@ export function AgentRequestModal({ request, onRespond }) {
 
     const handleResponse = async (outcome) => {
         try {
-            await respondToAgentRequest(request_id, outcome, outcome === 'freeform' ? answer : undefined);
+            await respondToAgentRequest(request_id, outcome, outcome === 'freeform' ? answer : undefined, request.session_id);
             onRespond(request_id);
         } catch (e) {
             console.error('Failed to respond to agent request:', e);
@@ -298,7 +298,7 @@ export function AgentRequestModal({ request, onRespond }) {
     const handleAlwaysAllow = async () => {
         try {
             await addToWhitelist(title, `Auto-approved: ${title}`);
-            await respondToAgentRequest(request_id, 'approved');
+            await respondToAgentRequest(request_id, 'approved', undefined, request.session_id);
             onRespond(request_id);
         } catch (e) {
             console.error('Failed to add to whitelist:', e);

@@ -298,6 +298,13 @@ async def list_agents(request: web.Request) -> web.Response:
 
 
 async def get_agent_status(request: web.Request) -> web.Response:
+    from .. import pi_client
+    session_id = request.query.get('session_id', 'default')
+    with pi_client._runtimes.bind(session_id), acp_client._runtimes.bind(session_id):
+        return await _get_agent_status(request)
+
+
+async def _get_agent_status(request: web.Request) -> web.Response:
     """Return current agent busy state and active turns for polling."""
     from ..pi_client import is_busy as is_pi_busy
 
@@ -483,6 +490,28 @@ async def discard_uncertain_followup(request: web.Request) -> web.Response:
 
 
 async def steer_queue_item(request: web.Request) -> web.Response:
+    from .. import pi_client
+    try:
+        data = await request.json()
+    except (json.JSONDecodeError, ValueError):
+        return web.json_response({'error': 'Invalid JSON'}, status=400)
+    session_id = data.get('session_id') if isinstance(data, dict) else None
+    if session_id is not None and (not isinstance(session_id, str) or not session_id):
+        return web.json_response({'error': 'Invalid session_id'}, status=400)
+    if isinstance(data, dict) and type(data.get('row_id')) is int and data['row_id'] != 0:
+        _, queued = await _persisted_queue_target(data['row_id'], data)
+        if queued:
+            database = await get_db()
+            root = await database.get_interaction(queued['thread_id'])
+            if not root:
+                return web.json_response({'error': 'Queue source unavailable'}, status=404)
+            session_id = root['data'].get('session_id', 'default')
+    session_id = session_id or 'default'
+    with pi_client._runtimes.bind(session_id), acp_client._runtimes.bind(session_id):
+        return await _steer_queue_item(request)
+
+
+async def _steer_queue_item(request: web.Request) -> web.Response:
     """Promote a queued item into steering for the active turn."""
     try:
         data = await request.json()
@@ -503,7 +532,8 @@ async def steer_queue_item(request: web.Request) -> web.Response:
         return web.json_response({"error": "Queue item not found"}, status=404)
 
     agent_mode = _resolve_agent_mode(queued["agent_id"])
-    queued_session = data.get('session_id')
+    from .. import pi_client
+    queued_session = pi_client._runtimes.selected_chat()
     if agent_mode == 'copilot-ffi':
         return web.json_response({'error': 'Native Copilot steering is not enabled; queued item was preserved'}, status=409)
     active_turn = await _get_active_turn_for_agent(queued["agent_id"], **({'session_id': queued_session} if queued_session else {}))
@@ -694,7 +724,8 @@ async def _dispatch_pi_thread(content, thread_id, status_callback):
         session_store=SessionStore(database))
 
 
-_agent_dispatch_lock = asyncio.Lock()
+_agent_dispatch_lock = asyncio.Lock()  # Legacy test compatibility; not dispatch ownership
+_chat_dispatch_locks = {}
 _ffi_admission_locks = {}
 _ffi_dispatch_locks = {}
 _ffi_tasks = {}
@@ -812,14 +843,20 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
 
 async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None):
     """ACP/Pi share a lock; FFI turns serialize only within their own chat."""
-    lock = _agent_dispatch_lock
-    if _resolve_agent_mode(agent_id) == 'copilot-ffi':
-        root = await (await get_db()).get_interaction(thread_id)
-        chat_id = root['data'].get('session_id', 'default') if root else 'default'
-        lock = _ffi_lock(_ffi_dispatch_locks, chat_id)
-    async with lock:
-        return await _process_agent_response_locked(thread_id, content, agent_id,
-            **({'media_ids': media_ids} if media_ids is not None else {}))
+    mode = _resolve_agent_mode(agent_id)
+    database = await get_db()
+    root = await database.get_interaction(thread_id)
+    chat_id = root['data'].get('session_id', 'default') if root else 'default'
+    from .. import pi_client
+    from contextlib import nullcontext
+    runtimes = pi_client._runtimes if mode == 'pi' else acp_client._runtimes
+    binding = runtimes.bind(chat_id) if mode != 'copilot-ffi' else nullcontext()
+    lock = _ffi_lock(_ffi_dispatch_locks if mode == 'copilot-ffi' else _chat_dispatch_locks, chat_id)
+    with binding:
+        async with lock:
+            if media_ids is None:
+                return await _process_agent_response_locked(thread_id, content, agent_id)
+            return await _process_agent_response_locked(thread_id, content, agent_id, media_ids=media_ids)
 
 
 async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None):
@@ -873,6 +910,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
                           'session_id': chat_session_id, 'thread_id': thread_id, 'turn_id': turn_id, 'receipts': {}}
     if attachment_context['mode'] != 'copilot-ffi':
         agent_attachments.active = attachment_context
+        agent_attachments.set_active(attachment_context)
     try:
         # Status callback to broadcast agent activity
         async def status_callback(status):
@@ -1111,6 +1149,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
         response_interaction = await db.get_interaction(response_id)
         await broadcast_event("agent_response", response_interaction)
     finally:
+        agent_attachments.clear_active(attachment_context)
         if agent_attachments.active is attachment_context:
             agent_attachments.active = None
         # Always clean up turn state
@@ -1189,6 +1228,13 @@ async def _store_media_block(db, block: dict) -> int | None:
 
 
 async def get_agent_context(request: web.Request) -> web.Response:
+    from .. import pi_client
+    session_id = request.query.get('session_id', 'default')
+    with pi_client._runtimes.bind(session_id), acp_client._runtimes.bind(session_id):
+        return await _get_agent_context(request)
+
+
+async def _get_agent_context(request: web.Request) -> web.Response:
     """GET /agent/context — return only usage reported for the selected agent chat."""
     if _resolve_agent_mode('default') == 'copilot-ffi':
         return web.json_response({'tokens': None, 'contextWindow': None, 'percent': None,
@@ -1244,6 +1290,13 @@ def _format_model_label(model) -> str | None:
 
 
 async def get_agent_models(request: web.Request) -> web.Response:
+    from .. import pi_client
+    session_id = request.query.get('session_id', 'default')
+    with pi_client._runtimes.bind(session_id):
+        return await _get_agent_models(request)
+
+
+async def _get_agent_models(request: web.Request) -> web.Response:
     """GET /agent/models — return available models and current selection."""
     empty = {"current": None, "models": []}
     if _resolve_agent_mode('default') == 'copilot-ffi':
@@ -1253,7 +1306,7 @@ async def get_agent_models(request: web.Request) -> web.Response:
     try:
         from ..pi_client import inspect_model_state, inspect_model_catalog
         current = None
-        state_resp = await inspect_model_state('default')
+        state_resp = await inspect_model_state(request.query.get('session_id', 'default'))
         if state_resp is None:
             return web.json_response(empty)
         if state_resp and state_resp.get("success"):
@@ -1261,7 +1314,7 @@ async def get_agent_models(request: web.Request) -> web.Response:
 
         # Get available models via dedicated RPC command
         models = []
-        catalog = await inspect_model_catalog('default')
+        catalog = await inspect_model_catalog(request.query.get('session_id', 'default'))
         if catalog is None:
             return web.json_response(empty)
         if catalog:
@@ -1292,13 +1345,16 @@ async def abort_turn(request: web.Request) -> web.Response:
         return web.json_response({'error': 'session_id and turn_id are required'}, status=400)
     mode = _resolve_agent_mode(request.match_info['agent_id'])
     owner = (copilot_backend.active_for(data['session_id']) if mode == 'copilot-ffi' else
-             pi_client._state.current_request_task if mode == 'pi' else acp_client._state.cancel_event)
+             (pi_client._runtimes.existing(data['session_id']).current_request_task
+              if pi_client._runtimes.existing(data['session_id']) else None) if mode == 'pi' else
+             (acp_client._runtimes.existing(data['session_id']).cancel_event
+              if acp_client._runtimes.existing(data['session_id']) else None))
     database = await get_db()
     session_id = data['session_id']
     session = await SessionStore(database).get(session_id)
     if not session or session['archived']:
         return web.json_response({'error': 'Session unavailable'}, status=404)
-    turn = await _get_active_turn_for_agent(request.match_info['agent_id'], **({'session_id': session_id} if mode == 'copilot-ffi' else {}))
+    turn = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
     if not turn or turn['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
     root = await database.get_interaction(turn['thread_id'])
@@ -1306,7 +1362,7 @@ async def abort_turn(request: web.Request) -> web.Response:
         return web.json_response({'error': 'Turn belongs to another session'}, status=409)
     # Re-check after DB awaits; runtime helpers additionally validate ownership
     # and signal without yielding, so a stale click cannot abort a promoted turn.
-    current = await _get_active_turn_for_agent(request.match_info['agent_id'], **({'session_id': session_id} if mode == 'copilot-ffi' else {}))
+    current = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
     if not current or current['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
     accepted = await (copilot_backend.abort(session_id, owner) if mode == 'copilot-ffi' else
@@ -1336,7 +1392,13 @@ async def send_message(request: web.Request) -> web.Response:
             if _ffi_closing:
                 return web.json_response({'error': 'Server shutting down'}, status=503)
             return await _send_message(request, data)
-    return await _send_message(request, data)
+    session_id = data.get('session_id', 'default')
+    if not isinstance(session_id, str) or not session_id:
+        return web.json_response({'error': 'Invalid session_id'}, status=400)
+    from .. import pi_client
+    runtimes = pi_client._runtimes if _resolve_agent_mode(agent_id) == 'pi' else acp_client._runtimes
+    with runtimes.bind(session_id):
+        return await _send_message(request, data)
 
 
 async def _send_message(request, data):
@@ -1370,7 +1432,7 @@ async def _send_message(request, data):
         command = acp_client.get_session_usage(session_id).get('compactCommand')
         if _resolve_agent_mode(agent_id) != 'acp' or command != '/compact':
             return web.json_response({'error': 'Compaction is not advertised by this agent session'}, status=409)
-        if _agent_dispatch_lock.locked() or _is_agent_busy('acp'):
+        if _ffi_lock(_chat_dispatch_locks, session_id).locked() or _is_agent_busy('acp'):
             return web.json_response({'error': 'Wait for the active turn before compacting'}, status=409)
         data['content'] = command
     if session_id != 'default':
@@ -1381,12 +1443,6 @@ async def _send_message(request, data):
         parsed = parse_command(data['content'])
         if data['content'].lstrip().startswith('/') and not compact_action and (not parsed or parsed.name not in {'theme', 'tint'}):
             return web.json_response({'error': 'Session-specific commands are not enabled yet'}, status=409)
-    if _resolve_agent_mode(agent_id) != 'copilot-ffi' and (_agent_dispatch_lock.locked() or _is_agent_busy(_resolve_agent_mode(agent_id))):
-        active = await _get_active_turn_for_agent(agent_id)
-        active_root = await db.get_interaction(active['thread_id']) if active else None
-        active_session = active_root['data'].get('session_id', 'default') if active_root else None
-        if active_session != session_id:
-            return web.json_response({'error': 'Another session is active; retry after its turn completes'}, status=409)
     if thread_id:
         parent = await db.get_interaction(thread_id)
         if parent and parent['data'].get('session_id', 'default') != session_id:
@@ -1467,7 +1523,7 @@ async def _send_message(request, data):
     if agent_mode == 'copilot-ffi':
         busy = session_id in _ffi_tasks
     submit_mode = requested_mode or "auto"
-    active_turn = await _get_active_turn_for_agent(agent_id, **({'session_id': session_id} if agent_mode == 'copilot-ffi' else {})) if busy else None
+    active_turn = await _get_active_turn_for_agent(agent_id, session_id=session_id) if busy else None
     inflight_thread = active_turn.get("thread_id") if active_turn else (_ffi_threads.get(session_id) if agent_mode == 'copilot-ffi' else None)
 
     if busy and inflight_thread:

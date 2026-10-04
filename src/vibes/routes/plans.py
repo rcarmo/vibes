@@ -33,10 +33,10 @@ async def agent_plan(request):
         return web.json_response({'error': 'Plan tools require a local tool connection'}, status=403)
     try:
         mode, session_id = agent_attachments.resolve_token(request.headers.get('Authorization', '').removeprefix('Bearer '))
-        owner = agent_attachments.active
+        owner = agent_attachments.active_for(session_id)
 
         def check_owner():
-            if not owner or agent_attachments.active is not owner or owner['mode'] != mode or (session_id is not None and session_id != owner['session_id']):
+            if not owner or agent_attachments.active_for(session_id) is not owner or owner['mode'] != mode or (session_id is not None and session_id != owner['session_id']):
                 raise PermissionError('No matching active agent turn')
 
         check_owner()

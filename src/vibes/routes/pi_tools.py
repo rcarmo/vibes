@@ -13,8 +13,17 @@ async def messages(request):
     if not _loopback(request):
         raise web.HTTPForbidden(text='Loopback only')
     from ..pi_client import _state
-    session_id = _state.session_selector.active
-    if _state.session_selector.uncertain or not session_id:
+    if request.headers.get('Origin'):
+        raise web.HTTPForbidden()
+    from .. import agent_attachments, pi_client
+    try:
+        mode, session_id = agent_attachments.resolve_token(request.headers.get('Authorization', '').removeprefix('Bearer '))
+    except PermissionError:
+        raise web.HTTPForbidden()
+    if mode != 'pi' or session_id is None:
+        raise web.HTTPForbidden()
+    owner = pi_client._runtimes.existing(session_id)
+    if not owner or owner.session_selector.uncertain or owner.session_selector.active != session_id:
         raise web.HTTPConflict(text='Active Pi session is uncertain')
     try:
         payload = await request.json()
@@ -42,7 +51,7 @@ async def attach_file(request):
     try:
         token = request.headers.get('Authorization', '').removeprefix('Bearer ')
         mode, session_id = agent_attachments.resolve_token(token)
-        context = agent_attachments.active
+        context = agent_attachments.active_for(session_id)
         if context is None:
             raise PermissionError('No active agent turn')
         payload = await request.json()

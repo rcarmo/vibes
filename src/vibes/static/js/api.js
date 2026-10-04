@@ -282,7 +282,7 @@ export async function uploadMedia(file, { signal, onProgress, sessionId = 'defau
 /**
  * Respond to an agent request (permission, choice)
  */
-export async function respondToAgentRequest(requestId, outcome, answer) {
+export async function respondToAgentRequest(requestId, outcome, answer, sessionId) {
     const response = await fetch(API_BASE + '/agent/respond', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

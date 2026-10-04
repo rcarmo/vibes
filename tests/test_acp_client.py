@@ -679,7 +679,7 @@ async def test_chat_conversation_selection_reuses_ids_and_rejects_busy():
         await state.request_lock.acquire()
         try:
             with pytest.raises(RuntimeError):
-                await acp_client.select_chat_session('third')
+                await acp_client.select_chat_session('default')
         finally:
             state.request_lock.release()
     acp_client.reset_state()
@@ -854,7 +854,11 @@ async def test_acp_usage_and_commands_are_conversation_scoped():
         assert usage['cost'] == {'amount': 0, 'currency': 'USD'}
         assert usage['turnUsage']['inputTokens'] == 773
         assert usage['compactCommand'] == '/compact'
+        other = acp_client._runtimes.get('other')
+        other.chat_conversations = {'other': 'b'}
+        other.session_usage = {'b': state.session_usage['b']}
         assert acp_client.get_session_usage('other')['percent'] == 10
+        assert acp_client.get_session_usage('unknown')['percent'] is None
         assert acp_client.get_session_usage('missing')['cost'] is None
         assert 'unknown' not in state.session_usage
         state.session_usage['a'].update(context_update({'used': True, 'size': 0, 'cost': {'amount': -1, 'currency': 'USD'}}))

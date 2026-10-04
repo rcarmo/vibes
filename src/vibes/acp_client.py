@@ -22,6 +22,8 @@ from .acp_protocol import (
     THINKING_KINDS,
 )
 
+from .session_runtime import SessionRuntimes, CurrentRuntime
+
 logger = logging.getLogger(__name__)
 
 ACP_FILE_PREVIEW_TOOL_NAME = "vibes/preview_file"
@@ -76,17 +78,23 @@ class _ACPState:
         self.load_session_supported = False
         self.reported_capabilities = None
         self.chat_id = 'default'
+        self.throttle_lock = asyncio.Lock()
+        self.last_send_ts = 0.0
+        self.last_read_ts = 0.0
         self.request_id = 0
         self.pending_requests = {}  # request_id -> asyncio.Future
-        self.request_callback = None  # Callback to notify UI of pending requests
-        self.whitelist_checker = None  # Callback to check if request is whitelisted
+        self.request_callback = _request_callback  # Application-wide handler
+        self.whitelist_checker = _whitelist_checker
 
 
-_state = _ACPState()
+_request_callback = None
+_whitelist_checker = None
+_runtimes = SessionRuntimes(_ACPState)
+_state = CurrentRuntime(_runtimes)
 
 _throttle_lock = asyncio.Lock()
-_last_send_ts: float | None = None
-_last_read_ts: float | None = None
+_state.last_send_ts: float | None = None
+_state.last_read_ts: float | None = None
 
 
 async def _maybe_throttle(direction: str) -> None:
@@ -95,19 +103,18 @@ async def _maybe_throttle(direction: str) -> None:
     if rps <= 0:
         return
     interval = 1.0 / rps
-    global _last_send_ts, _last_read_ts
-    async with _throttle_lock:
+    async with _state.throttle_lock:
         now = asyncio.get_event_loop().time()
-        last_ts = _last_send_ts if direction == "send" else _last_read_ts
+        last_ts = _state.last_send_ts if direction == "send" else _state.last_read_ts
         if last_ts is not None:
             sleep_for = interval - (now - last_ts)
             if sleep_for > 0:
                 await asyncio.sleep(sleep_for)
         now = asyncio.get_event_loop().time()
         if direction == "send":
-            _last_send_ts = now
+            _state.last_send_ts = now
         else:
-            _last_read_ts = now
+            _state.last_read_ts = now
 
 
 async def _wait_for_request_slot(timeout_s: float) -> bool:
@@ -140,6 +147,12 @@ async def _interrupt_inflight_request() -> bool:
 
 
 def reset_state() -> None:
+    for chat_id, _ in _runtimes.snapshot():
+        with _runtimes.bind(chat_id):
+            _reset_current_state()
+
+
+def _reset_current_state() -> None:
     """Reset ACP client state (primarily for tests)."""
     _state.agent_proc = None
     _state.agent_reader = None
@@ -179,12 +192,18 @@ def prompt_from_action(action_id: str, params: dict | None) -> Optional[str]:
 
 def set_request_callback(callback):
     """Set callback for agent requests that need user response."""
-    _state.request_callback = callback
+    global _request_callback
+    _request_callback = callback
+    for _, state in _runtimes.snapshot():
+        state.request_callback = callback
 
 
 def set_whitelist_checker(checker):
     """Set callback to check if a request is whitelisted (auto-approve)."""
-    _state.whitelist_checker = checker
+    global _whitelist_checker
+    _whitelist_checker = checker
+    for _, state in _runtimes.snapshot():
+        state.whitelist_checker = checker
 
 
 def respond_to_request(request_id, outcome: str):
@@ -541,6 +560,7 @@ async def _send_request(method: str, params: dict, collect_updates: bool = False
                         # Notify UI via callback
                         if _state.request_callback:
                             await _state.request_callback({
+                        "session_id": _runtimes.selected_chat(),
                                 "type": "permission_request",
                                 "request_id": req_id,
                                 "tool_call": tool_call,
@@ -908,6 +928,7 @@ def _messages_mcp_servers(chat_id=None):
     }]
 
 
+@_runtimes.scoped
 async def select_chat_session(chat_id: str):
     """Select an in-process ACP conversation only while no prompt owns the stream."""
     if not isinstance(chat_id, str) or not chat_id:
@@ -1096,6 +1117,7 @@ async def send_message_simple(content: str, thread_id: Optional[int] = None, sta
             return f"[Error: {e}]"
 
 
+@_runtimes.scoped
 async def send_message_multimodal(content: str, thread_id: Optional[int] = None, status_callback=None, *, chat_id=None, session_store=None) -> dict:
     """Send a message to the agent and return multimodal response.
     
@@ -1258,6 +1280,13 @@ async def start_agent() -> bool:
         return False
 
 
+async def stop_all_agents():
+    """Application shutdown retires every independently owned process."""
+    for chat_id, _ in _runtimes.snapshot():
+        with _runtimes.bind(chat_id):
+            await stop_agent()
+
+
 async def stop_agent():
     """Stop the agent process."""
     async with _state.agent_lock:
@@ -1299,6 +1328,7 @@ async def stop_agent():
         _state.chat_id = 'default'
 
 
+@_runtimes.scoped
 async def abort_chat_turn(chat_id: str, expected_request) -> bool:
     """Signal cancellation only for the confirmed in-flight ACP conversation."""
     if (_state.chat_id != chat_id or not _state.request_lock.locked()
@@ -1340,6 +1370,11 @@ async def cancel_session():
 
 
 def get_session_usage(chat_id='default'):
+    with _runtimes.bind(chat_id):
+        return _get_session_usage(chat_id)
+
+
+def _get_session_usage(chat_id):
     """Last explicitly reported usage for this running ACP conversation only."""
     empty = {"tokens": None, "contextWindow": None, "percent": None, "cost": None,
              "turnUsage": None, "compactCommand": None, "source": "acp"}
