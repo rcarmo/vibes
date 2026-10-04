@@ -16,3 +16,9 @@ VIBES_PYTHON=/workspace/projects/vibes/.venv/bin/python \
 bun x playwright test -c suite/playwright.config.ts \
   suite/specs/chat-lifecycle.spec.ts --grep 'ux-chat-lifecycle-(007|009)'
 ```
+
+## Abort and queue checks
+
+The focused suite includes exact-task Pi abort and exact-request ACP abort checks: a foreign chat or stale owner cannot cancel the selected runtime. Agent routes use the persisted root to scope active turns and queued steering. Durable dispatch tests retain pending work on pre-admission failure, preserve attachments and FIFO identity, and exclude uncertain work from replay. The combined 349-test result includes the complete abort and durable-dispatch modules.
+
+The browser lifecycle run exercises the Pi runtime. ACP's offline checks cover owner-local state and dispatcher overlap; an ACP provider browser run has not been performed.
