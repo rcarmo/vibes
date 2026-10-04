@@ -7,7 +7,6 @@ __pycache__/
 build/
 develop-eggs/
 dist/
-!src/vibes/static/dist/
 downloads/
 eggs/
 .eggs/

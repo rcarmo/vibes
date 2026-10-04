@@ -6,20 +6,14 @@
 # vendored, documentation, or test-only artifacts determine repository language.
 
 # Generated frontend output.
-src/vibes/static/dist/** linguist-generated=true
 
 # Vendored Piclaw/common assets and browser libraries.
-src/vibes/static/common/** linguist-vendored=true
-src/vibes/static/js/vendor/** linguist-vendored=true
-src/vibes/static/fonts/** linguist-vendored=true
-src/vibes/static/common/fonts/vendor/** linguist-vendored=true
 
 # Test and parity fixtures are not production implementation languages.
 tests/**/*.mjs linguist-detectable=false
 # Preserve the byte-identical canonical UX fixture on Windows checkouts.
 tests/ux/features/canonical-ux.feature text eol=lf
 # Bun emits meaningful multiline template literals; do not rewrite their whitespace.
-src/vibes/static/dist/*.js -whitespace
 
 # Documentation media.
 docs/demo.gif linguist-documentation=true

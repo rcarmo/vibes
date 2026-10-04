@@ -1,4 +1,4 @@
-.PHONY: help install install-dev lint format test test-parity fixtures-vibes coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend
+.PHONY: help install install-dev lint format test test-parity fixtures-vibes coverage check check-all clean bump-minor bump-patch push serve lint-frontend build-frontend test-frontend
 
 PYTHON ?= python3
 PIP ?= pip3
@@ -25,11 +25,18 @@ install-dev: install ## Install with dev dependencies
 lint: ## Run ruff linter
 	ruff check src tests
 
+# Web front-end: owned in rcarmo/fixtures-vibes (ui/vibes); src/vibes/static links into this submodule.
+VIBES_UI := references/fixtures-vibes/ui/vibes
+
 lint-frontend: ## Run frontend lint with bun
-	bun run lint:frontend
+	$(MAKE) -C $(VIBES_UI) lint
 
 build-frontend: ## Bundle frontend JS with bun
-	bun run build:frontend
+	$(MAKE) -C $(VIBES_UI) build
+
+test-frontend: ## Front-end unit tests and browser harnesses (fixtures-vibes ui/vibes)
+	$(MAKE) -C $(VIBES_UI) test browser
+	bun test ./tests/frontend/
 
 format: ## Format code with ruff
 	ruff format src tests

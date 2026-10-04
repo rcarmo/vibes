@@ -21,6 +21,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -39,6 +41,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -57,6 +61,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
+        with:
+          submodules: recursive
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
@@ -66,7 +72,7 @@ jobs:
           .venv/bin/python -m pip install -e '.[dev]'
           bun install --frozen-lockfile
           make build-frontend lint-frontend
-          bun test tests/frontend
+          make test-frontend
           bun x playwright install --with-deps chromium webkit
       - name: Headed Chromium and WebKit, no retries
         run: xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure
