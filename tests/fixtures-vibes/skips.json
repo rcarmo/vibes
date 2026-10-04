@@ -179,6 +179,174 @@
         "webkit-phone"
       ],
       "intermittent": true
+    },
+    {
+      "id": "@ux-terminal-001",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-002",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-003",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-004",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-006",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-007",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-008",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-009",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-010",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-011",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-012",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-013",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-014",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-015",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-016",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-terminal-017",
+      "reason": "not-implemented",
+      "detail": "Classic terminal pane (tab, dock, zen, pop-out) is not implemented in the Vibes UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-shell-004",
+      "reason": "not-implemented",
+      "detail": "Terminal and VNC menu controls are not wired to Classic terminal/VNC panes yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/46"
+    },
+    {
+      "id": "@ux-editor-001",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-editor-002",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-editor-003",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-editor-004",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-editor-005",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-editor-009",
+      "reason": "not-implemented",
+      "detail": "Classic editor tab stability, unsaved-close confirmation, Markdown preview, zen and Vim keybindings are not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-workspace-008",
+      "reason": "not-implemented",
+      "detail": "Workspace previews by preview kind/content type are not implemented to the Classic contract yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-workspace-009",
+      "reason": "not-implemented",
+      "detail": "Open-in-tab/open-in-editor capability gating is not implemented to the Classic contract yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/47"
+    },
+    {
+      "id": "@ux-workspace-015",
+      "reason": "not-implemented",
+      "detail": "VNC configuration, read-only and runtime-error gates are not implemented (no VNC backend or pane).",
+      "issue": "https://github.com/rcarmo/vibes/issues/48"
+    },
+    {
+      "id": "@ux-extra-004",
+      "reason": "not-implemented",
+      "detail": "Dashboard widget artifacts (generated_widget) are not implemented in backend or UI yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/49"
+    },
+    {
+      "id": "@ux-extra-005",
+      "reason": "not-implemented",
+      "detail": "Dashboard widget pane dismissal is not implemented yet.",
+      "issue": "https://github.com/rcarmo/vibes/issues/49"
     }
   ]
 }
