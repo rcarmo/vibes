@@ -47,13 +47,13 @@ lint: ## Run ruff linter
 VIBES_UI := references/fixtures-vibes/ui/vibes
 
 lint-frontend: ## Run frontend lint with bun
-	$(MAKE) -C $(VIBES_UI) lint
+	$(MAKE) -C $(VIBES_UI) lint PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 
 build-frontend: ## Bundle frontend JS with bun
-	$(MAKE) -C $(VIBES_UI) build
+	$(MAKE) -C $(VIBES_UI) build PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 
 test-frontend: ## Front-end unit tests and browser harnesses (fixtures-vibes ui/vibes)
-	$(MAKE) -C $(VIBES_UI) test browser
+	$(MAKE) -C $(VIBES_UI) test browser PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 	bun test ./tests/frontend/
 
 format: ## Format code with ruff
@@ -66,7 +66,7 @@ test-parity: ## Compatibility alias for shared fixtures-vibes compliance
 	bun run test:parity
 
 fixtures-vibes: ## Run the shared Classic compliance suite
-	$(MAKE) -C references/fixtures-vibes deps compliance PROFILE=$(CURDIR)/tests/fixtures-vibes/profile.json
+	$(MAKE) -C references/fixtures-vibes deps compliance PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT) PROFILE=$(CURDIR)/tests/fixtures-vibes/profile.json
 
 coverage: ## Run pytest with coverage
 	PYTHONPATH=src $(PYTHON) -m pytest --cov=src/vibes --cov-report=term-missing
