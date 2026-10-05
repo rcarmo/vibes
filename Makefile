@@ -4,7 +4,12 @@ PYTHON ?= python3
 PIP ?= pip3
 
 # Rebuildable caches and scratch only; retained evidence stays in docs/evidence.
-VIBES_TMP_ROOT := /workspace/tmp/vibes
+# Resolve once using the original environment, before exporting child TMPDIR.
+VIBES_TMP_ROOT := $(shell PROJECT=vibes bash scripts/project-tmp.sh init | sed -n 's/^PROJECT_TMP_ROOT=//p')
+ifeq ($(strip $(VIBES_TMP_ROOT)),)
+$(error Cannot resolve safe project scratch root; check PROJECT_TMP_ROOT)
+endif
+export PROJECT_TMP_ROOT := $(VIBES_TMP_ROOT)
 VIBES_RUN_ID ?= $(shell date -u +%Y%m%dT%H%M%S)-$(shell echo $$$$)
 VIBES_RUN_DIR := $(VIBES_TMP_ROOT)/runs/make/$(VIBES_RUN_ID)
 export TMPDIR := $(VIBES_RUN_DIR)/tmp
