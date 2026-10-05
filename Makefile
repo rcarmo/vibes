@@ -3,6 +3,24 @@
 PYTHON ?= python3
 PIP ?= pip3
 
+# Rebuildable caches and scratch only; retained evidence stays in docs/evidence.
+VIBES_TMP_ROOT := /workspace/tmp/vibes
+VIBES_RUN_ID ?= $(shell date -u +%Y%m%dT%H%M%S)-$(shell echo $$$$)
+VIBES_RUN_DIR := $(VIBES_TMP_ROOT)/runs/make/$(VIBES_RUN_ID)
+export TMPDIR := $(VIBES_RUN_DIR)/tmp
+export TMP := $(TMPDIR)
+export TEMP := $(TMPDIR)
+export XDG_CACHE_HOME := $(VIBES_TMP_ROOT)/cache/xdg
+export PIP_CACHE_DIR := $(VIBES_TMP_ROOT)/cache/pip
+export UV_CACHE_DIR := $(VIBES_TMP_ROOT)/cache/uv
+export BUN_INSTALL_CACHE_DIR := $(VIBES_TMP_ROOT)/cache/bun
+export npm_config_cache := $(VIBES_TMP_ROOT)/cache/npm
+export PYTHONPYCACHEPREFIX := $(VIBES_TMP_ROOT)/cache/python
+export PYTEST_ADDOPTS := --basetemp=$(VIBES_RUN_DIR)/pytest -o cache_dir=$(VIBES_TMP_ROOT)/cache/pytest $(PYTEST_ADDOPTS)
+export VIBES_BUILD_DIR := $(VIBES_TMP_ROOT)/build
+# Create roots without depending on a recipe's current directory.
+_tmp_init := $(shell mkdir -p $(TMPDIR) $(XDG_CACHE_HOME) $(PIP_CACHE_DIR) $(UV_CACHE_DIR) $(BUN_INSTALL_CACHE_DIR) $(npm_config_cache) $(PYTHONPYCACHEPREFIX) $(VIBES_BUILD_DIR))
+
 # Server configuration
 export VIBES_HOST ?= 127.0.0.1
 export VIBES_PORT ?= 8080
