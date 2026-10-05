@@ -4,6 +4,11 @@ PYTHON ?= python3
 PIP ?= pip3
 
 # Rebuildable caches and scratch only; retained evidence stays in docs/evidence.
+# Snapshot inherited TMPDIR once; CI/base/root precedence lives in the vendored helper.
+ifndef PROJECT_ORIGINAL_TMPDIR
+PROJECT_ORIGINAL_TMPDIR := $(TMPDIR)
+endif
+export PROJECT_ORIGINAL_TMPDIR
 # Resolve once using the original environment, before exporting child TMPDIR.
 VIBES_TMP_ROOT := $(shell PROJECT=vibes bash scripts/project-tmp.sh init | sed -n 's/^PROJECT_TMP_ROOT=//p')
 ifeq ($(strip $(VIBES_TMP_ROOT)),)

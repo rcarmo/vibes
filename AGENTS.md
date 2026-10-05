@@ -3,14 +3,19 @@
 ## Cache and scratch paths
 
 The canonical project name is `vibes`. `scripts/project-tmp.sh` resolves the
-root once before Make exports child temp variables: a supplied absolute
-`PROJECT_TMP_ROOT` ending in `/vibes`; otherwise writable `/workspace/tmp/vibes`,
-then `${RUNNER_TEMP}/vibes`, the original `${TMPDIR}/vibes`, or `/tmp/vibes`.
-An invalid, unsafe or unusable explicit override fails without fallback. The
+root once before Make exports child temp variables. An absolute
+`PROJECT_TMP_BASE` selects `<base>/vibes`; the compatible absolute
+`PROJECT_TMP_ROOT` must end in `/vibes`. If both are supplied they must agree.
+Invalid, unsafe or unusable overrides fail without fallback. CI selects usable
+`${RUNNER_TEMP}/vibes`, then the original `${TMPDIR}/vibes`, then `/tmp/vibes`,
+even when `/workspace/tmp` exists. Local runs prefer writable
+`/workspace/tmp/vibes`, then `/tmp/vibes`. The helper snapshots incoming TMPDIR
+as `PROJECT_ORIGINAL_TMPDIR` and propagates the resolved root to children. The
 resolver is vendored; CI needs no `/workspace` helper. Every selected root uses:
 
 - `cache/<tool>/` for Python bytecode, pytest, pip, uv, Bun, npm and XDG caches.
 - `build/` for disposable build output.
+- `tests/` and `logs/` for disposable test/log scratch where used.
 - `runs/<purpose>/<run-id>/` for isolated scratch and test filesystem roots.
 
 The Makefile exports `TMPDIR`, `TMP`, `TEMP`, `XDG_CACHE_HOME`,
