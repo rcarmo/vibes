@@ -101,3 +101,32 @@ async def test_plan_browser_tool_roundtrip_conflict_scope_and_origin(tmp_path, m
     finally:
         await client.close()
         await db.close()
+
+
+@pytest.mark.asyncio
+async def test_classic_plan_requires_captured_revision_for_save_and_reset(db, aiohttp_client, monkeypatch):
+    from unittest.mock import AsyncMock
+    from aiohttp import web
+    from vibes.routes import plans as routes
+    monkeypatch.setattr(routes, 'get_db', AsyncMock(return_value=db))
+    monkeypatch.setattr(routes, 'broadcast_event', AsyncMock())
+    app = web.Application()
+    routes.setup_routes(app)
+    client = await aiohttp_client(app)
+    url = '/api/sessions/default/plan'
+    snapshot = (await (await client.get(url)).json())['plan']
+    assert type(snapshot['revision']) is int
+    assert (await client.post(url, json={'markdown': 'unsafe'})).status == 428
+    saved = await client.post(url, json={'markdown': '- [ ] preserved', 'expected_revision': snapshot['revision']})
+    assert saved.status == 200
+    current = (await saved.json())['plan']
+    stale = await client.post(url, json={'action': 'reset', 'expected_revision': snapshot['revision']})
+    assert stale.status == 409
+    assert (await stale.json())['code'] == 'plan_revision_conflict'
+    assert (await (await client.get(url)).json())['plan'] == current
+    assert (await client.post(url, json={'action': 'reset', 'expected_revision': True})).status == 400
+    reset = await client.post(url, json={'action': 'reset', 'expected_revision': current['revision']})
+    assert reset.status == 200
+    result = (await reset.json())['plan']
+    assert result['markdown'] == ''
+    assert result['revision'] > current['revision']

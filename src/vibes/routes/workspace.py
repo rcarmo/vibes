@@ -432,6 +432,27 @@ async def get_workspace_file(request: web.Request) -> web.Response:
     })
 
 
+async def classic_update_file(request: web.Request) -> web.Response:
+    try:
+        data = await request.json()
+    except ValueError:
+        return web.json_response({'error': 'Invalid JSON', 'code': 'invalid_file_request'}, status=400)
+    if isinstance(data, dict) and 'expected_revision' not in data:
+        return web.json_response({'error': 'expected_revision required', 'code': 'revision_required'}, status=428)
+    if not isinstance(data, dict) or set(data) != {'path', 'content', 'expected_revision'} or not isinstance(data['content'], str):
+        return web.json_response({'error': 'path, text content and expected_revision required', 'code': 'invalid_file_request'}, status=400)
+    class CapturedRequest:
+        async def json(self):
+            return {**data, 'editor_snapshot': True}
+    response = await update_workspace_file(CapturedRequest())
+    body = json.loads(response.body)
+    if response.status >= 400:
+        body.setdefault('code', 'revision_conflict' if response.status == 409 else 'invalid_file_request')
+    else:
+        body.update(text=data['content'], content=data['content'], truncated=False)
+    return web.json_response(body, status=response.status)
+
+
 async def update_workspace_file(request: web.Request) -> web.Response:
     """PUT /workspace/file – write content to a workspace file."""
     try:
@@ -564,11 +585,18 @@ async def create_workspace_file(request: web.Request) -> web.Response:
             {"error": "File already exists", "code": "file_exists"}, status=409,
         )
 
-    dest.write_text(content, encoding="utf-8")
+    try:
+        with dest.open("x", encoding="utf-8") as handle:
+            handle.write(content)
+    except FileExistsError:
+        return web.json_response({"error": "File already exists", "code": "file_exists"}, status=409)
     stat = dest.stat()
     return web.json_response({
         "path": _to_workspace_relative(dest),
         "name": filename,
+        "content": content,
+        "truncated": False,
+        "revision": _file_revision(dest),
         "size": stat.st_size,
         "mtime": _format_mtime(dest),
     })
@@ -902,6 +930,10 @@ def setup_routes(app: web.Application) -> None:
     app.router.add_post('/internal/agent-tools/open-file', request_file_view)
     app.router.add_post('/workspace/view-requests/{id}/ack', acknowledge_file_view)
     app.router.add_get("/workspace/tree", get_workspace_tree)
+    app.router.add_get("/api/workspace/file", get_workspace_file)
+    app.router.add_put("/api/workspace/file", classic_update_file)
+    app.router.add_post("/api/workspace/file", create_workspace_file)
+    app.router.add_post("/api/workspace/create", create_workspace_file)
     app.router.add_get("/workspace/file", get_workspace_file)
     app.router.add_put("/workspace/file", update_workspace_file)
     app.router.add_delete("/workspace/file", delete_workspace_file)

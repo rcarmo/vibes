@@ -5,6 +5,35 @@ from ..plans import PlanStore, PlanConflict
 from .sse import broadcast_event
 
 
+async def classic_plan(request):
+    """Classic writes keep the native integer precondition and transaction."""
+    try:
+        if request.method == 'GET':
+            snapshot = await PlanStore(await get_db()).get(request.match_info['id'])
+        else:
+            data = await request.json()
+            if isinstance(data, dict) and 'expected_revision' not in data:
+                return web.json_response({'error': 'expected_revision required', 'code': 'revision_required'}, status=428)
+            if not isinstance(data, dict):
+                raise ValueError('JSON object required')
+            if set(data) == {'markdown', 'expected_revision'}:
+                mutation = {'action': 'write', 'markdown': data['markdown'],
+                            'expected_revision': data['expected_revision']}
+            elif set(data) == {'action', 'expected_revision'} and data['action'] == 'reset':
+                mutation = {'action': 'write', 'markdown': '',
+                            'expected_revision': data['expected_revision']}
+            else:
+                raise ValueError('Expected markdown or reset with expected_revision')
+            snapshot = await PlanStore(await get_db()).apply(request.match_info['id'], mutation)
+            await broadcast_event('plan_updated', snapshot)
+        return web.json_response({'plan': snapshot}, headers={'Cache-Control': 'no-store'})
+    except (ValueError, PlanConflict) as exc:
+        status = 409 if isinstance(exc, PlanConflict) else 400
+        return web.json_response({'error': str(exc), 'code': 'plan_revision_conflict' if status == 409 else 'invalid_plan_request'}, status=status)
+    except LookupError:
+        return web.json_response({'error': 'Session unavailable', 'code': 'session_not_found'}, status=404)
+
+
 async def session_plan(request):
     store = PlanStore(await get_db())
     session_id = request.match_info['id']
@@ -62,4 +91,6 @@ async def agent_plan(request):
 def setup_routes(app):
     app.router.add_get('/sessions/{id}/plan', session_plan)
     app.router.add_put('/sessions/{id}/plan', session_plan)
+    app.router.add_get('/api/sessions/{id}/plan', classic_plan)
+    app.router.add_post('/api/sessions/{id}/plan', classic_plan)
     app.router.add_post('/internal/agent-tools/plan', agent_plan)

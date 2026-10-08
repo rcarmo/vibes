@@ -826,3 +826,27 @@ async def test_preview_revision_uses_bounded_snapshot_not_full_file_hash(workspa
     response = await workspace_test_client.get('/workspace/file?path=small-preview.txt&mode=edit')
     data = await response.json()
     assert data['revision'] == hashlib.sha256(data['text'].encode('utf-8')).hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_classic_file_copy_and_revision_save(workspace_test_client, workspace_dir):
+    client = workspace_test_client
+    created = await client.post('/api/workspace/file', json={'path': '', 'name': 'copy.txt', 'content': 'first'})
+    assert created.status == 200
+    snapshot = await created.json()
+    assert snapshot['truncated'] is False and isinstance(snapshot['revision'], str)
+    duplicate = await client.post('/api/workspace/file', json={'path': '', 'name': 'copy.txt', 'content': 'lost'})
+    assert duplicate.status == 409
+    assert (workspace_dir / 'copy.txt').read_text() == 'first'
+    assert (await client.put('/api/workspace/file', json={'path': 'copy.txt', 'content': 'unsafe'})).status == 428
+    (workspace_dir / 'copy.txt').write_text('external')
+    stale = await client.put('/api/workspace/file', json={'path': 'copy.txt', 'content': 'mine', 'expected_revision': snapshot['revision']})
+    assert stale.status == 409
+    assert (await stale.json())['code'] == 'revision_conflict'
+    assert (workspace_dir / 'copy.txt').read_text() == 'external'
+    reviewed = await (await client.get('/api/workspace/file?path=copy.txt')).json()
+    saved = await client.put('/api/workspace/file', json={'path': 'copy.txt', 'content': 'mine', 'expected_revision': reviewed['revision']})
+    assert saved.status == 200
+    result = await saved.json()
+    assert result['content'] == 'mine' and result['truncated'] is False
+    assert result['revision'] != reviewed['revision']
