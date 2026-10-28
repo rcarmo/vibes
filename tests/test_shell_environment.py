@@ -165,8 +165,8 @@ async def test_timeout_and_cancellation_stop_posix_process_group(stores, tmp_pat
         stat_path = Path(f'/proc/{child}/stat')
         try:
             state = stat_path.read_text().split()[2]
-        except FileNotFoundError:
-            # Reaping can happen between exists() and read(); disappearance is success.
+        except (FileNotFoundError, ProcessLookupError):
+            # Reaping can happen while procfs reads; disappearance is success.
             with pytest.raises(ProcessLookupError):
                 os.kill(child, 0)
         else:

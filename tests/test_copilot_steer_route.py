@@ -14,15 +14,19 @@ async def test_unsupported_ffi_steer_is_rejected_before_persistence(monkeypatch)
     assert b'Native Copilot steering is not enabled' in response.body
 
 @pytest.mark.asyncio
-async def test_unsupported_queued_ffi_steer_preserves_item(monkeypatch):
+async def test_unsupported_queued_ffi_steer_preserves_item(db, monkeypatch):
+    from unittest.mock import AsyncMock
     from vibes.routes import agents
+    from vibes.followup_store import FollowupStore
     monkeypatch.setattr(agents, '_resolve_agent_mode', lambda agent: 'copilot-ffi')
-    monkeypatch.setattr(agents, 'list_followups', lambda: [{'agent_id': 'default', 'thread_id': 1, 'row_id': 1}])
-    def unexpected_remove(*args):
-        raise AssertionError('Unsupported steering must not remove queue item')
-    monkeypatch.setattr(agents, 'remove_followup', unexpected_remove)
+    monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
+    root = await db.create_interaction({'type': 'user', 'content': 'queued source'})
+    store = FollowupStore(db)
+    item = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='preserve')
     async def json():
-        return {'row_id': 1}
+        return {'row_id': item['row_id']}
     response = await agents.steer_queue_item(SimpleNamespace(json=json))
     assert response.status == 409
     assert b'preserved' in response.body
+    rows = await store.list()
+    assert len(rows) == 1 and rows[0]['row_id'] == item['row_id'] and rows[0]['state'] == 'pending'

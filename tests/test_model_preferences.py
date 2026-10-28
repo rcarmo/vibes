@@ -31,9 +31,11 @@ async def test_v6_upgrade_preserves_session_history_and_binding(db):
     session = await store.create('Before upgrade')
     await store.bind_backend(session['id'], 'pi', '/confirmed.jsonl', model='p/m', thinking_level='low')
     message = await db.create_interaction({'type': 'user', 'content': 'Keep history', 'session_id': session['id']})
-    # Reconstruct the prior schema by removing only the v7 addition.
+    # Reconstruct v6, including removal of columns introduced after v9.
     async with db.transaction():
         await db._connection.execute('DROP TABLE model_preferences')
+        await db._connection.execute('ALTER TABLE keychain_entries DROP COLUMN user_note')
+        await db._connection.execute('ALTER TABLE keychain_entries DROP COLUMN agent_note')
         await db._connection.execute('UPDATE schema_version SET version=6')
     await db.close()
     await db.connect()

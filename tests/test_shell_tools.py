@@ -126,7 +126,11 @@ async def test_shell_preparation_requires_local_active_owner_and_preserves_no_se
         await asyncio.gather(running, return_exceptions=True)
         for _ in range(200):
             state = Path(f'/proc/{shell_pid}/stat')
-            if not state.exists() or state.read_text().split()[2] == 'Z':
+            try:
+                exited = state.read_text().split()[2] == 'Z'
+            except (FileNotFoundError, ProcessLookupError):
+                exited = True
+            if exited:
                 break
             await asyncio.sleep(.01)
         else:

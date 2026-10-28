@@ -80,19 +80,20 @@ async def test_pending_and_expired_decisions(aiohttp_client, db, config, monkeyp
 
 @pytest.mark.asyncio
 async def test_cancel_keeps_queued_followups_and_errors_are_redacted(db, config, monkeypatch):
-    from unittest.mock import Mock
+    from vibes.followup_store import FollowupStore
     monkeypatch.setattr(agents, 'get_db', AsyncMock(return_value=db))
     root = await db.create_interaction({'type':'user_message','content':'hello'})
     broadcast = AsyncMock()
     monkeypatch.setattr(agents, 'broadcast_event', broadcast)
-    consume = Mock()
-    monkeypatch.setattr(agents, 'consume_next_followup', consume)
+    store = FollowupStore(db)
+    queued = await store.enqueue(thread_id=root, agent_id='default', message_id=root, content='keep queued')
     monkeypatch.setattr(agents.copilot_backend, 'send', AsyncMock(return_value={'text':'', 'content':[], 'cancelled':True,'cancel_reason':'abort'}))
     await agents.process_agent_response(root, 'hello', 'default')
-    consume.assert_not_called()
+    assert [row['row_id'] for row in await store.list()] == [queued['row_id']]
     monkeypatch.setattr(agents.copilot_backend, 'send', AsyncMock(side_effect=RuntimeError('private-synthetic-token')))
     await agents.process_agent_response(root, 'hello', 'default')
     assert 'private-synthetic-token' not in str(broadcast.call_args_list)
+    assert [row['row_id'] for row in await store.list()] == [queued['row_id']]
 
 
 @pytest.mark.asyncio
@@ -160,7 +161,6 @@ async def test_native_predefined_action_never_uses_generic_worker(aiohttp_client
 @pytest.mark.asyncio
 async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, config, monkeypatch):
     import asyncio
-    from vibes import followups
     from vibes.followup_store import FollowupStore
     store = FollowupStore(db)
     agents._ffi_closing = False
@@ -185,7 +185,6 @@ async def test_ffi_consumed_notification_failure_restores_prepared_followup(db, 
 
 @pytest.mark.asyncio
 async def test_ffi_missing_followup_source_is_preserved_not_dispatched(db, config, monkeypatch):
-    from vibes import followups
     from vibes.followup_store import FollowupStore
     store = FollowupStore(db)
     agents._ffi_closing = False
@@ -210,7 +209,6 @@ async def test_ffi_missing_followup_source_is_preserved_not_dispatched(db, confi
 
 @pytest.mark.asyncio
 async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, config, monkeypatch):
-    from vibes import followups
     from vibes.followup_store import FollowupStore
     store = FollowupStore(db)
     agents._ffi_closing = False
@@ -236,7 +234,6 @@ async def test_ffi_foreign_followup_source_never_supplies_lane_attachments(db, c
 @pytest.mark.asyncio
 @pytest.mark.parametrize('root_source', [False, True])
 async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, config, monkeypatch, root_source):
-    from vibes import followups
     from vibes.followup_store import FollowupStore
     store = FollowupStore(db)
     agents._ffi_closing = False
@@ -268,7 +265,6 @@ async def test_ffi_same_chat_followup_promotes_once_with_source_attachments(db, 
 
 @pytest.mark.asyncio
 async def test_ffi_same_chat_foreign_thread_source_is_not_promoted(db, config, monkeypatch):
-    from vibes import followups
     from vibes.followup_store import FollowupStore
     store = FollowupStore(db)
     agents._ffi_closing = False

@@ -45,7 +45,11 @@ The runtime remains a trusted single-user application; cookies separate browser
 transport ownership, not OS users or host privileges. Enabling this route grants
 the authenticated local browser access to the configured VNC server. VNC's own
 credentials and desktop privileges still apply. Application shutdown closes
-retained streams and pending expiry timers.
+retained streams and pending expiry timers. It sets a closing flag, cancels and
+joins in-flight connects, and rejects late connection registration. A per-owner
+reservation spans WebSocket preparation, TCP opening and attachment so concurrent
+upgrades cannot create an orphan second tunnel. Close-handshake waiting is
+bounded to one second.
 
 Preserving a TCP stream is not sufficient to resume a new RFB parser. Browser
 handoff/reconnect must preserve or deliberately rebuild client protocol state;
@@ -61,7 +65,10 @@ real loopback TCP/WebSocket sockets, synthetic RFB greetings and opaque echo,
 not a real desktop or external server. Coverage includes default-disabled
 behaviour, Origin/cookie rejection, numeric-loopback validation, fixed-target
 restrictions, binary transfer, handoff reuse/expiry, detached transport reuse,
-upstream failure, size/type rejection, uncertain-send close and cleanup.
+upstream failure, size/type rejection, uncertain-send close and cleanup. Two deterministic race tests additionally gate
+TCP opening, attempt simultaneous upgrades and complete a connection during
+shutdown; they require one tracked tunnel or a closed late writer, never an
+orphan forwarder.
 
 No profile capability/skips, shared UI, authentication deployment or consumer pin
 changed. Browser framebuffer/authentication, interactive handoff, slow-client

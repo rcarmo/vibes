@@ -1,5 +1,5 @@
 import pytest
-from vibes.db import Database
+from vibes.db import Database, SCHEMA_VERSION
 from vibes.followup_store import FollowupStore
 
 
@@ -192,7 +192,7 @@ async def test_v8_upgrade_preserves_messages_and_is_idempotent(tmp_path):
         assert [row['row_id'] for row in listing] == [item['row_id']]
         async with db.transaction() as connection:
             async with connection.execute('SELECT version FROM schema_version') as cursor:
-                assert (await cursor.fetchone())[0] == 9
+                assert (await cursor.fetchone())[0] == SCHEMA_VERSION
     finally:
         await db.close()
 

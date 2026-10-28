@@ -58,6 +58,8 @@ class VNCAdapter:
         self.owners = set()
         self.tunnels = {}
         self.opening = set()
+        self.opening_tasks = {}
+        self.closing = False
         self.timers = {}
         self.handoffs = {}
 
@@ -120,7 +122,7 @@ class VNCAdapter:
         self.owners.intersection_update(protected)
 
     def _owner(self, request):
-        if not self.enabled:
+        if not self.enabled or self.closing:
             raise web.HTTPNotFound()
         self._require_target_query(request, handoff=request.path.endswith("/ws"))
         if not self._same_origin(request):
@@ -218,6 +220,10 @@ class VNCAdapter:
             )
         except (asyncio.TimeoutError, OSError, ValueError) as error:
             raise ConnectionError("VNC upstream unavailable") from error
+        if self.closing:
+            writer.close()
+            await writer.wait_closed()
+            raise ConnectionError('VNC server shutting down')
         tunnel = _Tunnel(owner, reader, writer)
         self.tunnels[owner] = tunnel
         tunnel.forwarder = asyncio.create_task(self._forward(tunnel))
@@ -334,22 +340,30 @@ class VNCAdapter:
         elif tunnel and tunnel.socket and not tunnel.socket.closed:
             raise web.HTTPConflict(reason="VNC already attached; handoff required")
 
-        websocket = web.WebSocketResponse(max_msg_size=MAX_FRAME, heartbeat=20)
-        await websocket.prepare(request)
-        if tunnel is None:
-            if owner in self.opening:
-                await websocket.close(code=1013, message=b"VNC connection in progress")
+        # Reserve before the first await and retain the reservation through attach.
+        # A concurrent upgrade must not act on an earlier no-tunnel snapshot.
+        if owner in self.opening:
+            raise web.HTTPConflict(reason='VNC connection in progress')
+        self.opening.add(owner)
+        self.opening_tasks[owner] = asyncio.current_task()
+        websocket = web.WebSocketResponse(max_msg_size=MAX_FRAME, heartbeat=20, timeout=1)
+        try:
+            await websocket.prepare(request)
+            if tunnel is None:
+                try:
+                    tunnel = await self._open_tunnel(owner)
+                except ConnectionError:
+                    await websocket.close(code=1011, message=b"VNC upstream unavailable")
+                    return websocket
+            if self.closing or not await self._attach(tunnel, websocket):
                 return websocket
-            self.opening.add(owner)
-            try:
-                tunnel = await self._open_tunnel(owner)
-            except ConnectionError:
-                await websocket.close(code=1011, message=b"VNC upstream unavailable")
-                return websocket
-            finally:
-                self.opening.discard(owner)
-        if not await self._attach(tunnel, websocket):
-            return websocket
+        except BaseException:
+            if tunnel is not None:
+                await self._close_tunnel(tunnel, code=1001, message=b'VNC attachment cancelled')
+            raise
+        finally:
+            self.opening.discard(owner)
+            self.opening_tasks.pop(owner, None)
 
         try:
             async for message in websocket:
@@ -375,6 +389,12 @@ class VNCAdapter:
         return websocket
 
     async def cleanup(self, app):
+        self.closing = True
+        tasks = [task for task in self.opening_tasks.values() if task is not asyncio.current_task()]
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self.opening_tasks.clear()
         timers = list(self.timers.values())
         for timer in timers:
             timer.cancel()
