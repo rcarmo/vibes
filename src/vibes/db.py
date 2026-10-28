@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 10
+SCHEMA_VERSION = 11
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -213,6 +213,17 @@ CREATE TABLE IF NOT EXISTS environment_overrides (
 """
 
 
+MIGRATION_V11 = """
+CREATE INDEX IF NOT EXISTS idx_interactions_widget_lookup
+ON interactions (
+    COALESCE(json_extract(data, '$.session_id'), 'default'),
+    json_extract(data, '$.content_blocks[0].widget_id')
+)
+WHERE type = 'agent_response'
+  AND json_extract(data, '$.content_blocks[0].type') = 'generated_widget';
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -276,6 +287,8 @@ class Database:
                 await self._connection.executescript(MIGRATION_V9)
             if current_version < 10:
                 await self._connection.executescript(MIGRATION_V10)
+            if current_version < 11:
+                await self._connection.executescript(MIGRATION_V11)
             await self._connection.execute("DELETE FROM schema_version")
             await self._connection.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",

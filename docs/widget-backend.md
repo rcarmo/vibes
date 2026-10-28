@@ -39,6 +39,8 @@ GET `/api/sessions/{s}/widgets/{id}` returns that block as JSON with
 `Cache-Control: no-store` and `X-Content-Type-Options: nosniff`. A foreign session,
 invalid ID, deleted message or missing artifact returns 404. The durable message
 is the artifact source; reconnect/restart does not require an in-memory cache.
+Schema 11 indexes session and the first block's widget ID; publication always
+writes exactly one widget block. Lookup does not scan historical HTML.
 No route serves supplied HTML as a same-origin executable document.
 
 The application remains a trusted single-user loopback preview. The session path
@@ -72,7 +74,9 @@ nonzero shell status and filtering secret-bearing preparation data.
 
 Not yet verified: complete consumer rendering, sandbox/postMessage behaviour,
 widget Submit/close/refresh end to end, live-provider tool selection, artifact
-asset/module loading, restart after an ambiguous acknowledgement, performance
-profiling of repeated large-widget workloads, or FFI custom-widget registration.
+asset/module loading, restart after an ambiguous acknowledgement, concurrent/slow-client release workloads, or FFI custom-widget registration.
+[Widget lookup profiling](evidence/widget-vnc-profiling-20261028.md) identified
+historical JSON scanning; the index reduced CPU by 95.4% and allocated bytes by
+97.8% in the documented 120-artifact workload.
 The candidate shared UI advertises a different frontend revision from the current
 consumer pin; no frontend files, selectors, profile claims or skips change here.

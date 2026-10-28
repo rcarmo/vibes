@@ -48,6 +48,16 @@ async def test_widget_publication_idempotence_scoping_and_durable_lookup(db, mon
             assert response.headers['Cache-Control'] == 'no-store'
             assert response.headers['X-Content-Type-Options'] == 'nosniff'
             assert await response.json() == block
+            async with db._connection.execute(
+                "EXPLAIN QUERY PLAN SELECT data FROM interactions "
+                "WHERE COALESCE(json_extract(data, '$.session_id'), 'default') = ? "
+                "AND type = 'agent_response' "
+                "AND json_extract(data, '$.content_blocks[0].type') = 'generated_widget' "
+                "AND json_extract(data, '$.content_blocks[0].widget_id') = ?",
+                ('default', first['widget_id']),
+            ) as cursor:
+                query_plan = [row['detail'] for row in await cursor.fetchall()]
+            assert any('idx_interactions_widget_lookup' in detail for detail in query_plan)
             assert (await client.get(f"/api/sessions/{other['id']}/widgets/{first['widget_id']}")).status == 404
             assert (await client.get('/api/sessions/default/widgets/not-a-valid-id')).status == 404
             await db.close()

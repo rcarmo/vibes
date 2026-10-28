@@ -151,9 +151,8 @@ async def get_widget(request):
         async with db._connection.execute(
             "SELECT data FROM interactions WHERE COALESCE(json_extract(data, '$.session_id'), 'default') = ? "
             "AND type = 'agent_response' "
-            "AND EXISTS (SELECT 1 FROM json_each(interactions.data, '$.content_blocks') AS block "
-            "WHERE json_extract(block.value, '$.type') = 'generated_widget' "
-            "AND json_extract(block.value, '$.widget_id') = ?) LIMIT 1", (session_id, widget_id),
+            "AND json_extract(data, '$.content_blocks[0].type') = 'generated_widget' "
+            "AND json_extract(data, '$.content_blocks[0].widget_id') = ? LIMIT 1", (session_id, widget_id),
         ) as cursor:
             row = await cursor.fetchone()
     if not row:
