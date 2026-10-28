@@ -112,6 +112,15 @@ async def test_overrides_apply_to_next_commands_and_clear_restores_inheritance(s
 
 
 @pytest.mark.asyncio
+async def test_output_is_bounded_and_pipe_is_drained(stores):
+    keychain, environment = stores
+    result = await run_shell('head -c 700000 /dev/zero', keychain, environment)
+    assert result['exit_code'] == 0
+    assert len(result['stdout'].encode()) < 513 * 1024
+    assert result['stdout'].endswith('[output truncated at 512 KiB]\n')
+
+
+@pytest.mark.asyncio
 async def test_unstartable_candidate_falls_back_but_configured_shell_does_not(stores, tmp_path):
     if os.name == 'nt':
         pytest.skip('POSIX executable fixture')

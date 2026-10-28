@@ -1,6 +1,7 @@
 """Local, owner-scoped shell preparation for the Pi bash tool."""
 
 import asyncio
+import os
 from pathlib import Path
 
 from aiohttp import web
@@ -45,6 +46,8 @@ async def prepare_shell(request):
         plan = await prepare(payload['command'], keychain, environment, shell_path=shell_path)
         check_owner()
         if execute:
+            if os.name == 'nt':
+                raise ValueError('Windows process-tree cancellation is not accepted')
             operation = asyncio.create_task(run_prepared(
                 plan, shell_path=shell_path, cwd=Path.cwd().resolve(), timeout=timeout,
             ))

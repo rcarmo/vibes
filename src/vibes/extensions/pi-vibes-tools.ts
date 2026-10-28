@@ -1,7 +1,8 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 export default function (pi: ExtensionAPI) {
-  // Preparation contains secrets; never include it in tool results or logs.
+  // Execute through the owner-scoped Python runner. No prepared credentials cross
+  // the bridge; fetch abort closes the request and cancels its server-side process.
   pi.registerTool({
     name: 'bash', label: 'Bash',
     description: 'Run a shell command in the workspace with Settings overrides. Keychain secrets are injected only for literal variable references ($NAME, ${NAME}, $env:NAME, %NAME%) or keychain:name placeholders. Prefer variable references; placeholders are literal shell-source substitution.',
@@ -10,21 +11,22 @@ export default function (pi: ExtensionAPI) {
       const base = process.env.VIBES_PI_TOOLS_URL;
       const token = process.env.VIBES_ATTACHMENT_TOKEN;
       if (!base || !token) throw new Error('Vibes shell bridge is not configured');
-      const response = await fetch(new URL('/internal/agent-tools/shell-prepare', base), {
+      const body: { command: string; timeout?: number } = { command: params.command };
+      if (params.timeout != null) body.timeout = params.timeout;
+      const response = await fetch(new URL('/internal/agent-tools/shell', base), {
         method: 'POST', signal,
         headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
-        body: JSON.stringify({ command: params.command }),
+        body: JSON.stringify(body),
       });
-      if (!response.ok) throw new Error('Vibes shell preparation failed');
-      const prepared = await response.json();
+      if (!response.ok) throw new Error('Vibes shell execution failed');
+      const result = await response.json();
       if (signal?.aborted) throw new Error('Shell command cancelled');
-      if (prepared.shell_kind !== 'posix') throw new Error('Windows shell execution is not accepted');
-      const { createBashTool } = await import('@mariozechner/pi-coding-agent');
-      const tool = createBashTool(prepared.cwd, {
-        shellPath: prepared.shell_path,
-        spawnHook: () => ({ command: prepared.command, cwd: prepared.cwd, env: prepared.env }),
-      });
-      return tool.execute(toolCallId, params, signal, onUpdate);
+      const failed = result.exit_code !== 0;
+      return {
+        content: [{ type: 'text', text: result.stdout || (failed ? `Command exited with code ${result.exit_code}` : '(no output)') }],
+        details: { exit_code: result.exit_code },
+        isError: failed,
+      };
     },
   });
   pi.registerTool({

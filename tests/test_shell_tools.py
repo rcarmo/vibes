@@ -105,6 +105,32 @@ async def test_shell_preparation_requires_local_active_owner_and_preserves_no_se
         monkeypatch.setattr(agent_attachments, 'active_for', lambda session: None)
         stopped = await asyncio.wait_for(running, 2)
         assert stopped.status == 403
+        # A fetch abort/closed caller must also terminate the running process tree.
+        from pathlib import Path
+        monkeypatch.setattr(agent_attachments, 'active_for', lambda session: owner)
+        monkeypatch.chdir(tmp_path)
+        running = asyncio.create_task(client.post('/internal/agent-tools/shell', json={
+            'command': 'echo $$ > disconnected.pid; sleep 60', 'timeout': 30,
+        }, headers=headers))
+        pid_file = tmp_path / 'disconnected.pid'
+        for _ in range(200):
+            if pid_file.exists() and pid_file.read_text().strip():
+                break
+            await asyncio.sleep(.01)
+        else:
+            running.cancel()
+            await asyncio.gather(running, return_exceptions=True)
+            pytest.fail('disconnection test shell did not start')
+        shell_pid = int(pid_file.read_text())
+        running.cancel()
+        await asyncio.gather(running, return_exceptions=True)
+        for _ in range(200):
+            state = Path(f'/proc/{shell_pid}/stat')
+            if not state.exists() or state.read_text().split()[2] == 'Z':
+                break
+            await asyncio.sleep(.01)
+        else:
+            pytest.fail('caller disconnect left shell running')
     finally:
         await client.close()
         await db.close()

@@ -74,23 +74,31 @@ Otherwise detection tries inherited `$SHELL`, `/bin/bash`, then bash on PATH.
 Commands start in the workspace root. Python shell timeout/cancellation kills the
 POSIX process group and reaps the shell; Pi uses its SDK's process lifecycle.
 The private keychain configuration variables are removed from prepared shell
-environments.
+environments. Output is drained continuously but retained only up to 512 KiB,
+with an explicit truncation notice; commands returning a nonzero status remain
+errors. Internal execution rejects Windows until process-tree cancellation is
+accepted there.
 
 ## Pi adapter boundary
 
-The adapter POSTs `{command}` to `/internal/agent-tools/shell-prepare`. This route
-requires loopback access, no browser Origin, an attachment bearer token and a
-matching active session turn. It rechecks ownership after secret preparation.
-The response contains the prepared command, environment, cwd and detected shell;
-it is secret-bearing and must never be logged or persisted in tool results.
-The adapter delegates execution and cancellation to Pi's `createBashTool`.
+The Pi adapter and ACP's capability-scoped MCP server both POST to
+`/internal/agent-tools/shell`. This route requires loopback access, no browser
+Origin, an attachment bearer token and a matching active session turn. It
+rechecks ownership after secret preparation and monitors ownership/caller
+disconnection during execution. Loss of either cancels the process group.
 
-ACP's capability-scoped MCP server also advertises `bash`. It POSTs to
-`/internal/agent-tools/shell`, which applies the same preparation and executes the
-command server-side. The endpoint monitors ownership and caller disconnection,
-cancels the process group on loss of either, and returns only stdout/exit code.
-A real independent MCP subprocess roundtrip is tested; provider selection of this
-tool over a provider's own shell requires live acceptance.
+Pi forwards its abort signal to fetch; it never falls back to local execution.
+Both adapters receive only bounded stdout and exit code. This uses the same
+Python shell detection, pre-start fallback and cancellation path for Pi and ACP,
+and keeps prepared credentials out of the Pi process. The older scoped
+`/internal/agent-tools/shell-prepare` route remains available for compatibility;
+its environment-bearing response must never be logged or stored as a tool result.
+
+A real independent MCP subprocess roundtrip, cancellation on owner loss and
+caller disconnect are tested. Two Bun adapter tests cover timeout serialisation,
+abort forwarding, failure propagation and response filtering; the existing Plan
+adapter regression also passes. Provider selection of this tool over an ACP
+provider's own shell requires live acceptance.
 
 Pi and ACP subprocess environments omit the master-password and key-path
 configuration variables, preventing bypass through child environment enumeration.
@@ -115,11 +123,11 @@ startup fallback and a real MCP subprocess shell roundtrip. Pi/ACP clients,
 protocol, runtime, tool routes and MCP tests passed 134 tests in 17.26s. Python
 shell execution retries candidates only for pre-start ENOENT/ENOEXEC failures;
 configured shells, running commands and missing working directories never trigger
-replay. Pi candidate startup fallback still belongs to the SDK execution path.
+replay. Pi now uses that same tested runner instead of SDK-local execution.
 
 Browser Settings acceptance and live-provider execution are not established.
-Windows detection branches exist but execution remains unaccepted; the Pi
-adapter rejects non-POSIX shells. Repeated package purges in seven test modules
+Windows detection branches exist but execution remains unaccepted; the shared
+internal execution route rejects Windows. Repeated package purges in seven test modules
 were removed after they were shown to split module identities during collection.
 Four theme/tint assertions now require the existing complete awaited events.
 The resulting combined configuration, HTTP, workspace, shell, Pi/ACP, runtime and

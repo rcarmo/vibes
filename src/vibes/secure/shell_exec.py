@@ -10,6 +10,7 @@ from .environment_overrides import PRIVATE_VARIABLES
 from .shell_secrets import placeholder_names, referenced_names, resolve_placeholders
 
 DEFAULT_TIMEOUT = 30
+MAX_OUTPUT_BYTES = 512 * 1024
 
 
 async def prepare(command: str, keychain, environment, shell_path: str | None = None,
@@ -64,6 +65,20 @@ async def run_prepared(plan: dict, shell_path=None, platform=None, cwd=None,
                 can_start=lambda path: path not in failed and os.access(path, os.X_OK),
             )
 
+    async def collect_output():
+        output = bytearray()
+        truncated = False
+        while chunk := await process.stdout.read(64 * 1024):
+            available = MAX_OUTPUT_BYTES - len(output)
+            output.extend(chunk[:available])
+            truncated = truncated or len(chunk) > available
+        await process.wait()
+        if truncated:
+            output.extend(b'\n[output truncated at 512 KiB]\n')
+        return bytes(output)
+
+    reader = asyncio.create_task(collect_output())
+
     async def stop():
         try:
             if os.name == 'nt':
@@ -72,10 +87,14 @@ async def run_prepared(plan: dict, shell_path=None, platform=None, cwd=None,
                 os.killpg(process.pid, signal.SIGKILL)
         except ProcessLookupError:
             pass
-        await process.communicate()
+        try:
+            await reader
+        except asyncio.CancelledError:
+            pass
+        await process.wait()
 
     try:
-        stdout, _ = await asyncio.wait_for(process.communicate(), timeout=timeout)
+        stdout = await asyncio.wait_for(asyncio.shield(reader), timeout=timeout)
     except asyncio.TimeoutError:
         await stop()
         return {'stdout': f'[timed out after {timeout}s]', 'exit_code': 124}
