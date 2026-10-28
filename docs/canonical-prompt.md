@@ -82,10 +82,46 @@ provided test output; no live provider was called and no fake prompt handler was
 used. Initial probe assertions used an obsolete prompt marker/status string;
 a corrected fresh-database run passed.
 
+Additional lifecycle tests reopen a fresh `Database` instance for confirmed,
+rejected, pending, uncertain and ordinary-exception states. Retry preserves the
+original terminal response or 409/no replay. Identical request IDs in two sessions
+admit independently and recover only their own results. A v12 migration fixture
+preserves interactions, creates the receipt table and verifies the composite
+session/request uniqueness constraint across reopen.
+
+## Activity and cancellation
+
+GET `/api/sessions/{s}/activity` returns `status: idle|running|cancelling`,
+`session_id`, `source_session_id` and `turn_id` (null when idle). Active results
+include persisted thread, agent and start time. Only roots belonging to the path
+session and configured default agent are included. Multiple owned turns return
+409 rather than choosing an ambiguous current turn. Missing/archived sessions
+return 404. Persisted status payloads are allowlisted; arbitrary tool content,
+error text and identity overrides are not returned. Neither polling nor receipt
+lookup starts a provider or switches process-global selection.
+
+POST to the same activity route accepts exactly `{turn_id}`. The shared legacy
+abort helper verifies the session, persisted turn/root, worker runtime turn ID
+and captured native request owner. Pi/ACP workers bind a turn token under their
+per-chat dispatch lock and clear it in `finally`; FFI uses its existing active
+owner token. Stale rows, promoted turns and mismatched native requests return
+409 without sending abort. Successful native cancellation returns 202 and
+persists `cancelling` only for that turn. Status updates preserve the accepted
+cancellation marker through late callbacks until `end_turn` removes the row.
+Cancellation sends no user prompt and does not remove queued follow-ups.
+
+The follow-up full Python regression passed 1,010 tests with 13 existing skips
+in 45.72s using the pinned optional SDK and unchanged shared assets. HTTP tests
+cover session isolation, all three cancellation adapters, turn promotion,
+runtime-token mismatch and cancellation polling after late callbacks. An actual
+Pi abort-helper test checks its exact signal against a mocked writer/task; no
+native provider is started. Focused new/changed backend modules pass Ruff; older
+agent test modules retain pre-existing lint findings. Diff checks pass.
+
 Full compiled consumer boot, authentication deployment, broad media routes,
-canonical activity/queue/model controls, six viewport/browser acceptance,
-live-provider admission, independent-process crash injection and CPU/allocation
-profiling of repeated concurrent admission remain open. Shared UI adoption and
+queue/model controls, six viewport/browser acceptance, live-provider admission,
+independent-process crash injection and CPU/allocation profiling of repeated
+concurrent admission remain open. Shared UI adoption and
 release acceptance are separate tasks. Nothing was pushed or deployed.
 
 Probe host, synthetic database, copied add-on assets, temporary optional SDK,

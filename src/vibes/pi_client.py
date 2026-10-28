@@ -34,6 +34,7 @@ class _PiState:
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()
         self.current_request_task: asyncio.Task | None = None
+        self.active_turn_id: str | None = None
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = _request_callback
         self.message_queue: list[str] = []

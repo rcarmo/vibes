@@ -69,8 +69,15 @@ acceptance still require the other boot/control adapters below.
 
 ## Controls and media
 
-Activity and cancellation must resolve the exact persisted session/turn owner,
-then call existing abort checks. Queue adapters require stable durable IDs and an
+GET/POST `/api/sessions/{s}/activity` now project persisted session-owned
+activity and call the shared abort helper. Cancellation requires matching
+persisted turn, worker runtime turn token and captured native request owner;
+a stale persisted row cannot cancel a different live request. Accepted
+cancellation stays visible to polling through late status callbacks until turn
+removal. Ambiguous multiple active turns return 409 from activity GET. HTTP and
+runtime-signal tests pass; complete consumer/reconnect acceptance is open.
+
+Queue adapters require stable durable IDs and an
 atomic `{expected,order}` reorder contract; translating an absolute order into
 several directional mutations creates races. Compaction availability must be
 truthful: no regular prompt may masquerade as compaction.

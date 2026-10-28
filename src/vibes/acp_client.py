@@ -73,6 +73,7 @@ class _ACPState:
         self.agent_lock = asyncio.Lock()
         self.request_lock = asyncio.Lock()  # Ensures only one request at a time
         self.cancel_event: asyncio.Event | None = None
+        self.active_turn_id: str | None = None
         self.session_id = None
         self.chat_conversations = {}
         self.session_usage = {}

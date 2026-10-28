@@ -24,6 +24,10 @@ async def client(aiohttp_client, db):
 async def active_turn(db, session_id='default', turn_id='turn-one'):
     root = await db.create_interaction({'type': 'user_message', 'content': 'work', 'session_id': session_id})
     await db.begin_turn(turn_id, root, 'default')
+    # These tests simulate a worker; bind the same runtime turn identity.
+    from vibes import pi_client as live_pi_client
+    live_pi_client._runtimes.get(session_id).active_turn_id = turn_id
+    agents.acp_client._runtimes.get(session_id).active_turn_id = turn_id
 
 
 @pytest.mark.asyncio

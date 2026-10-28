@@ -859,9 +859,18 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str, *,
             options = {}
             if media_ids is not None:
                 options['media_ids'] = media_ids
-            if admitted_turn_id is not None:
-                options['admitted_turn_id'] = admitted_turn_id
-            return await _process_agent_response_locked(thread_id, content, agent_id, **options)
+            # Bind a worker identity independently of SQLite registration. A
+            # stale persisted row cannot authorise cancellation of this turn.
+            turn_id = admitted_turn_id or f'turn-{uuid.uuid4().hex}'
+            options['admitted_turn_id'] = turn_id
+            runtime = runtimes.existing(chat_id) if mode != 'copilot-ffi' else None
+            if runtime is not None:
+                runtime.active_turn_id = turn_id
+            try:
+                return await _process_agent_response_locked(thread_id, content, agent_id, **options)
+            finally:
+                if runtime is not None and runtime.active_turn_id == turn_id:
+                    runtime.active_turn_id = None
 
 
 async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None, admitted_turn_id=None):
@@ -1339,16 +1348,21 @@ async def _get_agent_models(request: web.Request) -> web.Response:
 
 async def abort_turn(request: web.Request) -> web.Response:
     """Cancel a known turn, not a command routed to whichever session is active."""
-    from .. import pi_client
-    from ..sessions import SessionStore
     try:
         data = await request.json()
     except (json.JSONDecodeError, ValueError):
         return web.json_response({'error': 'Invalid JSON'}, status=400)
+    return await _abort_turn(request.match_info['agent_id'], data)
+
+
+async def _abort_turn(agent_id: str, data: dict) -> web.Response:
+    """Shared cancellation with persisted and exact runtime ownership checks."""
+    from .. import pi_client
+    from ..sessions import SessionStore
     if not isinstance(data, dict) or any(not isinstance(data.get(key), str) or not data[key]
                                          for key in ('session_id', 'turn_id')):
         return web.json_response({'error': 'session_id and turn_id are required'}, status=400)
-    mode = _resolve_agent_mode(request.match_info['agent_id'])
+    mode = _resolve_agent_mode(agent_id)
     owner = (copilot_backend.active_for(data['session_id']) if mode == 'copilot-ffi' else
              (pi_client._runtimes.existing(data['session_id']).current_request_task
               if pi_client._runtimes.existing(data['session_id']) else None) if mode == 'pi' else
@@ -1359,7 +1373,7 @@ async def abort_turn(request: web.Request) -> web.Response:
     session = await SessionStore(database).get(session_id)
     if not session or session['archived']:
         return web.json_response({'error': 'Session unavailable'}, status=404)
-    turn = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
+    turn = await _get_active_turn_for_agent(agent_id, session_id=session_id)
     if not turn or turn['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
     root = await database.get_interaction(turn['thread_id'])
@@ -1367,14 +1381,25 @@ async def abort_turn(request: web.Request) -> web.Response:
         return web.json_response({'error': 'Turn belongs to another session'}, status=409)
     # Re-check after DB awaits; runtime helpers additionally validate ownership
     # and signal without yielding, so a stale click cannot abort a promoted turn.
-    current = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
+    current = await _get_active_turn_for_agent(agent_id, session_id=session_id)
     if not current or current['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
+    if mode == 'copilot-ffi':
+        runtime_turn = owner.get('turn_id') if isinstance(owner, dict) else None
+    else:
+        module = pi_client if mode == 'pi' else acp_client
+        runtime = module._runtimes.existing(session_id)
+        runtime_turn = runtime.active_turn_id if runtime else None
+    if runtime_turn != data['turn_id']:
+        return web.json_response({'error': 'Active runtime turn identity could not be confirmed'}, status=409)
     accepted = await (copilot_backend.abort(session_id, owner) if mode == 'copilot-ffi' else
                       pi_client.abort_chat_turn(session_id, owner) if mode == 'pi'
                       else acp_client.abort_chat_turn(session_id, owner))
     if not accepted:
         return web.json_response({'error': 'Active runtime ownership could not be confirmed'}, status=409)
+    # Completion may already have removed this row; never recreate state or
+    # mark a subsequently promoted turn as cancelling.
+    await database.update_turn_status(turn['turn_id'], {'status': 'cancelling'})
     return web.json_response({'status': 'cancelling', 'session_id': session_id, 'turn_id': turn['turn_id']}, status=202)
 
 

@@ -185,6 +185,61 @@ async def prompt(request):
             raise
 
 
+async def activity(request):
+    """Project persisted activity without consulting a process-global selection."""
+    session_id = request.match_info['id']
+    db = await get_db()
+    session = await SessionStore(db).get(session_id)
+    if not session or session['archived']:
+        return _response({'error': 'Session unavailable'}, 404)
+    owned = []
+    for turn in await db.get_active_turns():
+        if turn['agent_id'] != 'default':
+            continue
+        root = await db.get_interaction(turn['thread_id'])
+        if root and root['data'].get('session_id', 'default') == session_id:
+            owned.append(turn)
+    if len(owned) > 1:
+        return _response({'error': 'Multiple active turns; activity ownership is ambiguous'}, 409)
+    if not owned:
+        return _response({'status': 'idle', 'session_id': session_id,
+                          'source_session_id': session_id, 'turn_id': None})
+    turn = owned[0]
+    # last_status can contain arbitrary tool/runtime payloads. Project only the
+    # UI status fields and bind identity to the persisted turn and its root.
+    last = turn.get('last_status')
+    if not isinstance(last, dict):
+        last = {}
+    status = 'cancelling' if last.get('status') == 'cancelling' else 'running'
+    result = {'status': status, 'session_id': session_id, 'source_session_id': session_id,
+              'turn_id': turn['turn_id'], 'thread_id': turn['thread_id'], 'agent_id': 'default',
+              'started_at': turn['started_at']}
+    if last.get('type') == 'retry_wait':
+        result['type'] = 'retry_wait'
+        # Retry counters/delays are numeric metadata, never arbitrary error text.
+        for field in ('attempt', 'max_attempts', 'delay_ms'):
+            value = last.get(field)
+            if type(value) is int and value >= 0:
+                result[field] = value
+    return _response(result)
+
+
+async def cancel_activity(request):
+    session_id = request.match_info['id']
+    try:
+        payload = await request.json()
+        if (not isinstance(payload, dict) or set(payload) != {'turn_id'}
+                or not isinstance(payload['turn_id'], str) or not payload['turn_id'].strip()):
+            raise ValueError('A turn_id is required; session scope comes from the path')
+    except (ValueError, TypeError) as exc:
+        return _response({'error': str(exc)}, 400)
+    response = await agents._abort_turn('default', {'session_id': session_id, 'turn_id': payload['turn_id']})
+    response.headers['Cache-Control'] = 'no-store'
+    return response
+
+
 def setup_routes(app):
     app.router.add_post('/api/sessions/{id}/prompt', prompt)
     app.router.add_get('/api/sessions/{id}/send-receipt', send_receipt)
+    app.router.add_get('/api/sessions/{id}/activity', activity)
+    app.router.add_post('/api/sessions/{id}/activity', cancel_activity)

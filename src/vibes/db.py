@@ -820,11 +820,14 @@ class Database:
     async def update_turn_status(
         self, turn_id: str, status: dict
     ) -> None:
-        """Update the last known status for an active turn."""
+        """Update status, preserving accepted cancellation until turn removal."""
         async with self.transaction():
             await self._connection.execute(
-                "UPDATE active_turns SET last_status = ? WHERE turn_id = ?",
-                (json.dumps(status), turn_id),
+                "UPDATE active_turns SET last_status = CASE "
+                "WHEN CASE WHEN json_valid(last_status) "
+                "THEN json_extract(last_status, '$.status') END = 'cancelling' "
+                "THEN json_set(?, '$.status', 'cancelling') ELSE ? END WHERE turn_id = ?",
+                (json.dumps(status), json.dumps(status), turn_id),
             )
 
     async def end_turn(self, turn_id: str) -> None:
