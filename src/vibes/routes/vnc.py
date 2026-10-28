@@ -313,6 +313,12 @@ class VNCAdapter:
         timer = self.timers.pop(tunnel.owner, None)
         if timer and timer is not asyncio.current_task():
             timer.cancel()
+        # A stalled output send owns tunnel.lock. Stop and join it before
+        # acquiring that lock; waiting first delays shutdown until WRITE_TIMEOUT.
+        forwarder = tunnel.forwarder
+        if forwarder and forwarder is not asyncio.current_task():
+            forwarder.cancel()
+            await asyncio.gather(forwarder, return_exceptions=True)
         async with tunnel.lock:
             websocket = tunnel.socket
             tunnel.socket = None
@@ -323,10 +329,6 @@ class VNCAdapter:
             await asyncio.wait_for(tunnel.writer.wait_closed(), 1)
         except (asyncio.TimeoutError, OSError, ConnectionError):
             pass
-        forwarder = tunnel.forwarder
-        if forwarder and forwarder is not asyncio.current_task():
-            forwarder.cancel()
-            await asyncio.gather(forwarder, return_exceptions=True)
 
     async def websocket(self, request):
         owner = self._owner(request)

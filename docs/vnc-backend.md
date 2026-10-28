@@ -49,7 +49,9 @@ retained streams and pending expiry timers. It sets a closing flag, cancels and
 joins in-flight connects, and rejects late connection registration. A per-owner
 reservation spans WebSocket preparation, TCP opening and attachment so concurrent
 upgrades cannot create an orphan second tunnel. Close-handshake waiting is
-bounded to one second.
+bounded to one second. Cleanup cancels/joins the output forwarder before taking
+its send lock, so a stalled cancellation-cooperative WebSocket send cannot hold
+shutdown until the 15-second output timeout.
 
 Preserving a TCP stream is not sufficient to resume a new RFB parser. Browser
 handoff/reconnect must preserve or deliberately rebuild client protocol state;
@@ -76,6 +78,15 @@ orphan forwarder.
 No profile capability/skips, shared UI, authentication deployment or consumer pin
 changed. The bounded synthetic RFB3.8/password/framebuffer probe passed with zero channel
 error; the follow-up VNC route/safety/race gate passed 16 tests in 1.58 seconds.
-Real-desktop/full-pane acceptance, interactive protocol-state handoff, slow-client
-soak, cross-platform behaviour and whole-application pre-release profiling remain
-open. Nothing was deployed or enabled on a running host.
+A deterministic stalled-send test exposed cleanup waiting for the send lock
+before cancelling its owner. Reordering cancellation/join ahead of lock acquisition
+fixes that delay. With output timeout set to 60 seconds, cleanup now completes
+within the test's 0.5-second bound; detached forwarding makes one 64-KiB-bounded
+read and no further reads before attachment/cleanup. The 18-test VNC gate passed
+in 1.59 seconds and full regression passed 1,085 tests with 13 existing skips in
+46.49 seconds. Changed VNC module/new tests pass Ruff and diff checks; read-only
+review found no new lock cycle. This assumes normal cooperative aiohttp send
+cancellation. Completed SDK/asset link/test output is removed after verification.
+Real-desktop/full-pane acceptance, interactive protocol-state handoff, sustained
+slow-client soak, cross-platform behaviour and whole-application pre-release
+profiling remain open. Nothing was deployed or enabled on a running host.
