@@ -13,10 +13,7 @@ if str(SRC_PATH) in sys.path:
     sys.path.remove(str(SRC_PATH))
 sys.path.insert(0, str(SRC_PATH))
 
-for module_name in list(sys.modules.keys()):
-    if module_name == "vibes" or module_name.startswith("vibes."):
-        sys.modules.pop(module_name, None)
-
+# tests/conftest.py selects local src once; preserve module identity across collection.
 _mod = importlib.import_module("vibes.slash_commands")
 parse_command = _mod.parse_command
 execute_command = _mod.execute_command
@@ -944,7 +941,7 @@ async def test_theme_set_known():
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
         assert "dracula" in result.message
-        mock_broadcast.assert_called_once_with("ui_theme", {"theme": "dracula"})
+        mock_broadcast.assert_awaited_once_with("ui_theme", {"theme": "dracula", "tint": None})
 
 
 @pytest.mark.asyncio
@@ -953,7 +950,7 @@ async def test_theme_set_alias():
         cmd = SlashCommand(name="theme", args="drac", raw="/theme drac")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
-        mock_broadcast.assert_called_once_with("ui_theme", {"theme": "dracula"})
+        mock_broadcast.assert_awaited_once_with("ui_theme", {"theme": "dracula", "tint": None})
 
 
 @pytest.mark.asyncio
@@ -971,7 +968,7 @@ async def test_tint_set_hex():
         cmd = SlashCommand(name="tint", args="#3b82f6", raw="/tint #3b82f6")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
-        mock_broadcast.assert_called_once_with("ui_theme", {"tint": "#3b82f6"})
+        mock_broadcast.assert_awaited_once_with("ui_theme", {"theme": "default", "tint": "#3b82f6"})
 
 
 @pytest.mark.asyncio
@@ -980,7 +977,7 @@ async def test_tint_set_named():
         cmd = SlashCommand(name="tint", args="orange", raw="/tint orange")
         result = await execute_command(cmd, "pi")
         assert result.status == "success"
-        mock_broadcast.assert_called_once_with("ui_theme", {"tint": "orange"})
+        mock_broadcast.assert_awaited_once_with("ui_theme", {"theme": "default", "tint": "orange"})
 
 
 @pytest.mark.asyncio

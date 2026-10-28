@@ -119,7 +119,14 @@ replay. Pi candidate startup fallback still belongs to the SDK execution path.
 
 Browser Settings acceptance and live-provider execution are not established.
 Windows detection branches exist but execution remains unaccepted; the Pi
-adapter rejects non-POSIX shells. A combined
-Python run including module-purging tests also exposed workspace test-isolation
-failures; the 99-test gate and configuration/Pi/slash modules were run separately.
-This was development verification, not pre-release profiling. Nothing was deployed.
+adapter rejects non-POSIX shells. Repeated package purges in seven test modules
+were removed after they were shown to split module identities during collection.
+Four theme/tint assertions now require the existing complete awaited events.
+The resulting combined configuration, HTTP, workspace, shell, Pi/ACP, runtime and
+MCP gate passed 358 tests in 24.02s.
+
+[CPU and native allocation profiling](evidence/keychain-profiling-20261028.md)
+identified repeated scrypt derivation. Deriving/checking once per command reduced
+measured CPU by 84.9% and allocated bytes by 86.8% in the documented multi-secret
+workload, with no cross-command key cache. Broader release/browser checks remain
+open. Nothing was deployed.

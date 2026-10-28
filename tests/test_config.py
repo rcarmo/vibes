@@ -8,10 +8,7 @@ if str(SRC_PATH) in sys.path:
     sys.path.remove(str(SRC_PATH))
 sys.path.insert(0, str(SRC_PATH))
 
-for module_name in list(sys.modules.keys()):
-    if module_name == "vibes" or module_name.startswith("vibes."):
-        sys.modules.pop(module_name, None)
-
+# tests/conftest.py selects local src once; preserve module identity across collection.
 config_mod = importlib.import_module("vibes.config")
 _default_pi_agent_command = config_mod._default_pi_agent_command
 _find_settings_file = config_mod._find_settings_file
