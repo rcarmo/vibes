@@ -15,6 +15,8 @@ import secrets
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
+from .secure.environment_overrides import PRIVATE_VARIABLES
+
 
 @dataclass
 class TerminalSession:
@@ -55,7 +57,10 @@ class TerminalService:
                     "fcntl.ioctl(0,termios.TIOCSCTTY,0); "
                     "os.execv(sys.argv[1],[sys.argv[1],'-i'])",
                     self.shell, stdin=slave, stdout=slave, stderr=slave,
-                    cwd=self.cwd, env={**os.environ, "TERM": "xterm-256color"},
+                    cwd=self.cwd, env={
+                        **{name: value for name, value in os.environ.items() if name not in PRIVATE_VARIABLES},
+                        "TERM": "xterm-256color",
+                    },
                     start_new_session=True,
                 )
             except BaseException:
