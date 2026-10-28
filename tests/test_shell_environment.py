@@ -9,6 +9,7 @@ import pytest
 import pytest_asyncio
 
 from vibes.db import Database
+from vibes.secure import aead
 from vibes.secure.environment_overrides import EnvironmentStore
 from vibes.secure.keychain import KeychainStore
 from vibes.secure.shell_exec import prepare, run_shell
@@ -32,18 +33,40 @@ async def test_selective_retrieval_collision_and_precedence(stores, monkeypatch)
     await keychain.save('fixtures/lower-1', 'slash')
     await keychain.save('fixtures.lower.1', 'dot')
     await keychain.save('lower', 'lower-case')
-    reveal = AsyncMock(wraps=keychain.reveal)
-    monkeypatch.setattr(keychain, 'reveal', reveal)
+    reveal = AsyncMock(wraps=keychain.reveal_many)
+    monkeypatch.setattr(keychain, 'reveal_many', reveal)
     plan = await prepare('echo $FIXTURES_LOWER_1 $UNKNOWN $LOWER', keychain, environment)
     assert plan['env']['FIXTURES_LOWER_1'] == 'dot'
     assert 'lower' not in plan['env']
     assert reveal.await_count == 1
-    reveal.assert_awaited_once_with('fixtures.lower.1', master_password='master')
+    reveal.assert_awaited_once_with(['fixtures.lower.1'], master_password='master')
     reveal.reset_mock()
     await prepare('env', keychain, environment)
     await prepare('echo $FIXTURES_LOWER_1', keychain, environment, env={'FIXTURES_LOWER_1': 'inherited'})
-    reveal.assert_not_awaited()
+    assert all(call.args[0] == [] for call in reveal.await_args_list)
     assert all(value not in repr(plan['injected']) for value in ['slash', 'dot', 'lower-case'])
+
+
+@pytest.mark.asyncio
+async def test_key_derivation_is_command_scoped_and_empty_commands_read_no_key(stores, monkeypatch):
+    keychain, environment = stores
+    await keychain.save('FIRST', 'one')
+    await keychain.save('SECOND', 'two')
+    from unittest.mock import Mock
+    derive = Mock(wraps=aead.derive_key)
+    decrypt = Mock(wraps=aead.decrypt)
+    monkeypatch.setattr(aead, 'derive_key', derive)
+    monkeypatch.setattr(aead, 'decrypt', decrypt)
+    await prepare('env', keychain, environment)
+    derive.assert_not_called()
+    decrypt.assert_not_called()
+    command = 'echo $FIRST $SECOND keychain:FIRST'
+    for _ in range(2):
+        plan = await prepare(command, keychain, environment)
+        assert plan['env']['FIRST'] == 'one' and plan['env']['SECOND'] == 'two'
+    assert derive.call_count == 2  # One per command, no key cached between operations.
+    assert decrypt.call_count == 6  # One key-check + exactly two selected entries each time.
+    assert 'key' not in keychain.__dict__
 
 
 @pytest.mark.asyncio

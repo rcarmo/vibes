@@ -173,22 +173,34 @@ class KeychainStore:
         return {'name': name, 'type': entry_type, 'username': username}
 
     async def reveal(self, name: str, master_password: str | None = None) -> dict:
+        return (await self.reveal_many([name], master_password))[name]
+
+    async def reveal_many(self, names, master_password: str | None = None) -> dict[str, dict]:
+        """Decrypt only requested entries, deriving one key for this operation.
+
+        The key is local to this call; it is never cached on the store or across commands.
+        An empty request does not read key material or decrypt any entry.
+        """
+        names = list(dict.fromkeys(names))
+        if not names:
+            return {}
         if self.master_password and not master_password:
             raise MasterPasswordRequired('Master password required')
         key = await self._key(master_password)
-        async with self.db._connection.execute(
-            'SELECT name, type, username, secret_encrypted FROM keychain_entries WHERE name = ?',
-            (name,),
-        ) as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            raise LookupError(f'Keychain entry not found: {name}')
-        return {
-            'name': row['name'],
-            'type': row['type'],
-            'username': row['username'],
-            'secret': aead.decrypt(key, bytes(row['secret_encrypted'])).decode('utf-8'),
-        }
+        entries = {}
+        for name in names:
+            async with self.db._connection.execute(
+                'SELECT name, type, username, secret_encrypted FROM keychain_entries WHERE name = ?',
+                (name,),
+            ) as cursor:
+                row = await cursor.fetchone()
+            if not row:
+                raise LookupError(f'Keychain entry not found: {name}')
+            entries[name] = {
+                'name': row['name'], 'type': row['type'], 'username': row['username'],
+                'secret': aead.decrypt(key, bytes(row['secret_encrypted'])).decode('utf-8'),
+            }
+        return entries
 
     async def delete(self, name: str) -> bool:
         async with self.db.transaction() as connection:

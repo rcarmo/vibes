@@ -20,24 +20,15 @@ async def prepare(command: str, keychain, environment, shell_path: str | None = 
         effective.pop(variable, None)
     shell = shell_detect.detect_shell(shell_path, env=effective, platform=platform)
     mapping = await keychain.variable_map()
-    entries = {}
-
-    async def entry(name):
-        if name not in entries:
-            entries[name] = await keychain.reveal(name, master_password=keychain.master_password)
-        return entries[name]
-
-    injected = []
-    for variable in referenced_names(command):
-        if variable not in mapping or variable in effective:
-            continue
-        effective[variable] = (await entry(mapping[variable]))['secret']
-        injected.append(variable)
+    injected = [variable for variable in referenced_names(command)
+                if variable in mapping and variable not in effective]
+    names = [mapping[variable] for variable in injected] + placeholder_names(command)
+    entries = await keychain.reveal_many(names, master_password=keychain.master_password)
+    for variable in injected:
+        effective[variable] = entries[mapping[variable]]['secret']
 
     # Classic's explicit placeholder contract is literal substitution, even inside quotes.
     # Prefer variable references for credentials containing shell syntax.
-    for name in placeholder_names(command):
-        await entry(name)
     text = resolve_placeholders(command, entries.get)
     return {'text': text, 'env': effective, 'injected': injected, 'shell': shell}
 
