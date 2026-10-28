@@ -89,6 +89,22 @@ async def test_overrides_apply_to_next_commands_and_clear_restores_inheritance(s
 
 
 @pytest.mark.asyncio
+async def test_unstartable_candidate_falls_back_but_configured_shell_does_not(stores, tmp_path):
+    if os.name == 'nt':
+        pytest.skip('POSIX executable fixture')
+    keychain, environment = stores
+    invalid = tmp_path / 'not-a-shell'
+    invalid.write_text('invalid executable format')
+    invalid.chmod(0o700)
+    environment.base_env['SHELL'] = str(invalid)
+    assert (await run_shell('printf success', keychain, environment))['stdout'] == 'success'
+    with pytest.raises(OSError):
+        await run_shell('printf must-not-run', keychain, environment, shell_path=str(invalid))
+    with pytest.raises(FileNotFoundError):
+        await run_shell('printf must-not-run', keychain, environment, cwd=tmp_path / 'missing')
+
+
+@pytest.mark.asyncio
 async def test_timeout_and_cancellation_stop_posix_process_group(stores, tmp_path):
     if os.name == 'nt':
         pytest.skip('POSIX process groups; Windows runtime acceptance is not claimed')

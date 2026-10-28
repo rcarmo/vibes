@@ -85,6 +85,16 @@ The response contains the prepared command, environment, cwd and detected shell;
 it is secret-bearing and must never be logged or persisted in tool results.
 The adapter delegates execution and cancellation to Pi's `createBashTool`.
 
+ACP's capability-scoped MCP server also advertises `bash`. It POSTs to
+`/internal/agent-tools/shell`, which applies the same preparation and executes the
+command server-side. The endpoint monitors ownership and caller disconnection,
+cancels the process group on loss of either, and returns only stdout/exit code.
+A real independent MCP subprocess roundtrip is tested; provider selection of this
+tool over a provider's own shell requires live acceptance.
+
+Pi and ACP subprocess environments omit the master-password and key-path
+configuration variables, preventing bypass through child environment enumeration.
+
 ## Verification and limits
 
 Development checks on base `86392e6`, Python 3.12.3:
@@ -100,10 +110,16 @@ Development checks on base `86392e6`, Python 3.12.3:
   Existing Plan serialization regression: one Bun test passed.
 - Ruff on changed Python backend/tests and `git diff --check` passed.
 
-Browser Settings acceptance, live-provider execution and ACP shell integration
-are not established. Windows detection branches exist but execution remains
-unaccepted; the Pi adapter rejects non-POSIX shells. Detection does not retry a
-candidate that passes filesystem checks but fails at process startup. A combined
+Follow-up checks: the expanded backend gate passed 107 tests in 5.98s, including
+startup fallback and a real MCP subprocess shell roundtrip. Pi/ACP clients,
+protocol, runtime, tool routes and MCP tests passed 134 tests in 17.26s. Python
+shell execution retries candidates only for pre-start ENOENT/ENOEXEC failures;
+configured shells, running commands and missing working directories never trigger
+replay. Pi candidate startup fallback still belongs to the SDK execution path.
+
+Browser Settings acceptance and live-provider execution are not established.
+Windows detection branches exist but execution remains unaccepted; the Pi
+adapter rejects non-POSIX shells. A combined
 Python run including module-purging tests also exposed workspace test-isolation
 failures; the 99-test gate and configuration/Pi/slash modules were run separately.
 This was development verification, not pre-release profiling. Nothing was deployed.

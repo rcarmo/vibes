@@ -451,6 +451,9 @@ async def start_pi_agent() -> bool:
 
         logger.info(f"Starting Pi agent: {cmd}")
         env = os.environ.copy()
+        from .secure.environment_overrides import PRIVATE_VARIABLES
+        for variable in PRIVATE_VARIABLES:
+            env.pop(variable, None)
         env.setdefault("PYTHONUNBUFFERED", "1")
         # The Vibes-owned Pi extension uses this loopback-only API for bounded,
         # currently-selected-session message references.

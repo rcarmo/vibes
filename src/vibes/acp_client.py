@@ -3,6 +3,7 @@
 import asyncio
 import base64
 import json
+import os
 import logging
 import mimetypes
 import shlex
@@ -1013,9 +1014,12 @@ async def _ensure_agent():
         
         logger.info(f"Starting ACP agent: {agent_cmd}")
         
-        # Start the agent process
+        # Private keychain configuration belongs only to the Vibes server.
+        from .secure.environment_overrides import PRIVATE_VARIABLES
+        env = {name: value for name, value in os.environ.items() if name not in PRIVATE_VARIABLES}
         _state.agent_proc = await asyncio.create_subprocess_exec(
             *cmd_parts,
+            env=env,
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
