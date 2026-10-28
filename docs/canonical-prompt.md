@@ -118,11 +118,26 @@ Pi abort-helper test checks its exact signal against a mocked writer/task; no
 native provider is started. Focused new/changed backend modules pass Ruff; older
 agent test modules retain pre-existing lint findings. Diff checks pass.
 
-Full compiled consumer boot, authentication deployment, broad media routes,
-queue/model controls, six viewport/browser acceptance, live-provider admission,
-independent-process crash injection and CPU/allocation profiling of repeated
-concurrent admission remain open. Shared UI adoption and
-release acceptance are separate tasks. Nothing was pushed or deployed.
+Independent-process crash tests now exit abruptly after durable claim, user
+message commit, queue admission and final receipt commit. A fresh interpreter
+reopens the same database and retries the same request ID with redispatch
+prohibited. The first three stages retain pending/no-replay (409); a committed
+terminal receipt recovers its original result (201). Durable marker counts verify
+zero dispatch before enqueue and exactly one after enqueue/finalisation. These
+are admission-seam tests, not native execution or loss-of-power durability tests.
+Child environments omit credentials, disable dotenv discovery before Vibes
+imports and run from their owned project test scratch directories.
+
+The crash/receipt/unavailable-compaction gate passed 12 tests in 2.10 seconds
+before the final dotenv-isolation adjustment. The final full Python regression
+passed 1,081 tests with 13 existing skips in 45.52 seconds using the pinned SDK
+and unchanged shared assets; changed route/new tests pass Ruff and diff checks.
+
+Full compiled consumer boot, authentication deployment, six viewport/browser
+acceptance, live-provider admission and CPU/allocation profiling of concurrent
+admission remain open. The implemented queue/media/model adapters have separate
+contracts and limits in their linked documents. Shared UI adoption and release
+acceptance are separate tasks. Nothing was pushed or deployed.
 
 Probe host, synthetic database, copied add-on assets, temporary optional SDK,
 asset link and disposable logs are removed after analysis; concise conclusions

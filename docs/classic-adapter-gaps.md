@@ -112,8 +112,15 @@ writes return 202 `sent_unverified` and remain inspect-only. ACP/FFI return 501.
 The legacy steering route retains older idle/emulated semantics; these new
 safety guarantees are endpoint-scoped, not app-wide.
 Candidate0259e9a's active refresh-event set omits queue reorder notifications;
-browser drag/drop and cross-tab acceptance still need verification. Compaction
-availability must be truthful: no regular prompt may masquerade as compaction.
+browser drag/drop and cross-tab acceptance still need verification.
+
+GET `/api/sessions/{s}/compaction` now returns explicit `available:false`, null
+token and a reason; POST validates the captured token shape then returns 409
+without starting work. Missing sessions are 404 and unknown queries are 400.
+Native FFI compaction exists, but it does not yet have a canonical cancellable
+operation identity/activity/recovery contract. Pi/ACP compaction paths have their
+own legacy semantics. Canonical compaction is unimplemented; no prompt, reset
+or fake native acknowledgement is substituted. Tests verify zero side effects.
 
 [Canonical Pi/FFI model GET/PATCH](classic-model.md) now returns offered choices,
 authoritative readback and lock-checked observation tokens for thinking changes.

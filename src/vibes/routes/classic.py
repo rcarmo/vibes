@@ -210,6 +210,27 @@ async def runtime_config(request):
                       'model_state_available': False})
 
 
+async def compaction(request):
+    """Publish absence of a cancellable canonical compaction operation."""
+    if request.query:
+        return _response({'error': 'Unsupported compaction query'}, 400)
+    session_id = request.match_info['id']
+    session = await SessionStore(await get_db()).get(session_id)
+    if not session:
+        return _response({'error': 'Session not found'}, 404)
+    if request.method == 'POST':
+        try:
+            data = await request.json()
+            if (not isinstance(data, dict) or set(data) != {'token'}
+                    or not isinstance(data['token'], str) or not data['token'].strip() or len(data['token']) > 200):
+                raise ValueError('A captured compaction token is required')
+        except (ValueError, TypeError) as exc:
+            return _response({'error': str(exc)}, 400)
+        return _response({'error': 'Canonical compaction is unavailable; no work was started'}, 409)
+    return _response({'session_id': session_id, 'available': False, 'token': None,
+                      'reason': 'session-archived' if session['archived'] else 'canonical-operation-lifecycle-unavailable'})
+
+
 async def activity(request):
     """Project persisted activity without consulting a process-global selection."""
     session_id = request.match_info['id']
@@ -269,5 +290,7 @@ def setup_routes(app):
     app.router.add_get('/api/runtime/config', runtime_config)
     app.router.add_post('/api/sessions/{id}/prompt', prompt)
     app.router.add_get('/api/sessions/{id}/send-receipt', send_receipt)
+    app.router.add_get('/api/sessions/{id}/compaction', compaction)
+    app.router.add_post('/api/sessions/{id}/compaction', compaction)
     app.router.add_get('/api/sessions/{id}/activity', activity)
     app.router.add_post('/api/sessions/{id}/activity', cancel_activity)
