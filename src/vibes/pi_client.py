@@ -472,6 +472,22 @@ async def abort_chat_turn(chat_id: str, expected_task) -> bool:
     return True
 
 
+def steer_chat_turn(chat_id: str, expected_turn: str, expected_task, message: str) -> bool:
+    """Signal exactly one live owner without yielding across validation/write.
+
+    False guarantees no write was attempted. A write exception is ambiguous and
+    must never be treated as permission to replay the queued prompt.
+    """
+    state = _runtimes.existing(chat_id)
+    if (state is None or state.session_selector.uncertain or state.session_selector.active != chat_id
+            or state.active_turn_id != expected_turn or not state.request_lock.locked()
+            or expected_task is None or state.current_request_task is not expected_task or expected_task.done()
+            or state.agent_writer is None or state.agent_proc is None or state.agent_proc.returncode is not None):
+        return False
+    state.agent_writer.write((json.dumps({'type': 'steer', 'message': message}) + '\n').encode())
+    return True
+
+
 def cancel_current_request() -> bool:
     """Cancel the in-flight request task, releasing the request_lock.
 

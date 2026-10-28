@@ -105,8 +105,12 @@ runtime-signal tests pass; complete consumer/reconnect acceptance is open.
 [Queue adapters](classic-queue.md) now expose stable durable IDs, validated
 source ownership, receipt-linked request metadata, pending-only removal and
 atomic `{expected,order}` reorder. Stale state and tied ordinals return 409;
-uncertain work is inspect-only. Canonical captured-turn steering returns 501
-without consuming the item because the legacy helper permits idle promotion.
+uncertain work is inspect-only. Canonical Pi captured-turn text steering now
+verifies the exact native owner and durably commits uncertainty before signal
+I/O. Stale/idle/attachment-bearing requests fail without sending; successful local
+writes return 202 `sent_unverified` and remain inspect-only. ACP/FFI return 501.
+The legacy steering route retains older idle/emulated semantics; these new
+safety guarantees are endpoint-scoped, not app-wide.
 Candidate0259e9a's active refresh-event set omits queue reorder notifications;
 browser drag/drop and cross-tab acceptance still need verification. Compaction
 availability must be truthful: no regular prompt may masquerade as compaction.

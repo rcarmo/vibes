@@ -118,7 +118,7 @@ async def test_remove_preserves_transcript_and_uncertain_or_foreign_work(db, mon
         assert await db.get_interaction(first['message_id'])
         assert len(await FollowupStore(db).list()) == 2
         response = await client.post(f"/api/sessions/default/queue/{uncertain['row_id']}/steer", json={'active_turn_id': 'captured'})
-        assert response.status == 501
+        assert response.status == 409
         assert len(await FollowupStore(db).list()) == 2
     finally:
         await client.close()

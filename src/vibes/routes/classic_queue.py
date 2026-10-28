@@ -1,5 +1,8 @@
 """Classic queue snapshots and atomic session-owned compare-and-set reorder."""
 
+import asyncio
+from uuid import uuid4
+
 from aiohttp import web
 
 from ..db import get_db
@@ -153,31 +156,94 @@ async def remove(request):
     return response({'removed': True, 'item': item})
 
 
-async def steer_unavailable(request):
-    # Legacy steering permits idle promotion and cannot enforce the candidate's
-    # captured active-turn contract. Preserve work rather than silently emulate it.
+async def _settle_steer(db, sequence, token, *, attempted):
+    async with db.transaction() as connection:
+        await connection.execute('BEGIN IMMEDIATE')
+        # Only this opaque admission owner can restore provably unwritten work.
+        await connection.execute("UPDATE followup_queue SET state=?,claim_token=NULL WHERE sequence=? "
+                                 "AND state='uncertain' AND claim_token=?",
+                                 ('uncertain' if attempted else 'pending', sequence, token))
+
+
+async def _steer_owned(db, session_id, row_id, turn_id):
+    from .. import pi_client
+    from . import agents
+    runtime = pi_client._runtimes.existing(session_id)
+    owner = runtime.current_request_task if runtime else None
+    token = uuid4().hex
+    async with db.transaction() as connection:
+        await connection.execute('BEGIN IMMEDIATE')
+        session = await SessionStore(db).get(session_id)
+        if not session:
+            raise QueueError('Session not found', 404)
+        if session['archived']:
+            raise QueueError('Session is archived', 409)
+        row = next((row for row in await rows_for(connection, session_id) if row['queue_id'] == row_id), None)
+        if row is None:
+            raise QueueError('Queue item not found', 404)
+        if row['state'] != 'pending' or row['mode'] != 'queue':
+            raise QueueError('Queue item is not pending normal work', 409)
+        source = await db.get_interaction(row['message_id'])
+        if source['data'].get('media_ids'):
+            raise QueueError('Native text steering cannot transfer attachments; item preserved', 409)
+        if agents._resolve_agent_mode('default') != 'pi':
+            raise QueueError('Turn-bound steering is unavailable for this backend; item preserved', 501)
+        state = await snapshot(connection, session_id)
+        if state['active_turn_id'] != turn_id:
+            raise QueueError('Captured turn is no longer uniquely active; item preserved', 409)
+        if runtime is None or runtime.active_turn_id != turn_id or owner is None:
+            raise QueueError('Active runtime ownership unavailable; item preserved', 409)
+        # Commit ambiguity before signal I/O. A hard exit after this commit is
+        # inspect-only, even if it preceded the write; it can never auto-replay.
+        cursor = await connection.execute("UPDATE followup_queue SET state='uncertain',claim_token=? "
+                                          "WHERE sequence=? AND state='pending' AND mode='queue'",
+                                          (token, -row_id))
+        if cursor.rowcount != 1:
+            raise QueueError('Queue changed; item was not claimed', 409)
     try:
-        identity(request.match_info['item_id'])
+        # No await between the native helper's exact ownership check and write.
+        sent = pi_client.steer_chat_turn(session_id, turn_id, owner, row['content'])
+    except BaseException:
+        await _settle_steer(db, -row_id, token, attempted=True)
+        raise
+    await _settle_steer(db, -row_id, token, attempted=sent)
+    if not sent:
+        raise QueueError('Native turn changed before signal; item preserved', 409)
+    item = project({**row, 'state': 'uncertain'}, session_id)
+    await broadcast_session_event('agent_steer_queued', {**item, 'active_turn_id': turn_id}, session_id)
+    return response({'status': 'sent_unverified', 'active_turn_id': turn_id, 'item': item}, 202)
+
+
+async def steer(request):
+    try:
+        row_id = identity(request.match_info['item_id'])
         data = await request.json()
         if (request.query or not isinstance(data, dict) or set(data) != {'active_turn_id'}
-                or not isinstance(data['active_turn_id'], str) or not data['active_turn_id'].strip()):
-            raise QueueError('A captured active_turn_id is required')
+                or not isinstance(data['active_turn_id'], str) or not data['active_turn_id'].strip()
+                or len(data['active_turn_id']) > 200):
+            raise QueueError('A bounded captured active_turn_id is required')
     except (ValueError, TypeError):
         return response({'error': 'Invalid steering request'}, 400)
     db = await get_db()
-    session_id = request.match_info['id']
-    if not await SessionStore(db).get(session_id):
-        return response({'error': 'Session not found'}, 404)
-    async with db.transaction() as connection:
-        row = next((row for row in await rows_for(connection, session_id)
-                    if str(row['queue_id']) == request.match_info['item_id']), None)
-    if row is None:
-        return response({'error': 'Queue item not found'}, 404)
-    return response({'error': 'Turn-bound canonical steering is not implemented; queued item preserved'}, 501)
+    # Ownership/commit/signal/settlement is one shielded admission operation.
+    # Disconnect cannot strand an in-process owner or trigger a duplicate send.
+    task = asyncio.create_task(_steer_owned(db, request.match_info['id'], row_id, data['active_turn_id']))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        try:
+            await asyncio.shield(task)
+        except Exception:
+            pass
+        raise
+    except QueueError as exc:
+        return response({'error': str(exc)}, exc.status)
+    except Exception:
+        return response({'error': 'Steering signal unconfirmed; inspect queue, do not replay'}, 409)
 
 
 def setup_routes(app):
     app.router.add_get('/api/sessions/{id}/queue', queue_state)
     app.router.add_patch('/api/sessions/{id}/queue', reorder)
     app.router.add_delete('/api/sessions/{id}/queue/{item_id}', remove)
-    app.router.add_post('/api/sessions/{id}/queue/{item_id}/steer', steer_unavailable)
+    app.router.add_post('/api/sessions/{id}/queue/{item_id}/steer', steer)
