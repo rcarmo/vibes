@@ -72,9 +72,18 @@ passed 382 tests in 26.23s. Four Bun adapter tests cover shell,
 widget and Plan bridges, including omission of absent fields, stable request ID,
 nonzero shell status and filtering secret-bearing preparation data.
 
-Not yet verified: complete consumer rendering, sandbox/postMessage behaviour,
-widget Submit/close/refresh end to end, live-provider tool selection, artifact
-asset/module loading, restart after an ambiguous acknowledgement, concurrent/slow-client release workloads, or FFI custom-widget registration.
+A [bounded candidate-pane browser probe](evidence/widget-sandbox-browser-20261028.md)
+now verifies actual patched iframe isolation, denied parent DOM/storage/network
+attempts, an accepted real submit callback, rejection of matching-key messages
+from host/sibling frames and scripts disabled for static widgets. Real publication
+and JSON artifact lookup were used. The follow-up widget/race/message/SSE gate
+passed 25 tests in 1.51 seconds; no backend change was needed.
+
+Not yet verified: complete consumer rendering, widget Submit-to-model/close/refresh
+end to end, live-provider tool selection, artifact asset/module loading, restart
+after an ambiguous acknowledgement, concurrent/slow-client release workloads, or
+FFI custom-widget registration. The browser callback recorded submissions only;
+it did not dispatch model work.
 [Widget lookup profiling](evidence/widget-vnc-profiling-20261028.md) identified
 historical JSON scanning; the index reduced CPU by 95.4% and allocated bytes by
 97.8% in the documented 120-artifact workload.
