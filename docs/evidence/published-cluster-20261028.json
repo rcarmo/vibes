@@ -1,0 +1,352 @@
+{
+  "runtime": "86392e62bfe12ef32abbeca81820f1f15974a127",
+  "fixtures": "4259e825964d2b60dd6c6f7242e2b1daf4280a7d",
+  "exit": 1,
+  "retries": 0,
+  "liveProvider": false,
+  "durationSeconds": 5721.976494999999,
+  "total": {
+    "passed": 48,
+    "failed": 114,
+    "skipped": 0
+  },
+  "projects": {
+    "chromium-phone": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    },
+    "chromium-tablet": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    },
+    "chromium-desktop": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    },
+    "webkit-phone": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    },
+    "webkit-tablet": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    },
+    "webkit-desktop": {
+      "passed": 8,
+      "failed": 19,
+      "skipped": 0
+    }
+  },
+  "specs": {
+    "compaction.spec.ts": {
+      "passed": 6,
+      "failed": 48,
+      "skipped": 0
+    },
+    "queue-steer.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "shared-queue.spec.ts": {
+      "passed": 24,
+      "failed": 30,
+      "skipped": 0
+    },
+    "shared-reconnect.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "thoughts-panel.spec.ts": {
+      "passed": 18,
+      "failed": 12,
+      "skipped": 0
+    }
+  },
+  "scenarios": {
+    "@ux-compaction-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-compaction-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-compaction-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-compaction-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-context-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-context-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-compaction-006": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-compaction-007": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-compaction-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-original-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-original-030": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-shared-016": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-shared-017": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-original-017": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-shared-018": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-original-018": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-shared-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-shared-032": {
+      "passed": 0,
+      "failed": 18,
+      "skipped": 0
+    },
+    "@ux-shared-023": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-original-023": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-thoughts-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-thoughts-002": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-thoughts-003": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    },
+    "@ux-thoughts-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "@ux-thoughts-005": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0
+    }
+  },
+  "failurePoints": {
+    "suite/specs/compaction.spec.ts:36:21": {
+      "failed": 36,
+      "headline": "Test timeout of 120000ms exceeded.",
+      "tags": [
+        "@ux-compaction-001",
+        "@ux-compaction-002",
+        "@ux-compaction-003",
+        "@ux-compaction-004",
+        "@ux-context-003",
+        "@ux-context-004"
+      ]
+    },
+    "suite/specs/compaction.spec.ts:113:25": {
+      "failed": 6,
+      "headline": "Error: expect(locator).toHaveAttribute(expected) failed",
+      "tags": [
+        "@ux-compaction-006"
+      ]
+    },
+    "suite/specs/compaction.spec.ts:137:23": {
+      "failed": 6,
+      "headline": "Error: @cap-compaction requires commands.selectModel",
+      "tags": [
+        "@ux-compaction-008"
+      ]
+    },
+    "suite/specs/queue-steer.spec.ts:29:82": {
+      "failed": 6,
+      "headline": "Error: expect(locator).toHaveCount(expected) failed",
+      "tags": [
+        "@ux-original-019"
+      ]
+    },
+    "suite/specs/queue-steer.spec.ts:42:66": {
+      "failed": 6,
+      "headline": "Error: expect(locator).toBeVisible() failed",
+      "tags": [
+        "@ux-original-030"
+      ]
+    },
+    "suite/specs/shared-queue.spec.ts:106:74": {
+      "failed": 6,
+      "headline": "Error: expect(locator).toBeVisible() failed",
+      "tags": [
+        "@ux-original-018"
+      ]
+    },
+    "suite/specs/shared-queue.spec.ts:134:80": {
+      "failed": 6,
+      "headline": "Error: expect(locator).toHaveCount(expected) failed",
+      "tags": [
+        "@ux-shared-019"
+      ]
+    },
+    "suite/specs/shared-queue.spec.ts:150:104": {
+      "failed": 18,
+      "headline": "Error: expect(locator).toBeVisible() failed",
+      "tags": [
+        "@ux-shared-032"
+      ]
+    },
+    "suite/specs/shared-reconnect.spec.ts:42:24": {
+      "failed": 12,
+      "headline": "Error: expect(locator).toBeVisible() failed",
+      "tags": [
+        "@ux-shared-023",
+        "@ux-original-023"
+      ]
+    },
+    "suite/specs/thoughts-panel.spec.ts:47:8": {
+      "failed": 6,
+      "headline": "Error: expect(received).toBe(expected) // Object.is equality",
+      "tags": [
+        "@ux-thoughts-001"
+      ]
+    },
+    "suite/specs/thoughts-panel.spec.ts:92:52": {
+      "failed": 6,
+      "headline": "Error: expect(received).toBe(expected) // Object.is equality",
+      "tags": [
+        "@ux-thoughts-004"
+      ]
+    }
+  },
+  "comparison": {
+    "compaction.spec.ts": {
+      "baseline": {
+        "passed": 1,
+        "failed": 53,
+        "skipped": 0
+      },
+      "published": {
+        "passed": 6,
+        "failed": 48,
+        "skipped": 0
+      }
+    },
+    "queue-steer.spec.ts": {
+      "baseline": {
+        "passed": 0,
+        "failed": 12,
+        "skipped": 0
+      },
+      "published": {
+        "passed": 0,
+        "failed": 12,
+        "skipped": 0
+      }
+    },
+    "shared-queue.spec.ts": {
+      "baseline": {
+        "passed": 7,
+        "failed": 47,
+        "skipped": 0
+      },
+      "published": {
+        "passed": 24,
+        "failed": 30,
+        "skipped": 0
+      }
+    },
+    "shared-reconnect.spec.ts": {
+      "baseline": {
+        "passed": 0,
+        "failed": 12,
+        "skipped": 0
+      },
+      "published": {
+        "passed": 0,
+        "failed": 12,
+        "skipped": 0
+      }
+    },
+    "thoughts-panel.spec.ts": {
+      "baseline": {
+        "passed": 0,
+        "failed": 30,
+        "skipped": 0
+      },
+      "published": {
+        "passed": 18,
+        "failed": 12,
+        "skipped": 0
+      }
+    }
+  },
+  "limitations": [
+    "Different runtime and fixture revisions from historical baseline; equal suite totals do not establish matched case identities or causality.",
+    "Local deterministic model only; this run predates keychain/environment, scoped SSE, prompt receipt and activity commits.",
+    "Failure points describe observed assertion/operation locations, not diagnosed root causes.",
+    "No full-suite, latest-candidate, provider or release acceptance."
+  ]
+}
