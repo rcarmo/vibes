@@ -1,10 +1,9 @@
-# Classic Pi model adapter
+# Classic native model adapters
 
-GET/PATCH `/api/sessions/{s}/model` expose offered Pi model choices and confirmed
-changes on the path session's runtime. Archived, stopped, busy or unsupported
-ACP/FFI lanes return unavailable state on GET and reject canonical writes. Legacy
-model endpoints are unchanged; canonical FFI support needs a separate revision
-contract rather than an echoed request.
+GET/PATCH `/api/sessions/{s}/model` expose offered Pi/FFI model choices and
+confirmed changes on the path session's runtime. Archived, stopped, busy or
+unsupported ACP lanes return unavailable state on GET and reject canonical
+writes. Legacy model endpoints retain their request/response contract.
 
 GET holds Pi's per-session request lock across session selection, current-state,
 model-catalogue and thinking-level reads. The result includes `model_options`,
@@ -35,6 +34,26 @@ caught as an ordinary HTTP error. The route emits a scoped model-change event
 only after confirmed readback. It never starts a model provider solely to fill
 an unavailable catalogue.
 
+## FFI lane observations
+
+Canonical FFI reads use only an already acquired session on an existing ready,
+idle lane; inspection never starts the runtime or acquires a session. The lane
+lock covers current state, offered catalogue, token validation, setter and native
+readback. Opaque tokens include local session/client ownership and observed
+model/reasoning state. The host checks exact lane/session/client identities after
+RPC awaits and before mutation. Replacement, shutdown, malformed state, failed
+reads, timeout and cancellation revoke observations. The setter also invalidates
+the token before I/O, so uncertain writes require fresh inspection.
+
+FFI choices and reasoning efforts use the existing bounded native catalogue
+projection. A model change must be offered; a thinking change must match the
+observed model/token and its offered effort list. Confirmed changes save an
+already persisted backend binding using the existing native sessions-save flow.
+No binding is invented for an unbound chat. GET timeout returns unavailable;
+unconfirmed PATCH timeout returns 409. Cancellation continues to propagate.
+Native model changes confirmed at runtime but interrupted during save/readback
+remain uncertain to the caller; clients must inspect instead of blindly replaying.
+
 ## Verification
 
 Focused canonical model/Pi/session tests: 65 passed in 1.33 seconds. The full
@@ -46,7 +65,16 @@ stale/replayed tokens, busy/unsupported lanes, invalid/missing/archived sessions
 malformed containers, unadvertised thinking and cancellation before setter
 acknowledgement. No model provider or complete browser application was started.
 
+The FFI follow-up gate passed 65 tests in 1.16 seconds before additional failure
+invalidation tests. The final full Python regression passed 1,076 tests with 13
+existing skips in 43.59 seconds. Tests use actual host/lane locks and deterministic
+native-RPC seams for offered changes, stale/replayed tokens, unavailable/busy or
+unbound lanes, lane/session/client replacement, malformed state, setter/read
+cancellation and timeout, failed catalogue reads and binding persistence. No
+SDK runtime or provider was started. Changed host/route/new tests pass Ruff and
+diff checks pass.
+
 Temporary SDK, asset link and disposable test output are removed after analysis.
-Live native provider verification, canonical ACP/FFI model revision contracts,
-complete consumer model UI and pre-release CPU/allocation profiling still need
-work.
+Live native provider verification, canonical ACP model revision contracts,
+complete consumer model UI and whole-application pre-release profiling still
+need work.

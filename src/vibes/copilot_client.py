@@ -86,6 +86,7 @@ class CopilotBackend:
         self.turn_lock = asyncio.Lock()
         self.sessions = {}
         self.model_state = {}
+        self.model_observations = {}
         self.compacting_sessions = set()
         self.active = None
         self.pending = {}
@@ -624,6 +625,7 @@ class CopilotBackend:
                     supported = next((row['efforts'] for row in _model_rows(catalog) if row['id'] == target), [])
                     if changes['thinking_level'] not in supported:
                         raise ValueError('Reasoning level is not advertised by this model')
+                self.model_observations.pop(chat_id, None)
                 if changes.get('model_id'):
                     await session.rpc.model.switch_to(ModelSwitchToRequest(model_id=changes['model_id'],
                         reasoning_effort=changes.get('thinking_level'), require_available=True), timeout=10)

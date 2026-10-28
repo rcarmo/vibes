@@ -115,11 +115,13 @@ Candidate0259e9a's active refresh-event set omits queue reorder notifications;
 browser drag/drop and cross-tab acceptance still need verification. Compaction
 availability must be truthful: no regular prompt may masquerade as compaction.
 
-[Canonical Pi model GET/PATCH](classic-model.md) now returns offered choices,
+[Canonical Pi/FFI model GET/PATCH](classic-model.md) now returns offered choices,
 authoritative readback and lock-checked observation tokens for thinking changes.
 Setter tokens invalidate before I/O, including uncertain writes; stale/busy or
-unconfirmed changes fail. ACP/FFI canonical model controls report unavailable
-until their revision contracts are implemented. Process-local observations cannot
+unconfirmed changes fail. FFI also validates exact lane/session/client ownership
+and uses only an already acquired idle session. Failed reads revoke observations.
+ACP canonical model controls report unavailable until a native revision contract
+is implemented. Process-local observations cannot
 detect an unobserved external A -> B -> A transition; live provider and complete
 consumer model UI acceptance are open. [Media upload/read adapters](classic-media.md) now verify persisted session
 ownership and preserve MIME/download protections. Unscoped `/api/media` aliases

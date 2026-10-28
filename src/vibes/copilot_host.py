@@ -5,8 +5,9 @@ Runtime start/stop remains host-owned. Native crashes still share a process.
 """
 
 import asyncio
+from uuid import uuid4
 
-from .copilot_client import CopilotBackend
+from .copilot_client import CopilotBackend, _dict, _model_rows, _safe_label
 
 _DIAGNOSTICS_TIMEOUT = 10
 
@@ -313,6 +314,99 @@ class CopilotHost:
 
     async def model(self, chat_id, store, changes=None):
         return await self.lane(chat_id).model(chat_id, store, changes)
+
+    async def classic_model(self, chat_id, changes=None, store=None):
+        lane = self.lanes.get(chat_id)
+        try:
+            return await self._classic_model(chat_id, changes, store)
+        except BaseException:
+            # Failed reads, native timeouts and cancellation revoke observations
+            # as well as setters. Never reuse a token across uncertain state.
+            if lane is not None:
+                lane.model_observations.pop(chat_id, None)
+            raise
+
+    async def _classic_model(self, chat_id, changes=None, store=None):
+        """Existing idle lane only; observe and mutate under one native owner."""
+        lane = self.lanes.get(chat_id)
+        if lane is None or chat_id not in lane.sessions or self.diagnostics(chat_id)['state'] != 'ready':
+            raise RuntimeError('Native model lane unavailable')
+        captured = self.diagnostic_identity(chat_id)
+
+        def check():
+            if (any(current is not original for current, original in zip(self.diagnostic_identity(chat_id), captured))
+                    or self.closing or self.runtime.closing
+                    or self.runtime.poisoned or lane.closing or lane.poisoned):
+                lane.model_observations.pop(chat_id, None)
+                raise RuntimeError('Native model owner changed')
+
+        async with lane.turn_lock:
+            check()
+            session = lane.sessions[chat_id]
+
+            async def current():
+                state = _dict(await session.rpc.model.get_current(timeout=10))
+                check()
+                if not isinstance(state, dict) or not _safe_label(state.get('modelId')):
+                    lane.model_observations.pop(chat_id, None)
+                    raise RuntimeError('Native model state unavailable')
+                effort = state.get('reasoningEffort')
+                if effort is not None and not _safe_label(effort):
+                    lane.model_observations.pop(chat_id, None)
+                    raise RuntimeError('Native reasoning state unavailable')
+                observed = (session, lane.client, state['modelId'], effort)
+                previous = lane.model_observations.get(chat_id)
+                if previous is None or previous[:4] != observed:
+                    lane.model_observations[chat_id] = (*observed, uuid4().hex)
+                return state, lane.model_observations[chat_id][4]
+
+            state, token = await current()
+            raw = _dict(await session.rpc.model.list(timeout=10))
+            check()
+            if not isinstance(raw, dict) or not isinstance(raw.get('list'), list):
+                raise RuntimeError('Native model catalogue unavailable')
+            models = _model_rows(raw['list'])
+            selected = next((row for row in models if row['id'] == state['modelId']), None)
+            if changes is not None:
+                if set(changes) == {'model'}:
+                    if not any('copilot/' + row['id'] == changes['model'] for row in models):
+                        raise ValueError('Model is not offered')
+                    from copilot.generated.rpc import ModelSwitchToRequest
+                    call = session.rpc.model.switch_to
+                    argument = ModelSwitchToRequest(model_id=changes['model'].removeprefix('copilot/'), require_available=True)
+                elif set(changes) == {'model', 'thinking_level', 'thinking_token'}:
+                    if changes['model'] != 'copilot/' + state['modelId'] or changes['thinking_token'] != token:
+                        raise RuntimeError('Native model observation is stale')
+                    if selected is None or changes['thinking_level'] not in selected['efforts']:
+                        raise ValueError('Thinking level is not offered')
+                    from copilot.generated.rpc import ModelSetReasoningEffortRequest
+                    call = session.rpc.model.set_reasoning_effort
+                    argument = ModelSetReasoningEffortRequest(reasoning_effort=changes['thinking_level'])
+                else:
+                    raise ValueError('Unsupported native model fields')
+                check()
+                lane.model_observations.pop(chat_id, None)  # Before possibly committed native I/O.
+                await call(argument, timeout=10)
+                check()
+                state, token = await current()
+                if ('copilot/' + state['modelId'] != changes['model'] or
+                        ('thinking_level' in changes and state.get('reasoningEffort') != changes['thinking_level'])):
+                    raise RuntimeError('Native model change was not confirmed')
+                lane.model_state[chat_id] = {'model_id': state['modelId'], 'thinking_level': state.get('reasoningEffort')}
+                if store is not None and await store.backend_binding(chat_id, 'copilot-ffi'):
+                    check()
+                    from copilot.generated.rpc import SessionsSaveRequest
+                    await lane.client.rpc.sessions.save(SessionsSaveRequest(session_id=session.session_id), timeout=5)
+                    check()
+                    await store.bind_backend(chat_id, 'copilot-ffi', session.session_id,
+                                             model=state['modelId'], thinking_level=state.get('reasoningEffort'))
+                    check()
+                selected = next((row for row in models if row['id'] == state['modelId']), None)
+            levels = selected['efforts'] if selected else []
+            return {'state': {'model': {'provider': 'copilot', 'id': state['modelId'], 'reasoning': bool(levels)},
+                              'thinkingLevel': state.get('reasoningEffort')},
+                    'models': [{key: value for key, value in row.items() if key != 'efforts'} for row in models],
+                    'thinking_levels': levels, 'thinking_token': token}
 
     async def abort(self, chat_id, expected):
         lane = self.lanes.get(chat_id)

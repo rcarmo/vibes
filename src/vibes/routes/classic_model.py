@@ -21,8 +21,12 @@ def unavailable(session_id):
             'thinking': {'levels': [], 'configurable': False}}
 
 
-async def inspect(session_id):
-    observed = await pi_client.inspect_classic_model(session_id)
+async def inspect(session_id, observed=None):
+    if observed is None:
+        if agents._resolve_agent_mode('default') == 'copilot-ffi':
+            observed = await agents.copilot_backend.classic_model(session_id)
+        else:
+            observed = await pi_client.inspect_classic_model(session_id)
     if not isinstance(observed, dict):
         return unavailable(session_id)
     state = observed.get('state', {})
@@ -58,17 +62,19 @@ async def model(request):
     session_id = request.match_info['id']
     if request.query:
         return response({'error': 'Unsupported model query'}, 400)
-    session = await SessionStore(await get_db()).get(session_id)
+    store = SessionStore(await get_db())
+    session = await store.get(session_id)
     if not session:
         return response({'error': 'Session not found'}, 404)
-    if session['archived'] or agents._resolve_agent_mode('default') != 'pi':
+    mode = agents._resolve_agent_mode('default')
+    if session['archived'] or mode not in {'pi', 'copilot-ffi'}:
         if request.method == 'GET':
             return response(unavailable(session_id))
         return response({'error': 'Canonical model changes are unavailable for this lane'}, 409)
     if request.method == 'GET':
         try:
             return response(await inspect(session_id))
-        except (ValueError, RuntimeError):
+        except (ValueError, RuntimeError, TimeoutError):
             return response(unavailable(session_id))
     try:
         data = await request.json()
@@ -88,7 +94,11 @@ async def model(request):
                        'expected_thinking_token': data['thinking_token']}
         else:
             raise ValueError('Unsupported model change fields')
-        result = await pi_client.change_chat_model(session_id, **options)
+        if mode == 'copilot-ffi':
+            observed = await agents.copilot_backend.classic_model(session_id, data, store)
+            result = {'success': True, 'data': observed.get('state')} if isinstance(observed, dict) else None
+        else:
+            result = await pi_client.change_chat_model(session_id, **options)
         state = pi_client._model_rpc_data(result)
         selected = sanitize_model(state.get('model'))
         if not selected:
@@ -105,7 +115,7 @@ async def model(request):
                         'confirmed': True}
     except (ValueError, TypeError) as exc:
         return response({'error': str(exc)}, 400)
-    except RuntimeError:
+    except (RuntimeError, TimeoutError):
         return response({'error': 'Model state changed or is unconfirmed; refresh before retrying'}, 409)
     await broadcast_session_event('session_model_changed', {**acknowledged, 'chat_jid': 'gi:' + session_id}, session_id)
     return response(acknowledged)
