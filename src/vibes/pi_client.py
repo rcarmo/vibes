@@ -9,6 +9,7 @@ import logging
 import os
 import shlex
 import shutil
+import uuid
 from typing import Any, Optional
 
 from .config import get_config
@@ -35,6 +36,8 @@ class _PiState:
         self.request_lock = asyncio.Lock()
         self.current_request_task: asyncio.Task | None = None
         self.active_turn_id: str | None = None
+        self.model_observation = None
+        self.model_token = None
         self.pending_requests: dict[str, dict] = {}
         self.request_callback = _request_callback
         self.message_queue: list[str] = []
@@ -74,6 +77,9 @@ def reset_state() -> None:
     _state.agent_lock = asyncio.Lock()
     _state.request_lock = asyncio.Lock()
     _state.current_request_task = None
+    _state.active_turn_id = None
+    _state.model_observation = None
+    _state.model_token = None
     _state.pending_requests = {}
     _state.request_callback = None
     _state.message_queue = []
@@ -271,31 +277,95 @@ async def _select_idle_chat(chat_id):
 
 
 @_runtimes.scoped
-async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_level=None):
+async def change_chat_model(chat_id, *, provider=None, model_id=None, thinking_level=None,
+                            expected_model=None, expected_thinking_token=None):
     """Change only a confirmed active idle chat, under the stream ownership lock."""
     if _state.request_lock.locked() or not is_pi_running():
         raise RuntimeError('Pi is unavailable or busy')
     async with _state.request_lock:
         await _select_idle_chat(chat_id)
+        if expected_model is not None or expected_thinking_token is not None:
+            current = await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+            observed = _observe_model(current)
+            model = _model_rpc_data(current).get('model', {})
+            selected = f"{model.get('provider')}/{model.get('id')}" if isinstance(model, dict) else None
+            if selected != expected_model or observed != expected_thinking_token:
+                raise RuntimeError('Model state changed; refresh before changing thinking')
+            if thinking_level is not None and model.get('reasoning') is not True:
+                raise ValueError('Selected model does not advertise thinking support')
         if thinking_level is not None:
             if provider is not None or model_id is not None:
                 raise ValueError('Change either model or thinking level')
             catalog = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
-            if not catalog or not catalog.get('success') or thinking_level not in catalog.get('data', {}).get('levels', []):
+            if thinking_level not in _model_rpc_list(catalog, 'levels', 16):
                 raise ValueError('Unsupported thinking level')
             command = {'type': 'set_thinking_level', 'level': thinking_level}
         else:
             if not isinstance(provider, str) or not isinstance(model_id, str):
                 raise ValueError('Provider and model ID required')
             catalog = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
-            models = (catalog or {}).get('data', {}).get('models', [])
-            if not catalog or not catalog.get('success') or not any(model.get('provider') == provider and model.get('id') == model_id for model in models):
+            models = _model_rpc_list(catalog, 'models', 500)
+            if not any(isinstance(model, dict) and model.get('provider') == provider and model.get('id') == model_id for model in models):
                 raise ValueError('Model unavailable')
             command = {'type': 'set_model', 'provider': provider, 'modelId': model_id}
+        # Invalidate before any setter I/O: cancellation/timeout can follow a
+        # committed native write and must not leave the old token replayable.
+        _state.model_token = None
         result = await send_rpc_command(command, timeout=5.0)
-        if not result or not result.get('success'):
+        if not isinstance(result, dict) or not result.get('success'):
             raise RuntimeError('Pi rejected the requested change')
-        return await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+        state = await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+        _observe_model(state)
+        return state
+
+
+def _model_rpc_data(response):
+    if isinstance(response, dict) and response.get('success') and isinstance(response.get('data'), dict):
+        return response['data']
+    return {}
+
+
+def _model_rpc_list(response, key, limit):
+    values = _model_rpc_data(response).get(key)
+    return values[:limit] if isinstance(values, list) else []
+
+
+def _observe_model(response):
+    if not isinstance(response, dict) or not response.get('success') or not isinstance(response.get('data'), dict):
+        _state.model_token = None
+        return None
+    data = response['data']
+    model = data.get('model')
+    if not isinstance(model, dict) or not all(isinstance(model.get(key), str) and model[key] for key in ('provider', 'id')):
+        _state.model_token = None
+        return None
+    observed = (model['provider'], model['id'], data.get('thinkingLevel'), data.get('sessionFile'))
+    if _state.model_token is None or observed != _state.model_observation:
+        _state.model_observation = observed
+        _state.model_token = uuid.uuid4().hex
+    return _state.model_token
+
+
+@_runtimes.scoped
+async def inspect_classic_model(chat_id='default'):
+    """One authoritative state/catalogue observation under stream ownership."""
+    if _state.request_lock.locked() or not is_pi_running():
+        return None
+    async with _state.request_lock:
+        await _select_idle_chat(chat_id)
+        state = await send_rpc_command({'type': 'get_state'}, timeout=2.0)
+        token = _observe_model(state)
+        if token is None:
+            return None
+        models = await send_rpc_command({'type': 'get_available_models'}, timeout=2.0)
+        if not _model_rpc_data(models):
+            return None
+        try:
+            levels = await send_rpc_command({'type': 'get_available_thinking_levels'}, timeout=2.0)
+        except (RuntimeError, asyncio.TimeoutError):
+            levels = None
+        return {'state': state['data'], 'models': _model_rpc_list(models, 'models', 500),
+                'thinking_levels': _model_rpc_list(levels, 'levels', 16), 'thinking_token': token}
 
 
 @_runtimes.scoped

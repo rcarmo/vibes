@@ -96,9 +96,13 @@ Candidate0259e9a's active refresh-event set omits queue reorder notifications;
 browser drag/drop and cross-tab acceptance still need verification. Compaction
 availability must be truthful: no regular prompt may masquerade as compaction.
 
-Canonical model GET/PATCH needs offered model choices and authoritative readback
-from the selected lane. Stale thinking/model changes need the observed revision
-or token, not an echoed request. [Media upload/read adapters](classic-media.md) now verify persisted session
+[Canonical Pi model GET/PATCH](classic-model.md) now returns offered choices,
+authoritative readback and lock-checked observation tokens for thinking changes.
+Setter tokens invalidate before I/O, including uncertain writes; stale/busy or
+unconfirmed changes fail. ACP/FFI canonical model controls report unavailable
+until their revision contracts are implemented. Process-local observations cannot
+detect an unobserved external A -> B -> A transition; live provider and complete
+consumer model UI acceptance are open. [Media upload/read adapters](classic-media.md) now verify persisted session
 ownership and preserve MIME/download protections. Unscoped `/api/media` aliases
 require an explicit session query. Candidate0259e9a's raw/info helpers omit it,
 so complete media rendering/queue-return acceptance needs shared-client adoption.
