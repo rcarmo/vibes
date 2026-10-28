@@ -130,7 +130,7 @@ class KeychainStore:
 
     async def list(self) -> list[dict]:
         async with self.db._connection.execute(
-            'SELECT name, type, username, created_at, updated_at FROM keychain_entries ORDER BY name'
+            'SELECT name, type, username, user_note, agent_note, created_at, updated_at FROM keychain_entries ORDER BY name'
         ) as cursor:
             rows = await cursor.fetchall()
         return [
@@ -138,6 +138,8 @@ class KeychainStore:
                 'name': row['name'],
                 'type': row['type'],
                 'username': row['username'],
+                'user_note': row['user_note'],
+                'agent_note': row['agent_note'],
                 'created_at': row['created_at'],
                 'updated_at': row['updated_at'],
             }
@@ -145,11 +147,14 @@ class KeychainStore:
         ]
 
     async def save(self, name: str, secret: str, username: str | None = None,
-                   entry_type: str = 'secret', master_password: str | None = None) -> dict:
+                   entry_type: str = 'secret', master_password: str | None = None,
+                   user_note: str = '', agent_note: str = '') -> dict:
         if not isinstance(name, str) or not isinstance(secret, str):
             raise ValueError('Keychain name and secret must be strings')
         if username is not None and not isinstance(username, str):
             raise ValueError('Keychain username must be a string')
+        if any(not isinstance(note, str) or len(note) > 8000 for note in (user_note, agent_note)):
+            raise ValueError('Keychain notes must be strings of at most 8000 characters')
         name = name.strip()
         if not name:
             raise ValueError('Keychain entry name is required')
@@ -160,15 +165,17 @@ class KeychainStore:
         async with self.db.transaction() as connection:
             await connection.execute(
                 """
-                INSERT INTO keychain_entries (name, type, username, secret_encrypted)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO keychain_entries (name, type, username, secret_encrypted, user_note, agent_note)
+                VALUES (?, ?, ?, ?, ?, ?)
                 ON CONFLICT(name) DO UPDATE SET
                     type = excluded.type,
                     username = excluded.username,
                     secret_encrypted = excluded.secret_encrypted,
+                    user_note = excluded.user_note,
+                    agent_note = excluded.agent_note,
                     updated_at = CURRENT_TIMESTAMP
                 """,
-                (name, entry_type, username, blob),
+                (name, entry_type, username, blob, user_note, agent_note),
             )
         return {'name': name, 'type': entry_type, 'username': username}
 

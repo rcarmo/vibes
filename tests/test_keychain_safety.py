@@ -91,7 +91,14 @@ async def test_environment_routes_persist_clear_validate_and_hide_keychain_confi
     client = TestClient(TestServer(app))
     await client.start_server()
     try:
-        assert (await client.post('/api/settings/environment', json={'name': 'TEST_OVERRIDE', 'value': 'one'})).status == 201
+        created = await client.post('/api/settings/environment', json={'name': 'TEST_OVERRIDE', 'value': 'one'})
+        assert created.status == 201
+        snapshot = await created.json()
+        assert snapshot['ok'] is True
+        assert snapshot['overrideCount'] >= 1
+        assert next(row for row in snapshot['variables'] if row['name'] == 'TEST_OVERRIDE')['overridden'] is True
+        assert snapshot['count'] == len(snapshot['variables'])
+        assert any(row['name'] == 'TEST_OVERRIDE' and row['value'] == 'one' for row in snapshot['variables'])
         assert (await client.post('/api/settings/keychain', json={'name': 'SECRET_ENTRY', 'secret': 'secret'})).status == 201
         for name in ['BAD NAME', 'newline\n', 'SECRET_ENTRY', 'VIBES_KEYCHAIN_MASTER_PASSWORD']:
             assert (await client.post('/api/settings/environment', json={'name': name, 'value': 'bad'})).status == 400
@@ -103,9 +110,13 @@ async def test_environment_routes_persist_clear_validate_and_hide_keychain_confi
         await db.connect()
         variables = (await (await client.get('/api/settings/environment')).json())['variables']
         assert any(row['name'] == 'TEST_OVERRIDE' and row['value'] == 'one' for row in variables)
-        assert (await client.post('/api/settings/environment', json={'name': 'TEST_OVERRIDE', 'value': None})).status == 200
+        cleared = await client.post('/api/settings/environment', json={'name': 'TEST_OVERRIDE', 'clear': True})
+        assert cleared.status == 200
+        assert all(row['name'] != 'TEST_OVERRIDE' for row in (await cleared.json())['variables'])
         assert (await client.post('/api/settings/environment', json={'name': 'TEST_OVERRIDE', 'value': None})).status == 404
-        for payload in [[], {'name': []}, {'name': 'x', 'type': []}, {'name': 'x', 'secret': {}}]:
+        for payload in [{'name': 'X', 'clear': 'true'}, {'name': 'X', 'clear': True, 'value': 'bad'}, {'name': 'X'}]:
+            assert (await client.post('/api/settings/environment', json=payload)).status == 400
+        for payload in [[], {'name': []}, {'name': 'x', 'type': []}, {'name': 'x', 'secret': {}}, {'name': 'x', 'userNote': []}, {'name': 'x', 'agentNote': 'x' * 8001}]:
             assert (await client.post('/api/settings/keychain', json=payload)).status == 400
         for payload in [[], {'name': []}, {'name': 'SECRET_ENTRY', 'master_password': []}]:
             assert (await client.post('/api/settings/keychain/reveal', json=payload)).status == 400

@@ -104,21 +104,38 @@ async def test_settings_routes_cover_list_save_reveal_and_delete(tmp_path, monke
     client = TestClient(TestServer(app))
     await client.start_server()
     try:
-        created = await client.post('/api/settings/keychain', json={'name': 'fixtures/one', 'secret': 's3cret', 'username': 'u'})
+        created = await client.post('/api/settings/keychain', json={'name': 'fixtures/one', 'secret': 's3cret', 'username': 'u', 'userNote': 'private UI note', 'agentNote': 'safe hint'})
         assert created.status == 201
-        entry = (await created.json())['entry']
+        saved = await created.json()
+        entry = saved['entry']
+        assert saved['enabled'] is True
+        assert saved['entries'][0]['name'] == 'fixtures/one'
+        assert saved['ok'] is True
+        assert saved['entries'][0]['envVar'] == 'FIXTURES_ONE'
+        assert saved['entries'][0]['updatedAt']
+        assert saved['entries'][0]['userNote'] == 'private UI note'
+        assert saved['entries'][0]['agentNote'] == 'safe hint'
+        assert 'secret' not in saved['entries'][0]
         assert entry['name'] == 'fixtures/one' and 'secret' not in entry
 
         listed = (await (await client.get('/api/settings/keychain')).json())['entries']
         assert listed[0]['name'] == 'fixtures/one' and 'secret' not in listed[0]
 
-        revealed = (await (await client.post('/api/settings/keychain/reveal', json={'name': 'fixtures/one'})).json())['entry']
+        await db.close()
+        await db.connect()
+        reloaded = (await (await client.get('/api/settings/keychain')).json())['entries'][0]
+        assert reloaded['userNote'] == 'private UI note' and reloaded['agentNote'] == 'safe hint'
+        revealed_response = await (await client.post('/api/settings/keychain/reveal', json={'name': 'fixtures/one'})).json()
+        revealed = revealed_response['entry']
+        assert revealed_response['ok'] is True and revealed_response['secret'] == 's3cret'
         assert revealed['secret'] == 's3cret'
         assert revealed['username'] == 'u'
 
         assert (await client.post('/api/settings/keychain/reveal', json={'name': 'missing'})).status == 404
         assert (await client.post('/api/settings/keychain', json={'name': ''})).status == 400
-        assert (await client.delete('/api/settings/keychain', json={'name': 'fixtures/one'})).status == 200
+        deleted = await client.delete('/api/settings/keychain', json={'name': 'fixtures/one'})
+        assert deleted.status == 200
+        assert (await deleted.json())['entries'] == []
         assert (await client.delete('/api/settings/keychain', json={'name': 'fixtures/one'})).status == 404
     finally:
         await client.close()
@@ -141,7 +158,9 @@ async def test_reveal_requires_master_password_when_the_keychain_is_protected(tm
         await client.post('/api/settings/keychain', json={'name': 'protected', 'secret': 'value'})
         denied = await client.post('/api/settings/keychain/reveal', json={'name': 'protected'})
         assert denied.status == 401
-        assert (await denied.json())['code'] == 'needs_master_password'
+        challenge = await denied.json()
+        assert challenge['code'] == 'needs_master_password'
+        assert challenge['needs_master_password'] is True and challenge['ok'] is False
         allowed = await client.post('/api/settings/keychain/reveal', json={'name': 'protected', 'master_password': 'fixture-master'})
         assert allowed.status == 200
         assert (await allowed.json())['entry']['secret'] == 'value'

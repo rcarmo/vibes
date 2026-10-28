@@ -5,13 +5,29 @@ from aiohttp import web
 from ..db import get_db
 from ..secure import keychain as keychain_module
 from ..secure.keychain import InvalidMasterPassword, MasterPasswordRequired
+from ..secure.shell_secrets import env_name
 
 
 def _stores(db):
     return keychain_module.stores(db)
 
 
+async def _environment_snapshot(environment):
+    variables = await environment.list()
+    return {'variables': [{**row, 'overridden': row['override']} for row in variables],
+            'count': len(variables), 'overrideCount': sum(row['override'] for row in variables)}
+
+
+async def _entry_snapshot(keychain):
+    return [{**row, 'envVar': env_name(row['name']), 'updatedAt': row['updated_at'],
+             'createdAt': row['created_at'], 'userNote': row['user_note'],
+             'agentNote': row['agent_note']} for row in await keychain.list()]
+
+
 def _response(payload, *, status=200, headers=None):
+    payload = {'ok': status < 400, **payload}
+    if payload.get('code') == 'needs_master_password':
+        payload['needs_master_password'] = True
     return web.json_response(payload, status=status, headers={
         **(headers or {}), 'Cache-Control': 'no-store',
     })
@@ -22,8 +38,7 @@ async def keychain_entries(request):
     keychain, _ = _stores(db)
     try:
         if request.method == 'GET':
-            return _response({'entries': await keychain.list()},
-                                     headers={'Cache-Control': 'no-store'})
+            return _response({'entries': await _entry_snapshot(keychain), 'enabled': True})
         payload = await request.json()
         if not isinstance(payload, dict):
             raise ValueError('Expected keychain entry object')
@@ -33,7 +48,7 @@ async def keychain_entries(request):
                 raise ValueError('Keychain entry name is required')
             if not await keychain.delete(name):
                 return _response({'error': 'Keychain entry not found', 'code': 'entry_not_found'}, status=404)
-            return _response({'deleted': name})
+            return _response({'deleted': name, 'entries': await _entry_snapshot(keychain), 'enabled': True})
         if not isinstance(name, str) or not name:
             raise ValueError('Keychain entry name is required')
         entry = await keychain.save(
@@ -41,8 +56,9 @@ async def keychain_entries(request):
             payload.get('secret', ''),
             payload.get('username'),
             payload.get('type', 'secret'),
+            user_note=payload.get('userNote', ''), agent_note=payload.get('agentNote', ''),
         )
-        return _response({'entry': entry}, status=201)
+        return _response({'entry': entry, 'entries': await _entry_snapshot(keychain), 'enabled': True}, status=201)
     except ValueError as exc:
         return _response({'error': str(exc), 'code': 'invalid_keychain_request'}, status=400)
 
@@ -63,7 +79,7 @@ async def keychain_reveal(request):
         if keychain.master_password and not supplied:
             return _response({'error': 'Master password required', 'code': 'needs_master_password'}, status=401)
         entry = await keychain.reveal(name, master_password=supplied or None)
-        return _response({'entry': entry}, headers={'Cache-Control': 'no-store'})
+        return _response({'entry': entry, 'secret': entry['secret'], 'username': entry['username']})
     except (MasterPasswordRequired, InvalidMasterPassword) as exc:
         return _response({'error': str(exc), 'code': 'needs_master_password'}, status=401)
     except LookupError as exc:
@@ -77,20 +93,26 @@ async def environment_settings(request):
     _, environment = _stores(db)
     try:
         if request.method == 'GET':
-            return _response({'variables': await environment.list()},
-                                     headers={'Cache-Control': 'no-store'})
+            return _response(await _environment_snapshot(environment))
         payload = await request.json()
-        if not isinstance(payload, dict) or not {'name', 'value'} <= payload.keys():
-            raise ValueError('Expected environment variable name and value')
+        if not isinstance(payload, dict) or 'name' not in payload:
+            raise ValueError('Expected environment variable name and value or clear')
+        if 'clear' in payload and type(payload['clear']) is not bool:
+            raise ValueError('Clear must be a boolean')
+        clear = payload.get('clear') is True
+        if clear and 'value' in payload:
+            raise ValueError('Clear and value cannot be combined')
+        if not clear and 'value' not in payload:
+            raise ValueError('Expected environment variable value')
         name = payload['name']
-        if payload.get('value') is None:
+        if clear or payload.get('value') is None:
             if not await environment.clear(name):
                 return _response({'error': 'No stored override', 'code': 'override_not_found'}, status=404)
-            return _response({'cleared': name})
+            return _response({'cleared': name, **await _environment_snapshot(environment)})
         if not isinstance(payload['value'], str):
             raise ValueError('Environment value must be a string or null')
         row = await environment.set(name, payload['value'])
-        return _response({'variable': row}, status=201)
+        return _response({'variable': row, **await _environment_snapshot(environment)}, status=201)
     except ValueError as exc:
         return _response({'error': str(exc), 'code': 'invalid_environment_request'}, status=400)
 

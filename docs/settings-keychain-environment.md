@@ -1,6 +1,7 @@
 # Keychain and shell environment
 
-Python stores keychain entries and environment overrides in SQLite schema 10.
+Python stores keychain entries and environment overrides in SQLite; schema 12
+adds persistent user/agent notes, following schema 11's widget lookup index.
 Settings routes use the application's existing authentication and same-origin
 middleware. They return `Cache-Control: no-store`, including errors. No frontend
 files or fixture pins change in this implementation.
@@ -15,6 +16,21 @@ files or fixture pins change in this implementation.
 | POST `/api/settings/keychain/reveal` | `{name, master_password?}` | `{entry: {name, type, username, secret}}`; missing entry 404 |
 | GET `/api/settings/environment` | — | `{variables: [{name, value, override}]}` |
 | POST `/api/settings/environment` | `{name, value}` | String value: 201 `{variable: {name, value, override: true}}`; null: 200 `{cleared: name}`; missing override 404 |
+
+All responses include `ok`. Keychain list/mutation responses also include
+`enabled:true` and refreshed secret-free `entries`, with `envVar`, `createdAt`,
+`updatedAt`, `userNote` and `agentNote` aliases for the shared UI. Save accepts
+`userNote` and `agentNote` (each at most 8,000 characters); notes are non-secret
+metadata stored separately from encrypted credentials. User notes are UI-only;
+the current shell bridge exposes neither kind of note to agents.
+
+Reveal retains nested `entry` for existing callers and supplies top-level
+`secret`/`username` for the shared UI. Password challenges also set
+`needs_master_password:true`. Environment snapshots include `count`,
+`overrideCount`, and both `override`/`overridden` row flags. Mutations return a
+refreshed snapshot as well as the existing `variable`/`cleared` field. Both
+`{name, clear:true}` and `{name, value:null}` clear an override; contradictory
+clear/value input is rejected.
 
 Types are `secret` (default), `token`, `password` and `basic`. Invalid input is
 400. Protected reveal requires the configured master password; missing or wrong
@@ -125,7 +141,12 @@ shell execution retries candidates only for pre-start ENOENT/ENOEXEC failures;
 configured shells, running commands and missing working directories never trigger
 replay. Pi now uses that same tested runner instead of SDK-local execution.
 
-Browser Settings acceptance and live-provider execution are not established.
+A bounded Settings component browser probe with candidate `0259e9a` passes
+add/reveal/hide/delete, master-password challenge, environment add/edit/clear,
+reload persistence and private-config filtering against real routes. It uses
+candidate components/API helpers in an isolated host, not the complete compiled
+consumer. Full-app Settings acceptance and live-provider execution are not
+established. See [the probe record](evidence/settings-browser-20261028.md).
 Windows detection branches exist but execution remains unaccepted; the shared
 internal execution route rejects Windows. Repeated package purges in seven test modules
 were removed after they were shown to split module identities during collection.

@@ -163,8 +163,11 @@ async def test_timeout_and_cancellation_stop_posix_process_group(stores, tmp_pat
     for child in [pid, second_pid]:
         # A killed orphan can briefly remain as a zombie until PID 1 reaps it.
         stat_path = Path(f'/proc/{child}/stat')
-        if stat_path.exists():
-            assert stat_path.read_text().split()[2] == 'Z'
-        else:
+        try:
+            state = stat_path.read_text().split()[2]
+        except FileNotFoundError:
+            # Reaping can happen between exists() and read(); disappearance is success.
             with pytest.raises(ProcessLookupError):
                 os.kill(child, 0)
+        else:
+            assert state == 'Z'
