@@ -136,7 +136,8 @@ async def prompt(request):
             return _response({'error': 'Server shutting down'}, 503)
         for media_id in media_ids:
             saved = await db.get_media(media_id)
-            if not saved or saved.get('metadata', {}).get('session_id') != session_id:
+            metadata = saved.get('metadata') if saved else None
+            if not isinstance(metadata, dict) or metadata.get('session_id') != session_id:
                 return _response({'error': 'Media does not belong to this session'}, 400)
         thread_id = None
         if parent_turn is not None:

@@ -36,8 +36,11 @@ def generate_thumbnail(data: bytes, content_type: str) -> bytes | None:
 
 async def upload_media(request: web.Request) -> web.Response:
     """Handle media file upload."""
+    return await _upload_media(request, request.query.get('session_id', 'default'))
+
+
+async def _upload_media(request: web.Request, session_id: str) -> web.Response:
     from ..sessions import SessionStore
-    session_id = request.query.get('session_id', 'default')
     db = await get_db()
     session = await SessionStore(db).get(session_id)
     if not session or session['archived']:

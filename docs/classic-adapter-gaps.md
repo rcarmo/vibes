@@ -98,9 +98,12 @@ availability must be truthful: no regular prompt may masquerade as compaction.
 
 Canonical model GET/PATCH needs offered model choices and authoritative readback
 from the selected lane. Stale thinking/model changes need the observed revision
-or token, not an echoed request. Media upload/read aliases must preserve and
-verify conversation ownership; global numeric media IDs are not session grants.
-Forking a session cannot simply create an empty child while claiming transcript/
+or token, not an echoed request. [Media upload/read adapters](classic-media.md) now verify persisted session
+ownership and preserve MIME/download protections. Unscoped `/api/media` aliases
+require an explicit session query. Candidate0259e9a's raw/info helpers omit it,
+so complete media rendering/queue-return acceptance needs shared-client adoption.
+Global legacy `/media` remains a trusted single-user compatibility surface.
+Forking returns 501 rather than creating an empty child while claiming transcript/
 backend-state branching.
 
 Settings keychain/environment, revision-safe workspace/Plan routes, scoped widget

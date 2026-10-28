@@ -61,7 +61,8 @@ async def project(db, row):
             if type(media_id) is not int or media_id < 1:
                 continue
             saved = await db.get_media(media_id)
-            if saved and saved.get('metadata', {}).get('session_id') == session_id:
+            metadata = saved.get('metadata') if saved else None
+            if isinstance(metadata, dict) and metadata.get('session_id') == session_id:
                 media.append({'media_id': media_id, 'session_id': session_id, 'name': saved['filename'],
                               'content_type': saved['content_type']})
     payload['media'] = media
