@@ -24,8 +24,10 @@ string `id`, numeric `display_row_id`, `session_id`, role, content, created time
 filtered before pagination. Semantic kind/display fields remain available to
 the candidate projector. Attachments are rebuilt from persisted media metadata
 only when ownership matches the message session; image/file blocks cannot bypass
-this check. At most 32 attachment references per record are projected. Legacy
-media lacking an explicit owner is omitted. Canonical media transport is separate.
+this check. At most 32 attachment references per record are projected. Request-local metadata
+batching fetches distinct IDs in chunks of 500, preserving per-message ownership,
+reference order/duplicates and fresh readback between responses. Legacy media
+lacking an explicit owner is omitted. Canonical media transport is separate.
 
 ## Deletion
 
@@ -64,4 +66,8 @@ identity, owned file attachment, search, conflict without cascade and reply-only
 deletion. No browser application or model provider was started. Scratch host,
 synthetic DB, copied helpers, SDK, asset link and test output are removed after
 analysis. Shared UI adoption, canonical media transport, complete consumer/reconnect
-acceptance and pre-release CPU/allocation profiling still require work.
+acceptance and whole-application pre-release profiling still require work.
+[Targeted CPU/allocation profiling](evidence/classic-adapter-profiling-20261028.md)
+measured and removed repeated metadata lookup costs without changing decoded
+history/search output. The follow-up full regression passed 1,062 tests with 13
+existing skips in 43.12 seconds.

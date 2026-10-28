@@ -41,8 +41,31 @@ def integer(value, *, minimum=1, maximum=2**63 - 1):
     return result
 
 
+def media_references(data):
+    references = data.get('media_ids')
+    return [value for value in references[:32] if type(value) is int and value > 0] if isinstance(references, list) else []
+
+
+async def project_page(db, rows):
+    # Request-local batching avoids repeated SQL/worker wakeups for attachments
+    # shared by many messages. No cache outlives this response.
+    parsed = [(row, json.loads(row['data'])) for row in rows]
+    ids = list(dict.fromkeys(value for _, data in parsed for value in media_references(data)))
+    saved = {}
+    for start in range(0, len(ids), 500):
+        batch = ids[start:start + 500]
+        async with db._connection.execute('SELECT id,filename,content_type,metadata FROM media WHERE id IN (' +
+                                          ','.join('?' for _ in batch) + ')', batch) as cursor:
+            for item in await cursor.fetchall():
+                saved[item['id']] = {**dict(item), 'metadata': json.loads(item['metadata']) if item['metadata'] else None}
+    return [_project(row, data, saved) for row, data in parsed]
+
+
 async def project(db, row):
-    data = json.loads(row['data'])
+    return (await project_page(db, [row]))[0]
+
+
+def _project(row, data, saved_media):
     kind = data.get('type')
     role = 'assistant' if kind in {'agent_response', 'assistant'} else 'system' if kind == 'system' else 'user'
     session_id = data.get('session_id', 'default')
@@ -55,16 +78,12 @@ async def project(db, row):
         payload['content_blocks'] = [block for block in blocks if isinstance(block, dict)
                                      and block.get('type') not in {'image', 'file'}]
     media = []
-    references = data.get('media_ids', [])
-    if isinstance(references, list):
-        for media_id in references[:32]:
-            if type(media_id) is not int or media_id < 1:
-                continue
-            saved = await db.get_media(media_id)
-            metadata = saved.get('metadata') if saved else None
-            if isinstance(metadata, dict) and metadata.get('session_id') == session_id:
-                media.append({'media_id': media_id, 'session_id': session_id, 'name': saved['filename'],
-                              'content_type': saved['content_type']})
+    for media_id in media_references(data):
+        saved = saved_media.get(media_id)
+        metadata = saved.get('metadata') if saved else None
+        if isinstance(metadata, dict) and metadata.get('session_id') == session_id:
+            media.append({'media_id': media_id, 'session_id': session_id, 'name': saved['filename'],
+                          'content_type': saved['content_type']})
     payload['media'] = media
     thread_id = data.get('thread_id')
     reply_to = str(thread_id) if type(thread_id) is int and thread_id != row['id'] else None
@@ -100,7 +119,7 @@ async def messages(request):
     rows = rows[:limit]
     if after is None:
         rows.reverse()
-    return response({'messages': [await project(db, row) for row in rows], 'has_more': has_more,
+    return response({'messages': await project_page(db, rows), 'has_more': has_more,
                      'before': str(rows[0]['id']) if rows else None,
                      'after': str(rows[-1]['id']) if rows else None})
 
@@ -134,7 +153,7 @@ async def search(request):
             rows = await cursor.fetchall()
     except (ValueError, sqlite3.OperationalError):
         return response({'error': 'Invalid search query or unavailable session family'}, 400)
-    return response({'messages': [await project(db, row) for row in rows[:limit]], 'has_more': len(rows) > limit,
+    return response({'messages': await project_page(db, rows[:limit]), 'has_more': len(rows) > limit,
                      'limit': limit, 'offset': offset, 'scope': scope})
 
 

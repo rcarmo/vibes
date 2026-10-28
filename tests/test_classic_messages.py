@@ -210,3 +210,36 @@ async def test_semantic_hidden_records_do_not_consume_pages_and_media_is_owned(d
             assert data['messages'][0]['payload']['source'] == 'local'
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_response_local_media_batch_chunks_preserves_order_duplicates_and_fresh_reads(db):
+    import json
+    refs = [await db.create_media(str(i), 'text/plain', b'x', metadata={'session_id': 'default'})
+            for i in range(510)]
+    rows = [{'id': i + 1, 'timestamp': '2026-10-28',
+             'data': json.dumps({'type': 'user_message', 'media_ids': refs[i * 30:(i + 1) * 30]})}
+            for i in range(17)]
+    rows.append({'id': 100, 'timestamp': '2026-10-28',
+                 'data': json.dumps({'type': 'user_message', 'media_ids': [refs[-1], refs[0], refs[-1], True, -1]})})
+    queries = []
+    original = db._connection._execute
+
+    async def execute(function, *args, **kwargs):
+        if getattr(function, '__name__', '') == 'execute':
+            queries.append(args[0])
+        return await original(function, *args, **kwargs)
+
+    db._connection._execute = execute
+    try:
+        result = await routes.project_page(db, rows)
+        assert len(queries) == 2  # 510 distinct IDs, chunked below SQLite's parameter limit.
+        assert [row['id'] for row in result] == [str(row['id']) for row in rows]
+        assert [item['media_id'] for item in result[-1]['payload']['media']] == [refs[-1], refs[0], refs[-1]]
+        # Nothing is cached across responses, and ownership remains per message.
+        async with db.transaction() as connection:
+            await connection.execute("UPDATE media SET metadata=json_object('session_id','foreign') WHERE id=?", (refs[0],))
+        await db.delete_media([refs[-1]])
+        assert (await routes.project(db, rows[-1]))['payload']['media'] == []
+    finally:
+        db._connection._execute = original
