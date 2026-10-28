@@ -226,6 +226,8 @@ def create_app() -> web.Application:
     avatar.setup_routes(app)
     workspace.setup_routes(app)
     terminal.setup_routes(app)
+    from .routes import vnc
+    vnc.setup_routes(app)
     sessions.setup_routes(app)
     from .routes import pi_tools, system_metrics, plans, settings, shell_tools, widgets
     pi_tools.setup_routes(app)
