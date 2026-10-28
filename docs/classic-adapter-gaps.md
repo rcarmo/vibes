@@ -87,10 +87,14 @@ cancellation stays visible to polling through late status callbacks until turn
 removal. Ambiguous multiple active turns return 409 from activity GET. HTTP and
 runtime-signal tests pass; complete consumer/reconnect acceptance is open.
 
-Queue adapters require stable durable IDs and an
-atomic `{expected,order}` reorder contract; translating an absolute order into
-several directional mutations creates races. Compaction availability must be
-truthful: no regular prompt may masquerade as compaction.
+[Queue adapters](classic-queue.md) now expose stable durable IDs, validated
+source ownership, receipt-linked request metadata, pending-only removal and
+atomic `{expected,order}` reorder. Stale state and tied ordinals return 409;
+uncertain work is inspect-only. Canonical captured-turn steering returns 501
+without consuming the item because the legacy helper permits idle promotion.
+Candidate0259e9a's active refresh-event set omits queue reorder notifications;
+browser drag/drop and cross-tab acceptance still need verification. Compaction
+availability must be truthful: no regular prompt may masquerade as compaction.
 
 Canonical model GET/PATCH needs offered model choices and authoritative readback
 from the selected lane. Stale thinking/model changes need the observed revision
