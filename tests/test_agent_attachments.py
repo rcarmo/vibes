@@ -147,7 +147,7 @@ async def test_acp_attachment_only_stdio_without_message_read_grant(tmp_path):
     out, err = await process.communicate(json.dumps({'jsonrpc': '2.0', 'id': 1, 'method': 'tools/list'}).encode() + b'\n')
     assert process.returncode == 0, err
     listed = json.loads(out)['result']['tools']
-    assert [tool['name'] for tool in listed] == ['attach_file', 'open_file', 'plan']
+    assert [tool['name'] for tool in listed] == ['attach_file', 'bash', 'open_file', 'plan', 'send_dashboard_widget']
     plan = next(tool for tool in listed if tool['name'] == 'plan')
     assert 'session_id' not in plan['inputSchema']['properties']
     assert 'expected_revision' in plan['inputSchema']['properties']

@@ -30,6 +30,26 @@ export default function (pi: ExtensionAPI) {
     },
   });
   pi.registerTool({
+    name: 'send_dashboard_widget', label: 'Dashboard widget',
+    description: 'Post a self-contained HTML dashboard to this conversation. The shared UI renders it in a sandboxed iframe; use window.piclawWidget for host interactions.',
+    parameters: Type.Object({ html: Type.String(), title: Type.Optional(Type.String()),
+      description: Type.Optional(Type.String()), interactive: Type.Optional(Type.Boolean()) }),
+    async execute(toolCallId, params, signal) {
+      const base = process.env.VIBES_PI_TOOLS_URL;
+      const token = process.env.VIBES_ATTACHMENT_TOKEN;
+      if (!base || !token) throw new Error('Vibes widget bridge is not configured');
+      const body = Object.fromEntries(Object.entries(params).filter(([, value]) => value != null));
+      const response = await fetch(new URL('/internal/agent-tools/dashboard-widget', base), {
+        method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ ...body, request_id: toolCallId }),
+      });
+      if (!response.ok) throw new Error('Widget delivery failed');
+      const result = await response.json();
+      return { content: [{ type: 'text', text: JSON.stringify(result) }], details: { widget: result } };
+    },
+  });
+  pi.registerTool({
     name: "plan",
     label: "Session Plan",
     description: "Read or update the current session's persistent Plan sidebar. Actions read/write/update/patch/edit share the browser's revision-safe store. Read first; mutations require expected_revision from the latest read. Never choose a session. At most one item is in_progress; max 128 KiB. Patch indexes are 1-based; use index OR a unique match. Edit anchors must occur exactly once.",

@@ -63,6 +63,12 @@ class MessagesMCP(AsyncMCPServer):
                 input_schema={'type': 'object', 'additionalProperties': False, 'required': ['command'], 'properties': {
                     'command': {'type': 'string'}, 'timeout': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 3600},
                 }}, annotations={'readOnlyHint': False, 'destructiveHint': True})
+            self.register_tool('send_dashboard_widget', self.send_dashboard_widget,
+                description='Post self-contained HTML to this conversation as a sandboxed dashboard widget.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['html'], 'properties': {
+                    'html': {'type': 'string'}, 'title': {'type': 'string'}, 'description': {'type': 'string'},
+                    'interactive': {'type': 'boolean'}, 'request_id': {'type': 'string'},
+                }}, annotations={'readOnlyHint': False, 'destructiveHint': False})
             self.register_tool('attach_file', self.attach_file, description=ATTACH_DESCRIPTION, input_schema=ATTACH_SCHEMA,
                                annotations={'readOnlyHint': False, 'destructiveHint': False})
             self.register_tool('open_file', self.open_file,
@@ -104,6 +110,19 @@ class MessagesMCP(AsyncMCPServer):
                 result = await response.json()
                 if response.status >= 400:
                     raise ValueError(result.get('error', 'Shell execution failed'))
+                return result
+
+    async def send_dashboard_widget(self, html, title=None, description=None, interactive=True, request_id=None):
+        url = self.attachment_url.removesuffix('/attach-file') + '/dashboard-widget'
+        params = {name: value for name, value in {
+            'html': html, 'title': title, 'description': description, 'interactive': interactive,
+            'request_id': request_id or uuid.uuid4().hex,
+        }.items() if value is not None}
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.post(url, json=params, headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'Widget delivery failed'))
                 return result
 
     async def open_file(self, path):
