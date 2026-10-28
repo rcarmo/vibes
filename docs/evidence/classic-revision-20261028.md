@@ -66,9 +66,12 @@ needs schema/profile/retirement checks and full consumer acceptance.
 Submit was not tested: this host intentionally has no canonical prompt route.
 No issue was closed. This does not establish full-app boot, authentication, SSE,
 browser reconnect, Settings UI, live-provider execution, other browsers or six
-viewport acceptance. File revision checking uses process-local locking; it does
-not guarantee atomic compare-and-swap against an external writer changing a file
-between check and write.
+viewport acceptance. File revision checking's current synchronous comparison/
+write tail does not yield within one event loop; there is no process-local file
+write lock. It does not guarantee atomic compare-and-swap against an external
+writer changing a file between check and write. Independent-process race
+reproductions and the concrete storage-contract blocker are recorded in
+[workspace-external-cas-20261028.md](workspace-external-cas-20261028.md).
 
 The host was stopped and all disposable copied UI assets, probe scripts,
 databases, fixtures and logs were removed after analysis. Only this record is
