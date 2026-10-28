@@ -131,6 +131,8 @@ async def test_v12_migration_creates_session_scoped_receipts_without_losing_mess
     other = await SessionStore(database).create('Other')
     async with database.transaction() as connection:
         await connection.execute('DROP TABLE prompt_receipts')
+        await connection.execute('ALTER TABLE chat_sessions DROP COLUMN archived_at')
+        await connection.execute('ALTER TABLE chat_sessions DROP COLUMN archived_at_source')
         await connection.execute('UPDATE schema_version SET version = 12')
     await database.close()
     migrated = Database(path)

@@ -36,6 +36,8 @@ async def test_v6_upgrade_preserves_session_history_and_binding(db):
         await db._connection.execute('DROP TABLE model_preferences')
         await db._connection.execute('ALTER TABLE keychain_entries DROP COLUMN user_note')
         await db._connection.execute('ALTER TABLE keychain_entries DROP COLUMN agent_note')
+        await db._connection.execute('ALTER TABLE chat_sessions DROP COLUMN archived_at')
+        await db._connection.execute('ALTER TABLE chat_sessions DROP COLUMN archived_at_source')
         await db._connection.execute('UPDATE schema_version SET version=6')
     await db.close()
     await db.connect()

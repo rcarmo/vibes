@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 from aiohttp import web
 
+from ..config import get_config
 from ..db import get_db
 from ..sessions import SessionStore
 from . import agents
@@ -185,6 +186,29 @@ async def prompt(request):
             raise
 
 
+async def auth_status(request):
+    """Describe the runtime's actual auth-free policy, never emulate login."""
+    if request.get('vibes.auth_configured', True):
+        return _response({'error': 'External authentication policy is not represented by this adapter'}, 501)
+    return _response({'mode': 'single-user', 'enrolled': False, 'authenticated': True,
+                      'totp_enabled': False, 'browser_login_available': False,
+                      'setup_available': False, 'totp_login_available': False,
+                      'passkeys_enabled': False, 'passkey_login_available': False})
+
+
+async def runtime_config(request):
+    config = get_config()
+    # Publish a small presentation/configuration projection. Never return raw
+    # config, provider launch commands, environment values or master secrets.
+    mode = agents._resolve_agent_mode('default')
+    backend = mode if mode in {'pi', 'acp', 'copilot-ffi'} else None
+    return _response({'assistant_name': config.agent_name,
+                      'agent': {'id': 'web', 'backend': backend},
+                      'provider': None, 'model_id': None, 'thinking': None,
+                      'models': [], 'thinking_levels': [],
+                      'model_state_available': False})
+
+
 async def activity(request):
     """Project persisted activity without consulting a process-global selection."""
     session_id = request.match_info['id']
@@ -239,6 +263,9 @@ async def cancel_activity(request):
 
 
 def setup_routes(app):
+    app.router.add_get('/api/auth/status', auth_status)
+    app.router.add_get('/api/auth/policy', auth_status)
+    app.router.add_get('/api/runtime/config', runtime_config)
     app.router.add_post('/api/sessions/{id}/prompt', prompt)
     app.router.add_get('/api/sessions/{id}/send-receipt', send_receipt)
     app.router.add_get('/api/sessions/{id}/activity', activity)

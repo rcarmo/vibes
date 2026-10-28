@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 13
+SCHEMA_VERSION = 14
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -315,12 +315,23 @@ class Database:
                 await self._connection.executescript(MIGRATION_V12)
             if current_version < 13:
                 await self._connection.executescript(MIGRATION_V13)
-            await self._connection.execute("DELETE FROM schema_version")
-            await self._connection.execute(
-                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
-                (SCHEMA_VERSION,)
-            )
-            await self._connection.commit()
+            if current_version < 14:
+                # Explicit transaction includes DDL and version publication.
+                # Column checks also recover earlier partial/probe upgrades.
+                async with self.transaction() as connection:
+                    await connection.execute('BEGIN IMMEDIATE')
+                    async with connection.execute('PRAGMA table_info(chat_sessions)') as cursor:
+                        columns = {row['name'] for row in await cursor.fetchall()}
+                    for column in ('archived_at', 'archived_at_source'):
+                        if column not in columns:
+                            await connection.execute(f'ALTER TABLE chat_sessions ADD COLUMN {column} TEXT')
+                    await connection.execute("""
+                        UPDATE chat_sessions SET archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP),
+                            archived_at_source = COALESCE(archived_at_source, 'migration-observed')
+                        WHERE archived = 1
+                    """)
+                    await connection.execute('DELETE FROM schema_version')
+                    await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (SCHEMA_VERSION,))
 
     @asynccontextmanager
     async def transaction(self):

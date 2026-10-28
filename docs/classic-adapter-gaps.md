@@ -30,14 +30,20 @@ acceptance and high-rate stream profiling remain open.
 
 ## Boot and registry
 
-Add a dedicated server adapter module; retain existing routes. Required boot
-paths include truthful `/api/auth/status`, `/api/runtime/config`, `/api/sessions`
-and `/api/sessions/{s}`. Session projection maps stored `name` to `title`,
-`parent_id` to `parent_session_id`, and persisted running/queued/archive state to
-Classic state. Current storage has no durable arbitrary agent scope or archived
-at timestamp: constrain the supported single `web` scope or add narrow fields;
-do not fabricate branch/agent semantics. Serving the Classic tree requires its
-actual static prefixes plus safe SPA fallback, not the current `/static` layout.
+[Boot/session adapters](classic-boot.md) now expose `/api/auth/status`,
+`/api/auth/policy`, `/api/runtime/config`, `/api/sessions` and
+`/api/sessions/{s}` while retaining legacy routes. The auth-free policy follows
+the installed middleware; custom gates are not represented as auth-free. Runtime
+configuration uses a narrow presentation/backend allowlist. Registry state maps
+durable names, ancestry, active turns, queue counts and pins into candidate
+fields with the supported single `web` scope. Schema 14 records archive times
+with explicit mutation or migration-observed provenance. Strict create/rename/
+pin/archive/restore routes pass tests; real fork semantics remain unsupported.
+The candidate auth parser and session picker passed against real HTTP responses.
+
+Serving the compiled Classic tree still requires its actual static prefixes and
+safe SPA fallback; the current `/static` layout is unchanged. Complete consumer
+boot, session model choices and browser acceptance are open.
 
 ## Timeline and real prompt admission
 
