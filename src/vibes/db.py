@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 12
+SCHEMA_VERSION = 13
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -230,6 +230,22 @@ ALTER TABLE keychain_entries ADD COLUMN agent_note TEXT NOT NULL DEFAULT '';
 """
 
 
+MIGRATION_V13 = """
+CREATE TABLE IF NOT EXISTS prompt_receipts (
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    client_request_id TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('pending', 'confirmed', 'rejected', 'uncertain')),
+    message_id INTEGER,
+    response_status INTEGER,
+    result TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id, client_request_id)
+);
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -297,6 +313,8 @@ class Database:
                 await self._connection.executescript(MIGRATION_V11)
             if current_version < 12:
                 await self._connection.executescript(MIGRATION_V12)
+            if current_version < 13:
+                await self._connection.executescript(MIGRATION_V13)
             await self._connection.execute("DELETE FROM schema_version")
             await self._connection.execute(
                 "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
@@ -318,7 +336,7 @@ class Database:
                 raise
 
     # Interaction methods
-    async def create_interaction(self, data: dict) -> int:
+    async def create_interaction(self, data: dict, *, send_receipt=None) -> int:
         """Create a new interaction and return its ID."""
         data = dict(data)
         session_id = data.get('session_id', 'default')
@@ -338,7 +356,19 @@ class Database:
                 "INSERT INTO interactions (data) VALUES (?)",
                 (json.dumps(data),)
             )
-            return cursor.lastrowid
+            message_id = cursor.lastrowid
+            if send_receipt is not None:
+                receipt_session, request_id = send_receipt
+                if receipt_session != session_id:
+                    raise ValueError('Receipt does not match message session')
+                updated = await self._connection.execute(
+                    "UPDATE prompt_receipts SET message_id = ?, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE session_id = ? AND client_request_id = ? AND state = 'pending' AND message_id IS NULL",
+                    (message_id, session_id, request_id),
+                )
+                if updated.rowcount != 1:
+                    raise ValueError('Prompt receipt admission is not pending')
+            return message_id
 
     async def get_interaction(self, interaction_id: int) -> Optional[dict]:
         """Get an interaction by ID."""

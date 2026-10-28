@@ -2,6 +2,7 @@
 
 import base64
 import json
+import uuid
 import logging
 import re
 from aiohttp import web
@@ -791,7 +792,7 @@ async def _queued_source_data(db, item: dict, chat_id: str, thread_id: int) -> d
     return data
 
 
-def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
+def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids, *, admitted_turn_id=None):
     if _ffi_closing or chat_id in _ffi_tasks:
         raise RuntimeError('Conversation dispatch unavailable')
 
@@ -805,7 +806,8 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
             owner = None
             while not _ffi_closing:
                 if owner is None:
-                    advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs)
+                    turn_options = {'admitted_turn_id': admitted_turn_id} if admitted_turn_id else {}
+                    advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs, **turn_options)
                 else:
                     executing, owner = owner, None
                     advance = await _run_claimed_followup(executing, media_ids=inputs)
@@ -841,7 +843,7 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
     _ffi_tasks[chat_id], _ffi_threads[chat_id] = task, thread_id
 
 
-async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None):
+async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None, admitted_turn_id=None):
     """ACP/Pi share a lock; FFI turns serialize only within their own chat."""
     mode = _resolve_agent_mode(agent_id)
     database = await get_db()
@@ -854,12 +856,15 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str, *,
     lock = _ffi_lock(_ffi_dispatch_locks if mode == 'copilot-ffi' else _chat_dispatch_locks, chat_id)
     with binding:
         async with lock:
-            if media_ids is None:
-                return await _process_agent_response_locked(thread_id, content, agent_id)
-            return await _process_agent_response_locked(thread_id, content, agent_id, media_ids=media_ids)
+            options = {}
+            if media_ids is not None:
+                options['media_ids'] = media_ids
+            if admitted_turn_id is not None:
+                options['admitted_turn_id'] = admitted_turn_id
+            return await _process_agent_response_locked(thread_id, content, agent_id, **options)
 
 
-async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None):
+async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None, admitted_turn_id=None):
     """Background task to get agent response and broadcast it."""
     import random
     import string
@@ -867,7 +872,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
 
     from ..avatar import resolve_avatar_url
 
-    turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    turn_id = admitted_turn_id or f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
     database = await get_db()
     root = await database.get_interaction(thread_id)
     chat_session_id = root["data"].get("session_id", "default") if root else "default"
@@ -1401,7 +1406,7 @@ async def send_message(request: web.Request) -> web.Response:
         return await _send_message(request, data)
 
 
-async def _send_message(request, data):
+async def _send_message(request, data, *, send_receipt=None):
     agent_id = request.match_info['agent_id']
 
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
@@ -1458,7 +1463,10 @@ async def _send_message(request, data):
     if thread_id:
         user_msg["thread_id"] = thread_id
     
-    msg_id = await db.create_interaction(user_msg)
+    if send_receipt is None:
+        msg_id = await db.create_interaction(user_msg)
+    else:
+        msg_id = await db.create_interaction(user_msg, send_receipt=send_receipt)
 
     # Default new user messages to be their own thread root
     if not thread_id:
@@ -1614,12 +1622,14 @@ async def _send_message(request, data):
             "status": "Queued for after the current turn",
         }, status=201)
 
-    # Queue agent response processing in background
+    # Canonical receipt recovery reserves the worker's actual turn identity.
+    turn_id = ('turn-' + uuid.uuid4().hex) if send_receipt else None
+    turn_options = {'admitted_turn_id': turn_id} if turn_id else {}
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
-        _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []))
+        _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []), **turn_options)
     else:
         try:
-            admitted = enqueue(process_agent_response, thread_id, data["content"], agent_id)
+            admitted = enqueue(process_agent_response, thread_id, data["content"], agent_id, **turn_options)
         except Exception:
             logger.exception('Agent worker admission failed')
             admitted = False
@@ -1630,7 +1640,8 @@ async def _send_message(request, data):
     
     return web.json_response({
         "user_message": user_interaction,
-        "thread_id": thread_id
+        "thread_id": thread_id,
+        **({'turn_id': turn_id, 'admitted': True} if turn_id else {}),
     }, status=201)
 
 

@@ -46,9 +46,10 @@ Project persisted interactions to Classic conversation messages with stable IDs,
 delete must reject foreign IDs and implement or explicitly reject pagination
 options. Generic legacy `/timeline` and `/post` are not sufficient adapters.
 
-The canonical POST `/api/sessions/{s}/prompt` must enter the existing per-chat
-admission path, persist the user message/queue identity and produce a genuine
-turn or queue acknowledgement. Map `prompt` to content and intents to current
+The canonical POST `/api/sessions/{s}/prompt` now enters the existing per-chat
+admission path, persists the user message/queue identity and produces a genuine
+turn or queue acknowledgement. [The admission contract](canonical-prompt.md)
+records durable no-replay receipts and the bounded Plan Submit probe. Map `prompt` to content and intents to current
 prompt/queue/steer semantics. Validate media ownership from persisted metadata,
 active parent turn against the path session, and target agent against supported
 scope. Never switch process-global selection or silently drop a stale target.
@@ -61,7 +62,10 @@ state. A receipt inserted independently before dispatch can become a phantom;
 one inserted afterward can permit duplicate dispatch. Refactor the shared
 admission helper so transaction/ownership/cancellation boundaries define which
 state is accepted, pending or uncertain. Interrupted admission must never restart
-work automatically. No canonical prompt route or fake success stub is present.
+work automatically. The implemented schema13 pending/confirmed/rejected/uncertain
+protocol passes duplicate, reconnect and cancellation-boundary tests; it never
+automatically redispatches pending/uncertain work. Full consumer and live-provider
+acceptance still require the other boot/control adapters below.
 
 ## Controls and media
 
