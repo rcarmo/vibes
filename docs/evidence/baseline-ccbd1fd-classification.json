@@ -1,0 +1,2381 @@
+{
+  "runtime": "ccbd1fd",
+  "fixtures": "053ad57",
+  "total": {
+    "passed": 337,
+    "failed": 923,
+    "skipped": 294
+  },
+  "specs": {
+    "adaptive-cards.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 12
+    },
+    "btw.spec.ts": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0
+    },
+    "chat-lifecycle.spec.ts": {
+      "passed": 0,
+      "failed": 48,
+      "skipped": 0
+    },
+    "classic-core.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "compaction.spec.ts": {
+      "passed": 1,
+      "failed": 53,
+      "skipped": 0
+    },
+    "compose-stability.spec.ts": {
+      "passed": 14,
+      "failed": 34,
+      "skipped": 0
+    },
+    "compose-submit.spec.ts": {
+      "passed": 6,
+      "failed": 24,
+      "skipped": 0
+    },
+    "context-meter.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "editor-open-file.spec.ts": {
+      "passed": 18,
+      "failed": 0,
+      "skipped": 0
+    },
+    "editor.spec.ts": {
+      "passed": 0,
+      "failed": 74,
+      "skipped": 4
+    },
+    "highlights.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 30
+    },
+    "image-annotator.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 42
+    },
+    "lightbox.spec.ts": {
+      "passed": 14,
+      "failed": 8,
+      "skipped": 2
+    },
+    "message-deletion.spec.ts": {
+      "passed": 0,
+      "failed": 30,
+      "skipped": 0
+    },
+    "mobile-swipe.spec.ts": {
+      "passed": 0,
+      "failed": 1,
+      "skipped": 35
+    },
+    "plan.spec.ts": {
+      "passed": 24,
+      "failed": 24,
+      "skipped": 0
+    },
+    "pwa-manifest.spec.ts": {
+      "passed": 6,
+      "failed": 36,
+      "skipped": 12
+    },
+    "queue-steer.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "quick-actions.spec.ts": {
+      "passed": 0,
+      "failed": 18,
+      "skipped": 0
+    },
+    "reconnect.spec.ts": {
+      "passed": 0,
+      "failed": 18,
+      "skipped": 0
+    },
+    "rendering.spec.ts": {
+      "passed": 4,
+      "failed": 32,
+      "skipped": 0
+    },
+    "session-picker.spec.ts": {
+      "passed": 6,
+      "failed": 12,
+      "skipped": 6
+    },
+    "settings.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 96
+    },
+    "shared-copy.spec.ts": {
+      "passed": 0,
+      "failed": 48,
+      "skipped": 0
+    },
+    "shared-messages-tool.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "shared-model-picker.spec.ts": {
+      "passed": 21,
+      "failed": 15,
+      "skipped": 0
+    },
+    "shared-pickers.spec.ts": {
+      "passed": 0,
+      "failed": 24,
+      "skipped": 0
+    },
+    "shared-queue.spec.ts": {
+      "passed": 7,
+      "failed": 47,
+      "skipped": 0
+    },
+    "shared-quick-actions.spec.ts": {
+      "passed": 92,
+      "failed": 16,
+      "skipped": 0
+    },
+    "shared-reconnect.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "shared-session-picker.spec.ts": {
+      "passed": 0,
+      "failed": 30,
+      "skipped": 0
+    },
+    "shared-shell.spec.ts": {
+      "passed": 56,
+      "failed": 4,
+      "skipped": 0
+    },
+    "shared-svg.spec.ts": {
+      "passed": 12,
+      "failed": 6,
+      "skipped": 0
+    },
+    "shell-menu.spec.ts": {
+      "passed": 12,
+      "failed": 30,
+      "skipped": 12
+    },
+    "terminal.spec.ts": {
+      "passed": 0,
+      "failed": 98,
+      "skipped": 10
+    },
+    "theme-tint.spec.ts": {
+      "passed": 39,
+      "failed": 51,
+      "skipped": 0
+    },
+    "thoughts-panel.spec.ts": {
+      "passed": 0,
+      "failed": 30,
+      "skipped": 0
+    },
+    "timeline-time.spec.ts": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0
+    },
+    "vnc.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6
+    },
+    "widgets.spec.ts": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 12
+    },
+    "workspace-flows.spec.ts": {
+      "passed": 3,
+      "failed": 42,
+      "skipped": 15
+    }
+  },
+  "scenarios": {
+    "@ux-extra-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-extra-002 Validate the identity of a card submission"
+      ]
+    },
+    "@ux-extra-003": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-extra-003 Display a rejected card action"
+      ]
+    },
+    "@ux-extra-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-extra-001 Display and act on a side-question result"
+      ]
+    },
+    "@ux-chat-lifecycle-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-001 An idle chat does not manufacture an activity pane"
+      ]
+    },
+    "@ux-chat-lifecycle-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-002 Streaming thoughts and response drafts have separate panes"
+      ]
+    },
+    "@ux-chat-lifecycle-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-003 Tool output belongs to the Output status pane"
+      ]
+    },
+    "@ux-original-027": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-027 Route tool execution through the Classic status and Output panes"
+      ]
+    },
+    "@ux-chat-lifecycle-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-005 A terminal provider error is not a user input or a tool success"
+      ]
+    },
+    "@ux-chat-lifecycle-006": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-006 A streaming draft keeps every chunk in order"
+      ]
+    },
+    "@ux-chat-lifecycle-007": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-007 A running turn in one session does not leak into another"
+      ]
+    },
+    "@ux-chat-lifecycle-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-008 A running tool shows what it is doing and for how long"
+      ]
+    },
+    "@ux-chat-lifecycle-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-chat-lifecycle-004 A persisted assistant reply retains its identity and Markdown"
+      ]
+    },
+    "@ux-original-016": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-016 Display queued follow-ups during a busy turn"
+      ]
+    },
+    "@ux-compaction-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-001 Render compaction using supplied status state"
+      ]
+    },
+    "@ux-compaction-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-002 Reconcile compaction events with client status"
+      ]
+    },
+    "@ux-compaction-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-003 Request stop through the visible compaction control"
+      ]
+    },
+    "@ux-compaction-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-004 Use refreshed usage rather than assume compaction always shrinks context"
+      ]
+    },
+    "@ux-context-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-context-003 Offer compaction only when a callback exists"
+      ]
+    },
+    "@ux-context-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-context-004 Show the supplied compaction title and elapsed label"
+      ]
+    },
+    "@ux-compaction-006": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-006 Check model context compatibility before switching"
+      ]
+    },
+    "@ux-compaction-007": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-007 Refresh model information after an accepted switch"
+      ]
+    },
+    "@ux-compaction-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compaction-008 Handle a model command using the configured provider catalogue"
+      ]
+    },
+    "@ux-compose-001": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-001 Clear captured content while allowing a new draft"
+      ]
+    },
+    "@ux-compose-003": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-003 Reject an entirely empty submission"
+      ]
+    },
+    "@ux-compose-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-002 Restore a failed submission alongside newer text"
+      ]
+    },
+    "@ux-compose-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-004 Return a queued message replaces the current editor draft"
+      ]
+    },
+    "@ux-compose-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-005 Keep upload progress separate from sending state"
+      ]
+    },
+    "@ux-compose-006": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-006 Submit captures the destination chat"
+      ]
+    },
+    "@ux-compose-012": {
+      "passed": 5,
+      "failed": 1,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-012 A failed send keeps its uploaded attachment for the retry"
+      ]
+    },
+    "@ux-original-026": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-026 Keep attachment upload state separate from message submission"
+      ]
+    },
+    "@ux-compose-007": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-007 Display an accepted text submission"
+      ]
+    },
+    "@ux-compose-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-008 Serialize text and references into one submission"
+      ]
+    },
+    "@ux-compose-009": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-009 Preserve the association between uploaded files and media identifiers"
+      ]
+    },
+    "@ux-compose-010": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-010 Do not erase newer typing after send completes"
+      ]
+    },
+    "@ux-compose-011": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-compose-011 Reconcile visible messages through timeline state"
+      ]
+    },
+    "@ux-context-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-context-001 Show supplied usage in the context tooltip"
+      ]
+    },
+    "@ux-context-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-context-005 Apply the coded usage warning colours"
+      ]
+    },
+    "@ux-editor-006": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-006 The agent opens a workspace file in an editor tab"
+      ]
+    },
+    "@ux-editor-007": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-007 The agent asks to open a file that cannot be opened"
+      ]
+    },
+    "@ux-editor-008": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-008 Another chat's request does not open files here"
+      ]
+    },
+    "@ux-editor-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-001 Switching files does not cause visible flicker"
+      ]
+    },
+    "@ux-editor-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-002 Closing an unsaved tab shows confirmation"
+      ]
+    },
+    "@ux-editor-003": {
+      "passed": 0,
+      "failed": 2,
+      "skipped": 4,
+      "titles": [
+        "@ux-editor-003 Clicking a tab activates it immediately"
+      ]
+    },
+    "@ux-editor-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-005 Zen mode keeps editor content visible while other shell panes are hidden"
+      ]
+    },
+    "@ux-workspace-010": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-010 Show dirty tab affordances and compare-to-saved gating"
+      ]
+    },
+    "@ux-workspace-011": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-011 Close tabs with MRU fallback while preserving pinned tabs in bulk close flows"
+      ]
+    },
+    "@ux-workspace-016": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-016 Save changed editor content"
+      ]
+    },
+    "@ux-workspace-017": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-017 Avoid writing an unchanged editor document"
+      ]
+    },
+    "@ux-workspace-018": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-018 Resolve an editor file conflict with the supplied actions"
+      ]
+    },
+    "@ux-workspace-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-019 Keep edits made while a save is in progress"
+      ]
+    },
+    "@ux-editor-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-editor-004 Markdown preview is stable during splitter resize"
+      ]
+    },
+    "@ux-workspace-013": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-013 Gate dock, popout, reattach, and standalone viewer routes from the tab context menu"
+      ]
+    },
+    "@ux-workspace-020": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-020 Show a file's external changes in a clean editor tab"
+      ]
+    },
+    "@ux-timeline-008": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-008 Selecting text shows highlight colors"
+      ]
+    },
+    "@ux-timeline-009": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-009 Clicking a highlight color persists the saved selection snapshot"
+      ]
+    },
+    "@ux-timeline-010": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-010 Highlights persist via post annotations"
+      ]
+    },
+    "@ux-timeline-011": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-011 Desktop highlight toolbar stays near the selection"
+      ]
+    },
+    "@ux-timeline-012": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-012 Coarse-pointer highlight toolbar docks away from the selection"
+      ]
+    },
+    "@ux-timeline-006": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-006 Non-iPad image activation opens the lightbox instead"
+      ]
+    },
+    "@ux-timeline-001": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-001 iPad image tap opens the inline annotator"
+      ]
+    },
+    "@ux-timeline-005": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-005 Cancel closes the annotator without queuing a preview"
+      ]
+    },
+    "@ux-timeline-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-002 Two-finger gestures pinch instead of drawing"
+      ]
+    },
+    "@ux-timeline-003": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-003 Applying crop reduces the working image and resets crop state"
+      ]
+    },
+    "@ux-timeline-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-004 Done uploads a flattened PNG and queues a preview"
+      ]
+    },
+    "@ux-timeline-007": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-timeline-007 SVG sources are rasterized before PNG export"
+      ]
+    },
+    "@ux-timeline-013": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-013 Escape key dismisses the lightbox"
+      ]
+    },
+    "@ux-timeline-014": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-014 Non-Escape keys do not dismiss the lightbox"
+      ]
+    },
+    "@ux-timeline-015": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-015 Clicking anywhere inside the modal dismisses the lightbox"
+      ]
+    },
+    "@ux-timeline-016": {
+      "passed": 3,
+      "failed": 1,
+      "skipped": 2,
+      "titles": [
+        "@ux-timeline-016 Tapping the modal surface on a touch device dismisses the lightbox"
+      ]
+    },
+    "@ux-timeline-017": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-017 Delete a single message without visible replies"
+      ]
+    },
+    "@ux-timeline-020": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-020 Deleting a message with visible replies asks for cascade confirmation"
+      ]
+    },
+    "@ux-timeline-021": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-021 Confirming cascade deletes the parent and visible replies together"
+      ]
+    },
+    "@ux-timeline-022": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-022 Cancelling cascade preserves the parent and visible replies"
+      ]
+    },
+    "@ux-timeline-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-019 A synthetic Replies exist rejection exposes the otherwise dormant retry prompt"
+      ]
+    },
+    "@ux-mobile-006": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-mobile-006 Limit horizontal wheel navigation to the supported Safari path"
+      ]
+    },
+    "@ux-mobile-001": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-mobile-001 Swipe on eligible timeline space"
+      ]
+    },
+    "@ux-mobile-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-mobile-004 Keep swipe order stable as the selected chat changes"
+      ]
+    },
+    "@ux-session-005": {
+      "passed": 0,
+      "failed": 1,
+      "skipped": 5,
+      "titles": [
+        "@ux-session-005 Keep touch swipe eligibility independent of picker grouping"
+      ]
+    },
+    "@ux-mobile-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-mobile-002 Ignore gestures originating in excluded controls"
+      ]
+    },
+    "@ux-mobile-005": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-mobile-005 Do not treat primarily vertical movement as chat navigation"
+      ]
+    },
+    "@ux-shared-009": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-009 Edit and save Plan Markdown"
+      ]
+    },
+    "@ux-original-009": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-009 Edit and save Plan Markdown"
+      ]
+    },
+    "@ux-shared-010": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-010 Preserve dirty Plan text on a remote update"
+      ]
+    },
+    "@ux-original-010": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-010 Preserve dirty Plan text on a remote update"
+      ]
+    },
+    "@ux-shared-011": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-011 Submit Plan to the captured session"
+      ]
+    },
+    "@ux-original-011": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-011 Submit Plan to the captured session"
+      ]
+    },
+    "@ux-shared-012": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-012 Plan Markdown, progress and the session-scoped plan tool"
+      ]
+    },
+    "@ux-original-012": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-012 Plan Markdown, progress and the session-scoped plan tool"
+      ]
+    },
+    "@ux-pwa-001": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-pwa-001 Serve a manifest with declared application icons"
+      ]
+    },
+    "@ux-pwa-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-pwa-003 Fall back to static icons without an avatar"
+      ]
+    },
+    "@ux-pwa-004": {
+      "passed": 0,
+      "failed": 24,
+      "skipped": 0,
+      "titles": [
+        "@ux-pwa-004 Request sized Apple touch icons: /apple-touch-icon-180x180.png",
+        "@ux-pwa-004 Request sized Apple touch icons: /apple-touch-icon-167x167.png",
+        "@ux-pwa-004 Request sized Apple touch icons: /apple-touch-icon-152x152.png",
+        "@ux-pwa-004 Request sized Apple touch icons: /apple-touch-icon.png"
+      ]
+    },
+    "@ux-pwa-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-pwa-005 Prefer PNG avatars for favicon compatibility"
+      ]
+    },
+    "@ux-pwa-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-pwa-002 Use configured agent-avatar URLs for manifest icons"
+      ]
+    },
+    "@ux-pwa-006": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-pwa-006 Vary avatar icon cache URLs with the avatar version"
+      ]
+    },
+    "@ux-original-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-019 Steer a queued item using the backend-authoritative action"
+      ]
+    },
+    "@ux-original-030": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-030 A failed Steer warns and keeps the item queued"
+      ]
+    },
+    "@ux-original-007": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-007 Insert a Quick Actions command into the composer"
+      ]
+    },
+    "@ux-original-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-008 Discover loaded skills in the command catalogue"
+      ]
+    },
+    "@ux-shared-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-008 Discover loaded skills through canonical slash commands"
+      ]
+    },
+    "@ux-reconnect-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-reconnect-001 Clear transient agent displays while disconnected"
+      ]
+    },
+    "@ux-reconnect-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-reconnect-002 Refresh authoritative chat state after reconnect"
+      ]
+    },
+    "@ux-reconnect-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-reconnect-003 Avoid replacing an active search with main-timeline refresh"
+      ]
+    },
+    "@ux-timeline-023": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-023 Markdown tables render as full-width tables with automatic layout"
+      ]
+    },
+    "@ux-timeline-024": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-024 Code blocks expose a copy button in the top-right corner"
+      ]
+    },
+    "@ux-timeline-025": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-025 Resource links and link previews open in a new tab"
+      ]
+    },
+    "@ux-timeline-026": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-026 Outcome chips render after the timestamp in post metadata"
+      ]
+    },
+    "@ux-timeline-027": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-027 Read aloud appears only when browser speech support and speakable text both exist"
+      ]
+    },
+    "@ux-timeline-028": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-028 Starting read aloud on another post transfers playback ownership"
+      ]
+    },
+    "@ux-session-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-session-002 Group picker entries using the current session metadata"
+      ]
+    },
+    "@ux-session-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-session-003 Filter session entries using their search metadata"
+      ]
+    },
+    "@ux-session-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-session-004 Use archive and restore actions supplied for session entries"
+      ]
+    },
+    "@ux-session-006": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-session-006 Dismiss the session picker without choosing an entry"
+      ]
+    },
+    "@ux-settings-001": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-001 Open Settings once and dismiss it without activating the workspace underneath"
+      ]
+    },
+    "@ux-settings-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-002 Cold-open Settings shows a shell immediately and then resolves General"
+      ]
+    },
+    "@ux-settings-dialog-003": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-dialog-003 Settings shows loading shell then content"
+      ]
+    },
+    "@ux-settings-003": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-003 General is preloaded and other built-in sections lazy-load on first visit"
+      ]
+    },
+    "@ux-settings-dialog-005": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-dialog-005 Non-General panes load only on click"
+      ]
+    },
+    "@ux-settings-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-004 Searchable sections focus the header filter and responsive widths change layout classes only"
+      ]
+    },
+    "@ux-settings-dialog-001": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-dialog-001 Rapid shortcut presses open exactly one settings dialog"
+      ]
+    },
+    "@ux-settings-dialog-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-dialog-002 Second settings open is instant"
+      ]
+    },
+    "@ux-settings-dialog-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-dialog-004 User can type a number in stepper fields"
+      ]
+    },
+    "@ux-settings-layering-001": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-layering-001 Settings backdrop covers workspace pane"
+      ]
+    },
+    "@ux-settings-layering-002": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-layering-002 Settings dialog is above all other elements"
+      ]
+    },
+    "@ux-settings-layering-003": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-layering-003 Backdrop is partially opaque (not fully transparent or opaque)"
+      ]
+    },
+    "@ux-settings-layering-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-layering-004 Only settings dialog is interactive above the backdrop"
+      ]
+    },
+    "@ux-settings-016": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-016 Keyboard settings filters and edits shortcut bindings through the shared shortcut model"
+      ]
+    },
+    "@ux-settings-018": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-018 Appearance settings apply theme preset, custom tint and output padding from one section"
+      ]
+    },
+    "@ux-settings-019": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-settings-019 Save General changes after the debounce"
+      ]
+    },
+    "@ux-shared-024": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-024 Copy and delete timeline messages through native actions"
+      ]
+    },
+    "@ux-original-024": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-024 Copy and delete messages using their actual controls"
+      ]
+    },
+    "@ux-shared-029": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-029 Copy and read assistant content truthfully",
+        "@ux-shared-029 Read aloud is absent without browser speech support"
+      ]
+    },
+    "@ux-original-028": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-028 Copy code and transfer post speech ownership"
+      ]
+    },
+    "@ux-shared-033": {
+      "passed": 0,
+      "failed": 18,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-033 Copy message on an assistant post gives the Markdown as written",
+        "@ux-shared-033 Code with angle brackets is shown and copied exactly: user post",
+        "@ux-shared-033 Code with angle brackets is shown and copied exactly: assistant post"
+      ]
+    },
+    "@ux-shared-025": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-025 Let the model identify bounded ranges of persisted messages"
+      ]
+    },
+    "@ux-original-025": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-025 Retrieve explicit message IDs and bounded row windows"
+      ]
+    },
+    "@ux-shared-020": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-020 Search and select a model authoritatively: pointer",
+        "@ux-shared-020 Search and select a model authoritatively: keyboard"
+      ]
+    },
+    "@ux-original-020": {
+      "passed": 9,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-020 Select a model for the selected chat: pointer",
+        "@ux-original-020 Select a model for the selected chat: keyboard"
+      ]
+    },
+    "@ux-shared-022": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-022 Reject stale or unsupported model state"
+      ]
+    },
+    "@ux-original-022": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-022 Render model capabilities without inventing values"
+      ]
+    },
+    "@ux-shared-021": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-021 Find and activate picker entries without changing unsupported state: session picker",
+        "@ux-shared-021 Find and activate picker entries without changing unsupported state: model picker"
+      ]
+    },
+    "@ux-original-021": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-021 Navigate the Classic picker lists: session picker",
+        "@ux-original-021 Navigate the Classic picker lists: model picker"
+      ]
+    },
+    "@ux-shared-016": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-016 Queue two follow-ups exactly once"
+      ]
+    },
+    "@ux-shared-017": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-017 Return a queued item to the editor"
+      ]
+    },
+    "@ux-original-017": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-017 Return a queued follow-up to the Classic editor"
+      ]
+    },
+    "@ux-shared-018": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-018 Reorder and remove by durable identity"
+      ]
+    },
+    "@ux-original-018": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-018 Reorder and remove queued follow-ups with reconciliation"
+      ]
+    },
+    "@ux-shared-019": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-019 Steer a queued item into the matching active run"
+      ]
+    },
+    "@ux-shared-032": {
+      "passed": 0,
+      "failed": 18,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-032 A rejected queue action keeps the item recoverable: returning to editor",
+        "@ux-shared-032 A rejected queue action keeps the item recoverable: cancelling",
+        "@ux-shared-032 A rejected queue action keeps the item recoverable: steering"
+      ]
+    },
+    "@ux-shared-003": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-003 Type on the idle timeline to open Quick actions"
+      ]
+    },
+    "@ux-original-003": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-003 Open Quick Actions by typing outside interactive controls"
+      ]
+    },
+    "@ux-shared-006": {
+      "passed": 8,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-006 Dismiss Quick actions without side effects: Escape",
+        "@ux-shared-006 Dismiss Quick actions without side effects: outside pointer"
+      ]
+    },
+    "@ux-original-006": {
+      "passed": 8,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-006 Dismiss Quick Actions without executing a result: Escape",
+        "@ux-original-006 Dismiss Quick Actions without executing a result: outside pointer"
+      ]
+    },
+    "@ux-shared-004": {
+      "passed": 28,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-004 Do not steal typing from an interactive surface: composer textarea",
+        "@ux-shared-004 Do not steal typing from an interactive surface: input or select",
+        "@ux-shared-004 Do not steal typing from an interactive surface: button or link",
+        "@ux-shared-004 Do not steal typing from an interactive surface: workspace sidebar",
+        "@ux-shared-004 Do not steal typing from an interactive surface: session or model picker"
+      ]
+    },
+    "@ux-original-004": {
+      "passed": 28,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-004 Do not open timeline typeahead from excluded targets: composer textarea",
+        "@ux-original-004 Do not open timeline typeahead from excluded targets: input or select",
+        "@ux-original-004 Do not open timeline typeahead from excluded targets: button or link",
+        "@ux-original-004 Do not open timeline typeahead from excluded targets: workspace sidebar",
+        "@ux-original-004 Do not open timeline typeahead from excluded targets: session or model picker"
+      ]
+    },
+    "@ux-shared-005": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-005 Ignore consumed, modified and composing keys"
+      ]
+    },
+    "@ux-original-005": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-005 Ignore consumed and modified typeahead events"
+      ]
+    },
+    "@ux-shared-023": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-023 Cancel the captured active turn across reconnect"
+      ]
+    },
+    "@ux-original-023": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-023 Refresh active-turn state after reconnect and request stop"
+      ]
+    },
+    "@ux-shared-014": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-014 Select one coherent session view"
+      ]
+    },
+    "@ux-original-014": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-014 Select another session through the picker"
+      ]
+    },
+    "@ux-session-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-session-001 Show the selected chat's timeline"
+      ]
+    },
+    "@ux-shared-015": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-015 Expose only supported session mutations"
+      ]
+    },
+    "@ux-original-015": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-015 Use the session actions actually supplied by the client"
+      ]
+    },
+    "@ux-shared-001": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-001 Open and dismiss the workspace menu: pointer / outside pointer",
+        "@ux-shared-001 Open and dismiss the workspace menu: keyboard / Escape"
+      ]
+    },
+    "@ux-original-001": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-001 Open and dismiss the workspace menu: pointer / outside pointer",
+        "@ux-original-001 Open and dismiss the workspace menu: keyboard / Escape"
+      ]
+    },
+    "@ux-shared-002": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-002 Show and hide the native workspace"
+      ]
+    },
+    "@ux-original-002": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-002 Toggle workspace visibility without submitting the draft"
+      ]
+    },
+    "@ux-shared-013": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-013 Open, search and dismiss the session picker: pointer",
+        "@ux-shared-013 Open, search and dismiss the session picker: keyboard"
+      ]
+    },
+    "@ux-original-013": {
+      "passed": 12,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-013 Open and dismiss the Classic session picker: pointer",
+        "@ux-original-013 Open and dismiss the Classic session picker: keyboard"
+      ]
+    },
+    "@ux-shared-028": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-028 Model-generated SVG cannot run code or fetch resources"
+      ]
+    },
+    "@ux-shared-031": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shared-031 Render safe model-generated SVG as an isolated image"
+      ]
+    },
+    "@ux-original-029": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-original-029 Render a safe fenced SVG as an isolated image and retain source"
+      ]
+    },
+    "@ux-shell-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-001 Menu contains New file, Refresh tree, Reindex workspace"
+      ]
+    },
+    "@ux-shell-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-002 Menu contains hidden files toggle"
+      ]
+    },
+    "@ux-shell-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-003 Workspace items disabled in chat-only mode"
+      ]
+    },
+    "@ux-shell-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-shell-004 Terminal and VNC menu controls depend on callbacks"
+      ]
+    },
+    "@ux-shell-005": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-005 Compose box spans full width"
+      ]
+    },
+    "@ux-shell-006": {
+      "passed": 6,
+      "failed": 0,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-006 Hamburger button visible and above safe area"
+      ]
+    },
+    "@ux-shell-007": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-007 Tab close does not activate tab"
+      ]
+    },
+    "@ux-shell-008": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-shell-008 Menu contains display scale control"
+      ]
+    },
+    "@ux-shell-009": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-shell-009 Inline code in editor preview is monospaced"
+      ]
+    },
+    "@ux-terminal-006": {
+      "passed": 0,
+      "failed": 2,
+      "skipped": 4,
+      "titles": [
+        "@ux-terminal-006 Pop out terminal to new window (desktop)"
+      ]
+    },
+    "@ux-workspace-014": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-014 Surface terminal load, availability, reconnect, and exit states"
+      ]
+    },
+    "@ux-terminal-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-001 Open terminal standalone without garbled output"
+      ]
+    },
+    "@ux-terminal-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-002 Execute ls -al in terminal"
+      ]
+    },
+    "@ux-terminal-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-003 Terminal opens clean without IME active"
+      ]
+    },
+    "@ux-terminal-004": {
+      "passed": 0,
+      "failed": 2,
+      "skipped": 4,
+      "titles": [
+        "@ux-terminal-004 Close terminal via tab close button (click)"
+      ]
+    },
+    "@ux-terminal-005": {
+      "passed": 0,
+      "failed": 4,
+      "skipped": 2,
+      "titles": [
+        "@ux-terminal-005 Close terminal via tab close button (tap)"
+      ]
+    },
+    "@ux-terminal-007": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-007 Terminal theme matches UI theme"
+      ]
+    },
+    "@ux-terminal-008": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-008 Toggle terminal dock via keyboard shortcut"
+      ]
+    },
+    "@ux-terminal-009": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-009 Toggle terminal dock via tab strip button"
+      ]
+    },
+    "@ux-terminal-010": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-010 Dock splitter resizes terminal height"
+      ]
+    },
+    "@ux-terminal-011": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-011 Terminal dock is interactive alongside editor"
+      ]
+    },
+    "@ux-terminal-012": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-012 Dock hidden in zen mode"
+      ]
+    },
+    "@ux-terminal-013": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-013 Zen mode hides all chrome except the terminal/editor"
+      ]
+    },
+    "@ux-terminal-014": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-014 Zen mode has a hover-discoverable exit control"
+      ]
+    },
+    "@ux-terminal-015": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-015 Clicking zen exit indicator reverts to normal layout"
+      ]
+    },
+    "@ux-terminal-016": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-016 Escape key exits zen mode"
+      ]
+    },
+    "@ux-terminal-017": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-terminal-017 Hover-reveal tab strip in zen mode"
+      ]
+    },
+    "@ux-theme-001": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-001 /theme with no arguments shows available themes"
+      ]
+    },
+    "@ux-theme-002": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-002 /theme ristretto applies dark theme visually"
+      ]
+    },
+    "@ux-theme-003": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-003 /theme default restores from ristretto visually"
+      ]
+    },
+    "@ux-theme-004": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-004 /theme dark returns error — not a valid theme name"
+      ]
+    },
+    "@ux-theme-005": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-005 /theme survives page refresh"
+      ]
+    },
+    "@ux-theme-006": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-006 /tint hex changes accent and background on default theme"
+      ]
+    },
+    "@ux-theme-007": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-007 /tint named color works on default theme"
+      ]
+    },
+    "@ux-theme-008": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-008 Switching tints visibly changes accent color"
+      ]
+    },
+    "@ux-theme-009": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-009 /tint off clears tint and restores vanilla default"
+      ]
+    },
+    "@ux-theme-010": {
+      "passed": 4,
+      "failed": 2,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-010 /tint with no args shows usage"
+      ]
+    },
+    "@ux-theme-011": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-011 /tint invalid value returns error"
+      ]
+    },
+    "@ux-theme-012": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-012 /tint survives page refresh"
+      ]
+    },
+    "@ux-theme-013": {
+      "passed": 1,
+      "failed": 5,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-013 Tint on default, switch to ristretto, switch back"
+      ]
+    },
+    "@ux-theme-014": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-014 /tint on ristretto switches to default+tint"
+      ]
+    },
+    "@ux-theme-015": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-theme-015 Round-trip visual consistency"
+      ]
+    },
+    "@ux-thoughts-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-thoughts-001 Render collapsed thought content with disclosure state"
+      ]
+    },
+    "@ux-thoughts-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-thoughts-002 Continue updating content independently of disclosure"
+      ]
+    },
+    "@ux-thoughts-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-thoughts-003 Toggle thought panel expansion"
+      ]
+    },
+    "@ux-thoughts-004": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-thoughts-004 Collapse an expanded status panel with Escape"
+      ]
+    },
+    "@ux-thoughts-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-thoughts-005 Preserve text when changing disclosure state"
+      ]
+    },
+    "@ux-timeline-029": {
+      "passed": 2,
+      "failed": 4,
+      "skipped": 0,
+      "titles": [
+        "@ux-timeline-029 Post times are shown in the viewer's time zone"
+      ]
+    },
+    "@ux-workspace-015": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-workspace-015 Surface VNC configuration, read-only, and runtime error gates"
+      ]
+    },
+    "@ux-extra-004": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-extra-004 Interpret persisted and live widget artifacts separately"
+      ]
+    },
+    "@ux-extra-005": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-extra-005 Keep widget dismissal separate from queue mutation"
+      ]
+    },
+    "@ux-workspace-001": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-001 Create a new untitled markdown file in the resolved folder"
+      ]
+    },
+    "@ux-workspace-002": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-002 Rename a selected non-root workspace entry"
+      ]
+    },
+    "@ux-workspace-003": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-003 Delete a selected file after confirmation"
+      ]
+    },
+    "@ux-workspace-004": {
+      "passed": 3,
+      "failed": 3,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-004 Toggle hidden files and reload the visible tree state"
+      ]
+    },
+    "@ux-workspace-005": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-005 Expose reindex controls without a verified in-pane file-search field"
+      ]
+    },
+    "@ux-workspace-006": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-006 Single-click previews files and double-click enters rename"
+      ]
+    },
+    "@ux-workspace-007": {
+      "passed": 0,
+      "failed": 3,
+      "skipped": 3,
+      "titles": [
+        "@ux-workspace-007 Upload files to the resolved folder with progress and overwrite prompts"
+      ]
+    },
+    "@ux-workspace-008": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-workspace-008 Render workspace previews by preview kind and content type"
+      ]
+    },
+    "@ux-workspace-009": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 6,
+      "titles": [
+        "@ux-workspace-009 Gate open-in-tab and open-in-editor actions by file capabilities"
+      ]
+    },
+    "@ux-workspace-012": {
+      "passed": 0,
+      "failed": 6,
+      "skipped": 0,
+      "titles": [
+        "@ux-workspace-012 Rename tracked tab identities without dropping active or MRU state"
+      ]
+    }
+  },
+  "failurePoints": {
+    "missing-ui-target": {
+      "count": 79,
+      "specs": {
+        "btw.spec.ts": 6,
+        "chat-lifecycle.spec.ts": 6,
+        "compose-stability.spec.ts": 6,
+        "compose-submit.spec.ts": 3,
+        "message-deletion.spec.ts": 1,
+        "quick-actions.spec.ts": 18,
+        "rendering.spec.ts": 6,
+        "shared-queue.spec.ts": 2,
+        "shared-quick-actions.spec.ts": 2,
+        "shared-session-picker.spec.ts": 11,
+        "shell-menu.spec.ts": 12,
+        "workspace-flows.spec.ts": 6
+      },
+      "examples": [
+        {
+          "file": "btw.spec.ts",
+          "tag": "@ux-extra-001",
+          "error": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByLabel(/side conversation|btw/i).visible().first()\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByLabel(/side conversation|btw/i).visible().first() with timeout 10000ms\n  - waiting for getByLabel(/side conversation|btw/i).visible().first()\n"
+        },
+        {
+          "file": "btw.spec.ts",
+          "tag": "@ux-extra-001",
+          "error": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByLabel(/side conversation|btw/i).visible().first()\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByLabel(/side conversation|btw/i).visible().first() with timeout 10000ms\n  - waiting for getByLabel(/side conversation|btw/i).visible().first()\n"
+        },
+        {
+          "file": "btw.spec.ts",
+          "tag": "@ux-extra-001",
+          "error": "Error: expect(locator).toBeVisible() failed\n\nLocator: getByLabel(/side conversation|btw/i).visible().first()\nExpected: visible\nTimeout: 10000ms\nError: element(s) not found\n\nCall log:\n  - Expect \"toBeVisible\" getByLabel(/side conversation|btw/i).visible().first() with timeout 10000ms\n  - waiting for getByLabel(/side conversation|btw/i).visible().first()\n"
+        }
+      ]
+    },
+    "expected-single-result-observed-zero": {
+      "count": 246,
+      "specs": {
+        "chat-lifecycle.spec.ts": 6,
+        "classic-core.spec.ts": 6,
+        "compaction.spec.ts": 42,
+        "compose-stability.spec.ts": 6,
+        "compose-submit.spec.ts": 9,
+        "context-meter.spec.ts": 11,
+        "lightbox.spec.ts": 8,
+        "message-deletion.spec.ts": 25,
+        "reconnect.spec.ts": 12,
+        "rendering.spec.ts": 24,
+        "shared-copy.spec.ts": 42,
+        "shared-messages-tool.spec.ts": 12,
+        "shared-model-picker.spec.ts": 9,
+        "shared-pickers.spec.ts": 12,
+        "shared-session-picker.spec.ts": 18,
+        "timeline-time.spec.ts": 4
+      },
+      "examples": [
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-chat-lifecycle-001",
+          "error": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('.timeline .post.agent-post').filter({ hasText: 'Done 6aacdb98' })\nExpected: 1\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('.timeline .post.agent-post').filter({ hasText: 'Done 6aacdb98' }) with timeout 10000ms\n  - waiting for locator('.timeline .post.agent-post').filter({ hasText: 'Done 6aacdb98' })\n    24 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+        },
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-chat-lifecycle-001",
+          "error": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('.timeline .post.agent-post').filter({ hasText: 'Done 1933079b' })\nExpected: 1\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('.timeline .post.agent-post').filter({ hasText: 'Done 1933079b' }) with timeout 10000ms\n  - waiting for locator('.timeline .post.agent-post').filter({ hasText: 'Done 1933079b' })\n    24 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+        },
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-chat-lifecycle-001",
+          "error": "Error: expect(locator).toHaveCount(expected) failed\n\nLocator:  locator('.timeline .post.agent-post').filter({ hasText: 'Done 2cb13c87' })\nExpected: 1\nReceived: 0\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveCount\" locator('.timeline .post.agent-post').filter({ hasText: 'Done 2cb13c87' }) with timeout 10000ms\n  - waiting for locator('.timeline .post.agent-post').filter({ hasText: 'Done 2cb13c87' })\n    24 × locator resolved to 0 elements\n       - unexpected value \"0\"\n"
+        }
+      ]
+    },
+    "test-or-operation-timeout": {
+      "count": 432,
+      "specs": {
+        "chat-lifecycle.spec.ts": 36,
+        "classic-core.spec.ts": 6,
+        "compaction.spec.ts": 5,
+        "compose-stability.spec.ts": 20,
+        "context-meter.spec.ts": 1,
+        "editor.spec.ts": 74,
+        "plan.spec.ts": 12,
+        "queue-steer.spec.ts": 12,
+        "reconnect.spec.ts": 6,
+        "session-picker.spec.ts": 12,
+        "shared-queue.spec.ts": 45,
+        "shared-quick-actions.spec.ts": 6,
+        "shared-reconnect.spec.ts": 12,
+        "shared-session-picker.spec.ts": 1,
+        "shared-shell.spec.ts": 4,
+        "shell-menu.spec.ts": 18,
+        "terminal.spec.ts": 98,
+        "theme-tint.spec.ts": 4,
+        "thoughts-panel.spec.ts": 30,
+        "workspace-flows.spec.ts": 30
+      },
+      "examples": [
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-chat-lifecycle-002",
+          "error": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: 1\nReceived: 0\n\nCall Log:\n- Timeout 10000ms exceeded while waiting on the predicate"
+        },
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-chat-lifecycle-003",
+          "error": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 15000ms exceeded while waiting on the predicate"
+        },
+        {
+          "file": "chat-lifecycle.spec.ts",
+          "tag": "@ux-original-027",
+          "error": "Error: expect(received).toBe(expected) // Object.is equality\n\nExpected: true\nReceived: false\n\nCall Log:\n- Timeout 15000ms exceeded while waiting on the predicate"
+        }
+      ]
+    },
+    "missing-profile-command": {
+      "count": 6,
+      "specs": {
+        "compaction.spec.ts": 6
+      },
+      "examples": [
+        {
+          "file": "compaction.spec.ts",
+          "tag": "@ux-compaction-008",
+          "error": "Error: @cap-compaction requires commands.selectModel"
+        },
+        {
+          "file": "compaction.spec.ts",
+          "tag": "@ux-compaction-008",
+          "error": "Error: @cap-compaction requires commands.selectModel"
+        },
+        {
+          "file": "compaction.spec.ts",
+          "tag": "@ux-compaction-008",
+          "error": "Error: @cap-compaction requires commands.selectModel"
+        }
+      ]
+    },
+    "other-value-or-state-assertion": {
+      "count": 151,
+      "specs": {
+        "compose-stability.spec.ts": 2,
+        "compose-submit.spec.ts": 9,
+        "message-deletion.spec.ts": 4,
+        "mobile-swipe.spec.ts": 1,
+        "plan.spec.ts": 12,
+        "pwa-manifest.spec.ts": 36,
+        "rendering.spec.ts": 2,
+        "shared-copy.spec.ts": 6,
+        "shared-model-picker.spec.ts": 6,
+        "shared-pickers.spec.ts": 12,
+        "shared-quick-actions.spec.ts": 8,
+        "shared-svg.spec.ts": 6,
+        "theme-tint.spec.ts": 47
+      },
+      "examples": [
+        {
+          "file": "compose-stability.spec.ts",
+          "tag": "@ux-compose-004",
+          "error": "Error: expect(locator).toHaveValue(expected) failed\n\nLocator:  locator('.compose-box textarea')\nExpected: \"[reply:second-87846bd3] two 87846bd3\"\nReceived: \"newer draft 87846bd3\"\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveValue\" locator('.compose-box textarea') with timeout 10000ms\n  - waiting for locator('.compose-box textarea')\n    24 × locator resolved to <textarea rows=\"1\" placeholder=\"Message (Enter to send, Shift+Enter for newline)...\"></textarea>\n       - unexpected value \"newer draft "
+        },
+        {
+          "file": "compose-stability.spec.ts",
+          "tag": "@ux-compose-004",
+          "error": "Error: expect(locator).toHaveValue(expected) failed\n\nLocator:  locator('.compose-box textarea')\nExpected: \"[reply:second-834eebd6] two 834eebd6\"\nReceived: \"newer draft 834eebd6\"\nTimeout:  10000ms\n\nCall log:\n  - Expect \"toHaveValue\" locator('.compose-box textarea') with timeout 10000ms\n  - waiting for locator('.compose-box textarea')\n    24 × locator resolved to <textarea rows=\"1\" placeholder=\"Message (Enter to send, Shift+Enter for newline)...\"></textarea>\n       - unexpected value \"newer draft "
+        },
+        {
+          "file": "compose-submit.spec.ts",
+          "tag": "@ux-compose-008",
+          "error": "Error: expect(locator).toContainText(expected) failed\n\nLocator: locator('.compose-box')\nExpected substring: \"fx-140669b2.md\"\nReceived string:    \"@b731d57c3f1d4fbba8642c28c0cf0be9fixture/fixture-1\"\nTimeout: 10000ms\n\nCall log:\n  - Expect \"toContainText\" locator('.compose-box') with timeout 10000ms\n  - waiting for locator('.compose-box')\n    24 × locator resolved to <div class=\"compose-box\" data-testid=\"compose-box\">…</div>\n       - unexpected value \"@b731d57c3f1d4fbba8642c28c0cf0be9fixture/fixtur"
+        }
+      ]
+    },
+    "fixture-javascript-exception": {
+      "count": 3,
+      "specs": {
+        "compose-submit.spec.ts": 3
+      },
+      "examples": [
+        {
+          "file": "compose-submit.spec.ts",
+          "tag": "@ux-compose-008",
+          "error": "TypeError: Cannot read properties of undefined (reading 'unicode')"
+        },
+        {
+          "file": "compose-submit.spec.ts",
+          "tag": "@ux-compose-008",
+          "error": "TypeError: Cannot read properties of undefined (reading 'unicode')"
+        },
+        {
+          "file": "compose-submit.spec.ts",
+          "tag": "@ux-compose-008",
+          "error": "TypeError: Cannot read properties of undefined (reading 'unicode')"
+        }
+      ]
+    },
+    "other-error": {
+      "count": 6,
+      "specs": {
+        "workspace-flows.spec.ts": 6
+      },
+      "examples": [
+        {
+          "file": "workspace-flows.spec.ts",
+          "tag": "@ux-workspace-001",
+          "error": "Error: newFile: nothing created (preview ||; writes [\"click 1 enabled=true\",\"click 2 enabled=true\",\"click 3 enabled=true\",\"click 4 enabled=true\"])"
+        },
+        {
+          "file": "workspace-flows.spec.ts",
+          "tag": "@ux-workspace-001",
+          "error": "Error: newFile: nothing created (preview ||; writes [\"click 1 enabled=true\",\"click 2 enabled=true\",\"click 3 enabled=true\",\"click 4 enabled=true\"])"
+        },
+        {
+          "file": "workspace-flows.spec.ts",
+          "tag": "@ux-workspace-001",
+          "error": "Error: newFile: nothing created (preview ||; writes [\"click 1 enabled=true\",\"click 2 enabled=true\",\"click 3 enabled=true\",\"click 4 enabled=true\"])"
+        }
+      ]
+    }
+  },
+  "skipReasons": {
+    "capability-absent: @cap-adaptive-cards": 12,
+    "mouse press scenario: not applicable to touch devices": 4,
+    "capability-absent: @cap-text-highlights": 30,
+    "capability-absent: @cap-image-annotation": 42,
+    "touch scenario: not applicable without a touch screen": 4,
+    "capability-absent: @cap-touch": 30,
+    "touch swipe runs on chromium-phone (iPhone emulation); Playwright's WebKit cannot construct Touch events": 5,
+    "capability-absent: @cap-agent-avatar": 12,
+    "no archive action supplied for this entry": 6,
+    "capability-absent: @cap-settings-dialog": 96,
+    "capability-absent: @cap-vnc": 24,
+    "environment-limit: the display scale control is offered only in an installed app (display-mode standalone), which browser tabs cannot emulate": 6,
+    "desktop scenario: pop-out windows are not offered on touch devices": 4,
+    "click scenario: the tap variant is @ux-terminal-005": 4,
+    "capability-absent: @cap-widgets": 12,
+    "environment limit: Playwright's WebKit on Linux uploads files without their bytes": 3
+  },
+  "clusters": {
+    "shared-queue.spec.ts": {
+      "passed": 7,
+      "failed": 47,
+      "skipped": 0
+    },
+    "queue-steer.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "thoughts-panel.spec.ts": {
+      "passed": 0,
+      "failed": 30,
+      "skipped": 0
+    },
+    "shared-reconnect.spec.ts": {
+      "passed": 0,
+      "failed": 12,
+      "skipped": 0
+    },
+    "compaction.spec.ts": {
+      "passed": 1,
+      "failed": 53,
+      "skipped": 0
+    }
+  },
+  "scenarioSummary": {
+    "tags": 233,
+    "failedOnly": 125,
+    "mixedPassFail": 41,
+    "passedOnly": 22,
+    "skippedOnly": 45,
+    "other": 0
+  }
+}
