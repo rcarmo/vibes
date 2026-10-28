@@ -21,6 +21,7 @@ classifiers = [
 dependencies = [
     "aiohttp==3.14.3",
     "aiosqlite==0.22.1",
+    "cryptography>=43.0.0",
     "pillow==12.3.0",
     "python-dotenv==1.2.3",
     "watchfiles==1.2.0",

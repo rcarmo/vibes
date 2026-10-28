@@ -929,28 +929,33 @@ async def _run_shell(args: str, add_to_context: bool = False) -> SlashCommandRes
 
     try:
         try:
-            completed = subprocess.run(
-                args,
-                shell=True,
-                executable="/bin/bash",
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                timeout=SHELL_TIMEOUT,
+            from .db import get_db
+            from .secure import shell_exec
+            from .secure.keychain import stores
+
+            db = await get_db()
+            keychain, environment = stores(db)
+            from pathlib import Path
+            from .config import get_config
+            config = get_config()
+            completed = await shell_exec.run_shell(
+                args, keychain, environment, shell_path=config.shell_path or None,
+                cwd=Path.cwd().resolve(), timeout=SHELL_TIMEOUT,
             )
+            output = completed['stdout']
+            exit_code = completed['exit_code']
         except subprocess.TimeoutExpired:
             return SlashCommandResult(
                 status="error",
                 message=f"$ {args}\n```\n[timed out after {SHELL_TIMEOUT}s]\n```",
             )
-        output = completed.stdout.decode("utf-8", errors="replace") if completed.stdout else ""
-        exit_label = f"exit code {completed.returncode}" if completed.returncode else "ok"
+        exit_label = f"exit code {exit_code}" if exit_code else "ok"
         header = f"$ {args}  [{exit_label}]"
         if add_to_context:
             header += "\n[Note: Vibes returns `/bash` output inline and does not store hidden tool context.]"
         message = f"{header}\n```\n{output}```"
         return SlashCommandResult(
-            status="success" if completed.returncode == 0 else "error",
+            status="success" if exit_code == 0 else "error",
             message=message,
         )
     except Exception as e:

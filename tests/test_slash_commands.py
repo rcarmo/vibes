@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 import pytest
+import pytest_asyncio
 
 SRC_PATH = Path(__file__).resolve().parents[1] / "src"
 if str(SRC_PATH) in sys.path:
@@ -22,6 +23,20 @@ execute_command = _mod.execute_command
 SlashCommand = _mod.SlashCommand
 _resolve_theme = _mod._resolve_theme
 _normalize_hex = _mod._normalize_hex
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def shell_database(tmp_path, monkeypatch):
+    """Shell commands use the persistent Settings stores in an isolated database."""
+    from vibes import db
+    database = db.Database(str(tmp_path / 'shell.db'))
+    await database.connect()
+    try:
+        monkeypatch.setattr(db, 'get_db', AsyncMock(return_value=database))
+        monkeypatch.setenv('VIBES_KEYCHAIN_KEY_PATH', str(tmp_path / 'keychain.key'))
+        yield database
+    finally:
+        await database.close()
 
 
 # ── parse_command ──────────────────────────────────────────
@@ -577,12 +592,12 @@ async def test_queue_acp_not_supported():
 
 @pytest.mark.asyncio
 async def test_shell_generic_exception(monkeypatch):
-    import subprocess as _subprocess
+    import asyncio
 
-    def _boom(*a, **kw):
+    async def _boom(*a, **kw):
         raise OSError("no such file")
 
-    monkeypatch.setattr(_subprocess, "run", _boom)
+    monkeypatch.setattr(asyncio, "create_subprocess_exec", _boom)
     cmd = SlashCommand(name="shell", args="echo hi", raw="/shell echo hi")
     result = await execute_command(cmd, "acp")
     assert result.status == "error"
