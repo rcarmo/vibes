@@ -9,6 +9,7 @@ from aiohttp.client_exceptions import ClientConnectionResetError
 from ..acp_client import stop_agent as stop_acp_agent, start_agent as start_acp_agent
 from ..pi_client import stop_pi_agent, start_pi_agent
 from ..config import get_config
+from ..db import get_db
 
 
 async def stop_agent() -> None:
@@ -23,6 +24,50 @@ async def start_agent() -> None:
 # Connected SSE clients
 _clients: set[asyncio.Queue] = set()
 _workspace_client_ids: dict[asyncio.Queue, str] = {}
+_session_clients: dict[asyncio.Queue, str] = {}
+_GLOBAL_EVENTS = {'workspace_update', 'ui_theme', 'sessions_changed', 'server_restart'}
+
+
+def _requested_session(query):
+    session_id, chat_jid = query.get('session_id'), query.get('chat_jid')
+    if chat_jid is not None:
+        if not chat_jid.startswith('gi:') or not chat_jid[3:]:
+            raise ValueError('Expected chat_jid=gi:<session-id>')
+        if session_id is not None and session_id != chat_jid[3:]:
+            raise ValueError('Conflicting session selectors')
+        session_id = chat_jid[3:]
+    if session_id is not None and (not isinstance(session_id, str) or not session_id):
+        raise ValueError('Invalid session selector')
+    return session_id
+
+
+async def _event_session(event_type, data):
+    """Resolve persisted conversation ownership; ambiguous events fail closed."""
+    if not isinstance(data, dict):
+        return None
+    payload = data.get('data') if isinstance(data.get('data'), dict) else data
+    claimed = payload.get('session_id', data.get('session_id'))
+    thread_id = payload.get('thread_id', data.get('thread_id'))
+    message_id = data.get('id') if event_type in {'new_post', 'new_reply', 'agent_response'} else None
+    items = data.get('items')
+    if isinstance(items, list):
+        owners = [await _event_session('agent_followup_queued', item) for item in items]
+        return owners[0] if owners and None not in owners and len(set(owners)) == 1 else None
+    try:
+        db = await get_db()
+        persisted_id = thread_id if type(thread_id) is int else message_id
+        if type(persisted_id) is int:
+            row = await db.get_interaction(persisted_id)
+            if not row:
+                return None
+            owner = row['data'].get('session_id', 'default')
+            return owner if claimed is None or claimed == owner else None
+        if event_type in {'plan_updated', 'session_model_changed', 'model_changed'} and isinstance(claimed, str):
+            from ..sessions import SessionStore
+            return claimed if await SessionStore(db).get(claimed) else None
+    except (RuntimeError, ValueError, TypeError):
+        return None
+    return None
 
 
 def _without_hidden_nodes(value):
@@ -39,11 +84,17 @@ _LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_draft_delta", "agent
 
 
 async def broadcast_event(event_type: str, data: Any) -> None:
-    """Broadcast an event to all connected SSE clients."""
-    message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    """Deliver scoped conversations; preserve the legacy unscoped feed."""
+    event_session = None
+    if event_type not in _GLOBAL_EVENTS and any(q in _session_clients for q in _clients):
+        event_session = await _event_session(event_type, data)
+    common_message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
     lossy = event_type in _LOSSY_EVENT_TYPES
-    for queue in _clients:
-        message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    for queue in list(_clients):
+        session_id = _session_clients.get(queue)
+        if session_id is not None and event_type not in _GLOBAL_EVENTS and event_session != session_id:
+            continue
+        message = common_message
         if event_type == 'workspace_update' and queue in _workspace_client_ids:
             from .workspace import _workspace_subscriptions
             if not _workspace_subscriptions.get(_workspace_client_ids[queue], False):
@@ -122,7 +173,15 @@ def _schedule_restart_if_needed() -> None:
 
 
 async def sse_stream(request: web.Request) -> web.StreamResponse:
-    """SSE endpoint for live updates."""
+    """SSE endpoint with optional explicit conversation isolation."""
+    try:
+        session_id = _requested_session(request.query)
+    except ValueError as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+    if session_id is not None:
+        from ..sessions import SessionStore
+        if not await SessionStore(await get_db()).get(session_id):
+            return web.json_response({'error': 'Session not found'}, status=404)
     response = web.StreamResponse(
         status=200,
         reason="OK",
@@ -138,6 +197,8 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     # Create client queue
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     _clients.add(queue)
+    if session_id is not None:
+        _session_clients[queue] = session_id
     if request.query.get('workspace_subscription'):
         _workspace_client_ids[queue] = request.query['workspace_subscription']
     _schedule_restart_if_needed()
@@ -162,6 +223,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
         pass
     finally:
         _clients.discard(queue)
+        _session_clients.pop(queue, None)
         _workspace_client_ids.pop(queue, None)
         subscription = request.query.get('workspace_subscription')
         if subscription and subscription not in _workspace_client_ids.values():
