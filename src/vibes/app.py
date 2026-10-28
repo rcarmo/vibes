@@ -229,7 +229,7 @@ def create_app() -> web.Application:
     from .routes import vnc
     vnc.setup_routes(app)
     sessions.setup_routes(app)
-    from .routes import pi_tools, system_metrics, plans, settings, shell_tools, widgets, classic
+    from .routes import pi_tools, system_metrics, plans, settings, shell_tools, widgets, classic, classic_messages
     pi_tools.setup_routes(app)
     system_metrics.setup_routes(app)
     plans.setup_routes(app)
@@ -237,6 +237,7 @@ def create_app() -> web.Application:
     shell_tools.setup_routes(app)
     widgets.setup_routes(app)
     classic.setup_routes(app)
+    classic_messages.setup_routes(app)
     
     # Dynamic PWA manifest (before static to take priority over static/manifest.json)
     app.router.add_get("/manifest.json", manifest_handler)

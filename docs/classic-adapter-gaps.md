@@ -47,10 +47,14 @@ boot, session model choices and browser acceptance are open.
 
 ## Timeline and real prompt admission
 
-Project persisted interactions to Classic conversation messages with stable IDs,
-`display_row_id`, role/content/time and payload. Session-scoped history/search/
-delete must reject foreign IDs and implement or explicitly reject pagination
-options. Generic legacy `/timeline` and `/post` are not sufficient adapters.
+[Conversation adapters](classic-messages.md) now expose session-scoped history,
+current/root search and transactional deletion. They project stable IDs,
+`display_row_id`, role/content/time, reply identity and validated media references;
+filter hidden semantic records before pagination; reject foreign IDs and unknown
+query options; and guard active/queued transcript state. The candidate conversation
+projector passed against actual HTTP responses. The server sends scoped deletion
+events, but candidate0259e9a's active app handler does not consume them; cross-tab
+UI deletion still needs frontend work. Legacy `/timeline` and `/post` are unchanged.
 
 The canonical POST `/api/sessions/{s}/prompt` now enters the existing per-chat
 admission path, persists the user message/queue identity and produces a genuine

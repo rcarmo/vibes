@@ -88,6 +88,19 @@ async def broadcast_event(event_type: str, data: Any) -> None:
     event_session = None
     if event_type not in _GLOBAL_EVENTS and any(q in _session_clients for q in _clients):
         event_session = await _event_session(event_type, data)
+    _broadcast_resolved(event_type, data, event_session)
+
+
+async def broadcast_session_event(event_type: str, data: Any, session_id: str) -> None:
+    """Publish after a mutation whose transaction already verified ownership.
+
+    Callers must derive session_id from persisted rows, never a request claim.
+    This supports deletion events after their source rows no longer exist.
+    """
+    _broadcast_resolved(event_type, data, session_id)
+
+
+def _broadcast_resolved(event_type, data, event_session):
     common_message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
     lossy = event_type in _LOSSY_EVENT_TYPES
     for queue in list(_clients):
