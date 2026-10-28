@@ -53,9 +53,12 @@ bounded to one second.
 
 Preserving a TCP stream is not sufficient to resume a new RFB parser. Browser
 handoff/reconnect must preserve or deliberately rebuild client protocol state;
-only opaque transport continuity was tested here. Browser/RFB acceptance and the
-shared UI's arbitrary-direct-target error scenario are not satisfied by this
-fixed-target implementation. Do not expand target reachability merely to make a
+opaque transport continuity does not establish protocol-state handoff. A
+[bounded Chromium RFB/auth probe](evidence/vnc-rfb-browser-20261028.md) now passes
+with the actual candidate protocol code, password accept/reject and a synthetic
+raw canvas update. Complete browser/RFB acceptance and the shared UI's
+arbitrary-direct-target error scenario are not satisfied by this fixed-target
+implementation. Do not expand target reachability merely to make a
 fixture pass.
 
 ## Verification
@@ -71,6 +74,8 @@ shutdown; they require one tracked tunnel or a closed late writer, never an
 orphan forwarder.
 
 No profile capability/skips, shared UI, authentication deployment or consumer pin
-changed. Browser framebuffer/authentication, interactive handoff, slow-client
-soak, cross-platform behaviour and pre-release CPU/allocation profiling remain
+changed. The bounded synthetic RFB3.8/password/framebuffer probe passed with zero channel
+error; the follow-up VNC route/safety/race gate passed 16 tests in 1.58 seconds.
+Real-desktop/full-pane acceptance, interactive protocol-state handoff, slow-client
+soak, cross-platform behaviour and whole-application pre-release profiling remain
 open. Nothing was deployed or enabled on a running host.
