@@ -25,6 +25,7 @@ async def start_agent() -> None:
 _clients: set[asyncio.Queue] = set()
 _workspace_client_ids: dict[asyncio.Queue, str] = {}
 _session_clients: dict[asyncio.Queue, str] = {}
+_classic_clients: set[asyncio.Queue] = set()
 _GLOBAL_EVENTS = {'workspace_update', 'ui_theme', 'sessions_changed', 'server_restart'}
 
 
@@ -88,7 +89,53 @@ async def broadcast_event(event_type: str, data: Any) -> None:
     event_session = None
     if event_type not in _GLOBAL_EVENTS and any(q in _session_clients for q in _clients):
         event_session = await _event_session(event_type, data)
-    _broadcast_resolved(event_type, data, event_session)
+    classic_data = await _classic_event(event_type, data, event_session) if event_session is not None and _classic_clients else None
+    _broadcast_resolved(event_type, data, event_session, classic_data)
+
+
+async def _classic_event(event_type, data, session_id):
+    if not isinstance(data, dict):
+        return data
+    result = {**data, 'chat_jid': 'gi:' + session_id, 'session_id': session_id}
+    if event_type in {'new_post', 'new_reply', 'agent_response'} and isinstance(data.get('data'), dict):
+        from .classic_messages import project
+        database = await get_db()
+        persisted = await database.get_interaction(data['id'])
+        if not persisted or persisted['data'].get('session_id', 'default') != session_id:
+            return None
+        message = await project(database, {'id': persisted['id'], 'timestamp': persisted['timestamp'],
+                                           'data': json.dumps(persisted['data'])})
+        from .classic_messages import visible_sql
+        # Both canonical and compatible post envelopes are consumed by shared
+        # client variants. Never let a hidden record bypass conversation filters.
+        async with database._connection.execute('SELECT 1 FROM interactions WHERE id=? AND ' + visible_sql(),
+                                                  (data['id'],)) as cursor:
+            if not await cursor.fetchone():
+                return None
+        legacy_data = {'type': 'agent_response' if message['role'] in {'assistant', 'system'} else 'user_message',
+                       'content': message['content'], 'session_id': session_id,
+                       'chat_jid': 'gi:' + session_id, **message['payload']}
+        legacy_data['media_ids'] = [item['media_id'] for item in message['payload'].get('media', [])]
+        if message['reply_to_id'] is not None:
+            legacy_data['thread_id'] = message['reply_to_id']
+        result = {**message, 'chat_jid': 'gi:' + session_id, 'timestamp': message['created_at'],
+                  'data': legacy_data}
+    elif event_type == 'agent_status':
+        # Legacy type/title events lack Classic lifecycle status. Preserve type
+        # detail while binding all UI control identity to the scoped envelope.
+        kind = data.get('type')
+        result['status'] = 'idle' if kind in {'done', 'error'} else 'cancelling' if kind == 'cancelled' else 'running'
+    elif event_type in {'agent_draft', 'agent_thought'}:
+        field = 'draft' if event_type == 'agent_draft' else 'thought'
+        from . import agents
+        preview = agents._turn_previews.get(data.get('turn_id'), {})
+        # Classic consumes full snapshots; legacy draft events may be append
+        # chunks. Use the already accumulated owner-bound preview when present.
+        if preview.get('thread_id') != data.get('thread_id'):
+            preview = {}
+        text = preview.get(field, data.get('text', ''))
+        result[field] = text if isinstance(text, str) else ''
+    return result
 
 
 async def broadcast_session_event(event_type: str, data: Any, session_id: str) -> None:
@@ -97,17 +144,30 @@ async def broadcast_session_event(event_type: str, data: Any, session_id: str) -
     Callers must derive session_id from persisted rows, never a request claim.
     This supports deletion events after their source rows no longer exist.
     """
-    _broadcast_resolved(event_type, data, session_id)
+    classic_data = await _classic_event(event_type, data, session_id) if _classic_clients else None
+    _broadcast_resolved(event_type, data, session_id, classic_data)
 
 
-def _broadcast_resolved(event_type, data, event_session):
+def _broadcast_resolved(event_type, data, event_session, classic_data=None):
     common_message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
+    global_classic_messages = {}
+    classic_message = f"event: {event_type}\ndata: {json.dumps(classic_data)}\n\n" if classic_data is not None else None
     lossy = event_type in _LOSSY_EVENT_TYPES
     for queue in list(_clients):
         session_id = _session_clients.get(queue)
         if session_id is not None and event_type not in _GLOBAL_EVENTS and event_session != session_id:
             continue
         message = common_message
+        if queue in _classic_clients:
+            if event_type in _GLOBAL_EVENTS and isinstance(data, dict):
+                if session_id not in global_classic_messages:
+                    envelope = {**data, 'chat_jid': 'gi:' + session_id, 'session_id': session_id}
+                    global_classic_messages[session_id] = f"event: {event_type}\ndata: {json.dumps(envelope)}\n\n"
+                message = global_classic_messages[session_id]
+            elif classic_message is not None:
+                message = classic_message
+            elif event_type not in _GLOBAL_EVENTS:
+                continue
         if event_type == 'workspace_update' and queue in _workspace_client_ids:
             from .workspace import _workspace_subscriptions
             if not _workspace_subscriptions.get(_workspace_client_ids[queue], False):
@@ -212,13 +272,16 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     _clients.add(queue)
     if session_id is not None:
         _session_clients[queue] = session_id
+        if request.query.get('chat_jid') is not None:
+            _classic_clients.add(queue)
     if request.query.get('workspace_subscription'):
         _workspace_client_ids[queue] = request.query['workspace_subscription']
     _schedule_restart_if_needed()
     
     try:
         # Send initial connection event
-        await response.write(b"event: connected\ndata: {}\n\n")
+        connected = {'chat_jid': 'gi:' + session_id, 'session_id': session_id} if queue in _classic_clients else {}
+        await response.write(f"event: connected\ndata: {json.dumps(connected)}\n\n".encode())
         
         # Heartbeat and message loop
         while True:
@@ -237,6 +300,7 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     finally:
         _clients.discard(queue)
         _session_clients.pop(queue, None)
+        _classic_clients.discard(queue)
         _workspace_client_ids.pop(queue, None)
         subscription = request.query.get('workspace_subscription')
         if subscription and subscription not in _workspace_client_ids.values():

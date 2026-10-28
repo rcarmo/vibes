@@ -23,10 +23,25 @@ conversation filtering. Existing queue bounds/lossy policies and workspace
 hidden-file filtering are preserved. Encoding common payloads once per broadcast
 also avoids serialising identical data for every subscriber.
 
-Focused SSE/workspace/widget/race tests: 86 passed in 2.66s, including actual HTTP
-subscription validation, foreign-message rejection, inconsistent claim rejection,
-missing owner handling and per-chat delivery. Full-app SSE/bootstrap/reconnect
-acceptance and high-rate stream profiling remain open.
+Classic `chat_jid=gi:<s>` subscriptions additionally receive `chat_jid` envelopes,
+scoped connection frames, persisted message projections with compatible post
+fields, lifecycle status and owner-checked accumulated draft/thought snapshots.
+Global notifications carry the recipient's selected chat envelope. The older
+unscoped and `session_id`-only feeds retain their original payloads. Persisted
+message content is reread rather than trusting supplied event content; hidden
+semantic records stay out of the Classic feed. Server-side stream filtering is
+still distinct from the candidate's missing deletion/reorder event handlers.
+
+The original SSE/workspace/widget/race gate passed 86 tests in 2.66s. The Classic
+envelope/SSE/message/queue/routes gate passed 42 tests in 1.34s. The follow-up
+full Python suite passed 1,049 tests with 13 existing skips in 42.13s using the
+pinned optional SDK and unchanged shared assets; SSE module/tests pass Ruff and
+diff checks. Coverage includes actual HTTP subscription validation, foreign and
+inconsistent claim rejection, global recipient envelopes, hidden-record filtering
+and unchanged legacy payloads. No provider or complete browser application was
+started. Disposable SDK, asset link and test output are removed after analysis.
+Full-app SSE/bootstrap/reconnect acceptance and high-rate stream profiling remain
+open.
 
 ## Boot and registry
 

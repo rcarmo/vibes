@@ -78,5 +78,50 @@ async def test_sse_http_validates_session_and_delivers_only_owned_event(db, monk
         await sse.broadcast_event('new_post', await db.get_interaction(a))
         event = await asyncio.wait_for(stream.content.readuntil(b'\n\n'), 1)
         payload = json.loads(event.decode().split('data: ')[1])
-        assert payload['id'] == a and b'only-b' not in event
+        assert payload['id'] == str(a) and payload['chat_jid'] == 'gi:default' and b'only-b' not in event
         stream.close()
+
+
+@pytest.mark.asyncio
+async def test_classic_envelopes_do_not_change_legacy_payloads(db, monkeypatch):
+    monkeypatch.setattr(sse, 'get_db', AsyncMock(return_value=db))
+    root = await db.create_interaction({'type': 'user_message', 'content': 'work'})
+    original = await db.get_interaction(root)
+    classic, legacy, session_only = [asyncio.Queue(100) for _ in range(3)]
+    monkeypatch.setattr(sse, '_clients', {classic, legacy, session_only})
+    monkeypatch.setattr(sse, '_session_clients', {classic: 'default', session_only: 'default'})
+    monkeypatch.setattr(sse, '_classic_clients', {classic})
+    await sse.broadcast_event('new_post', original)
+    data = json.loads(classic.get_nowait().split('data: ')[1])
+    assert data['chat_jid'] == 'gi:default' and data['role'] == 'user' and data['id'] == str(root)
+    for queue in (legacy, session_only):
+        assert json.loads(queue.get_nowait().split('data: ')[1]) == original
+    for kind, expected in (('thinking', 'running'), ('done', 'idle'), ('cancelled', 'cancelling')):
+        await sse.broadcast_event('agent_status', {'thread_id': root, 'turn_id': 'turn', 'type': kind})
+        assert json.loads(classic.get_nowait().split('data: ')[1])['status'] == expected
+        legacy.get_nowait()
+        session_only.get_nowait()
+    await sse.broadcast_event('agent_draft', {'thread_id': root, 'text': 'draft'})
+    assert json.loads(classic.get_nowait().split('data: ')[1])['draft'] == 'draft'
+
+
+@pytest.mark.asyncio
+async def test_classic_global_frames_are_recipient_scoped_and_hidden_posts_withheld(db, monkeypatch):
+    monkeypatch.setattr(sse, 'get_db', AsyncMock(return_value=db))
+    other = await SessionStore(db).create('Other')
+    own, foreign, legacy = [asyncio.Queue(100) for _ in range(3)]
+    monkeypatch.setattr(sse, '_clients', {own, foreign, legacy})
+    monkeypatch.setattr(sse, '_session_clients', {own: 'default', foreign: other['id']})
+    monkeypatch.setattr(sse, '_classic_clients', {own, foreign})
+    await sse.broadcast_event('ui_theme', {'theme': 'night'})
+    assert json.loads(own.get_nowait().split('data: ')[1])['chat_jid'] == 'gi:default'
+    assert json.loads(foreign.get_nowait().split('data: ')[1])['chat_jid'] == 'gi:' + other['id']
+    assert json.loads(legacy.get_nowait().split('data: ')[1]) == {'theme': 'night'}
+    hidden = await db.create_interaction({'type': 'agent_response', 'kind': 'tool_result', 'content': 'private-tool'})
+    await sse.broadcast_event('agent_response', await db.get_interaction(hidden))
+    assert own.empty() and foreign.empty() and legacy.qsize() == 1
+    visible = await db.create_interaction({'type': 'user_message', 'content': 'visible'})
+    await sse.broadcast_event('new_post', await db.get_interaction(visible))
+    result = json.loads(own.get_nowait().split('data: ')[1])
+    assert result['role'] == 'user' and result['data']['type'] == 'user_message'
+    assert result['data']['content'] == 'visible' and result['data']['chat_jid'] == 'gi:default'
