@@ -142,7 +142,12 @@ class Compactions:
 
     async def _state(self, db, token, state, result=None):
         async with db.transaction() as connection:
-            await connection.execute("UPDATE compaction_operations SET state=?,result=?,updated_at=CURRENT_TIMESTAMP WHERE token=? AND state IN ('pending','running','cancelling')", (state, json.dumps(result) if result is not None else None, token))
+            # Completion races cancellation's durable running->cancelling CAS.
+            # Once cancellation wins, completion cannot drop protection even
+            # if its task was registered after the worker's in-memory check.
+            source = "state='running'" if state == 'completed' else "state IN ('pending','running','cancelling')"
+            cursor = await connection.execute("UPDATE compaction_operations SET state=?,result=?,updated_at=CURRENT_TIMESTAMP WHERE token=? AND " + source, (state, json.dumps(result) if result is not None else None, token))
+            return cursor.rowcount == 1
 
     async def _run(self, db, host, session_id, token, turn_id, identity):
         lane, session, _, _ = identity
@@ -169,7 +174,8 @@ class Compactions:
             # publish terminal completion after both RPCs settle authoritatively.
             if not self._same(host, session_id, identity):
                 raise CompactionError('Native owner uncertain after cancellation')
-            await self._state(db, token, 'completed', counts)
+            if not await self._state(db, token, 'completed', counts):
+                raise CompactionError('Cancellation won completion publication')
         except BaseException:
             # Native mutation may have completed. Never release this admission
             # to automatic replay; poison ambiguous native sessions until restart.

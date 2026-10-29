@@ -355,3 +355,34 @@ async def test_registry_and_archive_follow_durable_compaction_state(db):
     await Compactions().recover(db)
     assert not (await store.list(True, session_id=other['id']))[0]['is_running']
     assert await db.compaction_blocked(other['id'])
+
+
+@pytest.mark.asyncio
+async def test_abort_racing_terminal_commit_cannot_publish_completed(db, monkeypatch):
+    client, manager, host, lane, _, entered, finish, _ = await setup(db, monkeypatch)
+    before_commit, release_commit = asyncio.Event(), asyncio.Event()
+    original = manager._state
+
+    async def delayed(db_arg, token, state, result=None):
+        if state == 'completed':
+            before_commit.set()
+            await release_commit.wait()
+        return await original(db_arg, token, state, result)
+
+    monkeypatch.setattr(manager, '_state', delayed)
+    try:
+        token = (await (await client.get('/api/sessions/default/compaction')).json())['token']
+        operation = await (await client.post('/api/sessions/default/compaction', json={'token': token})).json()
+        await asyncio.wait_for(entered.wait(), 1)
+        finish.set()
+        await asyncio.wait_for(before_commit.wait(), 1)
+        await manager.cancel(db, host, 'default', operation['turn_id'])
+        release_commit.set()
+        await settled(manager)
+        assert lane.poisoned and await db.compaction_blocked('default')
+        async with db._connection.execute('SELECT state FROM compaction_operations WHERE token=?', (token,)) as cursor:
+            assert (await cursor.fetchone())[0] == 'uncertain'
+    finally:
+        release_commit.set()
+        finish.set()
+        await client.close()

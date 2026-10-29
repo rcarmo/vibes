@@ -94,9 +94,26 @@ lock crossing event loops; those fixtures were updated without weakening runtime
 checks. Two preliminary read-only audits timed out and supplied no review result;
 subsequent bounded reviews found the concrete races above.
 
-Live native/provider execution, process-kill injection specifically during native
-compaction, compiled Classic UI controls, realistic latency/allocation profiling,
-Pi/ACP compaction and whole-application release acceptance remain open. Scratch SDK,
+Independent-process crash tests now exit abruptly after durable admission,
+during a deterministic native-attempt seam and after terminal completion commit.
+A fresh interpreter recovers the first two as uncertain and the last as completed,
+returns the original token/turn, and creates no lane or native attempt. Durable
+attempt markers remain zero for admission-only exit and exactly one for the other
+two stages. Child environments are allowlisted, dotenv discovery is disabled
+before Vibes imports and each process uses its owned project test scratch cwd.
+These are crash-boundary tests around a simulated native call, not real native
+execution or power-loss durability evidence.
+
+A further deterministic race suspends completion publication while abort commits
+`cancelling`. The terminal update now compares its durable source state with
+`running`; if cancellation won, it cannot publish completed or release transcript
+protection. The crash/lifecycle gate passed 19 tests in 3.03 seconds. Follow-up full
+regression passed 1,111 tests with 13 existing skips in 50.60 seconds. Changed
+manager/new tests pass Ruff and diff checks pass.
+
+Live native/provider execution, compiled Classic UI controls, realistic latency/
+allocation profiling, Pi/ACP compaction and whole-application release acceptance
+remain open. Scratch SDK,
 logs, temporary shared asset link and disposable test output are removed after
 analysis; only source tests and these concise conclusions remain. No shared UI,
 fixture pin, Go work, push or deployment changed.
