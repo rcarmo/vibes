@@ -184,3 +184,27 @@ async def test_native_malformed_payloads_fail_closed_and_no_unadvertised_thinkin
         assert response.status == 400 and 'set_thinking_level' not in calls
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+async def test_acp_unverified_metadata_never_enables_speculative_model_rpc(db, monkeypatch):
+    client = await client_for(db, monkeypatch)
+    monkeypatch.setattr(routes.agents, '_resolve_agent_mode', lambda _: 'acp')
+    module = routes.agents.acp_client
+    runtime = module._runtimes.get('default')
+    monkeypatch.setattr(runtime, 'reported_capabilities', {'models': {'currentModelId': 'private/model'}})
+    monkeypatch.setattr(runtime, 'session_usage', {'default': {'models': ['unverified'], 'configOptions': [{'id': 'model'}]}})
+    speculative = AsyncMock(side_effect=AssertionError('No verified ACP model RPC contract'))
+    monkeypatch.setattr(module, '_send_request', speculative)
+    monkeypatch.setattr(routes.pi_client, 'inspect_classic_model', speculative)
+    try:
+        response = await client.get('/api/sessions/default/model')
+        data = await response.json()
+        assert response.status == 200 and not data['available']
+        assert data['reason'] == 'acp-model-contract-unverified' and not data['model_options']
+        assert 'private' not in str(data) and data['thinking_token'] is None
+        response = await client.patch('/api/sessions/default/model', json={'model': 'acp/unverified'})
+        assert response.status == 409 and (await response.json())['code'] == 'acp-model-contract-unverified'
+        speculative.assert_not_awaited()
+    finally:
+        await client.close()

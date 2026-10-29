@@ -68,9 +68,10 @@ async def model(request):
         return response({'error': 'Session not found'}, 404)
     mode = agents._resolve_agent_mode('default')
     if session['archived'] or mode not in {'pi', 'copilot-ffi'}:
+        reason = 'session-archived' if session['archived'] else 'acp-model-contract-unverified' if mode == 'acp' else 'backend-unavailable'
         if request.method == 'GET':
-            return response(unavailable(session_id))
-        return response({'error': 'Canonical model changes are unavailable for this lane'}, 409)
+            return response({**unavailable(session_id), 'reason': reason})
+        return response({'error': 'Canonical model changes are unavailable for this lane', 'code': reason}, 409)
     if request.method == 'GET':
         try:
             return response(await inspect(session_id))

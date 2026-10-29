@@ -54,6 +54,22 @@ unconfirmed PATCH timeout returns 409. Cancellation continues to propagate.
 Native model changes confirmed at runtime but interrupted during save/readback
 remain uncertain to the caller; clients must inspect instead of blindly replaying.
 
+## ACP contract boundary
+
+ACP canonical GET returns `available:false`, empty offered choices, null token
+and `reason: acp-model-contract-unverified`. PATCH returns 409 with the same code.
+This describes Vibes' current adapter, not an ACP protocol prohibition.
+
+The current client retains allowlisted initialize capabilities, session IDs,
+usage and command updates. It does not retain model/configuration state from
+session/new/load or updates and has no verified model/config mutation/readback
+path. Arbitrary model-like fields do not become authority to expose choices or
+send an invented RPC. Safe support needs an agent-specific protocol transcript
+covering offered/current model metadata, advertised mutation and authoritative
+post-mutation readback, followed by session-isolated stale-observation tests.
+Native/provider verification requires separate authorisation; this audit made
+no provider calls and did not declare ACP incapable of model controls.
+
 ## Verification
 
 Focused canonical model/Pi/session tests: 65 passed in 1.33 seconds. The full
@@ -73,6 +89,12 @@ unbound lanes, lane/session/client replacement, malformed state, setter/read
 cancellation and timeout, failed catalogue reads and binding persistence. No
 SDK runtime or provider was started. Changed host/route/new tests pass Ruff and
 diff checks pass.
+
+The ACP contract audit's model/ACP/session gate passed 90 tests in 16.93 seconds.
+A new regression injects unverified model/config fields and proves that neither
+Pi inspection nor speculative ACP RPC runs. Follow-up full Python regression
+passed 1,112 tests with 13 existing skips in 50.89 seconds; changed route/tests
+pass Ruff and diff checks pass. Canonical ACP model control is still unimplemented.
 
 Temporary SDK, asset link and disposable test output are removed after analysis.
 Live native provider verification, canonical ACP model revision contracts,
