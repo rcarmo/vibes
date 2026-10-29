@@ -1452,6 +1452,9 @@ async def _send_message(request, data, *, send_receipt=None):
     if not isinstance(session_id, str) or not session_id:
         return web.json_response({'error': 'Invalid session_id'}, status=400)
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        blocked = getattr(db, 'compaction_blocked', None)
+        if blocked is not None and await blocked(session_id):
+            return web.json_response({'error': 'Compaction active or uncertain; inspect before sending', 'admitted': False}, status=409)
         from ..copilot_media import validate_media
         try:
             await validate_media(db, data.get('media_ids', []), session_id)

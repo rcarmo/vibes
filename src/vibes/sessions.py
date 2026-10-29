@@ -11,8 +11,10 @@ class SessionStore:
         async with self.db._connection.execute(
             '''SELECT s.*, COALESCE(activity.message_count, 0) AS message_count,
                       activity.last_message_at, activity.last_message_id,
-                      EXISTS (SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id
-                        WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=s.id) AS is_running
+                      (EXISTS (SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id
+                        WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=s.id)
+                       OR EXISTS (SELECT 1 FROM compaction_operations c WHERE c.session_id=s.id
+                         AND c.state IN ('pending','running','cancelling'))) AS is_running
                FROM chat_sessions s LEFT JOIN (
                    SELECT COALESCE(json_extract(data, '$.session_id'), 'default') AS session_id,
                           COUNT(*) AS message_count, MAX(timestamp) AS last_message_at,
@@ -113,6 +115,8 @@ class SessionStore:
         if session_id == 'default':
             raise ValueError('Default session cannot be deleted')
         async with self.db.transaction():
+            if await self.db.compaction_blocked(session_id):
+                raise ValueError('Compaction active or uncertain; cannot delete session')
             cursor = await self.db._connection.execute('''
                 DELETE FROM chat_sessions WHERE id=?
                 AND NOT EXISTS (SELECT 1 FROM interactions WHERE json_extract(data, '$.session_id')=?)
@@ -180,6 +184,8 @@ class SessionStore:
                         if await cursor.fetchone():
                             raise ValueError('Restore ancestors before restoring this session')
                 if archived:
+                    if await self.db.compaction_blocked(session_id):
+                        raise ValueError('Compaction active or uncertain; cannot archive session')
                     # Reject partial subtree archival under the same write lock
                     # used by child creation; no live branch loses its ancestor.
                     async with self.db._connection.execute('''

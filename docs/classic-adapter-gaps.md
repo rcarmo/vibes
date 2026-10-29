@@ -114,13 +114,14 @@ safety guarantees are endpoint-scoped, not app-wide.
 Candidate0259e9a's active refresh-event set omits queue reorder notifications;
 browser drag/drop and cross-tab acceptance still need verification.
 
-GET `/api/sessions/{s}/compaction` now returns explicit `available:false`, null
-token and a reason; POST validates the captured token shape then returns 409
-without starting work. Missing sessions are 404 and unknown queries are 400.
-Native FFI compaction exists, but it does not yet have a canonical cancellable
-operation identity/activity/recovery contract. Pi/ACP compaction paths have their
-own legacy semantics. Canonical compaction is unimplemented; no prompt, reset
-or fake native acknowledgement is substituted. Tests verify zero side effects.
+[Canonical FFI compaction](classic-compaction.md) now offers a captured idle-lane
+capability, durable schema15 token/turn admission, polling activity and exact-owner
+abort. Native completion and cancellation settle under the reserved lane lock;
+failed/aborted/ambiguous work remains uncertain, blocks transcript mutations and
+never auto-replays after restart. Pi/ACP still return unavailable/no-op rejection.
+No prompt, reset or invented native acknowledgement substitutes for compaction.
+Deterministic lifecycle/migration/shutdown tests pass; live-native, compiled UI,
+compaction-specific crash injection and performance acceptance remain open.
 
 [Canonical Pi/FFI model GET/PATCH](classic-model.md) now returns offered choices,
 authoritative readback and lock-checked observation tokens for thinking changes.

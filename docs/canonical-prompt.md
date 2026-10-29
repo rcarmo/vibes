@@ -135,8 +135,10 @@ and unchanged shared assets; changed route/new tests pass Ruff and diff checks.
 
 Full compiled consumer boot, authentication deployment, six viewport/browser
 acceptance, live-provider admission and CPU/allocation profiling of concurrent
-admission remain open. The implemented queue/media/model adapters have separate
-contracts and limits in their linked documents. Shared UI adoption and release
+admission remain open. The implemented queue/media/model and
+[FFI compaction](classic-compaction.md) adapters have separate contracts and
+limits. Active/uncertain compaction rejects prompt/transcript mutation; it cannot
+be bypassed by choosing a new send request ID. Shared UI adoption and release
 acceptance are separate tasks. Nothing was pushed or deployed.
 
 Probe host, synthetic database, copied add-on assets, temporary optional SDK,

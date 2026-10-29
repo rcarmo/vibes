@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 14
+SCHEMA_VERSION = 15
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -246,6 +246,20 @@ CREATE TABLE IF NOT EXISTS prompt_receipts (
 """
 
 
+MIGRATION_V15 = """
+CREATE TABLE IF NOT EXISTS compaction_operations (
+    token TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    turn_id TEXT NOT NULL UNIQUE,
+    state TEXT NOT NULL CHECK(state IN ('pending','running','cancelling','completed','failed','uncertain')),
+    result TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_compaction_session ON compaction_operations(session_id,created_at);
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -267,6 +281,10 @@ class Database:
         await self._connection.execute("PRAGMA journal_mode = WAL")
         
         await self._init_schema()
+
+    async def compaction_blocked(self, session_id):
+        async with self._connection.execute("SELECT 1 FROM compaction_operations WHERE session_id=? AND state IN ('pending','running','cancelling','uncertain') LIMIT 1", (session_id,)) as cursor:
+            return await cursor.fetchone() is not None
 
     async def close(self) -> None:
         """Close the database connection."""
@@ -315,7 +333,7 @@ class Database:
                 await self._connection.executescript(MIGRATION_V12)
             if current_version < 13:
                 await self._connection.executescript(MIGRATION_V13)
-            if current_version < 14:
+            if current_version < 15:
                 # Explicit transaction includes DDL and version publication.
                 # Column checks also recover earlier partial/probe upgrades.
                 async with self.transaction() as connection:
@@ -330,6 +348,9 @@ class Database:
                             archived_at_source = COALESCE(archived_at_source, 'migration-observed')
                         WHERE archived = 1
                     """)
+                    for statement in MIGRATION_V15.split(';'):
+                        if statement.strip():
+                            await connection.execute(statement)
                     await connection.execute('DELETE FROM schema_version')
                     await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (SCHEMA_VERSION,))
 
@@ -363,6 +384,8 @@ class Database:
                 raise ValueError('Session not found')
         data['session_id'] = session_id
         async with self.transaction():
+            if await self.compaction_blocked(session_id):
+                raise ValueError('Compaction active or uncertain; cannot mutate transcript')
             cursor = await self._connection.execute(
                 "INSERT INTO interactions (data) VALUES (?)",
                 (json.dumps(data),)
@@ -412,6 +435,8 @@ class Database:
                 raise ValueError('Target thread not found')
             if data.get('session_id', 'default') != parent['data'].get('session_id', 'default'):
                 raise ValueError('Cannot move a message across sessions')
+            if await self.compaction_blocked(data.get('session_id', 'default')):
+                raise ValueError('Compaction active or uncertain; cannot move transcript')
             data["thread_id"] = thread_id
             await self._connection.execute(
                 "UPDATE interactions SET data = ? WHERE id = ?",
@@ -434,6 +459,13 @@ class Database:
             return 0
         placeholders = ", ".join(["?"] * len(interaction_ids))
         async with self.transaction():
+            async with self._connection.execute(
+                "SELECT DISTINCT COALESCE(json_extract(data,'$.session_id'),'default') FROM interactions WHERE id IN (" + placeholders + ')', interaction_ids,
+            ) as cursor:
+                sessions = [row[0] for row in await cursor.fetchall()]
+            for session_id in sessions:
+                if await self.compaction_blocked(session_id):
+                    raise ValueError('Compaction active or uncertain; cannot delete transcript')
             cursor = await self._connection.execute(
                 f"DELETE FROM interactions WHERE id IN ({placeholders})",
                 interaction_ids,

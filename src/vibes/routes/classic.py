@@ -218,6 +218,8 @@ async def compaction(request):
     session = await SessionStore(await get_db()).get(session_id)
     if not session:
         return _response({'error': 'Session not found'}, 404)
+    from ..compaction import KEY, CompactionError
+    manager = request.app[KEY]
     if request.method == 'POST':
         try:
             data = await request.json()
@@ -226,9 +228,23 @@ async def compaction(request):
                 raise ValueError('A captured compaction token is required')
         except (ValueError, TypeError) as exc:
             return _response({'error': str(exc)}, 400)
-        return _response({'error': 'Canonical compaction is unavailable; no work was started'}, 409)
-    return _response({'session_id': session_id, 'available': False, 'token': None,
-                      'reason': 'session-archived' if session['archived'] else 'canonical-operation-lifecycle-unavailable'})
+        if session['archived'] or agents._resolve_agent_mode('default') != 'copilot-ffi':
+            return _response({'error': 'Canonical compaction is unavailable; no work was started'}, 409)
+        task = asyncio.create_task(manager.admit(await get_db(), agents.copilot_backend, session_id, data['token']))
+        try:
+            return _response(await asyncio.shield(task), 202)
+        except asyncio.CancelledError:
+            try:
+                await asyncio.shield(task)
+            except Exception:
+                pass
+            raise
+        except (CompactionError, RuntimeError, ValueError):
+            return _response({'error': 'Compaction capability stale or unavailable; inspect state before retrying'}, 409)
+    if session['archived'] or agents._resolve_agent_mode('default') != 'copilot-ffi':
+        return _response({'session_id': session_id, 'available': False, 'token': None,
+                          'reason': 'session-archived' if session['archived'] else 'backend-unavailable'})
+    return _response(await manager.capability(await get_db(), agents.copilot_backend, session_id))
 
 
 async def activity(request):
@@ -238,6 +254,10 @@ async def activity(request):
     session = await SessionStore(db).get(session_id)
     if not session or session['archived']:
         return _response({'error': 'Session unavailable'}, 404)
+    from ..compaction import KEY
+    compacting = await request.app[KEY].activity(db, session_id)
+    if compacting:
+        return _response(compacting)
     owned = []
     for turn in await db.get_active_turns():
         if turn['agent_id'] != 'default':
@@ -279,12 +299,28 @@ async def cancel_activity(request):
             raise ValueError('A turn_id is required; session scope comes from the path')
     except (ValueError, TypeError) as exc:
         return _response({'error': str(exc)}, 400)
+    from ..compaction import KEY, CompactionError
+    if payload['turn_id'].startswith('compact-'):
+        try:
+            result = await request.app[KEY].cancel(await get_db(), agents.copilot_backend, session_id, payload['turn_id'])
+            return _response(result, 202)
+        except (CompactionError, RuntimeError, TimeoutError):
+            return _response({'error': 'Compaction cancellation unconfirmed; inspect activity'}, 409)
     response = await agents._abort_turn('default', {'session_id': session_id, 'turn_id': payload['turn_id']})
     response.headers['Cache-Control'] = 'no-store'
     return response
 
 
 def setup_routes(app):
+    from ..compaction import KEY, Compactions
+    app[KEY] = Compactions()
+
+    async def close_compactions(application):
+        application[KEY].closing = True
+        if application[KEY].tasks or application[KEY].admissions:
+            await application[KEY].close(await get_db(), agents.copilot_backend)
+
+    app.on_shutdown.append(close_compactions)
     app.router.add_get('/api/auth/status', auth_status)
     app.router.add_get('/api/auth/policy', auth_status)
     app.router.add_get('/api/runtime/config', runtime_config)

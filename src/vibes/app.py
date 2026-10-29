@@ -125,6 +125,8 @@ async def on_startup(app: web.Application) -> None:
     logger.info(f"Database initialized at {config.db_path}")
     from .followup_store import FollowupStore
     await FollowupStore(await get_db()).recover()
+    from .compaction import KEY
+    await app[KEY].recover(await get_db())
     # Pending work is retained for explicit dispatch; ambiguous work is never replayed.
     # Conservative retention: only explicitly marked unreferenced uploads.
     removed_uploads = await (await get_db()).cleanup_abandoned_uploads()
@@ -173,6 +175,8 @@ async def on_cleanup(app: web.Application) -> None:
     if get_config().default_agent.lower() == 'copilot-ffi':
         from .copilot_host import backend
         agents.close_ffi_admission()
+        from .compaction import KEY
+        await app[KEY].close(await get_db(), backend)
         try:
             await backend.stop(permanent=True)
         except Exception:

@@ -181,6 +181,8 @@ async def delete_message(request):
             await connection.execute('BEGIN IMMEDIATE')
             if not await SessionStore(db).get(session_id):
                 raise DeleteConflict('Session not found', 404)
+            if await db.compaction_blocked(session_id):
+                raise DeleteConflict('Compaction active or uncertain; cannot delete transcript', 409)
             post = await db.get_interaction(target)
             if not post or post['data'].get('session_id', 'default') != session_id:
                 raise DeleteConflict('Message not found', 404)
