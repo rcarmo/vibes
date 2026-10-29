@@ -38,6 +38,10 @@ suite passed 1,092 tests with 13 existing skips in 46.82 seconds using the pinne
 optional SDK and unchanged shared assets. Changed modules/new tests pass Ruff;
 diff checks pass.
 
+A [bounded browser transport probe](evidence/terminal-browser-20261029.md) also
+passes real shell input/output, 101x31 resize, separate owner process IDs,
+reconnect to the same process and expiry to zero sessions/sockets. It uses a
+credential-stripped host and plain DOM output rather than the shared emulator.
 These are local lifecycle/transport checks. Complete compiled terminal pane,
 browser emulator rendering, sustained slow-consumer behaviour, descendants that
 escape the process group, Windows service support and release profiling/acceptance
