@@ -26,10 +26,14 @@ class TerminalAdapter:
         self.sockets = {}
         self.timers = {}
         self.handoffs = {}
+        self.closing = False
+        self.opening_tasks = {}
         self.grace = grace
         self.handoff_ttl = handoff_ttl
 
     def owner(self, request):
+        if self.closing:
+            raise web.HTTPServiceUnavailable(reason='Terminal is shutting down')
         if not self.enabled:
             raise web.HTTPNotFound()
         origin = request.headers.get("Origin")
@@ -45,6 +49,8 @@ class TerminalAdapter:
         return owner
 
     async def info(self, request):
+        if self.closing:
+            raise web.HTTPServiceUnavailable(reason='Terminal is shutting down')
         if not self.enabled:
             return web.json_response({"enabled": False})
         origin = request.headers.get("Origin")
@@ -72,8 +78,8 @@ class TerminalAdapter:
 
     async def handoff(self, request):
         owner = self.owner(request)
-        if owner not in self.sockets:
-            raise web.HTTPConflict(reason="No connected terminal")
+        if owner not in self.sockets or owner in self.opening_tasks:
+            raise web.HTTPConflict(reason="No fully connected terminal")
         self.handoffs = {k: v for k, v in self.handoffs.items() if v[1] > time.monotonic() and v[0] != owner}
         token = secrets.token_urlsafe(32)
         self.handoffs[token] = (owner, time.monotonic() + self.handoff_ttl)
@@ -92,6 +98,8 @@ class TerminalAdapter:
         owner = self.owner(request)
         token = request.query.get("handoff")
         old = self.sockets.get(owner)
+        if owner in self.opening_tasks:
+            raise web.HTTPConflict(reason='Terminal connection is opening')
         if token:
             record = self.handoffs.get(token)
             if not record or record[0] != owner or record[1] <= time.monotonic():
@@ -100,20 +108,25 @@ class TerminalAdapter:
         elif old:
             raise web.HTTPConflict(reason="Terminal already attached; handoff required")
         # Reserve ownership before awaiting so concurrent upgrades cannot both attach.
-        socket = web.WebSocketResponse(max_msg_size=70000, heartbeat=20)
+        socket = web.WebSocketResponse(max_msg_size=70000, heartbeat=20, timeout=1)
         self.sockets[owner] = socket
+        self.opening_tasks[owner] = asyncio.current_task()
         timer = self.timers.pop(owner, None)
-        if timer:
-            timer.cancel()
-            await asyncio.gather(timer, return_exceptions=True)
         session = None
         sender = None
         queue = asyncio.Queue(maxsize=64)
         try:
+            if timer:
+                timer.cancel()
+                await asyncio.gather(timer, return_exceptions=True)
             await socket.prepare(request)
             if old:
                 await old.close(code=1000, message=b"terminal handoff")
             session = await self.service.open(owner)
+            if self.closing:
+                await self.service.close(session)
+                await socket.close(code=1001, message=b'Terminal is shutting down')
+                return socket
             session.clients.add(queue)
             await socket.send_json({"type": "session", "cwd": str(self.service.cwd), "shell": self.service.shell,
                 "session_id": session.session_id, "created_at": session.created_at,
@@ -137,6 +150,8 @@ class TerminalAdapter:
                             return
 
             sender = asyncio.create_task(send_output())
+            if self.opening_tasks.get(owner) is asyncio.current_task():
+                self.opening_tasks.pop(owner, None)
             async for message in socket:
                 if message.type != web.WSMsgType.TEXT:
                     continue
@@ -153,17 +168,38 @@ class TerminalAdapter:
                 except (ValueError, TypeError, KeyError, AttributeError, OSError):
                     await socket.close(code=1008, message=b"Invalid terminal frame")
         finally:
+            if self.closing:
+                # A replacement may have overwritten the owner's mapping while
+                # awaiting old.close(). Shutdown must close both acquired peers.
+                if old is not None and not old.closed:
+                    await old.close(code=1001, message=b'Terminal is shutting down')
+                if not socket.closed:
+                    await socket.close(code=1001, message=b'Terminal is shutting down')
+            if self.opening_tasks.get(owner) is asyncio.current_task():
+                self.opening_tasks.pop(owner, None)
             if session:
                 session.clients.discard(queue)
             if self.sockets.get(owner) is socket:
-                del self.sockets[owner]
-                self.timers[owner] = asyncio.create_task(self.expire(owner))
+                if old is not None and not old.closed and not self.closing:
+                    # Failed replacement before the old attachment closed:
+                    # restore its ownership instead of expiring its live PTY.
+                    self.sockets[owner] = old
+                else:
+                    del self.sockets[owner]
+                    if not self.closing:
+                        self.timers[owner] = asyncio.create_task(self.expire(owner))
             if sender:
                 sender.cancel()
                 await asyncio.gather(sender, return_exceptions=True)
         return socket
 
     async def cleanup(self, app):
+        self.closing = True
+        opening = [task for task in self.opening_tasks.values() if task is not asyncio.current_task()]
+        for task in opening:
+            task.cancel()
+        await asyncio.gather(*opening, return_exceptions=True)
+        self.opening_tasks.clear()
         for timer in self.timers.values():
             timer.cancel()
         await asyncio.gather(*list(self.timers.values()), return_exceptions=True)
@@ -172,6 +208,9 @@ class TerminalAdapter:
         for timer in list(self.timers.values()):
             timer.cancel()
         await asyncio.gather(*list(self.timers.values()), return_exceptions=True)
+        self.timers.clear()
+        self.sockets.clear()
+        self.handoffs.clear()
         if self.service is not None:
             await self.service.shutdown()
 
