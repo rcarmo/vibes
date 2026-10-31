@@ -409,22 +409,20 @@ class TestUploadWorkspaceFile:
         assert "Invalid filename" in result["error"]
 
     @pytest.mark.asyncio
-    async def test_upload_too_large(self, workspace_test_client, workspace_dir):
-        """Upload exceeding MAX_FILE_WRITE_BYTES returns 413."""
+    async def test_upload_too_large(self, workspace_test_client, workspace_dir, monkeypatch):
+        """Upload exceeding the captured instance limit returns 413."""
         client = workspace_test_client
         import aiohttp
-        original = workspace_mod.MAX_FILE_WRITE_BYTES
-        workspace_mod.MAX_FILE_WRITE_BYTES = 16
-        try:
-            data = aiohttp.FormData()
-            data.add_field("file", b"x" * 32, filename="big.bin", content_type="application/octet-stream")
-            resp = await client.post("/workspace/upload", data=data)
-            assert resp.status == 413
-            result = await resp.json()
-            assert "too large" in result["error"].lower()
-            assert not (workspace_dir / "big.bin").exists()
-        finally:
-            workspace_mod.MAX_FILE_WRITE_BYTES = original
+        from unittest.mock import AsyncMock
+        from vibes.routes import instance_settings
+        monkeypatch.setattr(instance_settings, 'upload_limit_mb', AsyncMock(return_value=16 / (1024 * 1024)))
+        data = aiohttp.FormData()
+        data.add_field("file", b"x" * 32, filename="big.bin", content_type="application/octet-stream")
+        resp = await client.post("/workspace/upload", data=data)
+        assert resp.status == 413
+        result = await resp.json()
+        assert "too large" in result["error"].lower()
+        assert not (workspace_dir / "big.bin").exists()
 
     @pytest.mark.asyncio
     async def test_upload_conflict_returns_409(self, workspace_test_client, workspace_dir):

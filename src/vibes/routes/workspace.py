@@ -13,6 +13,7 @@ from threading import Event
 from aiohttp import web
 
 from ..db import get_db
+from ..file_view_requests import FileViewRequests
 from .sse import broadcast_event
 
 try:
@@ -747,6 +748,8 @@ async def upload_workspace_file(request: web.Request) -> web.Response:
             status=409,
         )
 
+    from .instance_settings import upload_limit_mb
+    max_upload_bytes = (await upload_limit_mb()) * 1024 * 1024
     total = 0
     with open(resolved, "wb") as f:
         while True:
@@ -754,7 +757,7 @@ async def upload_workspace_file(request: web.Request) -> web.Response:
             if not chunk:
                 break
             total += len(chunk)
-            if total > MAX_FILE_WRITE_BYTES:
+            if total > max_upload_bytes:
                 f.close()
                 resolved.unlink(missing_ok=True)
                 return web.json_response({"error": "File too large"}, status=413)
@@ -881,7 +884,6 @@ async def download_workspace_folder(request: web.Request) -> web.StreamResponse:
     )
 
 
-from ..file_view_requests import FileViewRequests
 _file_views = FileViewRequests()
 
 
@@ -926,10 +928,62 @@ async def acknowledge_file_view(request):
         return web.json_response({'error': str(exc)}, status=400)
 
 
+async def classic_workspace_tree(request):
+    response = await get_workspace_tree(request)
+    if response.status != 200:
+        return response
+    payload = json.loads(response.body)
+    return web.json_response({**payload['root'], 'truncated': payload['truncated']},
+                             headers={'Cache-Control': 'no-store'})
+
+
+async def workspace_index(request):
+    if request.query.get('scope', 'all') not in {'all', 'workspace'}:
+        return web.json_response({'error': 'Unsupported index scope'}, status=400)
+    if request.method == 'POST':
+        return web.json_response({'error': 'Workspace full-text indexing is unavailable',
+                                  'code': 'workspace_index_unavailable'}, status=501)
+    # The filesystem explorer works independently of full-text indexing.
+    return web.json_response({'state': 'failed', 'available': False, 'roots': ['.'],
+                              'last_error': 'Workspace full-text indexing is unavailable'},
+                             headers={'Cache-Control': 'no-store'})
+
+
+async def workspace_stat(request):
+    path = request.query.get('path')
+    if not path:
+        return web.json_response({'error': 'Missing path'}, status=400)
+    target = _resolve_workspace_path(path)
+    if not target.exists():
+        return web.json_response({'error': 'File not found'}, status=404)
+    stat = target.stat()
+    result = {'path': _to_workspace_relative(target), 'size': stat.st_size,
+              'mtime': stat.st_mtime, 'type': 'directory' if target.is_dir() else 'file'}
+    if target.is_file() and stat.st_size <= 256 * 1024:
+        content = target.read_bytes()
+        try:
+            content.decode('utf-8', errors='strict')
+        except UnicodeDecodeError:
+            pass
+        else:
+            result['revision'] = hashlib.sha256(content).hexdigest()
+    return web.json_response(result, headers={'Cache-Control': 'no-store'})
+
+
 def setup_routes(app: web.Application) -> None:
     app.router.add_post('/internal/agent-tools/open-file', request_file_view)
     app.router.add_post('/workspace/view-requests/{id}/ack', acknowledge_file_view)
     app.router.add_get("/workspace/tree", get_workspace_tree)
+    app.router.add_get('/api/workspace/tree', classic_workspace_tree)
+    app.router.add_get('/api/workspace/stat', workspace_stat)
+    app.router.add_get('/workspace/stat', workspace_stat)
+    app.router.add_get('/api/workspace/raw', get_workspace_raw)
+    app.router.add_get('/api/workspace/index', workspace_index)
+    app.router.add_post('/api/workspace/index', workspace_index)
+    app.router.add_delete('/api/workspace/file', delete_workspace_file)
+    app.router.add_post('/api/workspace/rename', rename_workspace_file)
+    app.router.add_post('/api/workspace/move', move_workspace_entry)
+    app.router.add_post('/api/workspace/upload', upload_workspace_file)
     app.router.add_get("/api/workspace/file", get_workspace_file)
     app.router.add_put("/api/workspace/file", classic_update_file)
     app.router.add_post("/api/workspace/file", create_workspace_file)

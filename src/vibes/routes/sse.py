@@ -26,6 +26,7 @@ _clients: set[asyncio.Queue] = set()
 _workspace_client_ids: dict[asyncio.Queue, str] = {}
 _session_clients: dict[asyncio.Queue, str] = {}
 _classic_clients: set[asyncio.Queue] = set()
+_topic_clients: dict[asyncio.Queue, tuple[str, str]] = {}
 _GLOBAL_EVENTS = {'workspace_update', 'ui_theme', 'sessions_changed', 'server_restart'}
 
 
@@ -87,7 +88,7 @@ _LOSSY_EVENT_TYPES = {"agent_status", "agent_draft", "agent_draft_delta", "agent
 async def broadcast_event(event_type: str, data: Any) -> None:
     """Deliver scoped conversations; preserve the legacy unscoped feed."""
     event_session = None
-    if event_type not in _GLOBAL_EVENTS and any(q in _session_clients for q in _clients):
+    if event_type not in _GLOBAL_EVENTS and (any(q in _session_clients for q in _clients) or _topic_clients):
         event_session = await _event_session(event_type, data)
     classic_data = await _classic_event(event_type, data, event_session) if event_session is not None and _classic_clients else None
     _broadcast_resolved(event_type, data, event_session, classic_data)
@@ -149,6 +150,14 @@ async def broadcast_session_event(event_type: str, data: Any, session_id: str) -
 
 
 def _broadcast_resolved(event_type, data, event_session, classic_data=None):
+    for topic_queue, (topic, owner) in list(_topic_clients.items()):
+        if event_type == topic and event_session == owner and isinstance(data, dict):
+            envelope = {**data, 'session_id': owner}
+            try:
+                topic_queue.put_nowait(f'event: {topic}\ndata: {json.dumps(envelope)}\n\n')
+            except asyncio.QueueFull:
+                # Keep a bounded subscription; reconnect/reload recovers settled state.
+                pass
     common_message = f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
     global_classic_messages = {}
     classic_message = f"event: {event_type}\ndata: {json.dumps(classic_data)}\n\n" if classic_data is not None else None
@@ -311,6 +320,38 @@ async def sse_stream(request: web.Request) -> web.StreamResponse:
     return response
 
 
+async def sse_topics(request):
+    try:
+        session_id = _requested_session(request.query)
+    except ValueError as exc:
+        return web.json_response({'error': str(exc)}, status=400)
+    topic = request.query.get('topic')
+    if topic != 'runtime.tool' or not session_id:
+        return web.json_response({'error': 'Expected runtime.tool and a session selector'}, status=400)
+    from ..sessions import SessionStore
+    if not await SessionStore(await get_db()).get(session_id):
+        return web.json_response({'error': 'Session not found'}, status=404)
+    response = web.StreamResponse(headers={'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache', 'X-Accel-Buffering': 'no'})
+    await response.prepare(request)
+    queue = asyncio.Queue(maxsize=100)
+    _topic_clients[queue] = (topic, session_id)
+    try:
+        await response.write(b'event: connected\ndata: {}\n\n')
+        while True:
+            try:
+                message = await asyncio.wait_for(queue.get(), 30)
+            except asyncio.TimeoutError:
+                message = ': heartbeat\n\n'
+            await response.write(message.encode())
+    except (ConnectionResetError, ClientConnectionResetError, asyncio.CancelledError):
+        pass
+    finally:
+        _topic_clients.pop(queue, None)
+    return response
+
+
 def setup_routes(app: web.Application) -> None:
     """Set up SSE routes."""
     app.router.add_get("/sse/stream", sse_stream)
+    app.router.add_get('/sse/topics', sse_topics)

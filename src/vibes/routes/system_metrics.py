@@ -12,3 +12,4 @@ async def get_metrics(request):
 def setup_routes(app):
     app[METRICS_KEY] = SystemMetrics()
     app.router.add_get('/system/metrics', get_metrics)
+    app.router.add_get('/api/system-metrics', get_metrics)

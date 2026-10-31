@@ -197,6 +197,12 @@ async def auth_status(request):
                       'passkeys_enabled': False, 'passkey_login_available': False})
 
 
+async def quick_actions(_request):
+    # Empty user quick actions are a valid configuration, not a native catalogue.
+    # Do not start agents or advertise commands from a different session.
+    return _response({'workspaceCommands': [], 'slashCommands': [], 'commands': []})
+
+
 async def runtime_config(request):
     config = get_config()
     # Publish a small presentation/configuration projection. Never return raw
@@ -324,6 +330,7 @@ def setup_routes(app):
     app.router.add_get('/api/auth/status', auth_status)
     app.router.add_get('/api/auth/policy', auth_status)
     app.router.add_get('/api/runtime/config', runtime_config)
+    app.router.add_get('/api/quick-actions', quick_actions)
     app.router.add_post('/api/sessions/{id}/prompt', prompt)
     app.router.add_get('/api/sessions/{id}/send-receipt', send_receipt)
     app.router.add_get('/api/sessions/{id}/compaction', compaction)

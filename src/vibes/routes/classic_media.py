@@ -79,7 +79,24 @@ async def read(request):
     return result
 
 
+async def list_media(request):
+    if request.query:
+        return response({'error': 'Unexpected query parameters'}, 400)
+    session_id = request.match_info['session_id']
+    database = await get_db()
+    if not await SessionStore(database).get(session_id):
+        return response({'error': 'Session not found'}, 404)
+    async with database._connection.execute(
+        "SELECT id, filename, content_type, created_at, metadata FROM media "
+        "WHERE json_extract(metadata, '$.session_id')=? ORDER BY id DESC LIMIT 100", (session_id,)
+    ) as cursor:
+        rows = await cursor.fetchall()
+    return response({'media': [project({**dict(row), 'metadata': json.loads(row['metadata'] or '{}')}, session_id)
+                                for row in rows]})
+
+
 def setup_routes(app):
+    app.router.add_get('/api/sessions/{session_id}/media', list_media)
     app.router.add_post('/api/sessions/{session_id}/media', upload)
     app.router.add_get('/api/sessions/{session_id}/media/{media_id}', read)
     app.router.add_get('/api/sessions/{session_id}/media/{media_id}/{kind:raw|thumbnail}', read)

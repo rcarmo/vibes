@@ -124,6 +124,8 @@ async def on_startup(app: web.Application) -> None:
     config = get_config()
     await init_db(config.db_path)
     logger.info(f"Database initialized at {config.db_path}")
+    from .routes.instance_settings import apply_saved_identity
+    await apply_saved_identity(await get_db())
     from .followup_store import FollowupStore
     await FollowupStore(await get_db()).recover()
     from .compaction import KEY
@@ -239,6 +241,8 @@ def create_app() -> web.Application:
     system_metrics.setup_routes(app)
     plans.setup_routes(app)
     settings.setup_routes(app)
+    from .routes import instance_settings
+    instance_settings.setup_routes(app)
     shell_tools.setup_routes(app)
     widgets.setup_routes(app)
     classic.setup_routes(app)

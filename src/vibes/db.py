@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 15
+SCHEMA_VERSION = 16
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -260,6 +260,15 @@ CREATE INDEX IF NOT EXISTS idx_compaction_session ON compaction_operations(sessi
 """
 
 
+MIGRATION_V16 = """
+CREATE TABLE IF NOT EXISTS instance_settings (
+    name TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    revision INTEGER NOT NULL DEFAULT 0
+);
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -304,6 +313,8 @@ class Database:
         except aiosqlite.OperationalError:
             current_version = 0
 
+        if current_version > SCHEMA_VERSION:
+            raise RuntimeError('Database schema is newer than this Vibes version')
         if current_version < SCHEMA_VERSION:
             # Fresh install or base schema
             if current_version < 2:
@@ -352,7 +363,13 @@ class Database:
                         if statement.strip():
                             await connection.execute(statement)
                     await connection.execute('DELETE FROM schema_version')
-                    await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (SCHEMA_VERSION,))
+                    await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (15,))
+
+        # Idempotent creation repairs partial v16 upgrades as well.
+        async with self.transaction() as connection:
+            await connection.execute(MIGRATION_V16.strip())
+            await connection.execute('DELETE FROM schema_version')
+            await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (SCHEMA_VERSION,))
 
     @asynccontextmanager
     async def transaction(self):
