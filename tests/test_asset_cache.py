@@ -14,10 +14,10 @@ async def test_spa_and_mutable_assets_revalidate(aiohttp_client):
     response = await client.get('/')
     assert response.headers['Cache-Control'] == 'no-store'
     html = await response.text()
-    assert '/static/dist/app.js?v=' in html
-    assert '?v=1"' not in html
-    for path in ('/static/dist/app.js?v=1', '/static/dist/app.css?v=1',
-                 '/static/js/components/session-picker.js'):
+    assert '/dist/app.bundle.js' in html
+    assert '/static/dist/app.js' not in html
+    for path in ('/dist/app.bundle.js?v=1', '/dist/app.bundle.css?v=1',
+                 '/js/vendor/preact-htm.js'):
         response = await client.get(path)
         await response.read()
         assert response.status == 200

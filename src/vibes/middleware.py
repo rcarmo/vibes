@@ -37,7 +37,8 @@ PUBLIC_EXACT: frozenset[str] = frozenset({
 
 def is_public_route(path: str) -> bool:
     """Return True if *path* should be accessible without authentication."""
-    if path in PUBLIC_EXACT:
+    from .web_assets import is_asset_path
+    if path in PUBLIC_EXACT or is_asset_path(path):
         return True
     return any(path.startswith(prefix) for prefix in PUBLIC_PREFIXES)
 
@@ -112,7 +113,9 @@ def create_cors_middleware() -> web.middleware:
         origin = request.headers.get("Origin")
         if origin:
             parsed = urlsplit(origin)
-            if parsed.scheme not in {"http", "https"} or parsed.netloc != request.host:
+            from .web_assets import is_asset_path
+            widget_module = origin == 'null' and request.method in {'GET', 'HEAD'} and is_asset_path(request.path)
+            if not widget_module and (parsed.scheme not in {"http", "https"} or parsed.netloc != request.host):
                 response = web.json_response({"error": "Cross-origin access denied"}, status=403)
                 _apply_security_headers(response)
                 return response

@@ -47,7 +47,7 @@ Repository = "https://github.com/rcarmo/vibes"
 where = ["src"]
 
 [tool.setuptools.package-data]
-vibes = ["static/**/*", "extensions/*.ts"]
+vibes = ["static/**/*", "extensions/*.ts", "diagnostic_assets/*"]
 
 # Keep lint policy local: do not inherit workspace/parent Ruff settings.
 [tool.ruff.lint]

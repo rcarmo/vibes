@@ -53,17 +53,17 @@ install-dev: install ## Install with dev dependencies
 lint: ## Run ruff linter
 	ruff check src tests
 
-# Web front-end: owned in rcarmo/fixtures-vibes (ui/vibes); src/vibes/static links into this submodule.
-VIBES_UI := references/fixtures-vibes/ui/vibes
+# Web front-end: owned in rcarmo/fixtures-vibes (ui/classic); src/vibes/static links into this submodule.
+VIBES_UI := references/fixtures-vibes/ui/classic
 
 lint-frontend: ## Run frontend lint with bun
-	$(MAKE) -C $(VIBES_UI) lint PROJECT_NAME=vibes PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
+	$(MAKE) -C $(VIBES_UI) check PROJECT_NAME=vibes PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 
 build-frontend: ## Bundle frontend JS with bun
 	$(MAKE) -C $(VIBES_UI) build PROJECT_NAME=vibes PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 
-test-frontend: ## Front-end unit tests and browser harnesses (fixtures-vibes ui/vibes)
-	$(MAKE) -C $(VIBES_UI) test browser PROJECT_NAME=vibes PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
+test-frontend: ## Front-end unit tests and browser harnesses (fixtures-vibes ui/classic)
+	$(MAKE) -C $(VIBES_UI) test PROJECT_NAME=vibes PROJECT_TMP_ROOT=$(VIBES_TMP_ROOT)
 	bun test ./tests/frontend/
 
 format: ## Format code with ruff
