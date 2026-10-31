@@ -1,10 +1,11 @@
 # Remaining Classic server adapter work
 
-Bounded component probes pass, but the complete shared Classic application is
-not integrated. The runtime still pins fixtures `4259e82` and serves `ui/vibes`.
-Candidate `0259e9a` includes the revision fix and prior release/retirement/temp
-changes; adoption requires a reviewed pin/profile transition, not copying assets
-or editing shared frontend files.
+Vibes `main` now serves `ui/classic/static` from fixtures-vibes v0.3.0
+(`8f76048862febf91c26f84a293a9761e5f3cca68`). This release removes the legacy
+Vibes and Tau frontend trees. The shared UI source is unchanged locally.
+[Main integration](evidence/main-classic-integration-20261031.md) records the
+passing compiled boot and opened-workspace checks. Full workflow and compliance
+acceptance remain open; older candidate probes below retain their original scope.
 
 ## Explicit SSE subscriptions
 
@@ -56,9 +57,9 @@ with explicit mutation or migration-observed provenance. Strict create/rename/
 pin/archive/restore routes pass tests; real fork semantics remain unsupported.
 The candidate auth parser and session picker passed against real HTTP responses.
 
-Serving the compiled Classic tree still requires its actual static prefixes and
-safe SPA fallback; the current `/static` layout is unchanged. Complete consumer
-boot, session model choices and browser acceptance are open.
+The consumer now serves Classic root asset prefixes, scoped viewer pages and a
+safe SPA fallback, with `/static/` aliases retained. Bounded compiled boot passes;
+complete session/model workflows and browser compliance still need verification.
 
 ## Timeline and real prompt admission
 

@@ -70,7 +70,7 @@ bun x playwright install --with-deps chromium webkit
 xvfb-run -a -s "-screen 0 1920x1080x24" bun x playwright test --headed --workers=1 --trace retain-on-failure
 ```
 
-The last command is the Linux browser test path; on a desktop with a display, omit the `xvfb-run` prefix and its display arguments. `make check` runs Python lint and tests, not the browser suite. `src/vibes/static` is a relative symlink to the frontend in `references/fixtures-vibes/ui/classic/static`. The shared Classic frontend source, bundles and browser tests are maintained in fixtures-vibes; update the submodule pin to adopt frontend changes. The local `tests/frontend/plan-tool.test.mjs` tests the backend Pi extension.
+The last command is the Linux browser test path; on a desktop with a display, omit the `xvfb-run` prefix and its display arguments. `make check` runs Python lint and tests, not the browser suite. `src/vibes/static` is a relative symlink to the frontend in `references/fixtures-vibes/ui/classic/static`. The shared Classic frontend source, bundles and browser tests are maintained in fixtures-vibes. The current pin targets v0.3.0, which provides only `ui/classic`; update the submodule pin to adopt frontend changes. The local `tests/frontend/plan-tool.test.mjs` tests the backend Pi extension.
 
 [Configuration][config] and the [API reference][api] cover the server controls. The [parity notes][parity] record UI differences and verification limits, including mocked rather than live speech testing. They are not installation prerequisites.
 
