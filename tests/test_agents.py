@@ -784,8 +784,9 @@ async def test_background_agent_dispatch_serializes_worker_turns():
     running = 0
     peak = 0
     order = []
-    async def run(thread_id, content, agent_id):
+    async def run(thread_id, content, agent_id, *, admitted_turn_id):
         nonlocal running, peak
+        assert admitted_turn_id.startswith('turn-')
         running += 1
         peak = max(peak, running)
         order.append(thread_id)
@@ -1106,7 +1107,8 @@ async def test_production_dispatch_enters_two_chat_turns_simultaneously(mode):
     database = MagicMock()
     database.get_interaction = AsyncMock(side_effect=lambda thread: {'data': {'session_id': thread}})
 
-    async def run(thread, content, agent_id):
+    async def run(thread, content, agent_id, *, admitted_turn_id):
+        assert runtimes.existing(thread).active_turn_id == admitted_turn_id
         assert runtimes.selected_chat() == thread
         entered[thread].set()
         await release.wait()

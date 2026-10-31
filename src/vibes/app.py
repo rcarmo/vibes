@@ -126,6 +126,8 @@ async def on_startup(app: web.Application) -> None:
     logger.info(f"Database initialized at {config.db_path}")
     from .followup_store import FollowupStore
     await FollowupStore(await get_db()).recover()
+    from .compaction import KEY
+    await app[KEY].recover(await get_db())
     # Pending work is retained for explicit dispatch; ambiguous work is never replayed.
     # Conservative retention: only explicitly marked unreferenced uploads.
     removed_uploads = await (await get_db()).cleanup_abandoned_uploads()
@@ -174,6 +176,8 @@ async def on_cleanup(app: web.Application) -> None:
     if get_config().default_agent.lower() == 'copilot-ffi':
         from .copilot_host import backend
         agents.close_ffi_admission()
+        from .compaction import KEY
+        await app[KEY].close(await get_db(), backend)
         try:
             await backend.stop(permanent=True)
         except Exception:
@@ -227,11 +231,21 @@ def create_app() -> web.Application:
     avatar.setup_routes(app)
     workspace.setup_routes(app)
     terminal.setup_routes(app)
+    from .routes import vnc
+    vnc.setup_routes(app)
     sessions.setup_routes(app)
-    from .routes import pi_tools, system_metrics, plans
+    from .routes import pi_tools, system_metrics, plans, settings, shell_tools, widgets, classic, classic_messages, classic_queue, classic_media, classic_model
     pi_tools.setup_routes(app)
     system_metrics.setup_routes(app)
     plans.setup_routes(app)
+    settings.setup_routes(app)
+    shell_tools.setup_routes(app)
+    widgets.setup_routes(app)
+    classic.setup_routes(app)
+    classic_messages.setup_routes(app)
+    classic_queue.setup_routes(app)
+    classic_media.setup_routes(app)
+    classic_model.setup_routes(app)
     
     # Dynamic PWA manifest (before static to take priority over static/manifest.json)
     app.router.add_get("/manifest.json", manifest_handler)

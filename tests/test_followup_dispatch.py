@@ -252,7 +252,8 @@ async def test_startup_recovers_claims_before_workers_without_replay(db, monkeyp
     monkeypatch.setattr(app.agents, 'start_ffi_dispatch', lambda: None)
     monkeypatch.setattr(app, 'start_pi_agent', AsyncMock(return_value=False))
     monkeypatch.setattr(app, 'reconcile_missing_previews', AsyncMock())
-    await app.on_startup(None)
+    from vibes.compaction import KEY, Compactions
+    await app.on_startup({KEY: Compactions()})
     assert [row['state'] for row in await store.list(thread_id=1, agent_id='pi')] == ['uncertain', 'pending']
 
 

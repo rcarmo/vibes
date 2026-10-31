@@ -178,6 +178,8 @@ def create_auth_middleware(
         request: web.Request,
         handler: Callable[[web.Request], Awaitable[web.StreamResponse]],
     ) -> web.StreamResponse:
+        # Boot policy must not describe a pluggable external gate as auth-free.
+        request['vibes.auth_configured'] = authenticate is not _allow_all
         if not is_public_route(request.path):
             rejection = await authenticate(request)
             if rejection is not None:

@@ -27,13 +27,16 @@ commands can resolve using `PROJECT=vibes bash scripts/project-tmp.sh init` and
 must propagate that root before setting TMPDIR; do not append `vibes` again to
 an already exported run-local TMPDIR.
 
-Retained profiles, logs, receipts and datasets are evidence, not disposable
-scratch. Keep publication evidence under `docs/evidence/`; preserve external
-historical evidence until explicitly migrated. Cleanup may remove only confirmed
-inactive disposable paths beneath the resolved project root. Never delete another
-project's root, retained evidence or files used by active jobs. The existing
-`clean` target removes local Python bytecode/test cache only and does not delete
-the project scratch root or evidence.
+Profile CPU and heap/allocation behaviour during pre-release verification; ordinary
+development tests need no profile. Investigate measured outliers, apply safe fixes,
+and compare equivalent workloads before declaring profiling complete. Immediately
+after analysis, delete raw profiles, matching binaries, traces, temporary fixtures
+and disposable logs, including failed probes. Keep concise measurements and
+limitations under `docs/evidence/`, not raw archives. Preserve durable datasets,
+source, intentional release assets and files used by active jobs. Cleanup may
+remove only confirmed inactive disposable paths beneath the resolved project
+root, never another project's root. The existing `clean` target removes local
+Python bytecode/test cache only and does not delete the whole scratch root.
 
 ## Ownership
 

@@ -47,5 +47,9 @@ async def test_ffi_cleanup_finishes_after_native_shutdown_failure(monkeypatch, n
     monkeypatch.setattr(app, 'stop_task_queue', step('workers'))
     monkeypatch.setattr(app.workspace, 'shutdown_workspace_manager', step('workspace'))
     monkeypatch.setattr(app, 'close_db', step('database'))
-    await app.on_cleanup(None)
-    assert order == ['close-admission', 'native', 'dispatch', 'workers', 'workspace', 'database']
+    from vibes.compaction import KEY
+    async def close_compactions(*args):
+        order.append('compactions')
+    monkeypatch.setattr(app, 'get_db', AsyncMock(return_value=object()))
+    await app.on_cleanup({KEY: SimpleNamespace(close=close_compactions)})
+    assert order == ['close-admission', 'compactions', 'native', 'dispatch', 'workers', 'workspace', 'database']

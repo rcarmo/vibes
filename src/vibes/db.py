@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 DEFAULT_DB_PATH = "data/app.db"
 
-SCHEMA_VERSION = 9
+SCHEMA_VERSION = 15
 
 SCHEMA = """
 -- Interactions table with JSON data and virtual columns for indexing
@@ -190,6 +190,76 @@ CREATE INDEX IF NOT EXISTS followup_dispatch_idx ON followup_queue(thread_id, ag
 """
 
 
+MIGRATION_V10 = """
+CREATE TABLE IF NOT EXISTS keychain_meta (
+    name TEXT PRIMARY KEY,
+    value BLOB NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS keychain_entries (
+    name TEXT PRIMARY KEY,
+    type TEXT NOT NULL DEFAULT 'secret' CHECK(type IN ('token','password','basic','secret')),
+    username TEXT,
+    secret_encrypted BLOB NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS environment_overrides (
+    name TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+"""
+
+
+MIGRATION_V11 = """
+CREATE INDEX IF NOT EXISTS idx_interactions_widget_lookup
+ON interactions (
+    COALESCE(json_extract(data, '$.session_id'), 'default'),
+    json_extract(data, '$.content_blocks[0].widget_id')
+)
+WHERE type = 'agent_response'
+  AND json_extract(data, '$.content_blocks[0].type') = 'generated_widget';
+"""
+
+
+MIGRATION_V12 = """
+ALTER TABLE keychain_entries ADD COLUMN user_note TEXT NOT NULL DEFAULT '';
+ALTER TABLE keychain_entries ADD COLUMN agent_note TEXT NOT NULL DEFAULT '';
+"""
+
+
+MIGRATION_V13 = """
+CREATE TABLE IF NOT EXISTS prompt_receipts (
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    client_request_id TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    state TEXT NOT NULL CHECK(state IN ('pending', 'confirmed', 'rejected', 'uncertain')),
+    message_id INTEGER,
+    response_status INTEGER,
+    result TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (session_id, client_request_id)
+);
+"""
+
+
+MIGRATION_V15 = """
+CREATE TABLE IF NOT EXISTS compaction_operations (
+    token TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    turn_id TEXT NOT NULL UNIQUE,
+    state TEXT NOT NULL CHECK(state IN ('pending','running','cancelling','completed','failed','uncertain')),
+    result TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_compaction_session ON compaction_operations(session_id,created_at);
+"""
+
+
 class Database:
     """Async SQLite database wrapper with JSON and BLOB support."""
 
@@ -211,6 +281,10 @@ class Database:
         await self._connection.execute("PRAGMA journal_mode = WAL")
         
         await self._init_schema()
+
+    async def compaction_blocked(self, session_id):
+        async with self._connection.execute("SELECT 1 FROM compaction_operations WHERE session_id=? AND state IN ('pending','running','cancelling','uncertain') LIMIT 1", (session_id,)) as cursor:
+            return await cursor.fetchone() is not None
 
     async def close(self) -> None:
         """Close the database connection."""
@@ -251,12 +325,34 @@ class Database:
                 await self._connection.executescript(MIGRATION_V8)
             if current_version < 9:
                 await self._connection.executescript(MIGRATION_V9)
-            await self._connection.execute("DELETE FROM schema_version")
-            await self._connection.execute(
-                "INSERT OR REPLACE INTO schema_version (version) VALUES (?)",
-                (SCHEMA_VERSION,)
-            )
-            await self._connection.commit()
+            if current_version < 10:
+                await self._connection.executescript(MIGRATION_V10)
+            if current_version < 11:
+                await self._connection.executescript(MIGRATION_V11)
+            if current_version < 12:
+                await self._connection.executescript(MIGRATION_V12)
+            if current_version < 13:
+                await self._connection.executescript(MIGRATION_V13)
+            if current_version < 15:
+                # Explicit transaction includes DDL and version publication.
+                # Column checks also recover earlier partial/probe upgrades.
+                async with self.transaction() as connection:
+                    await connection.execute('BEGIN IMMEDIATE')
+                    async with connection.execute('PRAGMA table_info(chat_sessions)') as cursor:
+                        columns = {row['name'] for row in await cursor.fetchall()}
+                    for column in ('archived_at', 'archived_at_source'):
+                        if column not in columns:
+                            await connection.execute(f'ALTER TABLE chat_sessions ADD COLUMN {column} TEXT')
+                    await connection.execute("""
+                        UPDATE chat_sessions SET archived_at = COALESCE(archived_at, CURRENT_TIMESTAMP),
+                            archived_at_source = COALESCE(archived_at_source, 'migration-observed')
+                        WHERE archived = 1
+                    """)
+                    for statement in MIGRATION_V15.split(';'):
+                        if statement.strip():
+                            await connection.execute(statement)
+                    await connection.execute('DELETE FROM schema_version')
+                    await connection.execute('INSERT INTO schema_version (version) VALUES (?)', (SCHEMA_VERSION,))
 
     @asynccontextmanager
     async def transaction(self):
@@ -272,7 +368,7 @@ class Database:
                 raise
 
     # Interaction methods
-    async def create_interaction(self, data: dict) -> int:
+    async def create_interaction(self, data: dict, *, send_receipt=None) -> int:
         """Create a new interaction and return its ID."""
         data = dict(data)
         session_id = data.get('session_id', 'default')
@@ -288,11 +384,25 @@ class Database:
                 raise ValueError('Session not found')
         data['session_id'] = session_id
         async with self.transaction():
+            if await self.compaction_blocked(session_id):
+                raise ValueError('Compaction active or uncertain; cannot mutate transcript')
             cursor = await self._connection.execute(
                 "INSERT INTO interactions (data) VALUES (?)",
                 (json.dumps(data),)
             )
-            return cursor.lastrowid
+            message_id = cursor.lastrowid
+            if send_receipt is not None:
+                receipt_session, request_id = send_receipt
+                if receipt_session != session_id:
+                    raise ValueError('Receipt does not match message session')
+                updated = await self._connection.execute(
+                    "UPDATE prompt_receipts SET message_id = ?, updated_at = CURRENT_TIMESTAMP "
+                    "WHERE session_id = ? AND client_request_id = ? AND state = 'pending' AND message_id IS NULL",
+                    (message_id, session_id, request_id),
+                )
+                if updated.rowcount != 1:
+                    raise ValueError('Prompt receipt admission is not pending')
+            return message_id
 
     async def get_interaction(self, interaction_id: int) -> Optional[dict]:
         """Get an interaction by ID."""
@@ -325,6 +435,8 @@ class Database:
                 raise ValueError('Target thread not found')
             if data.get('session_id', 'default') != parent['data'].get('session_id', 'default'):
                 raise ValueError('Cannot move a message across sessions')
+            if await self.compaction_blocked(data.get('session_id', 'default')):
+                raise ValueError('Compaction active or uncertain; cannot move transcript')
             data["thread_id"] = thread_id
             await self._connection.execute(
                 "UPDATE interactions SET data = ? WHERE id = ?",
@@ -347,6 +459,13 @@ class Database:
             return 0
         placeholders = ", ".join(["?"] * len(interaction_ids))
         async with self.transaction():
+            async with self._connection.execute(
+                "SELECT DISTINCT COALESCE(json_extract(data,'$.session_id'),'default') FROM interactions WHERE id IN (" + placeholders + ')', interaction_ids,
+            ) as cursor:
+                sessions = [row[0] for row in await cursor.fetchall()]
+            for session_id in sessions:
+                if await self.compaction_blocked(session_id):
+                    raise ValueError('Compaction active or uncertain; cannot delete transcript')
             cursor = await self._connection.execute(
                 f"DELETE FROM interactions WHERE id IN ({placeholders})",
                 interaction_ids,
@@ -744,11 +863,14 @@ class Database:
     async def update_turn_status(
         self, turn_id: str, status: dict
     ) -> None:
-        """Update the last known status for an active turn."""
+        """Update status, preserving accepted cancellation until turn removal."""
         async with self.transaction():
             await self._connection.execute(
-                "UPDATE active_turns SET last_status = ? WHERE turn_id = ?",
-                (json.dumps(status), turn_id),
+                "UPDATE active_turns SET last_status = CASE "
+                "WHEN CASE WHEN json_valid(last_status) "
+                "THEN json_extract(last_status, '$.status') END = 'cancelling' "
+                "THEN json_set(?, '$.status', 'cancelling') ELSE ? END WHERE turn_id = ?",
+                (json.dumps(status), json.dumps(status), turn_id),
             )
 
     async def end_turn(self, turn_id: str) -> None:

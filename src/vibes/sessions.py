@@ -7,21 +7,23 @@ class SessionStore:
     def __init__(self, database):
         self.db = database
 
-    async def list(self, include_archived=False):
+    async def list(self, include_archived=False, *, session_id=None):
         async with self.db._connection.execute(
             '''SELECT s.*, COALESCE(activity.message_count, 0) AS message_count,
                       activity.last_message_at, activity.last_message_id,
-                      EXISTS (SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id
-                        WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=s.id) AS is_running
+                      (EXISTS (SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id
+                        WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=s.id)
+                       OR EXISTS (SELECT 1 FROM compaction_operations c WHERE c.session_id=s.id
+                         AND c.state IN ('pending','running','cancelling'))) AS is_running
                FROM chat_sessions s LEFT JOIN (
                    SELECT COALESCE(json_extract(data, '$.session_id'), 'default') AS session_id,
                           COUNT(*) AS message_count, MAX(timestamp) AS last_message_at,
                           MAX(id) AS last_message_id
                    FROM interactions GROUP BY COALESCE(json_extract(data, '$.session_id'), 'default')
                ) activity ON activity.session_id=s.id
-               WHERE (? OR s.archived=0)
+               WHERE (? OR s.archived=0) AND (? IS NULL OR s.id=?)
                ORDER BY s.pinned DESC, COALESCE(activity.last_message_at, s.updated_at) DESC, s.id''',
-            (int(include_archived),),
+            (int(include_archived), session_id, session_id),
         ) as cursor:
             sessions = [{**dict(row), 'is_running': bool(row['is_running']), 'queued_count': 0} for row in await cursor.fetchall()]
         from .followup_store import FollowupStore
@@ -113,6 +115,8 @@ class SessionStore:
         if session_id == 'default':
             raise ValueError('Default session cannot be deleted')
         async with self.db.transaction():
+            if await self.db.compaction_blocked(session_id):
+                raise ValueError('Compaction active or uncertain; cannot delete session')
             cursor = await self.db._connection.execute('''
                 DELETE FROM chat_sessions WHERE id=?
                 AND NOT EXISTS (SELECT 1 FROM interactions WHERE json_extract(data, '$.session_id')=?)
@@ -163,16 +167,46 @@ class SessionStore:
                 values.append(int(value))
         if fields:
             async with self.db.transaction():
+                session = await self.get(session_id)
+                if session is None:
+                    raise ValueError('Session not found')
                 if pinned is True:
-                    session = await self.get(session_id)
-                    if session is None:
-                        raise ValueError('Session not found')
                     will_be_archived = archived if archived is not None else session['archived']
                     if will_be_archived:
                         raise ValueError('Restore session before pinning')
+                if archived is False:
+                    async with self.db._connection.execute('''
+                        WITH RECURSIVE ancestors(id) AS (
+                            SELECT parent_id FROM chat_sessions WHERE id=?
+                            UNION SELECT s.parent_id FROM chat_sessions s JOIN ancestors a ON s.id=a.id
+                        ) SELECT 1 FROM chat_sessions WHERE archived=1 AND id IN (SELECT id FROM ancestors) LIMIT 1
+                    ''', (session_id,)) as cursor:
+                        if await cursor.fetchone():
+                            raise ValueError('Restore ancestors before restoring this session')
                 if archived:
+                    if await self.db.compaction_blocked(session_id):
+                        raise ValueError('Compaction active or uncertain; cannot archive session')
+                    # Reject partial subtree archival under the same write lock
+                    # used by child creation; no live branch loses its ancestor.
+                    async with self.db._connection.execute('''
+                        WITH RECURSIVE descendants(id) AS (
+                            SELECT id FROM chat_sessions WHERE parent_id=?
+                            UNION SELECT s.id FROM chat_sessions s JOIN descendants d ON s.parent_id=d.id
+                        ) SELECT 1 FROM chat_sessions WHERE archived=0 AND id IN (SELECT id FROM descendants) LIMIT 1
+                    ''', (session_id,)) as cursor:
+                        if await cursor.fetchone():
+                            raise ValueError('Archive live descendants first')
                     async with self.db._connection.execute("SELECT 1 FROM active_turns t JOIN interactions i ON i.id=t.thread_id WHERE COALESCE(json_extract(i.data, '$.session_id'), 'default')=? LIMIT 1", (session_id,)) as cursor:
                         if await cursor.fetchone():
                             raise ValueError('Cannot archive a running session')
-                await self.db._connection.execute('UPDATE chat_sessions SET ' + ','.join(fields) + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', (*values, session_id))
+                archive_sql = ''
+                if archived is not None:
+                    archive_sql = (",archived_at=CASE WHEN archived=1 THEN archived_at ELSE CURRENT_TIMESTAMP END,"
+                                   "archived_at_source=CASE WHEN archived=1 THEN archived_at_source ELSE 'mutation' END"
+                                   if archived else ',archived_at=NULL,archived_at_source=NULL')
+                cursor = await self.db._connection.execute('UPDATE chat_sessions SET ' + ','.join(fields) + archive_sql + ', updated_at=CURRENT_TIMESTAMP WHERE id=?', (*values, session_id))
+                if cursor.rowcount != 1:
+                    raise ValueError('Session not found')
+                # Readback under the same write lock excludes delete/update races.
+                return await self.get(session_id)
         return await self.get(session_id)

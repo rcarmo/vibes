@@ -15,6 +15,18 @@ import secrets
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
+from .secure.environment_overrides import PRIVATE_VARIABLES
+
+
+async def _settle(task):
+    """Join owned cleanup/acquisition despite repeated waiter cancellation."""
+    while True:
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            if task.done():
+                return task.result()
+
 
 @dataclass
 class TerminalSession:
@@ -24,6 +36,7 @@ class TerminalSession:
     history: bytearray = field(default_factory=bytearray)
     clients: set = field(default_factory=set)
     closed: bool = False
+    close_task: asyncio.Task | None = None
     session_id: str = field(default_factory=lambda: secrets.token_urlsafe(16))
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
@@ -35,19 +48,23 @@ class TerminalService:
         self.history_limit = history_limit
         self.sessions = {}
         self.lock = asyncio.Lock()
+        self.closing = False
 
     async def open(self, owner):
         if not owner:
             raise ValueError("Terminal owner required")
         async with self.lock:
+            if self.closing:
+                raise RuntimeError('Terminal service is shutting down')
             existing = self.sessions.get(owner)
             if existing and not existing.closed and existing.process.returncode is None:
                 return existing
             if existing:
                 await self.close(existing)
             master, slave = pty.openpty()
+            spawn = None
             try:
-                process = await asyncio.create_subprocess_exec(
+                spawn = asyncio.create_task(asyncio.create_subprocess_exec(
                     # Establish the controlling terminal after setsid, without
                     # preexec_fn (unsafe in a threaded server process).
                     sys.executable, "-c",
@@ -55,11 +72,26 @@ class TerminalService:
                     "fcntl.ioctl(0,termios.TIOCSCTTY,0); "
                     "os.execv(sys.argv[1],[sys.argv[1],'-i'])",
                     self.shell, stdin=slave, stdout=slave, stderr=slave,
-                    cwd=self.cwd, env={**os.environ, "TERM": "xterm-256color"},
+                    cwd=self.cwd, env={
+                        **{name: value for name, value in os.environ.items() if name not in PRIVATE_VARIABLES},
+                        "TERM": "xterm-256color",
+                    },
                     start_new_session=True,
-                )
+                ))
+                process = await asyncio.shield(spawn)
             except BaseException:
-                os.close(master)
+                # Spawn can complete after its waiter is cancelled. Retain the
+                # task and slave fd until acquisition settles, then reap it.
+                try:
+                    if spawn is not None:
+                        try:
+                            process = await _settle(spawn)
+                        except BaseException:
+                            pass
+                        else:
+                            await _settle(asyncio.create_task(self._reap(process)))
+                finally:
+                    os.close(master)
                 raise
             finally:
                 os.close(slave)
@@ -114,28 +146,40 @@ class TerminalService:
         except ProcessLookupError:
             pass
 
-    async def close(self, session):
-        if session.closed:
-            return
-        session.closed = True
-        asyncio.get_running_loop().remove_reader(session.fd)
-        os.close(session.fd)
+    async def _reap(self, process):
         try:
-            os.killpg(session.process.pid, signal.SIGHUP)
+            os.killpg(process.pid, signal.SIGHUP)
         except ProcessLookupError:
             pass
         try:
-            await asyncio.wait_for(session.process.wait(), 2)
+            await asyncio.wait_for(process.wait(), 2)
         except asyncio.TimeoutError:
             try:
-                os.killpg(session.process.pid, signal.SIGKILL)
+                os.killpg(process.pid, signal.SIGKILL)
             except ProcessLookupError:
                 pass
-            await session.process.wait()
+            await process.wait()
+
+    async def close(self, session):
+        if session.close_task is None:
+            session.closed = True
+            asyncio.get_running_loop().remove_reader(session.fd)
+            os.close(session.fd)
+            session.close_task = asyncio.create_task(self._finish_close(session))
+        try:
+            await asyncio.shield(session.close_task)
+        except asyncio.CancelledError:
+            await _settle(session.close_task)
+            raise
+
+    async def _finish_close(self, session):
+        await self._reap(session.process)
         session.clients.clear()
         if self.sessions.get(session.owner) is session:
             del self.sessions[session.owner]
 
     async def shutdown(self):
-        for session in tuple(self.sessions.values()):
-            await self.close(session)
+        self.closing = True
+        async with self.lock:
+            for session in tuple(self.sessions.values()):
+                await self.close(session)

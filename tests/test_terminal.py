@@ -1,4 +1,4 @@
-"""Real PTY tests; no HTTP route enables terminal access yet."""
+"""Real POSIX PTY tests; HTTP terminal access is separately opt-in."""
 import asyncio
 import importlib
 import struct
@@ -44,6 +44,23 @@ async def test_owner_isolation_and_input_limit(tmp_path):
         assert len(first.history) <= 64
         with pytest.raises(ValueError):
             await service.open("")
+    finally:
+        await service.shutdown()
+
+
+@pytest.mark.asyncio
+async def test_terminal_environment_excludes_server_keychain_configuration(tmp_path, monkeypatch):
+    monkeypatch.setenv('VIBES_KEYCHAIN_MASTER_PASSWORD', 'synthetic-private-master')
+    monkeypatch.setenv('VIBES_KEYCHAIN_KEY_PATH', '/synthetic/private/key')
+    service = TerminalService(str(tmp_path))
+    session = await service.open('environment')
+    try:
+        await service.write(session, b'printf "private-vars:%s:%s\\n" "${VIBES_KEYCHAIN_MASTER_PASSWORD-unset}" "${VIBES_KEYCHAIN_KEY_PATH-unset}"\n')
+        async with asyncio.timeout(3):
+            while b'private-vars:unset:unset' not in session.history:
+                await asyncio.sleep(.02)
+        assert b'synthetic-private-master' not in session.history
+        assert b'/synthetic/private/key' not in session.history
     finally:
         await service.shutdown()
 

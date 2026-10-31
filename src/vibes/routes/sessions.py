@@ -23,6 +23,81 @@ def sanitize_model(item):
     return model
 
 
+def classic_session(session):
+    """Keep legacy metadata while projecting the supported single-agent scope."""
+    return {**session, 'running': bool(session.get('is_running')), 'title': session['name'],
+            'parent_session_id': session['parent_id'], 'scope': {'agent_id': 'web'},
+            'state': {'status': 'running' if session.get('is_running') else
+                      'queued' if session.get('queued_count', 0) else 'idle',
+                      'queue_count': session.get('queued_count', 0), 'pinned': bool(session['pinned']),
+                      'archived_at': session.get('archived_at'),
+                      'archived_at_source': session.get('archived_at_source')},
+            'capabilities': {'fork': False}}
+
+
+async def classic_sessions(request):
+    if set(request.query) - {'include_archived'}:
+        return web.json_response({'error': 'Unknown session query fields'}, status=400)
+    include = request.query.get('include_archived', 'true')
+    if include not in {'true', 'false'}:
+        return web.json_response({'error': 'Invalid include_archived'}, status=400)
+    rows = await SessionStore(await get_db()).list(include == 'true')
+    return web.json_response({'sessions': [classic_session(row) for row in rows],
+                              'runtime_isolation': False}, headers={'Cache-Control': 'no-store'})
+
+
+async def classic_session_detail(request):
+    if request.query:
+        return web.json_response({'error': 'Unsupported session query'}, status=400)
+    rows = await SessionStore(await get_db()).list(True, session_id=request.match_info['id'])
+    if not rows:
+        return web.json_response({'error': 'Session not found'}, status=404)
+    return web.json_response({'session': classic_session(rows[0])}, headers={'Cache-Control': 'no-store'})
+
+
+async def classic_mutate_session(request):
+    store = SessionStore(await get_db())
+    try:
+        data = await request.json()
+        if not isinstance(data, dict):
+            raise ValueError('Expected an object')
+        if request.method == 'POST':
+            if set(data) - {'title', 'agent_id'} or data.get('agent_id', 'web') not in {'web', 'default'}:
+                raise ValueError('Only a title and the configured web agent are supported')
+            result = await store.create(data.get('title'))
+        else:
+            session_id = request.match_info['id']
+            if not await store.get(session_id):
+                return web.json_response({'error': 'Session not found'}, status=404)
+            action = data.get('action')
+            fields = {'rename': {'action', 'title'}, 'pin': {'action', 'pinned'},
+                      'archive': {'action'}, 'restore': {'action'}}
+            if not isinstance(action, str) or action not in fields or set(data) != fields[action]:
+                raise ValueError('Unsupported session action or fields')
+            if action == 'rename':
+                changes = {'name': store.name(data['title'])}
+            elif action == 'pin':
+                if type(data['pinned']) is not bool:
+                    raise ValueError('pinned must be boolean')
+                changes = {'pinned': data['pinned']}
+            else:
+                changes = {'archived': action == 'archive'}
+            result = await store.update(session_id, **changes)
+    except (ValueError, TypeError) as exc:
+        status = 404 if str(exc) == 'Session not found' else 400
+        return web.json_response({'error': str(exc)}, status=status)
+    await broadcast_event('sessions_changed', {})
+    return web.json_response({'session': classic_session(result)}, status=201 if request.method == 'POST' else 200,
+                              headers={'Cache-Control': 'no-store'})
+
+
+async def classic_fork_unavailable(request):
+    if not await SessionStore(await get_db()).get(request.match_info['id']):
+        return web.json_response({'error': 'Session not found'}, status=404)
+    return web.json_response({'error': 'Transcript and backend-state forking are not supported'}, status=501,
+                              headers={'Cache-Control': 'no-store'})
+
+
 async def list_sessions(request):
     include = request.query.get('include_archived', 'false')
     if include not in {'true', 'false'}:
@@ -225,6 +300,11 @@ async def model_preferences(request):
 
 
 def setup_routes(app):
+    app.router.add_get('/api/sessions', classic_sessions)
+    app.router.add_post('/api/sessions', classic_mutate_session)
+    app.router.add_get('/api/sessions/{id}', classic_session_detail)
+    app.router.add_patch('/api/sessions/{id}', classic_mutate_session)
+    app.router.add_post('/api/sessions/{id}/fork', classic_fork_unavailable)
     app.router.add_get('/model-preferences', model_preferences)
     app.router.add_put('/model-preferences', model_preferences)
     app.router.add_get('/sessions', list_sessions)

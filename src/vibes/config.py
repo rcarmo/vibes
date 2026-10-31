@@ -145,6 +145,7 @@ class Config:
         self.port: int = _resolve(s, "port", "VIBES_PORT", 8080, "int")
         self.db_path: str = _resolve(s, "db_path", "VIBES_DB_PATH", "database/vibes.db", "str")
         self.debug: bool = _resolve(s, "debug", "VIBES_DEBUG", False, "bool")
+        self.shell_path: str = _resolve(s, "shell_path", "VIBES_SHELL_PATH", "", "str")
         self.custom_endpoints: dict = {}
         
         # ACP agent configuration

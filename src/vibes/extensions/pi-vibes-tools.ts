@@ -1,6 +1,54 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import { Type } from "@sinclair/typebox";
 export default function (pi: ExtensionAPI) {
+  // Execute through the owner-scoped Python runner. No prepared credentials cross
+  // the bridge; fetch abort closes the request and cancels its server-side process.
+  pi.registerTool({
+    name: 'bash', label: 'Bash',
+    description: 'Run a shell command in the workspace with Settings overrides. Keychain secrets are injected only for literal variable references ($NAME, ${NAME}, $env:NAME, %NAME%) or keychain:name placeholders. Prefer variable references; placeholders are literal shell-source substitution.',
+    parameters: Type.Object({ command: Type.String(), timeout: Type.Optional(Type.Number()) }),
+    async execute(toolCallId, params, signal, onUpdate) {
+      const base = process.env.VIBES_PI_TOOLS_URL;
+      const token = process.env.VIBES_ATTACHMENT_TOKEN;
+      if (!base || !token) throw new Error('Vibes shell bridge is not configured');
+      const body: { command: string; timeout?: number } = { command: params.command };
+      if (params.timeout != null) body.timeout = params.timeout;
+      const response = await fetch(new URL('/internal/agent-tools/shell', base), {
+        method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify(body),
+      });
+      if (!response.ok) throw new Error('Vibes shell execution failed');
+      const result = await response.json();
+      if (signal?.aborted) throw new Error('Shell command cancelled');
+      const failed = result.exit_code !== 0;
+      return {
+        content: [{ type: 'text', text: result.stdout || (failed ? `Command exited with code ${result.exit_code}` : '(no output)') }],
+        details: { exit_code: result.exit_code },
+        isError: failed,
+      };
+    },
+  });
+  pi.registerTool({
+    name: 'send_dashboard_widget', label: 'Dashboard widget',
+    description: 'Post a self-contained HTML dashboard to this conversation. The shared UI renders it in a sandboxed iframe; use window.piclawWidget for host interactions.',
+    parameters: Type.Object({ html: Type.String(), title: Type.Optional(Type.String()),
+      description: Type.Optional(Type.String()), interactive: Type.Optional(Type.Boolean()) }),
+    async execute(toolCallId, params, signal) {
+      const base = process.env.VIBES_PI_TOOLS_URL;
+      const token = process.env.VIBES_ATTACHMENT_TOKEN;
+      if (!base || !token) throw new Error('Vibes widget bridge is not configured');
+      const body = Object.fromEntries(Object.entries(params).filter(([, value]) => value != null));
+      const response = await fetch(new URL('/internal/agent-tools/dashboard-widget', base), {
+        method: 'POST', signal,
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+        body: JSON.stringify({ ...body, request_id: toolCallId }),
+      });
+      if (!response.ok) throw new Error('Widget delivery failed');
+      const result = await response.json();
+      return { content: [{ type: 'text', text: JSON.stringify(result) }], details: { widget: result } };
+    },
+  });
   pi.registerTool({
     name: "plan",
     label: "Session Plan",

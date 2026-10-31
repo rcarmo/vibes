@@ -2,6 +2,7 @@
 
 import base64
 import json
+import uuid
 import logging
 import re
 from aiohttp import web
@@ -791,7 +792,7 @@ async def _queued_source_data(db, item: dict, chat_id: str, thread_id: int) -> d
     return data
 
 
-def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
+def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids, *, admitted_turn_id=None):
     if _ffi_closing or chat_id in _ffi_tasks:
         raise RuntimeError('Conversation dispatch unavailable')
 
@@ -805,7 +806,8 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
             owner = None
             while not _ffi_closing:
                 if owner is None:
-                    advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs)
+                    turn_options = {'admitted_turn_id': admitted_turn_id} if admitted_turn_id else {}
+                    advance = await process_agent_response(thread_id, prompt, agent_id, media_ids=inputs, **turn_options)
                 else:
                     executing, owner = owner, None
                     advance = await _run_claimed_followup(executing, media_ids=inputs)
@@ -841,7 +843,7 @@ def _enqueue_ffi(chat_id, thread_id, content, agent_id, media_ids):
     _ffi_tasks[chat_id], _ffi_threads[chat_id] = task, thread_id
 
 
-async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None):
+async def process_agent_response(thread_id: int, content: str, agent_id: str, *, media_ids=None, admitted_turn_id=None):
     """ACP/Pi share a lock; FFI turns serialize only within their own chat."""
     mode = _resolve_agent_mode(agent_id)
     database = await get_db()
@@ -854,12 +856,24 @@ async def process_agent_response(thread_id: int, content: str, agent_id: str, *,
     lock = _ffi_lock(_ffi_dispatch_locks if mode == 'copilot-ffi' else _chat_dispatch_locks, chat_id)
     with binding:
         async with lock:
-            if media_ids is None:
-                return await _process_agent_response_locked(thread_id, content, agent_id)
-            return await _process_agent_response_locked(thread_id, content, agent_id, media_ids=media_ids)
+            options = {}
+            if media_ids is not None:
+                options['media_ids'] = media_ids
+            # Bind a worker identity independently of SQLite registration. A
+            # stale persisted row cannot authorise cancellation of this turn.
+            turn_id = admitted_turn_id or f'turn-{uuid.uuid4().hex}'
+            options['admitted_turn_id'] = turn_id
+            runtime = runtimes.existing(chat_id) if mode != 'copilot-ffi' else None
+            if runtime is not None:
+                runtime.active_turn_id = turn_id
+            try:
+                return await _process_agent_response_locked(thread_id, content, agent_id, **options)
+            finally:
+                if runtime is not None and runtime.active_turn_id == turn_id:
+                    runtime.active_turn_id = None
 
 
-async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None):
+async def _process_agent_response_locked(thread_id: int, content: str, agent_id: str, *, media_ids=None, admitted_turn_id=None):
     """Background task to get agent response and broadcast it."""
     import random
     import string
@@ -867,7 +881,7 @@ async def _process_agent_response_locked(thread_id: int, content: str, agent_id:
 
     from ..avatar import resolve_avatar_url
 
-    turn_id = f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
+    turn_id = admitted_turn_id or f"turn-{int(time.time() * 1000)}-{''.join(random.choices(string.ascii_lowercase + string.digits, k=6))}"
     database = await get_db()
     root = await database.get_interaction(thread_id)
     chat_session_id = root["data"].get("session_id", "default") if root else "default"
@@ -1334,16 +1348,21 @@ async def _get_agent_models(request: web.Request) -> web.Response:
 
 async def abort_turn(request: web.Request) -> web.Response:
     """Cancel a known turn, not a command routed to whichever session is active."""
-    from .. import pi_client
-    from ..sessions import SessionStore
     try:
         data = await request.json()
     except (json.JSONDecodeError, ValueError):
         return web.json_response({'error': 'Invalid JSON'}, status=400)
+    return await _abort_turn(request.match_info['agent_id'], data)
+
+
+async def _abort_turn(agent_id: str, data: dict) -> web.Response:
+    """Shared cancellation with persisted and exact runtime ownership checks."""
+    from .. import pi_client
+    from ..sessions import SessionStore
     if not isinstance(data, dict) or any(not isinstance(data.get(key), str) or not data[key]
                                          for key in ('session_id', 'turn_id')):
         return web.json_response({'error': 'session_id and turn_id are required'}, status=400)
-    mode = _resolve_agent_mode(request.match_info['agent_id'])
+    mode = _resolve_agent_mode(agent_id)
     owner = (copilot_backend.active_for(data['session_id']) if mode == 'copilot-ffi' else
              (pi_client._runtimes.existing(data['session_id']).current_request_task
               if pi_client._runtimes.existing(data['session_id']) else None) if mode == 'pi' else
@@ -1354,7 +1373,7 @@ async def abort_turn(request: web.Request) -> web.Response:
     session = await SessionStore(database).get(session_id)
     if not session or session['archived']:
         return web.json_response({'error': 'Session unavailable'}, status=404)
-    turn = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
+    turn = await _get_active_turn_for_agent(agent_id, session_id=session_id)
     if not turn or turn['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
     root = await database.get_interaction(turn['thread_id'])
@@ -1362,14 +1381,25 @@ async def abort_turn(request: web.Request) -> web.Response:
         return web.json_response({'error': 'Turn belongs to another session'}, status=409)
     # Re-check after DB awaits; runtime helpers additionally validate ownership
     # and signal without yielding, so a stale click cannot abort a promoted turn.
-    current = await _get_active_turn_for_agent(request.match_info['agent_id'], session_id=session_id)
+    current = await _get_active_turn_for_agent(agent_id, session_id=session_id)
     if not current or current['turn_id'] != data['turn_id']:
         return web.json_response({'error': 'Turn is no longer active'}, status=409)
+    if mode == 'copilot-ffi':
+        runtime_turn = owner.get('turn_id') if isinstance(owner, dict) else None
+    else:
+        module = pi_client if mode == 'pi' else acp_client
+        runtime = module._runtimes.existing(session_id)
+        runtime_turn = runtime.active_turn_id if runtime else None
+    if runtime_turn != data['turn_id']:
+        return web.json_response({'error': 'Active runtime turn identity could not be confirmed'}, status=409)
     accepted = await (copilot_backend.abort(session_id, owner) if mode == 'copilot-ffi' else
                       pi_client.abort_chat_turn(session_id, owner) if mode == 'pi'
                       else acp_client.abort_chat_turn(session_id, owner))
     if not accepted:
         return web.json_response({'error': 'Active runtime ownership could not be confirmed'}, status=409)
+    # Completion may already have removed this row; never recreate state or
+    # mark a subsequently promoted turn as cancelling.
+    await database.update_turn_status(turn['turn_id'], {'status': 'cancelling'})
     return web.json_response({'status': 'cancelling', 'session_id': session_id, 'turn_id': turn['turn_id']}, status=202)
 
 
@@ -1401,7 +1431,7 @@ async def send_message(request: web.Request) -> web.Response:
         return await _send_message(request, data)
 
 
-async def _send_message(request, data):
+async def _send_message(request, data, *, send_receipt=None):
     agent_id = request.match_info['agent_id']
 
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
@@ -1422,6 +1452,9 @@ async def _send_message(request, data):
     if not isinstance(session_id, str) or not session_id:
         return web.json_response({'error': 'Invalid session_id'}, status=400)
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
+        blocked = getattr(db, 'compaction_blocked', None)
+        if blocked is not None and await blocked(session_id):
+            return web.json_response({'error': 'Compaction active or uncertain; inspect before sending', 'admitted': False}, status=409)
         from ..copilot_media import validate_media
         try:
             await validate_media(db, data.get('media_ids', []), session_id)
@@ -1458,7 +1491,10 @@ async def _send_message(request, data):
     if thread_id:
         user_msg["thread_id"] = thread_id
     
-    msg_id = await db.create_interaction(user_msg)
+    if send_receipt is None:
+        msg_id = await db.create_interaction(user_msg)
+    else:
+        msg_id = await db.create_interaction(user_msg, send_receipt=send_receipt)
 
     # Default new user messages to be their own thread root
     if not thread_id:
@@ -1614,12 +1650,14 @@ async def _send_message(request, data):
             "status": "Queued for after the current turn",
         }, status=201)
 
-    # Queue agent response processing in background
+    # Canonical receipt recovery reserves the worker's actual turn identity.
+    turn_id = ('turn-' + uuid.uuid4().hex) if send_receipt else None
+    turn_options = {'admitted_turn_id': turn_id} if turn_id else {}
     if _resolve_agent_mode(agent_id) == 'copilot-ffi':
-        _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []))
+        _enqueue_ffi(session_id, thread_id, data["content"], agent_id, data.get('media_ids', []), **turn_options)
     else:
         try:
-            admitted = enqueue(process_agent_response, thread_id, data["content"], agent_id)
+            admitted = enqueue(process_agent_response, thread_id, data["content"], agent_id, **turn_options)
         except Exception:
             logger.exception('Agent worker admission failed')
             admitted = False
@@ -1630,7 +1668,8 @@ async def _send_message(request, data):
     
     return web.json_response({
         "user_message": user_interaction,
-        "thread_id": thread_id
+        "thread_id": thread_id,
+        **({'turn_id': turn_id, 'admitted': True} if turn_id else {}),
     }, status=201)
 
 

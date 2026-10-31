@@ -58,6 +58,17 @@ class MessagesMCP(AsyncMCPServer):
             parsed = urlsplit(attachment_url)
             if parsed.scheme != 'http' or parsed.hostname not in ('127.0.0.1', '::1') or parsed.path != '/internal/agent-tools/attach-file':
                 raise ValueError('Attachment endpoint must be the local Vibes service')
+            self.register_tool('bash', self.bash,
+                description='Run a workspace shell command with persistent Settings overrides and command-scoped keychain injection. Reference credentials as quoted $NAME; keychain:name placeholders are literal substitution. Output may contain credentials if explicitly printed.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['command'], 'properties': {
+                    'command': {'type': 'string'}, 'timeout': {'type': 'number', 'exclusiveMinimum': 0, 'maximum': 3600},
+                }}, annotations={'readOnlyHint': False, 'destructiveHint': True})
+            self.register_tool('send_dashboard_widget', self.send_dashboard_widget,
+                description='Post self-contained HTML to this conversation as a sandboxed dashboard widget.',
+                input_schema={'type': 'object', 'additionalProperties': False, 'required': ['html'], 'properties': {
+                    'html': {'type': 'string'}, 'title': {'type': 'string'}, 'description': {'type': 'string'},
+                    'interactive': {'type': 'boolean'}, 'request_id': {'type': 'string'},
+                }}, annotations={'readOnlyHint': False, 'destructiveHint': False})
             self.register_tool('attach_file', self.attach_file, description=ATTACH_DESCRIPTION, input_schema=ATTACH_SCHEMA,
                                annotations={'readOnlyHint': False, 'destructiveHint': False})
             self.register_tool('open_file', self.open_file,
@@ -90,6 +101,29 @@ class MessagesMCP(AsyncMCPServer):
             self.register_tool('messages', self.messages,
                 description=TOOL['description'], input_schema=TOOL['inputSchema'],
                 annotations=TOOL['annotations'])
+
+    async def bash(self, command, timeout=30):
+        url = self.attachment_url.removesuffix('/attach-file') + '/shell'
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout + 10)) as client:
+            async with client.post(url, json={'command': command, 'timeout': timeout},
+                                   headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'Shell execution failed'))
+                return result
+
+    async def send_dashboard_widget(self, html, title=None, description=None, interactive=True, request_id=None):
+        url = self.attachment_url.removesuffix('/attach-file') + '/dashboard-widget'
+        params = {name: value for name, value in {
+            'html': html, 'title': title, 'description': description, 'interactive': interactive,
+            'request_id': request_id or uuid.uuid4().hex,
+        }.items() if value is not None}
+        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as client:
+            async with client.post(url, json=params, headers={'Authorization': 'Bearer ' + self.attachment_token}) as response:
+                result = await response.json()
+                if response.status >= 400:
+                    raise ValueError(result.get('error', 'Widget delivery failed'))
+                return result
 
     async def open_file(self, path):
         url = self.attachment_url.removesuffix('/attach-file') + '/open-file'
