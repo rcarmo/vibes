@@ -71,7 +71,7 @@ async def diagnostics_handler(request: web.Request) -> web.Response:
 
 
 async def diagnostics_page_handler(request: web.Request) -> web.FileResponse:
-    return web.FileResponse(STATIC_PATH / 'diagnostics.html', headers={'Cache-Control': 'no-store'})
+    return web.FileResponse(Path(__file__).parent / 'diagnostic_assets/index.html', headers={'Cache-Control': 'no-store'})
 
 
 async def manifest_handler(request: web.Request) -> web.Response:
@@ -106,7 +106,8 @@ async def manifest_handler(request: web.Request) -> web.Response:
 async def prepare_asset_response(request: web.Request, response: web.StreamResponse) -> None:
     # Assets retain stable paths, including direct module imports. Revalidate
     # even versioned requests: query strings do not address immutable files.
-    if request.path.startswith("/static/"):
+    from .web_assets import is_asset_path
+    if is_asset_path(request.path):
         response.headers["Cache-Control"] = (
             "no-store" if request.path == "/static/index.html"
             else "no-cache, must-revalidate"
@@ -236,9 +237,14 @@ def create_app() -> web.Application:
     app.router.add_get("/manifest.json", manifest_handler)
     
     # Static files and SPA fallback
+    async def diagnostics_script(_request):
+        return web.FileResponse(Path(__file__).parent / 'diagnostic_assets/diagnostics-page.js')
+    app.router.add_get('/static/js/diagnostics-page.js', diagnostics_script)
     app.router.add_static("/static", STATIC_PATH, name="static")
     app.on_response_prepare.append(prepare_asset_response)
     app.router.add_get("/", index_handler)
+    from .web_assets import setup_asset_routes
+    setup_asset_routes(app, STATIC_PATH, index_handler)
     
     return app
 

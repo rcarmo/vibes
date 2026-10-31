@@ -17,7 +17,8 @@ import vibes
 def main():
     package = Path(vibes.__file__).parent
     for relative in (
-        "static/dist/app.js", "static/dist/app.css",
+        "static/dist/app.bundle.js", "static/dist/app.bundle.css",
+        "diagnostic_assets/index.html", "diagnostic_assets/diagnostics-page.js",
         "extensions/pi-vibes-tools.ts",
     ):
         assert (package / relative).is_file(), relative
@@ -64,7 +65,7 @@ def main():
                         time.sleep(0.1)
                 else:
                     raise RuntimeError("Installed server did not become healthy")
-                for path in ("/", "/static/dist/app.js", "/static/dist/app.css"):
+                for path in ("/", "/dist/app.bundle.js", "/dist/app.bundle.css", "/diagnostics"):
                     with urlopen(root + path, timeout=5) as response:
                         assert response.status == 200, path
                         assert response.read(100), path

@@ -10,8 +10,8 @@
     "pngjs": "^7.0.0"
   },
   "scripts": {
-    "lint:frontend": "make -C references/fixtures-vibes/ui/vibes lint",
-    "build:frontend": "make -C references/fixtures-vibes/ui/vibes build",
+    "lint:frontend": "make lint-frontend",
+    "build:frontend": "make build-frontend",
     "test:parity": "make fixtures-vibes"
   },
   "dependencies": {
